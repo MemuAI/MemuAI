@@ -44,6 +44,10 @@ _JAPANESE = re.compile(r"[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\u3005\u3006]+"
 _HAN = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]+")
 _HANGUL = re.compile(r"[\uac00-\ud7a3]+")
 _KANA = re.compile(r"[\u3040-\u30ff]")
+_JAPANESE_MARKS = "々ヶヵ〆ゝゞ"
+_JAPANESE_WORDS = ("何処", "此処", "其処", "貴方", "貴女", "僕達", "私達", "日本語", "東京都",
+                   "京都市", "大阪府", "北海道", "歌声", "恋心", "花火", "今宵", "幼馴染")
+_SIMPLIFIED_ONLY = "这说没们为么还过对爱现东门车书发见听风边汉远应点经业让开报号数产务饭铁钱钟请问刘马龙华云叶陈张万书"
 
 
 @lru_cache(maxsize=1)
@@ -52,13 +56,26 @@ def _kakasi():
     return kakasi()
 
 
+def detect_romanization_language(text: str) -> str:
+    """Use whole-song and metadata clues when kana is absent from an individual line."""
+    value = str(text or "")
+    if _KANA.search(value):
+        return "ja"
+    japanese = sum(value.count(mark) * 3 for mark in _JAPANESE_MARKS)
+    japanese += sum(2 for word in _JAPANESE_WORDS if word in value)
+    chinese = sum(value.count(char) for char in set(_SIMPLIFIED_ONLY))
+    if japanese >= 2 and japanese > chinese:
+        return "ja"
+    return "zh"
+
+
 def romanize_text(text: str, language: str = "auto") -> str:
     """Convert only CJK/Hangul spans, leaving other scripts and punctuation untouched."""
     if language not in ("auto", "ja", "zh", "ko"):
         raise ValueError("Unsupported romanization language")
     from korean_romanizer.romanizer import Romanizer
     from pypinyin import Style, lazy_pinyin
-    japanese = language == "ja" or (language == "auto" and bool(_KANA.search(text or "")))
+    japanese = language == "ja" or (language == "auto" and detect_romanization_language(text) == "ja")
 
     def japanese_reading(match: re.Match) -> str:
         original = match.group()
@@ -81,8 +98,12 @@ def romanize(lib: Library, track_id: str, language: str = "auto") -> Dict[str, A
         raise KeyError("Трек не найден / Track not found")
     row = lib.cached_lyrics(track_id) or {}
     synced = row.get("synced")
-    if language == "auto" and _KANA.search((row.get("plain") or "") + "\n" + "\n".join(str(r[1] or "") for r in synced or [])):
-        language = "ja"
+    if language == "auto":
+        track = lib.row(track_id) or {}
+        context = "\n".join(str(value or "") for value in (
+            track.get("title"), track.get("artist"), track.get("album"), track.get("album_artist"),
+            row.get("plain"), *(r[1] for r in synced or [])))
+        language = detect_romanization_language(context)
     converted = None
     if synced:
         converted = []
