@@ -19,6 +19,16 @@ class LyricsRegressionTest(unittest.TestCase):
     open_module = base.LiveLyricsTest.open_module
     play_with_lyrics = base.LiveLyricsTest.play_with_lyrics
 
+    def wait_offset(self, tid, expected):
+        deadline = time.monotonic() + 5
+        actual = None
+        while time.monotonic() < deadline:
+            actual = self.call('lyrics.get', {'id': tid})['offset']
+            if actual == expected:
+                return
+            time.sleep(.05)
+        self.assertEqual(actual, expected)
+
     def test_short_text_can_be_corrected_and_cleared(self):
         tid = self.ids['Alpha']
         self.call('lyrics.set', {'id': tid, 'text': 'f'})
@@ -56,12 +66,10 @@ class LyricsRegressionTest(unittest.TestCase):
             frame.evaluate('MemuMusic.Player.seek(2); MemuMusic.NP().syncLyrics(2,true)')
             self.assertEqual(frame.eval_on_selector('.mm-lyric.on > span', 'e => getComputedStyle(e).backgroundImage'), 'none')
             frame.click('#ly-bar [data-ly="off-reset"]')
-            time.sleep(.55)
-            self.assertEqual(self.call('lyrics.get', {'id': first})['offset'], 0)
+            self.wait_offset(first, 0)
             frame.click('#ly-bar [data-ly="off+"]')
             self.play_with_lyrics(frame, second, False)
-            time.sleep(.55)
-            self.assertEqual(self.call('lyrics.get', {'id': first})['offset'], .1)
+            self.wait_offset(first, .1)
             self.assertEqual(self.call('lyrics.get', {'id': second})['offset'], .7)
         finally:
             page.close()
