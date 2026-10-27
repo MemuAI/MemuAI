@@ -1,0 +1,28 @@
+.mm-ai-page { max-width: 1120px; margin: 0 auto; padding-bottom: 60px; }
+.mm-ai-page header { max-width: 680px; margin: 20px 0 28px; }
+.mm-ai-page header .mm-h1 { margin: 9px 0; }
+.mm-ai-eyebrow { display: inline-block; color: var(--tint-ink); font-size: 11px; font-weight: 750; letter-spacing: .1em; }
+.mm-ai-page header p, .mm-ai-dialog p { line-height: 1.55; }
+.mm-ai-controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; padding: 20px; border: 1px solid var(--mm-line); border-radius: 18px; background: var(--mm-panel); }
+.mm-ai-controls label, .mm-ai-picker > label { display: grid; gap: 8px; color: var(--mm-muted); font-size: 12px; font-weight: 650; }
+.mm-ai-controls label:nth-child(2) { flex: 1 1 260px; }
+.mm-ai-controls .mm-input { width: 100%; }
+.mm-ai-privacy { max-width: 800px; margin: 14px 0 24px; color: var(--mm-faint); font-size: 12px; line-height: 1.5; }
+.mm-ai-results > div { border-bottom: 1px solid var(--mm-line); }
+.mm-ai-reason { margin: -1px 20px 12px 80px; color: var(--mm-muted); font-size: 12px; line-height: 1.4; }
+.mm-ai-picker { max-width: 500px; padding: 10px 0 4px; }
+.mm-ai-picker details { position: relative; }
+.mm-ai-picker summary { cursor: pointer; padding: 12px 15px; border: 1px solid var(--mm-line); border-radius: 10px; background: var(--mm-panel); list-style: none; }
+.mm-ai-picker summary::after { content: '⌄'; float: right; color: var(--mm-muted); }
+.mm-ai-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 15; padding: 10px; border: 1px solid var(--mm-line); border-radius: 14px; background: var(--mm-surface); box-shadow: var(--mm-shadow); }
+.mm-ai-pop input { width: 100%; }
+.mm-ai-options { max-height: 240px; overflow: auto; margin-top: 6px; }
+.mm-ai-options button { display: grid; width: 100%; gap: 3px; text-align: left; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--mm-text); cursor: pointer; }
+.mm-ai-options button:hover, .mm-ai-options button:focus-visible { background: var(--mm-hover); }
+.mm-ai-options small { color: var(--mm-muted); }
+.mm-ai-dialog { display: grid; gap: 14px; }
+.mm-ai-dialog h3, .mm-ai-dialog p { margin: 0; }
+.mm-ai-dialog [data-ai-status] { display: grid; gap: 10px; }
+.mm-ai-dialog textarea.mm-ai-lyrics { width: 100%; min-height: 200px; resize: vertical; white-space: pre-wrap; user-select: text; }
+.mm-ai-dialog [data-source] { justify-self: start; }
+.mm-ai-error { color: var(--mm-danger); white-space: pre-wrap; overflow-wrap: anywhere; }

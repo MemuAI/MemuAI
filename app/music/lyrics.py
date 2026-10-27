@@ -19,6 +19,7 @@ import json
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
+from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .library import Library
@@ -38,6 +39,61 @@ _STAMP = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]")
 _WORD = re.compile(r"<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>")
 _TAIL = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]\s*$")
 _OFFSET = re.compile(r"^\s*\[offset:\s*([+-]?\d+)\s*\]", re.I | re.M)
+
+_JAPANESE = re.compile(r"[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\u3005\u3006]+")
+_HAN = re.compile(r"[\u3400-\u9fff\uf900-\ufaff]+")
+_HANGUL = re.compile(r"[\uac00-\ud7a3]+")
+_KANA = re.compile(r"[\u3040-\u30ff]")
+
+
+@lru_cache(maxsize=1)
+def _kakasi():
+    from pykakasi import kakasi
+    return kakasi()
+
+
+def romanize_text(text: str, language: str = "auto") -> str:
+    """Convert only CJK/Hangul spans, leaving other scripts and punctuation untouched."""
+    if language not in ("auto", "ja", "zh", "ko"):
+        raise ValueError("Unsupported romanization language")
+    from korean_romanizer.romanizer import Romanizer
+    from pypinyin import Style, lazy_pinyin
+    japanese = language == "ja" or (language == "auto" and bool(_KANA.search(text or "")))
+
+    def japanese_reading(match: re.Match) -> str:
+        original = match.group()
+        parts = _kakasi().convert(original)
+        if "".join(part["orig"] for part in parts) != original or any(not part["hepburn"] for part in parts):
+            return original
+        return " ".join(part["hepburn"] for part in parts)
+
+    def line(value: str) -> str:
+        value = _HANGUL.sub(lambda m: Romanizer(m.group()).romanize(), value)
+        if japanese:
+            return _JAPANESE.sub(japanese_reading, value)
+        return _HAN.sub(lambda m: " ".join(lazy_pinyin(m.group(), style=Style.NORMAL)), value)
+
+    return "\n".join(line(s) for s in (text or "").split("\n"))
+
+
+def romanize(lib: Library, track_id: str, language: str = "auto") -> Dict[str, Any]:
+    if not lib.row(track_id):
+        raise KeyError("Трек не найден / Track not found")
+    row = lib.cached_lyrics(track_id) or {}
+    synced = row.get("synced")
+    if language == "auto" and _KANA.search((row.get("plain") or "") + "\n" + "\n".join(str(r[1] or "") for r in synced or [])):
+        language = "ja"
+    converted = None
+    if synced:
+        converted = []
+        for original in synced:
+            item = list(original)
+            item[1] = romanize_text(str(item[1] or ""), language)
+            # A reading can change word boundaries; retain line/end timing without inventing word timing.
+            if len(item) > 2:
+                item[2] = None
+            converted.append(item)
+    return {"synced": converted, "plain": romanize_text(row.get("plain") or "", language)}
 
 _CREDIT = re.compile(r"^\s*(作词|作曲|编曲|制作人|制作|混音|母带|和声|吉他|贝斯|鼓|监制|出品|录音|词|曲|"
                      r"lyrics by|lyricist|composed by|composer|produced by|producer|arranged by|written by|mixed by|"

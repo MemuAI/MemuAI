@@ -3,7 +3,7 @@
 const NP = (() => {
   const el = $("#np");
   let bg = null, viz = null, lyrics = null, lyricIdx = -2, lyricToken = 0, manual = 0, manualTimer = 0, tab = "lyrics", closing = 0;
-  let wordIdx = -1, tapSync = false, editing = false;
+  let wordIdx = -1, tapSync = false, editing = false, roman = false, romanToken = 0;
   const offsetTimers = new Map();
 
   let timing = null, lineNodes = [], gapNodes = new Map(), wordSpans = [], gapKey = "", gapEnd = false, syncShown = "";
@@ -127,11 +127,42 @@ const NP = (() => {
     if (force && !lyrics.synced && !lyrics.plain) toast(t("lyrics.not_found"));
   }
   function setLyrics(id, res) {
+    ++romanToken;
     lyrics = { id, synced: res && Array.isArray(res.synced) && res.synced.length ? res.synced : null, plain: res && res.plain,
       state: res && res.instrumental ? "instrumental" : res && res.auto_off ? "off" : "none", source: (res && res.source) || "",
       name: res && res.source === "manual" ? t("lyrics.mine") : (res && res.source_name) || "", offset: +(res && res.offset) || 0, alts: (res && res.alts) || [], choice: (res && res.choice) || 0,
       durDiff: +(res && res.duration_diff) || 0 };
+    lyrics.original = { synced: lyrics.synced, plain: lyrics.plain };
     if (!editing) renderLyrics();
+    if (roman && hasRomanizable(lyrics)) applyRoman();
+  }
+
+  async function applyRoman() {
+    const current = lyrics, token = ++romanToken;
+    if (!current) return;
+    if (!roman) { current.synced = current.original.synced; current.plain = current.original.plain; renderLyrics(true); refreshRomanBar(); return; }
+    try {
+      const res = await API.call("lyrics.romanize", { id: current.id, language: "auto" });
+      if (token !== romanToken || lyrics !== current || !roman) return;
+      current.synced = res.synced; current.plain = res.plain; renderLyrics(true); refreshRomanBar();
+    } catch (error) {
+      if (token === romanToken && lyrics === current) {
+        roman = false; current.synced = current.original.synced; current.plain = current.original.plain;
+        renderLyrics(true); refreshRomanBar(); toast(t("lyrics.roman_error") + ": " + String(error.message || error));
+      }
+    }
+  }
+
+  function refreshRomanBar() {
+    const bar = $("#ly-bar"), button = $("[data-ly=roman]", bar), label = $(".mm-ly-src em", bar);
+    if (button) button.setAttribute("aria-pressed", String(roman));
+    if (!roman) $("[data-lylang]", bar)?.remove();
+    if (label && lyrics) label.textContent = lyrics.synced ? (lyrics.synced.some((r) => r[2]) ? t("lyrics.words") : t("lyrics.synced")) : t("lyrics.plain");
+  }
+
+  function hasRomanizable(value) {
+    const original = value && (value.original || value);
+    return !!original && /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7a3]/.test((original.plain || "") + "\n" + (original.synced || []).map(row => row[1] || "").join("\n"));
   }
 
   function renderBar() {
@@ -141,9 +172,10 @@ const NP = (() => {
     const kind = lyrics.synced ? (lyrics.synced.some((r) => r[2]) ? t("lyrics.words") : t("lyrics.synced")) : t("lyrics.plain");
     const off = lyrics.offset;
     const offText = (off > 0 ? "+" : "") + off.toLocaleString(Memu.lang === "en" ? "en-US" : "ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
-    bar.innerHTML = `<button type="button" class="mm-ly-src" data-ly="alts" aria-haspopup="menu" title="${esc(t("lyrics.variants"))}"><span>${esc(lyrics.name || lyrics.source || "—")}</span><em>${esc(kind)}</em>${lyrics.alts.length > 1 ? `<svg><use href="#i-down"/></svg>` : ""}</button>
+    bar.innerHTML = `<button type="button" class="mm-ly-src" data-ly="alts" aria-haspopup="menu" title="${esc(t("lyrics.variants"))}"><span>${esc(lyrics.name || lyrics.source || "—")}</span><em>${esc(kind)}</em><svg><use href="#i-down"/></svg></button>
       ${lyrics.synced ? `<span class="mm-ly-off" role="group" aria-label="${esc(t("lyrics.offset"))}"><button type="button" data-ly="off-" title="${esc(t("lyrics.earlier"))}" aria-keyshortcuts="[">−</button><button type="button" class="mm-ly-reset" data-ly="off-reset" title="${esc(t("lyrics.offset_reset"))}" aria-label="${esc(t("lyrics.offset_reset"))}">${offText} ${esc(t("lyrics.sec"))}</button><button type="button" data-ly="off+" title="${esc(t("lyrics.later"))}" aria-keyshortcuts="]">+</button></span>` : ""}
       ${lyrics.synced && syncMode() !== "off" ? `<button type="button" class="mm-ly-sync" data-ly="sync" aria-pressed="${syncMode() === "line"}" title="${esc(t(syncMode() === "line" ? "lyrics.switch_chars" : "lyrics.switch_lines"))}">${icon("lyrics")}<span>${esc(t(syncMode() === "line" ? "lyrics.mode_lines" : "lyrics.mode_chars"))}</span></button>` : ""}
+      ${hasRomanizable(lyrics) ? `<button type="button" class="mm-ly-sync" data-ly="roman" aria-pressed="${roman}" title="${esc(t("lyrics.roman_hint"))}">Aa <span>${esc(t("lyrics.roman"))}</span></button>` : ""}
       ${lyrics.synced ? `<button type="button" class="mm-ly-tap${tapSync ? " on" : ""}" data-ly="tap" aria-pressed="${tapSync}" title="${esc(t("lyrics.tap_hint"))}">${icon("target")}<span>${esc(tapSync ? t("lyrics.tap_now") : t("lyrics.tap"))}</span></button>` : ""}
       <span class="mm-grow"></span>
       ${lyrics.synced && lyrics.durDiff > 2 ? `<span class="mm-ly-warn" title="${esc(t("lyrics.dur_hint", { n: Math.round(lyrics.durDiff) }))}">${esc(t("lyrics.dur", { n: Math.round(lyrics.durDiff) }))}</span>` : ""}
@@ -154,18 +186,23 @@ const NP = (() => {
   function altsMenu() {
     const bar = $("#ly-bar"), old = $(".mm-ly-alts", bar);
     if (old) { old.remove(); return; }
-    if (!lyrics || lyrics.alts.length < 2) return;
+    if (!lyrics) return;
     const menu = document.createElement("div");
     menu.className = "mm-ly-alts"; menu.setAttribute("role", "menu");
-    menu.innerHTML = lyrics.alts.map((a) => `<button type="button" role="menuitemradio" aria-checked="${a.index === lyrics.choice}" data-ly="pick" data-i="${a.index}">
+    menu.innerHTML = (lyrics.alts.length ? lyrics.alts.map((a) => `<button type="button" role="menuitemradio" aria-checked="${a.index === lyrics.choice && lyrics.source !== "manual"}" data-ly="pick" data-i="${a.index}">
       <b>${esc(a.name)}</b><span>${esc(a.synced ? (a.words ? t("lyrics.words") : t("lyrics.synced")) : t("lyrics.plain"))}${a.duration ? " · " + fmtTime(a.duration) : ""} · ${esc(t("lyrics.lines", { n: a.lines }))}</span>
-      <small>${esc([a.artist, a.title].filter(Boolean).join(" — "))}</small></button>`).join("");
+      <small>${esc([a.artist, a.title].filter(Boolean).join(" — "))}</small></button>`).join("") : `<span class="mm-ly-alts-empty">${esc(t("lyrics.no_variants"))}</span>`) + `<button type="button" data-ly="find">${icon("search")} ${esc(t("lyrics.find"))}</button>${typeof MusicAI !== "undefined" ? `<button type="button" data-ly="ai">${icon("sparkle")} ${esc(t("lyrics.ai_find"))}</button>` : ""}`;
     bar.appendChild(menu);
+    const outside = (e) => { if (!bar.contains(e.target)) { menu.remove(); document.removeEventListener("pointerdown", outside, true); } };
+    setTimeout(() => document.addEventListener("pointerdown", outside, true), 0);
   }
   async function choose(args) {
     const tr = Player.current(); if (!tr || !lyrics) return;
-    const res = await API.soft("lyrics.choose", { id: tr.id, ...args }, null);
-    if (res && lyrics.id === tr.id) setLyrics(tr.id, res);
+    const token = ++lyricToken;
+    try {
+      const res = await API.call("lyrics.choose", { id: tr.id, ...args });
+      if (token === lyricToken && Player.current()?.id === tr.id && lyrics?.id === tr.id) setLyrics(tr.id, res);
+    } catch (error) { toast(String(error.message || error)); }
   }
 
   function nudge(delta, say) {
@@ -207,10 +244,10 @@ const NP = (() => {
       return `<button type="button" class="mm-lyric${words ? " words" : ""}" data-l="${ln.row}" data-t="${row[0]}"><span>${lineHtml(row, !words)}</span></button>${gapAfter.has(i) ? gapHtml(i) : ""}`;
     }).join("");
   }
-  function renderLyrics() {
+  function renderLyrics(preserveBar = false) {
     const box = $("#lyrics-inner");
     if (!lyrics || editing) return;
-    renderBar();
+    if (!preserveBar) renderBar();
     const mode = syncShown = syncMode();
 
     $("#lyrics").classList.toggle("static", (!lyrics.synced && lyrics.state !== "loading") || (!!lyrics.synced && mode === "off"));
@@ -233,7 +270,7 @@ const NP = (() => {
         <span class="mm-lyrics-badge" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-${kind === "instrumental" ? "wave" : "lyrics"}"/></svg></span>
         <b>${esc(t("lyrics." + kind))}</b><span>${esc(t("lyrics." + kind + "_hint"))}</span>
         <div class="mm-lyrics-acts"><button type="button" class="mm-chip glass" data-ly="find"><svg><use href="#i-search"/></svg>${esc(t("lyrics.find"))}</button>
-        <button type="button" class="mm-chip glass" data-ly="paste"><svg><use href="#i-plus"/></svg>${esc(t("lyrics.paste"))}</button></div></div>`;
+        <button type="button" class="mm-chip glass" data-ly="paste"><svg><use href="#i-plus"/></svg>${esc(t("lyrics.paste"))}</button>${typeof MusicAI !== "undefined" ? `<button type="button" class="mm-chip glass" data-ly="ai">${esc(t("lyrics.ai_find"))}</button>` : ""}</div></div>`;
     }
   }
 
@@ -254,8 +291,9 @@ const NP = (() => {
   }
   function editText() {
     if (!lyrics) return "";
-    if (lyrics.synced) return lrcText(lyrics.synced);
-    return lyrics.plain || "";
+    const original = lyrics.original || lyrics;
+    if (original.synced) return lrcText(original.synced);
+    return original.plain || "";
   }
 
   function parseLrc(text) {
@@ -346,6 +384,7 @@ const NP = (() => {
       else if (ly.dataset.ly === "cancel") { editing = false; if (lyrics?.state === "loading" && tr) loadLyrics(tr); else renderLyrics(); }
       else if (ly.dataset.ly === "save") savePasted($(".mm-lyrics-paste textarea").value);
       else if (ly.dataset.ly === "end") insertLineEnd($(".mm-lyrics-paste textarea"), Math.max(0, lyricClock(Player.times().cur)));
+      else if (ly.dataset.ly === "ai" && tr && typeof MusicAI !== "undefined") MusicAI.lyrics(tr, res => { if (Player.current()?.id === tr.id) setLyrics(tr.id, res); });
       return;
     }
     const b = e.target.closest(".mm-lyric"); if (!b) return;
@@ -367,6 +406,8 @@ const NP = (() => {
     else if (kind === "off-" || kind === "off+") nudge((kind === "off-" ? -1 : 1) * (e.shiftKey ? .5 : .1));
     else if (kind === "off-reset") setOffset(0);
     else if (kind === "sync") Cfg.set({ lyrics_sync: syncMode() === "line" ? "smart" : "line" }).then(ok => { if (ok) renderLyrics(); else toast(t("error.save")); });
+    else if (kind === "roman") { roman = !roman; renderBar(); applyRoman(); }
+    else if (kind === "ai" && typeof MusicAI !== "undefined") { const tr = Player.current(); if (tr) MusicAI.lyrics(tr, res => { if (Player.current()?.id === tr.id) setLyrics(tr.id, res); }); }
     else if (kind === "find") { const tr = Player.current(); if (tr) loadLyrics(tr, true); }
     else if (kind === "tap") { tapSync = !tapSync; renderBar(); if (tapSync) toast(t("lyrics.tap_hint")); }
     else if (kind === "edit") pasteForm(editText());
@@ -411,6 +452,58 @@ const NP = (() => {
   function reloadLyrics(id) { const tr = Player.current(); if (tr && tr.id === id && !el.hidden) loadLyrics(tr); }
   return { open, close, isOpen, setColors, applyCalm, restyle, onState, onTrack, syncLyrics, nudge, onSleep, relabel, reloadLyrics, tab: () => tab };
 })();
+
+async function lyricsClipboardRead() {
+  try { if (navigator.clipboard?.readText) return await navigator.clipboard.readText(); } catch (_) {}
+  if (typeof Memu !== "undefined" && typeof Memu.paste === "function") return await Memu.paste();
+  throw new Error("clipboard unavailable");
+}
+async function lyricsClipboardWrite(value) {
+  try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(value); return; } } catch (_) {}
+  if (typeof Memu !== "undefined" && typeof Memu.copy === "function") { await Memu.copy(value); return; }
+  throw new Error("clipboard unavailable");
+}
+
+// WebView2 disables its native menu in production. Keep editing commands available there too.
+document.addEventListener("contextmenu", (event) => {
+  const area = event.target.closest?.(".mm-lyrics-paste textarea, .mm-ed-lyrics");
+  if (!area) return;
+  event.preventDefault();
+  document.querySelector(".mm-ly-edit-menu")?.remove();
+  const start = area.selectionStart, end = area.selectionEnd;
+  const menu = document.createElement("div");
+  menu.className = "mm-ly-edit-menu";
+  menu.setAttribute("role", "menu");
+  menu.innerHTML = [["undo", "lyrics.undo"], ["redo", "lyrics.redo"], ["cut", "lyrics.cut"], ["copy", "lyrics.copy"], ["paste", "lyrics.clip_paste"], ["select", "lyrics.select_all"]].map(([action, label]) => `<button type="button" role="menuitem" data-action="${action}">${esc(t(label))}</button>`).join("");
+  document.body.appendChild(menu);
+  menu.style.left = Math.max(8, Math.min(innerWidth - menu.offsetWidth - 8, event.clientX)) + "px";
+  menu.style.top = Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8, event.clientY)) + "px";
+  const close = () => { menu.remove(); document.removeEventListener("pointerdown", outside, true); document.removeEventListener("keydown", key, true); };
+  const outside = (e) => { if (!menu.contains(e.target)) close(); };
+  const key = (e) => { if (e.key === "Escape") { close(); area.focus(); } };
+  menu.addEventListener("click", async (e) => {
+    const action = e.target.closest("[data-action]")?.dataset.action;
+    if (!action) return;
+    close(); area.focus(); area.setSelectionRange(start, end);
+    if (action === "select") { area.select(); return; }
+    if (action === "undo" || action === "redo") { document.execCommand(action); return; }
+    if (action === "paste") {
+      try {
+        const value = await lyricsClipboardRead();
+        area.focus(); area.setSelectionRange(start, end);
+        if (!document.execCommand("insertText", false, value)) { area.setRangeText(value, start, end, "end"); area.dispatchEvent(new Event("input", { bubbles: true })); }
+      } catch { toast(t("lyrics.paste_shortcut")); }
+      return;
+    }
+    if (start === end) return;
+    try {
+      await lyricsClipboardWrite(area.value.slice(start, end));
+      if (action === "cut") { area.focus(); area.setSelectionRange(start, end); document.execCommand("insertText", false, ""); }
+    } catch { area.focus(); area.setSelectionRange(start, end); if (!document.execCommand(action)) toast(t("lyrics.clip_error")); }
+  });
+  document.addEventListener("pointerdown", outside, true);
+  document.addEventListener("keydown", key, true);
+});
 
 function queueHtml() {
   const cur = Player.current(), up = Player.upcoming();

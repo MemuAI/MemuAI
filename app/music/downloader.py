@@ -184,6 +184,9 @@ def friendly_error(text: str) -> str:
                 "MemuMusic settings («Cookies from browser») and/or update the downloader (yt-dlp); turning a VPN off helps too")
     elif "video unavailable" in low or "private video" in low or "404" in low:
         hint = "Трек недоступен или удалён / The track is unavailable or removed"
+    elif any(word in low for word in ("login required", "login is required", "sign in", "authentication", "403 forbidden", "http error 401")):
+        hint = ("Сайт ограничивает доступ: проверьте ссылку и доступ к публикации; при необходимости выберите cookies браузера в настройках / "
+                "The site restricts access: check the link and post visibility; select browser cookies in settings if needed")
     elif "unsupported url" in low:
         hint = "Этот сайт не поддерживается / This site is not supported"
     elif "requested format is not available" in low:

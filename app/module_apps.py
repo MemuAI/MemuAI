@@ -643,6 +643,8 @@ class ModuleWindows:
             options = dict(width=int(width), height=int(height), min_size=WINDOW_MIN, resizable=True,
                            frameless=False, easy_drag=False, hidden=True,
                            background_color="#1a1a1c" if dark else "#fcfcfb")
+            if module_id == "music":
+                options["text_select"] = True
 
             controller = None
             if module_appbar.enabled(load_store(self.root), module_id):

@@ -87,7 +87,8 @@ const Player = (() => {
     seekOnLoad.delete(audio);
     if (preloaded && decks[preloaded.deck] === audio && preloaded.id !== track.id) preloaded = null;
     setNorm(audio, track);
-    const url = await API.call("stream_url", { id: track.id });
+    const url = track.online_url ? (track._online_stream || (await API.call("online.stream", { url: track.online_url })).url) : await API.call("stream_url", { id: track.id });
+    if (track.online_url) delete track._online_stream;
     audio.src = typeof url === "string" ? url : (url && url.url) || "";
     audio.playbackRate = st.speed; audio.preservesPitch = true;
   }
@@ -292,7 +293,7 @@ const Player = (() => {
       const t = times();
       emit("tick", t);
       const track = current();
-      if (track && playedReported !== track.id && t.cur > Math.min(30, t.dur * .5)) { playedReported = track.id; API.soft("library.played", { id: track.id, seconds: Math.round(t.cur) }); }
+      if (track && !track.online_url && playedReported !== track.id && t.cur > Math.min(30, t.dur * .5)) { playedReported = track.id; API.soft("library.played", { id: track.id, seconds: Math.round(t.cur) }); }
       if (st.ab && st.ab.b != null && t.cur >= st.ab.b) { audio.currentTime = st.ab.a; return; }
       if (track && opts.resume && isLong(track) && Math.abs(t.cur - resumeSaved) >= 15) {
         resumeSaved = t.cur; track.resume_at = t.cur; API.soft("library.resume", { id: track.id, position: Math.floor(t.cur) });

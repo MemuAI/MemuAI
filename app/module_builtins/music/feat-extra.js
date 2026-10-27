@@ -171,7 +171,7 @@ VIEWS.dupes = async (el) => {
 (function addSearchNav() {
   const nav = $("#nav"), home = nav && nav.querySelector('[data-go="home"]');
   if (!home || nav.querySelector('[data-go="search"]')) return;
-  home.insertAdjacentHTML("afterend", `<button type="button" data-go="search">${icon("search")}<span>${esc(t("gsearch.title"))}</span></button>`);
+  home.insertAdjacentHTML("afterend", `<button type="button" data-go="search">${icon("search")}<span data-i18n="gsearch.title">${esc(t("gsearch.title"))}</span></button>`);
 })();
 
 window.MemuMusicFeat = { Cfg, Sel, editTracks, editPlaylist, smartBuilder, smartManager, deleteTracks, startRadio, libraryChanged, playlistPicker };

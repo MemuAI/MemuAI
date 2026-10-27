@@ -111,7 +111,7 @@ You usually only need to set up Proxy once. After that, its models become availa
   - Model Catalog: a list of AI models sourced from OpenRouter.
   - New API Models: notifications about new models through OpenRouter, with support for the OpenAI, Gemini, Anthropic, xAI, Mistral, Groq, DeepSeek APIs, and many others.
   - Characters: an alternative to character.ai and, in particular, SillyTavern, with PNG and JSON character imports, lorebook support, an attractive interface, and convenient settings.
-  - MemuMusic: the only module without AI features. It's a separate music app with a pleasant interface, support for adding tracks from YouTube, SoundCloud, or local files, and synchronization with the Telegram Mini App.
+  - MemuMusic: a music library and player with link downloads, local files, lyrics, and Telegram Mini App synchronization. The built-in module offers AI lyrics search and optional recommendations, with separate model choices in settings. The standalone MemuMusic app works independently and has no AI features.
   - MemuLearn: an AI academy for building courses from books or topics, with lesson notes, exams, and FSRS-5 flashcards.
   - MemuDB: a local SQLite and DuckDB database workbench with table browsing, a SQL editor, and safe AI change previews.
   - Anyone can create their own modules and share them with others.

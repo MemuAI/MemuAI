@@ -103,6 +103,8 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang
     if op == "lyrics.choose":
         return lyrics.choose(lib, str(args.get("id", "")), None if args.get("index") is None else int(args["index"]),
                              1 if args.get("next") else 0)
+    if op == "lyrics.romanize":
+        return lyrics.romanize(lib, str(args.get("id", "")), str(args.get("language") or "auto"))
     if op == "lyrics.offset":
         return lyrics.set_offset(lib, str(args.get("id", "")), float(args.get("offset") or 0))
     if op == "lyrics.set":
@@ -270,6 +272,9 @@ def _extra_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
     return _NO_OP
 
 def _online_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
+    if op == "online.stream":
+        from . import online_audio
+        return online_audio.resolve(str(args.get("url") or ""), base, "/api/pg/music/online-audio")
     def thumbs(item: Dict[str, Any]) -> Dict[str, Any]:
         if args.get("proxy_thumbs", True):
             for key in ("thumb", "cover"):
@@ -293,7 +298,7 @@ OPS = ("library.list", "library.get", "library.update", "library.delete", "libra
        "library.stats", "library.history", "artists.list", "albums.list", "artist.get", "album.get", "playlists.list",
        "playlist.get", "playlist.create", "playlist.update", "playlist.delete", "detect", "download.start",
        "download.jobs", "download.cancel", "download.retry", "download.clear", "import.folder", "search.online",
-       "lyrics.get", "lyrics.set", "lyrics.choose", "lyrics.offset", "settings.get", "settings.set", "tools.status", "tools.update", "stream_url", "cover_url",
+       "lyrics.get", "lyrics.set", "lyrics.choose", "lyrics.romanize", "lyrics.offset", "settings.get", "settings.set", "tools.status", "tools.update", "stream_url", "cover_url",
        "player.state", "player.update", "player.command", "player.wait",
 
        "library.update_many", "library.genres", "library.folders", "library.duplicates", "library.radio", "library.reveal",
@@ -301,7 +306,7 @@ OPS = ("library.list", "library.get", "library.update", "library.delete", "libra
        "playlist.cover", "playlist.preview", "playlist.export", "playlist.import", "playlist.save_online")
 R39_OPS = ("artist.rename", "artist.image", "artist.image_search", "artist.image_auto", "artist.bio", "album.update",
            "playlist.reorder", "playlists.reorder")
-R41_OPS = ("online.search", "online.details", "online.related", "online.lyrics")
+R41_OPS = ("online.search", "online.details", "online.related", "online.lyrics", "online.stream")
 OPS = OPS + R39_OPS + R41_OPS
 
 async def call_async(op: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
@@ -391,7 +396,7 @@ def cors_headers(preflight: bool = False) -> Dict[str, str]:
 
 def is_public_media_path(path: str) -> bool:
     """Paths the playground boundary lets through cross-site: they check their own HMAC token."""
-    return bool(re.match(r"^/api/pg/music/(stream|cover)/[a-f0-9]{12}$", path or "")) or path == "/api/pg/music/thumb"
+    return bool(re.match(r"^/api/pg/music/(stream|cover)/[a-f0-9]{12}$", path or "")) or bool(re.match(r"^/api/pg/music/online-audio/[A-Za-z0-9_-]+$", path or "")) or path == "/api/pg/music/thumb"
 
 def csp_sources() -> str:
     """Extra CSP sources for a module with the ``music`` permission (stream + cover URLs)."""
@@ -446,9 +451,19 @@ def register(app, *, allowed: Optional[Callable[[str, str], bool]] = module_allo
         from fastapi.responses import Response
         return Response(status_code=204, headers=cors_headers(preflight=True))
 
+    @app.options("/api/pg/music/online-audio/{token}")
+    async def music_online_audio_preflight(token: str):
+        from fastapi.responses import Response
+        return Response(status_code=204, headers=cors_headers(preflight=True))
+
     @app.api_route("/api/pg/music/stream/{track_id}", methods=["GET", "HEAD"])
     async def music_stream(track_id: str, request: Request, t: str = ""):
         return await asyncio.to_thread(stream_track, track_id, t, request.headers.get("range", ""))
+
+    @app.api_route("/api/pg/music/online-audio/{token}", methods=["GET", "HEAD"])
+    async def music_online_audio(token: str, request: Request):
+        from . import online_audio
+        return await online_audio.stream(token, request, cors=True)
 
     @app.api_route("/api/pg/music/cover/{track_id}", methods=["GET", "HEAD"])
     async def music_cover(track_id: str, t: str = ""):

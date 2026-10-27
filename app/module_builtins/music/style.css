@@ -503,7 +503,7 @@ html[data-calm] .mm-lyric.on > span, html[data-calm] .mm-lyric.on.words .w { bac
 .mm-ly-gap.on.end { opacity: 0; transform: scale(1.3); transition: opacity .35s ease-in, transform .5s cubic-bezier(.3,1.5,.6,1); }
 @keyframes mm-ly-breathe { 0%, 100% { scale: 1; } 50% { scale: 1.14; } }
 html[data-calm] .mm-ly-gap.on { animation: none; }
-.mm-ly-bar { position: relative; display: flex; flex-wrap: wrap; flex-shrink: 0; align-items: center; gap: 6px; min-height: 28px; margin: -4px 0 8px; font-size: 12px; color: rgb(var(--np-ink) / .55); }
+.mm-ly-bar { position: relative; z-index: 3; display: flex; flex-wrap: wrap; flex-shrink: 0; align-items: center; gap: 6px; min-height: 28px; margin: -4px 0 8px; font-size: 12px; color: rgb(var(--np-ink) / .55); }
 .mm-ly-bar[hidden] { display: none; }
 .mm-ly-bar button { color: inherit; border-radius: 8px; padding: 4px 8px; transition: color .2s, background-color .2s; }
 .mm-ly-bar button:hover { color: rgb(var(--np-ink)); background: rgb(var(--np-ink) / .08); }
@@ -531,6 +531,12 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-ly-alts button[aria-checked="true"] { background: rgb(var(--np-ink) / .1); }
 .mm-ly-alts b { font-size: 13px; color: rgb(var(--np-ink)); }
 .mm-ly-alts small { opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-ly-alts-empty { padding: 10px; }
+.mm-ly-language { max-width: 110px; padding: 4px; border: 1px solid rgb(var(--np-ink) / .22); border-radius: 8px; color: rgb(var(--np-ink)); background: rgb(var(--np-paper)); font: inherit; }
+.mm-ly-edit-menu { position: fixed; z-index: 100; min-width: 180px; padding: 5px; display: grid; border-radius: 12px; background: var(--mm-bg); border: 1px solid var(--mm-line); box-shadow: 0 12px 32px #0006; }
+.mm-ly-edit-menu button { color: var(--mm-text); background: transparent; border: 0; border-radius: 7px; text-align: left; padding: 8px 12px; font: inherit; }
+.mm-ly-edit-menu button:hover, .mm-ly-edit-menu button:focus-visible { background: var(--mm-hover); }
+.mm-lyrics-paste textarea, .mm-ed-lyrics { user-select: text; -webkit-user-select: text; cursor: text; }
 .mm-lyrics-inner > .mm-lyric:first-child { margin-top: 2px; }
 .mm-lyrics-inner > .mm-lyric:last-child { margin-bottom: 40vh; }
 .mm-lyric-skel { height: 26px; margin: 14px 0; border-radius: calc(10px * var(--mm-rk)); }
@@ -999,3 +1005,4 @@ html[data-mm-design="compact"] .mm-quick-item b { -webkit-line-clamp: 1; }
 .mm-seek-row .mm-time { line-height: 16px; }
 @media (min-width: 861px) { .mm-bar-center { align-self: stretch; align-content: end; padding-bottom: round(down, (var(--mm-bar) - 61px) / 2, 1px); } }
 .mm-dl-field input, .mm-input { text-overflow: ellipsis; }
+/* @memu-part:feat-ai.css */

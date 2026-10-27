@@ -154,6 +154,19 @@ const SOURCES = {
   local: { name: "Компьютер", name_en: "This computer", color: "#6b6b7b", icon: '<rect x="3.5" y="5" width="17" height="11" rx="2"/><path d="M8.5 19.5h7M12 16v3.5"/>' },
   web: { name: "Ссылка", name_en: "Link", color: "#64748b", icon: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>' },
 };
+for (const [id, name, color, letter] of [
+  ["twitter", "X / Twitter", "#171717", "X"], ["instagram", "Instagram", "#c13584", "I"],
+  ["threads", "Threads", "#171717", "@"], ["facebook", "Facebook", "#1877f2", "f"],
+  ["reddit", "Reddit", "#ff4500", "R"], ["bluesky", "Bluesky", "#1185fe", "B"],
+  ["bilibili", "Bilibili", "#00a1d6", "b"], ["archive", "Internet Archive", "#504a40", "A"],
+  ["hearthis", "hearthis.at", "#eb4256", "h"], ["dropbox", "Dropbox", "#0061ff", "D"],
+  ["dzen", "Дзен", "#29292d", "Д"], ["tiktok", "TikTok", "#1b1b1d", "♪"],
+  ["audiomack", "Audiomack", "#ffb000", "A"], ["dailymotion", "Dailymotion", "#0066dc", "d"],
+  ["rutube", "RUTUBE", "#202020", "R"], ["odnoklassniki", "OK", "#ee8208", "OK"],
+  ["amazon", "Amazon Music", "#00a8e1", "a"], ["qobuz", "Qobuz", "#1466b8", "Q"],
+  ["napster", "Napster", "#1844b6", "N"], ["pandora", "Pandora", "#2258db", "P"],
+  ["boomplay", "Boomplay", "#ee5d2a", "B"], ["anghami", "Anghami", "#953cce", "A"], ["zvuk", "Звук", "#ea385a", "З"]
+]) SOURCES[id] = { name, color, icon: `<text x="12" y="16.5" text-anchor="middle" fill="currentColor" stroke="none" font-size="13" font-weight="700">${letter}</text>` };
 function sourceInfo(id) { return SOURCES[id] || SOURCES.web; }
 function sourceName(id) { const s = sourceInfo(id); return (Memu.lang === "en" && s.name_en) || s.name; }
 function sourceIcon(id, cls) {
@@ -162,17 +175,25 @@ function sourceIcon(id, cls) {
 }
 
 const DETECT_RULES = [
-  [/music\.youtube\.com/i, "ytmusic"], [/(youtube\.com|youtu\.be)/i, "youtube"], [/spotify\.(com|link)|spoti\.fi/i, "spotify"],
-  [/music\.apple\.com|itunes\.apple\.com/i, "apple"], [/soundcloud\.com|snd\.sc/i, "soundcloud"], [/deezer\.(com|page\.link)/i, "deezer"],
-  [/music\.yandex\.|yandex\.[a-z]+\/music/i, "yandex"], [/(vk\.com|vk\.ru|vkvideo\.ru).*(audio|music|playlist)|boom\.ru/i, "vk"],
-  [/bandcamp\.com/i, "bandcamp"], [/tidal\.com/i, "tidal"], [/twitch\.tv/i, "twitch"], [/vimeo\.com/i, "vimeo"], [/mixcloud\.com/i, "mixcloud"],
+  [/^music\.youtube\.com$/i, "ytmusic"], [/(^|\.)(youtube\.com|youtube-nocookie\.com|youtu\.be)$/i, "youtube"], [/(^|\.)(spotify\.com|spotify\.link|spoti\.fi)$/i, "spotify"],
+  [/(^|\.)(music\.apple\.com|itunes\.apple\.com)$/i, "apple"], [/(^|\.)soundcloud\.com$/i, "soundcloud"], [/(^|\.)(deezer\.com|deezer\.page\.link|dzr\.page\.link)$/i, "deezer"],
+  [/^music\.yandex\.|^music\.ya\.ru$/i, "yandex"], [/(^|\.)(vk\.com|vk\.ru|vkvideo\.ru)$/i, "vk"],
+  [/(^|\.)bandcamp\.com$/i, "bandcamp"], [/(^|\.)tidal\.com$/i, "tidal"], [/(^|\.)twitch\.tv$/i, "twitch"], [/(^|\.)vimeo\.com$/i, "vimeo"], [/(^|\.)mixcloud\.com$/i, "mixcloud"],
+  [/(^|\.)(twitter\.com|x\.com)$/i, "twitter"], [/(^|\.)instagram\.com$/i, "instagram"], [/(^|\.)threads\.(net|com)$/i, "threads"],
+  [/(^|\.)(facebook\.com|fb\.watch)$/i, "facebook"], [/(^|\.)(reddit\.com|redd\.it)$/i, "reddit"],
+  [/(^|\.)bsky\.app$/i, "bluesky"], [/(^|\.)(bilibili\.com|b23\.tv)$/i, "bilibili"], [/(^|\.)archive\.org$/i, "archive"],
+  [/(^|\.)hearthis\.at$/i, "hearthis"], [/(^|\.)dropbox\.com$/i, "dropbox"], [/(^|\.)dzen\.ru$/i, "dzen"],
+  [/(^|\.)tiktok\.com$/i, "tiktok"], [/(^|\.)audiomack\.com$/i, "audiomack"], [/(^|\.)dailymotion\.com$/i, "dailymotion"],
+  [/(^|\.)rutube\.ru$/i, "rutube"], [/(^|\.)ok\.ru$/i, "odnoklassniki"],
 ];
 
 function detectLocal(text) {
   const url = String(text || "").trim();
   if (!/^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/|$|\?)/i.test(url)) return null;
   let source = "web";
-  for (const [re, id] of DETECT_RULES) if (re.test(url)) { source = id; break; }
+  let hostname = "";
+  try { hostname = new URL(/^https?:\/\//i.test(url) ? url : "https://" + url).hostname; } catch (_) { return null; }
+  for (const [re, id] of DETECT_RULES) if (re.test(hostname)) { source = id; break; }
   let kind = "track";
   if (/[?&]list=|\/playlist|\/sets\/|\/playlists?\/|\/users\/.+\/playlists|album\/.+\?i=/i.test(url)) kind = "playlist";
   if (/\/album\//i.test(url) && !/[?&]i=\d/.test(url)) kind = "album";

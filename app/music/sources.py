@@ -19,7 +19,8 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like
       "Chrome/126.0 Safari/537.36")
 
 DIRECT = {"youtube", "ytmusic", "soundcloud", "bandcamp", "vk", "vimeo", "mixcloud", "audiomack", "tiktok",
-          "twitch", "dailymotion", "rutube", "odnoklassniki", "web"}
+          "twitch", "dailymotion", "rutube", "odnoklassniki", "twitter", "instagram", "threads", "facebook",
+          "reddit", "bluesky", "bilibili", "archive", "hearthis", "dropbox", "dzen", "web"}
 
 META = {"spotify", "apple", "deezer", "yandex", "tidal", "amazon", "napster", "qobuz", "pandora", "boomplay", "anghami", "zvuk"}
 
@@ -28,7 +29,10 @@ LABELS = {"youtube": "YouTube", "ytmusic": "YouTube Music", "spotify": "Spotify"
           "tidal": "TIDAL", "amazon": "Amazon Music", "vimeo": "Vimeo", "mixcloud": "Mixcloud", "audiomack": "Audiomack",
           "tiktok": "TikTok", "twitch": "Twitch", "dailymotion": "Dailymotion", "rutube": "RUTUBE",
           "odnoklassniki": "OK", "napster": "Napster", "qobuz": "Qobuz", "pandora": "Pandora", "boomplay": "Boomplay",
-          "anghami": "Anghami", "zvuk": "Звук", "web": "Web", "search": "Search"}
+          "anghami": "Anghami", "zvuk": "Звук", "twitter": "X / Twitter", "instagram": "Instagram",
+          "threads": "Threads", "facebook": "Facebook", "reddit": "Reddit", "bluesky": "Bluesky",
+          "bilibili": "Bilibili", "archive": "Internet Archive", "hearthis": "hearthis.at", "dropbox": "Dropbox",
+          "dzen": "Дзен", "web": "Web", "search": "Search"}
 
 def _result(source: str, kind: str, url: str, item_id: str = "", **extra: Any) -> Dict[str, Any]:
     return {"source": source, "kind": kind, "url": url, "id": item_id, "label": LABELS.get(source, source),
@@ -157,7 +161,13 @@ def detect(raw: str) -> Dict[str, Any]:
                            ("tiktok.com", "tiktok"), ("twitch.tv", "twitch"), ("dailymotion.com", "dailymotion"),
                            ("rutube.ru", "rutube"), ("ok.ru", "odnoklassniki"), ("napster.com", "napster"),
                            ("qobuz.com", "qobuz"), ("pandora.com", "pandora"), ("boomplay.com", "boomplay"),
-                           ("anghami.com", "anghami"), ("zvuk.com", "zvuk")):
+                           ("anghami.com", "anghami"), ("zvuk.com", "zvuk"),
+                           ("twitter.com", "twitter"), ("x.com", "twitter"), ("instagram.com", "instagram"),
+                           ("threads.net", "threads"), ("threads.com", "threads"), ("facebook.com", "facebook"),
+                           ("fb.watch", "facebook"), ("reddit.com", "reddit"), ("redd.it", "reddit"),
+                           ("bsky.app", "bluesky"), ("bilibili.com", "bilibili"), ("b23.tv", "bilibili"),
+                           ("archive.org", "archive"), ("hearthis.at", "hearthis"), ("dropbox.com", "dropbox"),
+                           ("dzen.ru", "dzen")):
         if has(domain):
             kind = "playlist" if re.search(r"/(playlist|album|sets)s?/", path) else "track"
             if source == "mixcloud" and len([s for s in path.split("/") if s]) == 1:

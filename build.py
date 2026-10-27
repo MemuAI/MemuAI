@@ -223,7 +223,7 @@ TARGETS = {
                                    "app.memunote.ai", "app.memunote.formats", "app.memunote.formats.textio",
                                    "app.memufiles.settings", "app.memufiles.settings_schema"],
         "collect": ["curl_cffi", "faster_whisper", "piper", "onnxruntime", "pystray", "vosk",
-                    "telethon", "python_socks", "qrcode"],
+                    "telethon", "python_socks", "qrcode", "pykakasi", "pypinyin"],
     },
     "memucode": {
         "name": "MemuCode",

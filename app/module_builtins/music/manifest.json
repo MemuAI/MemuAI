@@ -30,6 +30,9 @@
   ],
   "permissions": [
     "music",
+    "chat",
+    "models",
+    "web",
     "storage",
     "clipboard",
     "download",

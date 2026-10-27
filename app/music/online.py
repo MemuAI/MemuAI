@@ -411,7 +411,7 @@ def details(lib, url: str, hint: Optional[Dict[str, Any]] = None, client_factory
         return out
 
     raw = _cached(("details", url, (hint.get("title") or "").lower()), _DETAILS_TTL, make)
-    if raw["errors"].get("info") in ("timeout", "failed") and not raw.get("info"):
+    if raw["errors"].get("info") and not raw.get("info"):
         with _cache_lock:
             _cache.pop(("details", url, (hint.get("title") or "").lower()), None)
     info, meta = raw.get("info") or {}, raw.get("meta") or {}

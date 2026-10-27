@@ -496,7 +496,7 @@ VIEWS.download = async (el, p) => {
   el.innerHTML = `<section class="mm-dl-hero"><h1 class="mm-h1">${esc(t("download.title"))}</h1><p class="mm-sub">${esc(t("download.sub"))}</p>
       <div class="mm-dl-field"><span class="mm-dl-logo" id="dl-logo">${icon("link")}</span><input id="dl-url" type="url" autocomplete="off" spellcheck="false" placeholder="${esc(t("download.placeholder"))}" aria-label="${esc(t("download.placeholder"))}">
         <button type="button" class="mm-btn tint" id="dl-go" disabled>${icon("download")}${esc(t("download.go"))}</button></div>
-      <div class="mm-dl-detect" id="dl-detect"><span>${esc(t("download.hint_keys"))}</span></div>
+      <div class="mm-dl-detect" id="dl-detect"><span>${esc(t("download.hint_keys"))}</span></div><p class="mm-sub" id="dl-source-hint" aria-live="polite" hidden></p>
       <div class="mm-toolbar" style="margin:14px 0 0"><div class="mm-tabs" id="dl-quality">${["best", "normal", "small"].map((k) => `<button type="button" data-q="${k}" aria-selected="${prefs.quality === k}">${esc(t("quality." + k))}</button>`).join("")}</div><span class="mm-grow"></span>
         <div class="mm-sources">${["youtube", "ytmusic", "spotify", "apple", "soundcloud", "yandex", "vk", "deezer", "bandcamp", "tidal", "mixcloud", "vimeo"].map((s) => sourceIcon(s)).join("")}</div></div>
     </section>
@@ -504,14 +504,16 @@ VIEWS.download = async (el, p) => {
     <section class="mm-section"><div class="mm-section-head"><h2 class="mm-h2">${esc(t("search.title"))}</h2></div>
       <div class="mm-search" style="max-width:520px">${icon("search")}<input class="mm-input" id="dl-q" type="search" style="width:100%;height:44px" placeholder="${esc(t("search.placeholder"))}" autocomplete="off"></div>
       <div id="dl-results" style="margin-top:14px"></div></section>`;
-  const input = el.querySelector("#dl-url"), logo = el.querySelector("#dl-logo"), det = el.querySelector("#dl-detect"), goBtn = el.querySelector("#dl-go");
+  const input = el.querySelector("#dl-url"), logo = el.querySelector("#dl-logo"), det = el.querySelector("#dl-detect"), hint = el.querySelector("#dl-source-hint"), goBtn = el.querySelector("#dl-go");
   let hidden = new Set();
   const showDetect = (d, extra) => {
     if (!d) {
-      logo.className = "mm-dl-logo"; logo.style.background = ""; logo.innerHTML = icon("link"); goBtn.disabled = true;
+      logo.className = "mm-dl-logo"; logo.style.background = ""; logo.innerHTML = icon("link"); hint.textContent = ""; hint.hidden = true; goBtn.disabled = true;
       det.innerHTML = input.value.trim() ? `<span>${esc(t("download.not_link"))}</span>` : `<span>${esc(t("download.hint_keys"))}</span>`; return;
     }
     const s = sourceInfo(d.source);
+    hint.textContent = extra && d.direct === false ? t("download.metadata_hint") : (extra && d.direct ? t("download.direct_hint") : "");
+    hint.hidden = !hint.textContent;
     logo.className = "mm-dl-logo on"; logo.style.background = s.color; logo.style.color = s.ink || "#fff"; logo.innerHTML = `<svg viewBox="0 0 24 24">${s.icon}</svg>`;
     goBtn.disabled = false;
     det.innerHTML = `<b>${esc(sourceName(d.source))}</b><span class="mm-pill">${esc(t("kind." + (d.kind || "track")))}</span>${extra && extra.title ? `<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(extra.title)}</span>` : ""}${extra && extra.items_estimate > 1 ? `<span class="mm-pill">${esc(plural("count.tracks", extra.items_estimate))}</span>` : ""}${extra ? "" : '<span class="mm-skel" style="width:120px;height:14px"></span>'}`;

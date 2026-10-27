@@ -25,6 +25,9 @@ spylls>=0.1.7
 # into the data folder on first use; without mutagen local tags fall back to «Artist - Title» file names.
 yt-dlp>=2025.1
 mutagen>=1.47
+pykakasi==2.3.0
+pypinyin==0.55.0
+korean-romanizer==0.25.0
 # Round 43: personal-account Telegram Use, proxies and locally rendered login QR.
 telethon>=1.45,<2
 python-socks[asyncio]>=2.4,<3

@@ -17,7 +17,7 @@ function onlDate(iso) {
   return iso.length === 4 ? iso : d.toLocaleDateString(Memu.lang === "en" ? "en-US" : "ru-RU", { day: "numeric", month: "long", year: "numeric" });
 }
 function onlTags(r, max) {
-  const tags = (r.tags || []).slice(0, max || 3).map((k) => `<em class="mm-otag" data-tone="${ONL_TAG_TONE[k] || ""}">${esc(t("onl.tag." + k))}</em>`);
+  const tags = (r.tags || []).filter(k => k !== "official_audio").slice(0, max || 3).map((k) => `<em class="mm-otag" data-tone="${ONL_TAG_TONE[k] || ""}">${esc(t("onl.tag." + k))}</em>`);
   if (r.explicit) tags.push(`<em class="mm-otag mm-otag-e" title="${esc(t("onl.explicit"))}">E</em>`);
   return tags.join("");
 }
@@ -110,8 +110,11 @@ function afterDownload(jobId, fn) {
 async function onlineListen(r, opts) {
   const x = onlLibTrack(r);
   if (x) { playFrom([x], x, t("search.online")); return; }
-  const id = await onlineDownload(r, opts);
-  if (id) { toast(t("onl.listen_soon", { title: r.title })); afterDownload(id, (tr) => Player.playList([tr], tr.id, t("search.online"))); }
+  try {
+    const stream = await API.call("online.stream", { url: r.url });
+    const track = { id: "online:" + (r.id || r.url), title: r.title, artist: r.artist || r.channel || "", cover: r.thumb || "", duration: r.duration || stream.duration || 0, online_url: r.url, _online_stream: stream.url };
+    Player.playList([track], track.id, t("search.online"));
+  } catch (error) { toast(String(error.message || error)); }
 }
 async function onlineQueue(r, opts) {
   const x = onlLibTrack(r);
@@ -250,8 +253,9 @@ function onlineSheet(r, opts, focus) {
     const hint = { title: r.title, artist: r.artist, album: r.album, year: r.year, source: r.source, raw_title: r.raw_title, channel: r.channel, channel_url: r.channel_url,
       verified: r.verified, views: r.views, likes: r.likes, published: r.published, duration: r.duration, explicit: r.explicit, preview: r.preview };
     API.soft("online.details", { url: r.url, hint }, null).then((d) => {
-      ONL.details.set(r.url, d || { errors: { info: "failed" }, related: ONL_SOURCES.includes(r.source) });
-      if (ONL.current === r.url && !host.hidden) draw(ONL.details.get(r.url));
+      const detail = d || { errors: { info: "failed" }, related: ONL_SOURCES.includes(r.source) };
+      if (!(detail.errors && detail.errors.info)) ONL.details.set(r.url, detail);
+      if (ONL.current === r.url && !host.hidden) draw(detail);
     });
   }
   if (focus === "lyrics") loadLyrics();
