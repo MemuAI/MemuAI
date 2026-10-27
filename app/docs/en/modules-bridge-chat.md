@@ -106,7 +106,7 @@ It is useful when a module does something substantial and the result should be r
 
 ## A full message array
 
-`Memu.complete` (Round 29) sends the model a ready message array with `system`, `user` and `assistant` roles in any order — like the Chat Completion API — plus sampler parameters. It needs the `chat` permission. The answer streams like `Memu.stream`, plus the thoughts and the real token usage.
+`Memu.complete` sends the model a ready message array with `system`, `user` and `assistant` roles in any order — like the Chat Completion API — plus sampler parameters. It needs the `chat` permission. The answer streams like `Memu.stream`, plus the thoughts and the real token usage.
 
 ```js
 const job = Memu.complete({

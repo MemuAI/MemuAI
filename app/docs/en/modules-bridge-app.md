@@ -68,7 +68,7 @@ Permissions `background`, `web` and `notify` are required. The running Proxy exe
 
 ## Package files
 
-`Memu.asset(name)` (Round 29, no permission needed) reads a file from the `assets/` folder of the module's own package: JSON comes back as an object, anything else as text. A module keeps large data (preset sets, dictionaries) outside `main.js` this way. The name is a relative path like `presets/index.json`; escaping `assets/` is refused, the file limit is 8 MB.
+`Memu.asset(name)` (no permission needed) reads a file from the `assets/` folder of the module's own package: JSON comes back as an object, anything else as text. A module keeps large data (preset sets, dictionaries) outside `main.js` this way. The name is a relative path like `presets/index.json`; escaping `assets/` is refused, the file limit is 8 MB.
 
 ```js
 const index = await Memu.asset("presets/index.json");
@@ -78,7 +78,7 @@ Binary files are read from a file the user picks (`<input type="file">` and `Fil
 
 ## Import by link
 
-`Memu.fetchImport(input, { kind })` (Round 29, permission `net-import`) downloads a **character card or a lorebook** by a link or an id — the same inputs as SillyTavern's «Import from external URL»:
+`Memu.fetchImport(input, { kind })` (permission `net-import`) downloads a **character card or a lorebook** by a link or an id — the same inputs as SillyTavern's «Import from external URL»:
 
 | Source | Input |
 | --- | --- |

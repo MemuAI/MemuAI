@@ -39,7 +39,7 @@ The only way a module gets anything from the internet by address. It is never pa
 
 ## The music library (`music`)
 
-Round 37. `Memu.music.call(op, args)` → a Promise with the result; the same operations as the built-in MemuMusic module
+`Memu.music.call(op, args)` → a Promise with the result; the same operations as the built-in MemuMusic module
 (`library.list`, `library.get`, `library.like`, `playlists.list`, `playlist.create`, `download.start`, `download.jobs`, `search.online`,
 `lyrics.get`, `player.state`, `player.command` and more).
 `Memu.music(body)` still means music generation (permission `media`).
@@ -51,7 +51,7 @@ Round 37. `Memu.music.call(op, args)` → a Promise with the result; the same op
 
 ## Courses and cards (`learn`)
 
-Round 40. `Memu.learn.call(op, args)` → a Promise with the result; the operations match the built-in MemuLearn module
+`Memu.learn.call(op, args)` → a Promise with the result; the operations match the built-in MemuLearn module
 (`overview`, `course.create`, `course.get`, `node.get`, `card.list`, `card.add`, `review.queue`, `review.answer`, `review.undo`, `stats`,
 `exam.list`, `ai.prompt`, `ai.apply`, `source.ingest`, `import.apkg`, `export.apkg`, `import.csv`, `export.csv`, `panel` and more).
 

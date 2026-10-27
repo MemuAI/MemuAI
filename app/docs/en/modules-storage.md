@@ -51,7 +51,7 @@ Each module card has "Clear saved fields". Deleting your own module removes its 
 
 ## The file store
 
-`persist` fields suit settings. For large data — chats, cards with avatars, libraries — use `Memu.store` (Round 29, the `storage` permission): every key is its own JSON file in `modules/store/<id>/`.
+`persist` fields suit settings. For large data — chats, cards with avatars, libraries — use `Memu.store` (the `storage` permission): every key is its own JSON file in `modules/store/<id>/`.
 
 ```js
 await Memu.store.set("chats/alice/chat-1", { messages: [] });

@@ -105,7 +105,7 @@ When an answer is a document, code, an HTML page, a table or an email, the model
 
 Drag the panel edge to resize it; in a narrow window the canvas opens over the chat. When it is closed, the Canvas button at the top right opens it again. When you switch between answer versions, the canvas shows the version of the item that belongs to that branch.
 
-**Canvas 2.0 (round 40).**
+**Canvas 2.0.**
 - **Several files in one item.** Ask for "a site with index.html, style.css and app.js" and the canvas shows file tabs. Each file is edited on its own (double-click a tab to rename, "+" for a new file, × to delete); Download gives the project as a .zip, one .html page or the current file. The preview assembles the files itself; `fetch("data.json")` works without network.
 - **Preview errors.** When the page fails (a script error, an unhandled promise, `console.error`), a bar above the preview shows the error and where it happened (`app.js:12` — click to open the line in the editor). "Fix with AI" sends the error and the code line to the chat; the model fixes it with a targeted edit and the preview runs again.
 - **Diagrams (Mermaid).** Flowcharts, sequence diagrams, mind maps and more are drawn offline. In a flowchart drag a block onto another one to link them, double-click to rename, "+ Block" to add one. The Code tab is an editor with a live preview. Download: SVG, PNG, .mmd.

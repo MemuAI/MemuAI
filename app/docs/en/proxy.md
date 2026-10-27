@@ -40,7 +40,7 @@ The **Statistics** card on Home shows requests, success rate, response time and 
 - Prices come from the model catalogue (OpenRouter / Models.dev, refreshed daily), otherwise from a built-in table of typical family prices; your own price goes into `pricing-overrides.json` in the data folder (`memuai`). The tooltip of each amount shows the price per 1M tokens and where it came from. Cached input tokens are priced at the cache rate.
 - For **subscription** providers (Genspark, Kiro, Antigravity, Gemini Web, Grok) this is the **API-equivalent value** (tag “API equiv.”): nothing is charged per token; the amount shows what the same work would cost through the official API. For your own API keys it estimates the bill; when the provider reports the cost of a request itself (OpenRouter), that amount is shown (tag “billed”).
 - When a model has no price anywhere, it reads **“price unknown”** instead of a misleading “$0”, and the total is marked “≥”.
-- Statistics recorded before Round 20 kept tokens per whole hour only. For those hours the tokens are shared between models by request count, and such sums are marked “≈”.
+- Older statistics kept tokens per whole hour only. For those hours the tokens are shared between models by request count, and such sums are marked “≈”.
 - The **Cost** chart switch shows spending per hour or day.
 
 ## API balances and custom tariffs

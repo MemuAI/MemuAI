@@ -106,7 +106,7 @@ const models = await Memu.models();
 
 ## Полный массив сообщений
 
-`Memu.complete` (Round 29) отправляет модели готовый массив сообщений с ролями `system`, `user`, `assistant` в любом порядке — как Chat Completion API — и параметры сэмплера. Нужно право `chat`. Ответ приходит потоком, как у `Memu.stream`, плюс размышления и настоящий расход токенов.
+`Memu.complete` отправляет модели готовый массив сообщений с ролями `system`, `user`, `assistant` в любом порядке — как Chat Completion API — и параметры сэмплера. Нужно право `chat`. Ответ приходит потоком, как у `Memu.stream`, плюс размышления и настоящий расход токенов.
 
 ```js
 const job = Memu.complete({

@@ -145,7 +145,7 @@ A Spotify-like music library: local files and downloads by link or search (YouTu
 
 ### Online search
 
-Round 41. **Search** («Find … online») and the search field on the **Download** screen show the same results:
+**Search** («Find … online») and the search field on the **Download** screen show the same results:
 
 - **Where a track comes from** — the source's badge and name, the channel (a check mark means verified), duration, views or plays, year. Labels: «Official audio», «Music video», «Lyric video», «Live», «Cover», «Remix», «Slowed», «Sped up», «Karaoke», «30 s preview» (SoundCloud gives only a clip of subscription tracks), **E** — explicit.
 - **Source** — a YouTube Music / YouTube / SoundCloud switch (remembered). YouTube Music is the fastest and gives the artist, album and duration right away; SoundCloud searches longer (up to ~20 s).
@@ -156,7 +156,7 @@ Round 41. **Search** («Find … online») and the search field on the **Downloa
 
 ### Lyrics
 
-Round 41 (3.7). The **Lyrics** tab of Now Playing lights the line being sung — the way Apple Music and Spotify do:
+The **Lyrics** tab of Now Playing lights the line being sung — the way Apple Music and Spotify do:
 
 - **A line fills only while it is sung.** Where the sung part ends comes from the source when it knows (Musixmatch and NetEase word timing, LRC with word stamps `<mm:ss.xx>` and an end stamp); otherwise it is estimated from the syllables and this song's own singing rate. A line no longer crawls through an instrumental break up to the next stamp.
 - **«•••» in breaks.** When the next line is 4.5 s or more away (and in the intro), the sung line stays lit as sung and three dots appear: they fill during the break and pop right before the next line.
@@ -166,7 +166,7 @@ Round 41 (3.7). The **Lyrics** tab of Now Playing lights the line being sung —
 
 ## MemuLearn
 
-Round 40. An AI academy: a course from any source plus smart flashcards. Enable the module in the module settings — then the MemuAI home screen can show the **Review today** panel, and the Telegram Mini App gets a **Trainer** tab.
+An AI academy: a course from any source plus smart flashcards. Enable the module in the module settings — then the MemuAI home screen can show the **Review today** panel, and the Telegram Mini App gets a **Trainer** tab.
 
 - **Create a course** from a topic ("Python basics" — the AI drafts a syllabus), a book or docs (PDF, DOCX, EPUB, TXT, Markdown — the course follows the text), a MemuNote file, or a ready Anki `.apkg` deck / `.csv` table (no AI).
 - **A course** is a tree of modules and lessons. Opening a course selects the first unfinished lesson in order. For a lesson the AI writes a summary (Markdown, KaTeX formulas, code) and makes flashcards; when the summary exists but there are no cards yet, the lesson offers **Create cards** right away. "Prepare all lessons" goes lesson by lesson and stops on a button.

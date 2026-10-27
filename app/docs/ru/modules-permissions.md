@@ -39,7 +39,7 @@ summary: Какие возможности требует каждое прав�
 
 ## Музыкальная библиотека (`music`)
 
-Round 37. `Memu.music.call(op, args)` → Promise с результатом; операции те же, что у встроенного модуля MemuMusic
+`Memu.music.call(op, args)` → Promise с результатом; операции те же, что у встроенного модуля MemuMusic
 (`library.list`, `library.get`, `library.like`, `playlists.list`, `playlist.create`, `download.start`, `download.jobs`, `search.online`,
 `lyrics.get`, `player.state`, `player.command` и другие).
 `Memu.music(body)` по-прежнему означает генерацию музыки (право `media`).
@@ -51,7 +51,7 @@ Round 37. `Memu.music.call(op, args)` → Promise с результатом; о�
 
 ## Курсы и карточки (`learn`)
 
-Round 40. `Memu.learn.call(op, args)` → Promise с результатом; операции те же, что у встроенного модуля MemuLearn
+`Memu.learn.call(op, args)` → Promise с результатом; операции те же, что у встроенного модуля MemuLearn
 (`overview`, `course.create`, `course.get`, `node.get`, `card.list`, `card.add`, `review.queue`, `review.answer`, `review.undo`, `stats`,
 `exam.list`, `ai.prompt`, `ai.apply`, `source.ingest`, `import.apkg`, `export.apkg`, `import.csv`, `export.csv`, `panel` и другие).
 

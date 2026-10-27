@@ -13,22 +13,22 @@ faster-whisper>=1.2,<2
 # PyAV 19 removed av.open(metadata_errors=) that faster-whisper 1.2.1 still passes (voice_runtime decodes itself too)
 av>=11,<19
 piper-tts>=1.8,<2
-# Round 27: the Quick Ask wake word (offline; models are downloaded on demand)
+# Quick Ask wake word (offline; models are downloaded on demand)
 vosk>=0.3.45,<0.4
 pythonnet>=3.0,<4
 prompt_toolkit>=3.0.48
 rich>=13.9
 anthropic>=0.40
-# Round 33: MemuNote's built-in spell checker (pure-Python Hunspell, MPL-2.0)
+# MemuNote's built-in spell checker (pure-Python Hunspell, MPL-2.0)
 spylls>=0.1.7
-# Round 37: MemuMusic (app/music/) — both optional: without yt-dlp MemuAI downloads the official yt-dlp binary
+# MemuMusic (app/music/) — both optional: without yt-dlp MemuAI downloads the official yt-dlp binary
 # into the data folder on first use; without mutagen local tags fall back to «Artist - Title» file names.
 yt-dlp>=2025.1
 mutagen>=1.47
 pykakasi==2.3.0
 pypinyin==0.55.0
 korean-romanizer==0.25.0
-# Round 43: personal-account Telegram Use, proxies and locally rendered login QR.
+# Personal-account Telegram use, proxies and locally rendered login QR.
 telethon>=1.45,<2
 python-socks[asyncio]>=2.4,<3
 qrcode>=8,<9
