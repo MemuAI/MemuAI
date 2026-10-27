@@ -3,7 +3,8 @@
 const NP = (() => {
   const el = $("#np");
   let bg = null, viz = null, lyrics = null, lyricIdx = -2, lyricToken = 0, manual = 0, manualTimer = 0, tab = "lyrics", closing = 0;
-  let wordIdx = -1, offsetTimer = 0, tapSync = false;
+  let wordIdx = -1, tapSync = false, editing = false;
+  const offsetTimers = new Map();
 
   let timing = null, lineNodes = [], gapNodes = new Map(), wordSpans = [], gapKey = "", gapEnd = false, syncShown = "";
   const syncMode = () => { const v = typeof Cfg !== "undefined" ? Cfg.get("lyrics_sync", "smart") : "smart"; return v === "line" || v === "off" ? v : "smart"; };
@@ -95,6 +96,7 @@ const NP = (() => {
   }
   function onState() { applyCalm(); lyricLoop(); }
   function onTrack(tr, force) {
+    if (!tr || !lyrics || lyrics.id !== tr.id) { editing = false; ++lyricToken; }
     if (!tr) { $("#np-title").textContent = t("player.idle"); $("#np-artist").textContent = t("player.idle_hint"); return; }
     if (el.hidden && !force) { lyrics = null; lyricIdx = -2; return; }
     const fb = coverArt(tr.id, "", tr.title);
@@ -114,7 +116,8 @@ const NP = (() => {
   async function loadLyrics(tr, force) {
     const token = ++lyricToken;
     const box = $("#lyrics-inner");
-    lyrics = { id: tr.id, synced: null, plain: null, state: "loading" }; lyricIdx = -2; tapSync = false; timing = null;
+    lyrics = { id: tr.id, synced: null, plain: null, state: "loading", offset: 0, alts: [] }; lyricIdx = -2; tapSync = false; timing = null;
+    editing = false; renderBar();
     box.style.transform = ""; box.innerHTML = [72, 56, 64, 44].map((w) => `<div class="mm-skel mm-lyric-skel" style="width:${w}%"></div>`).join("");
     const timeout = new Promise((ok) => setTimeout(() => ok("timeout"), 16000));
     const res = await Promise.race([API.soft("lyrics.get", force ? { id: tr.id, force: true } : { id: tr.id }, null), timeout]);
@@ -128,21 +131,24 @@ const NP = (() => {
       state: res && res.instrumental ? "instrumental" : res && res.auto_off ? "off" : "none", source: (res && res.source) || "",
       name: res && res.source === "manual" ? t("lyrics.mine") : (res && res.source_name) || "", offset: +(res && res.offset) || 0, alts: (res && res.alts) || [], choice: (res && res.choice) || 0,
       durDiff: +(res && res.duration_diff) || 0 };
-    renderLyrics();
+    if (!editing) renderLyrics();
   }
 
   function renderBar() {
     const bar = $("#ly-bar");
-    if (!lyrics || (!lyrics.synced && !lyrics.plain) || tab !== "lyrics") { bar.hidden = true; return; }
+    if (!lyrics || !Player.current() || tab !== "lyrics" || editing) { bar.hidden = true; return; }
     bar.hidden = false;
     const kind = lyrics.synced ? (lyrics.synced.some((r) => r[2]) ? t("lyrics.words") : t("lyrics.synced")) : t("lyrics.plain");
     const off = lyrics.offset;
+    const offText = (off > 0 ? "+" : "") + off.toLocaleString(Memu.lang === "en" ? "en-US" : "ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
     bar.innerHTML = `<button type="button" class="mm-ly-src" data-ly="alts" aria-haspopup="menu" title="${esc(t("lyrics.variants"))}"><span>${esc(lyrics.name || lyrics.source || "—")}</span><em>${esc(kind)}</em>${lyrics.alts.length > 1 ? `<svg><use href="#i-down"/></svg>` : ""}</button>
-      ${lyrics.synced ? `<span class="mm-ly-off" role="group" aria-label="${esc(t("lyrics.offset"))}"><button type="button" data-ly="off-" title="${esc(t("lyrics.earlier"))}" aria-keyshortcuts="[">−</button><b title="${esc(t("lyrics.offset"))}">${off > 0 ? "+" : ""}${off.toFixed(1)} ${esc(t("lyrics.sec"))}</b><button type="button" data-ly="off+" title="${esc(t("lyrics.later"))}" aria-keyshortcuts="]">+</button></span>` : ""}
+      ${lyrics.synced ? `<span class="mm-ly-off" role="group" aria-label="${esc(t("lyrics.offset"))}"><button type="button" data-ly="off-" title="${esc(t("lyrics.earlier"))}" aria-keyshortcuts="[">−</button><button type="button" class="mm-ly-reset" data-ly="off-reset" title="${esc(t("lyrics.offset_reset"))}" aria-label="${esc(t("lyrics.offset_reset"))}">${offText} ${esc(t("lyrics.sec"))}</button><button type="button" data-ly="off+" title="${esc(t("lyrics.later"))}" aria-keyshortcuts="]">+</button></span>` : ""}
+      ${lyrics.synced && syncMode() !== "off" ? `<button type="button" class="mm-ly-sync" data-ly="sync" aria-pressed="${syncMode() === "line"}" title="${esc(t(syncMode() === "line" ? "lyrics.switch_chars" : "lyrics.switch_lines"))}">${icon("lyrics")}<span>${esc(t(syncMode() === "line" ? "lyrics.mode_lines" : "lyrics.mode_chars"))}</span></button>` : ""}
       ${lyrics.synced ? `<button type="button" class="mm-ly-tap${tapSync ? " on" : ""}" data-ly="tap" aria-pressed="${tapSync}" title="${esc(t("lyrics.tap_hint"))}">${icon("target")}<span>${esc(tapSync ? t("lyrics.tap_now") : t("lyrics.tap"))}</span></button>` : ""}
       <span class="mm-grow"></span>
       ${lyrics.synced && lyrics.durDiff > 2 ? `<span class="mm-ly-warn" title="${esc(t("lyrics.dur_hint", { n: Math.round(lyrics.durDiff) }))}">${esc(t("lyrics.dur", { n: Math.round(lyrics.durDiff) }))}</span>` : ""}
       ${lyrics.alts.length > 1 ? `<button type="button" class="mm-ly-wrong" data-ly="next">${esc(t("lyrics.wrong"))}</button>` : ""}
+      <button type="button" class="mm-ly-find" data-ly="find" title="${esc(t("lyrics.find"))}" aria-label="${esc(t("lyrics.find"))}">${icon("search")}</button>
       <button type="button" class="mm-ly-edit" data-ly="edit" title="${esc(t("lyrics.edit_hint"))}">${icon("edit")}<span>${esc(t("lyrics.edit"))}</span></button>`;
   }
   function altsMenu() {
@@ -164,16 +170,22 @@ const NP = (() => {
 
   function nudge(delta, say) {
     const tr = Player.current(); if (!tr || !lyrics || !lyrics.synced || lyrics.id !== tr.id) return false;
-    setOffset(lyrics.offset + delta);
+    setOffset(Math.round((lyrics.offset + delta) * 10) / 10);
     if (say) toast(t("lyrics.offset_now", { n: (lyrics.offset > 0 ? "+" : "") + lyrics.offset.toFixed(1) }));
     return true;
   }
   function setOffset(value) {
     const tr = Player.current(); if (!tr || !lyrics) return;
-    lyrics.offset = Math.max(-30, Math.min(30, Math.round(value * 100) / 100));
+    if (!Number.isFinite(value)) return;
+    const id = tr.id, offset = Math.max(-30, Math.min(30, Math.round(value * 100) / 100));
+    lyrics.offset = offset;
     renderBar(); lyricIdx = -2; syncLyrics(Player.times().cur, true);
-    clearTimeout(offsetTimer);
-    offsetTimer = setTimeout(() => API.soft("lyrics.offset", { id: tr.id, offset: lyrics.offset }, null), 600);
+    clearTimeout(offsetTimers.get(id));
+    offsetTimers.set(id, setTimeout(async () => {
+      offsetTimers.delete(id);
+      const result = await API.soft("lyrics.offset", { id, offset }, null);
+      if (!result) toast(t("error.save"));
+    }, 400));
   }
 
   const globalOffset = () => (typeof Cfg !== "undefined" ? Number(Cfg.get("lyrics_offset_ms", 0)) || 0 : 0) / 1000;
@@ -197,7 +209,7 @@ const NP = (() => {
   }
   function renderLyrics() {
     const box = $("#lyrics-inner");
-    if (!lyrics) return;
+    if (!lyrics || editing) return;
     renderBar();
     const mode = syncShown = syncMode();
 
@@ -227,6 +239,7 @@ const NP = (() => {
 
   function pasteForm(initial) {
     const box = $("#lyrics-inner");
+    editing = true; ++lyricToken;
     $("#lyrics").classList.add("static");
     $("#ly-bar").hidden = true; tapSync = false; timing = null;
     box.style.transform = "";
@@ -257,17 +270,17 @@ const NP = (() => {
   }
   async function savePasted(text) {
     const tr = Player.current();
-    if (!tr || !String(text).trim()) { renderLyrics(); return; }
-    const synced = parseLrc(text);
-    const keep = lyrics && lyrics.id === tr.id ? lyrics : null;
-    lyrics = { id: tr.id, synced: synced.length >= 2 ? synced : null, plain: synced.length >= 2 ? null : String(text).trim(), state: "none",
-      source: "manual", name: t("lyrics.mine"), offset: keep ? keep.offset : 0, alts: keep ? keep.alts : [], choice: keep ? keep.choice : 0, durDiff: 0 };
-    renderLyrics();
+    const form = $(".mm-lyrics-paste");
+    if (!tr || !form || form.dataset.saving) return;
+    form.dataset.saving = "true";
+    $$("button", form).forEach(button => { button.disabled = true; });
     try {
       const res = await API.call("lyrics.set", { id: tr.id, text: String(text) });
-      if (res && lyrics.id === tr.id) setLyrics(tr.id, res);
+      if (!res) throw new Error(t("error.save"));
+      if (Player.current()?.id === tr.id && form.isConnected) { editing = false; setLyrics(tr.id, res); }
       toast(t("lyrics.saved"));
-    } catch (error) { toast(t("lyrics.save_local")); }
+    } catch (error) { toast(t("error.save") + ": " + String(error.message || error)); }
+    finally { delete form.dataset.saving; $$("button", form).forEach(button => { button.disabled = false; }); }
   }
 
   function syncLyrics(cur, force) {
@@ -330,7 +343,7 @@ const NP = (() => {
       const tr = Player.current();
       if (ly.dataset.ly === "find" && tr) { toast(t("lyrics.searching")); loadLyrics(tr, true); }
       else if (ly.dataset.ly === "paste") pasteForm();
-      else if (ly.dataset.ly === "cancel") renderLyrics();
+      else if (ly.dataset.ly === "cancel") { editing = false; if (lyrics?.state === "loading" && tr) loadLyrics(tr); else renderLyrics(); }
       else if (ly.dataset.ly === "save") savePasted($(".mm-lyrics-paste textarea").value);
       else if (ly.dataset.ly === "end") insertLineEnd($(".mm-lyrics-paste textarea"), Math.max(0, lyricClock(Player.times().cur)));
       return;
@@ -352,6 +365,9 @@ const NP = (() => {
     else if (kind === "pick") choose({ index: Number(ly.dataset.i) });
     else if (kind === "next") { choose({ next: true }); toast(t("lyrics.next_variant")); }
     else if (kind === "off-" || kind === "off+") nudge((kind === "off-" ? -1 : 1) * (e.shiftKey ? .5 : .1));
+    else if (kind === "off-reset") setOffset(0);
+    else if (kind === "sync") Cfg.set({ lyrics_sync: syncMode() === "line" ? "smart" : "line" }).then(ok => { if (ok) renderLyrics(); else toast(t("error.save")); });
+    else if (kind === "find") { const tr = Player.current(); if (tr) loadLyrics(tr, true); }
     else if (kind === "tap") { tapSync = !tapSync; renderBar(); if (tapSync) toast(t("lyrics.tap_hint")); }
     else if (kind === "edit") pasteForm(editText());
   });

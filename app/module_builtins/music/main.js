@@ -319,7 +319,8 @@ if (Memu.on) Memu.on("navigate", (d) => {
   if (route === "np") setTimeout(() => { if (Player.current()) NP.open(); }, 250);
   else if (route === "download") go("download");
 });
-Memu.onLanguage(() => {
+Memu.onLanguage(async () => {
+  await loadPlaylists();
   renderSidePlaylists(); updateBar(); updateModes(); updatePlayButtons(); NP.relabel(); rerender();
 });
 

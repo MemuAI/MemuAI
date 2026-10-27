@@ -38,7 +38,7 @@
     "np.style_vinyl": "Винил",
     "lyrics.title": "Текст",
     "lyrics.none": "Текста пока нет",
-    "lyrics.none_hint": "Поищем в нескольких источниках или вставьте свой\u00a0— строки с [мм:сс] будут подсвечиваться под музыку.",
+    "lyrics.none_hint": "Поищем в нескольких источниках или вставьте свой — строки с [мм:сс] будут подсвечиваться под музыку.",
     "queue.title": "Очередь (Q)",
     "queue.up_next": "Далее",
     "queue.clear": "Очистить",
@@ -292,7 +292,7 @@
     "lyrics.mine": "Свой текст",
     "lyrics.edit": "Изменить",
     "lyrics.edit_hint": "Исправить текст или метки времени [мм:сс.xx] — сохранится как «Свой текст»",
-    "lyrics.tap": "По строке",
+    "lyrics.tap": "Подстроить",
     "lyrics.tap_now": "Нажмите на звучащую строку",
     "lyrics.tap_hint": "Синхронизировать по строке: во время звучания нажмите на строку, которая поётся сейчас — сдвиг посчитается сам",
     "lyrics.offset_now": "Сдвиг текста: {n} с",
@@ -840,7 +840,12 @@
     "set.artist_photos": "Фото исполнителей",
     "set.artist_photos_hint": "Подбирать автоматически",
     "sort.keep": "Сохранить как свой порядок",
-    "sort.kept": "Порядок сохранён"
+    "sort.kept": "Порядок сохранён",
+    "lyrics.offset_reset": "Сбросить сдвиг текста на 0,0 с",
+    "lyrics.mode_lines": "По строкам",
+    "lyrics.mode_chars": "По символам",
+    "lyrics.switch_lines": "Подсвечивать сразу всю строку",
+    "lyrics.switch_chars": "Подсвечивать по словам и символам"
   },
   "en": {
     "nav.aria": "MemuMusic sections",
@@ -1127,7 +1132,7 @@
     "lyrics.mine": "My lyrics",
     "lyrics.edit": "Edit",
     "lyrics.edit_hint": "Fix the words or the [mm:ss.xx] timestamps — saved as «My lyrics»",
-    "lyrics.tap": "By line",
+    "lyrics.tap": "Tap to align",
     "lyrics.tap_now": "Tap the line being sung",
     "lyrics.tap_hint": "Sync by a line: while the song plays, tap the line that is being sung right now — the offset is worked out for you",
     "lyrics.offset_now": "Lyrics offset: {n} s",
@@ -1675,6 +1680,11 @@
     "set.artist_photos": "Artist photos",
     "set.artist_photos_hint": "Find them automatically",
     "sort.keep": "Save as custom order",
-    "sort.kept": "Order saved"
+    "sort.kept": "Order saved",
+    "lyrics.offset_reset": "Reset lyrics timing to 0.0 s",
+    "lyrics.mode_lines": "By line",
+    "lyrics.mode_chars": "By character",
+    "lyrics.switch_lines": "Highlight the entire line at once",
+    "lyrics.switch_chars": "Highlight words and characters progressively"
   }
 }

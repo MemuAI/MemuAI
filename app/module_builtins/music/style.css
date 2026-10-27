@@ -25,7 +25,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 input, select { font: inherit; color: inherit; }
 .mm-grow { flex: 1; min-width: 0; }
 .mm { position: fixed; inset: 0; display: grid; grid-template-columns: var(--mm-side) 1fr; grid-template-rows: 1fr var(--mm-bar);
-  grid-template-areas: "side main" "bar bar"; isolation: isolate; overflow: hidden; }
+  grid-template-areas: "side main" "bar bar"; isolation: isolate; overflow: clip; }
 .mm-ambient { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; opacity: .55; transition: opacity .8s; }
 html[data-mm-scheme="light"] .mm-ambient { opacity: .38; }
 .mm-grain { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
@@ -503,7 +503,7 @@ html[data-calm] .mm-lyric.on > span, html[data-calm] .mm-lyric.on.words .w { bac
 .mm-ly-gap.on.end { opacity: 0; transform: scale(1.3); transition: opacity .35s ease-in, transform .5s cubic-bezier(.3,1.5,.6,1); }
 @keyframes mm-ly-breathe { 0%, 100% { scale: 1; } 50% { scale: 1.14; } }
 html[data-calm] .mm-ly-gap.on { animation: none; }
-.mm-ly-bar { position: relative; display: flex; align-items: center; gap: 8px; min-height: 28px; margin: -4px 0 8px; font-size: 12px; color: rgb(var(--np-ink) / .55); }
+.mm-ly-bar { position: relative; display: flex; flex-wrap: wrap; flex-shrink: 0; align-items: center; gap: 6px; min-height: 28px; margin: -4px 0 8px; font-size: 12px; color: rgb(var(--np-ink) / .55); }
 .mm-ly-bar[hidden] { display: none; }
 .mm-ly-bar button { color: inherit; border-radius: 8px; padding: 4px 8px; transition: color .2s, background-color .2s; }
 .mm-ly-bar button:hover { color: rgb(var(--np-ink)); background: rgb(var(--np-ink) / .08); }
@@ -514,6 +514,10 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-ly-off { display: inline-flex; align-items: center; gap: 0; }
 .mm-ly-off button { width: 24px; padding: 4px 0; font-size: 14px; line-height: 1; }
 .mm-ly-off b { min-width: 52px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mm-ly-off .mm-ly-reset { width: auto; min-width: 52px; padding: 5px 6px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mm-ly-sync, .mm-ly-find { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.mm-ly-sync svg, .mm-ly-find svg { width: 14px; height: 14px; }
+.mm-ly-sync[aria-pressed="true"] { color: rgb(var(--np-ink)); background: rgb(var(--np-ink) / .08); }
 .mm-ly-tap, .mm-ly-edit { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .mm-ly-tap svg, .mm-ly-edit svg { width: 14px; height: 14px; }
 .mm-ly-tap.on { color: rgb(var(--np-ink)); background: rgb(var(--np-ink) / .12); box-shadow: inset 0 0 0 1px rgb(var(--np-ink) / .22); }
