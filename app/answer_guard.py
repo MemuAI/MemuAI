@@ -47,7 +47,9 @@ RULES: List[_Rule] = [
     _Rule(r"<function_calls>", r"</function_calls>", call=True),
     _Rule(r"""<invoke\s+name\s*=\s*["'][^"']+["'][^>]*>""", r"</invoke>", call=True),
     _Rule(r"<function\s*=\s*[\w.-]+\s*>", r"</function>", call=True),
-    _Rule(r"<[｜|]\s*DSML\s*[｜|]\s*function_calls>", r"</[｜|]\s*DSML\s*[｜|]\s*function_calls>", call=True),
+    _Rule(r"<[｜|]\s*DSML\s*[｜|]\s*(?:function_calls|calls)\s*>", r"</[｜|]\s*DSML\s*[｜|]\s*(?:function_calls|calls)\s*>", call=True),
+    _Rule(r"""<[｜|]\s*DSML\s*[｜|]\s*invoke\s+name\s*=\s*["'][^"']+["'][^>]*>""",
+          r"</[｜|]\s*DSML\s*[｜|]\s*invoke\s*>", call=True),
     _Rule(r"<[｜|]tool[▁_ ]calls[▁_ ]begin[｜|]>", r"<[｜|]tool[▁_ ]calls[▁_ ]end[｜|]>", call=True),
     _Rule(r"<\|tool_calls_section_begin\|>", r"<\|tool_calls_section_end\|>", call=True),
     _Rule(r"<\|tool_call_begin\|>", r"<\|tool_call_end\|>", call=True),
@@ -66,7 +68,7 @@ TOKENS = re.compile(
 OPENER_WORDS = ["<tool_call>", "<tool_calls>", "<function_calls>", "<function=", "<invoke name=", "<|", "<｜",
                 "[TOOL_CALLS]", "[TOOL_RESULT]", "<think>", "</think>", "<thinking>", "</thinking>", "◁think▷",
                 "◁/think▷"] + ["<" + name + ">" for name in ENVELOPES.split("|")]
-TOKEN_BLOCK = re.compile(r"<[｜|](?:\s*DSML\s*[｜|]\s*function_calls>|tool[▁_ ]calls[▁_ ]begin[｜|]>|"
+TOKEN_BLOCK = re.compile(r"<[｜|](?:\s*DSML\s*[｜|]\s*(?:(?:function_calls|calls)\s*>|invoke\s+name\s*=)|tool[▁_ ]calls[▁_ ]begin[｜|]>|"
                          r"tool_calls_section_begin\|>)", re.I)
 _TAG = re.compile(r"<([A-Za-z][\w.-]{1,63})>")
 _TOOL_TAG_PREFIX = re.compile(
@@ -219,7 +221,8 @@ def _hold_back(text: str) -> str:
     if tail_start < 0 or len(text) - tail_start > 40:
         return text
     tail = text[tail_start:]
-    if re.search(r"\s", tail[1:]) and not tail.lower().startswith("<invoke ") and not tail.startswith("<|channel|>"):
+    if re.search(r"\s", tail[1:]) and not tail.lower().startswith("<invoke ") and not tail.startswith("<|channel|>") \
+            and not re.match(r"<[｜|]\s*DSML\b", tail, re.I):
         return text
     low = tail.lower()
     possible = any(word.lower().startswith(low) or (low.startswith(word.lower().rstrip(">")) and ">" not in low)
@@ -262,11 +265,25 @@ def split_think(text: str) -> Tuple[str, str]:
     return source[last.end():].lstrip(), before.strip()
 
 def _token_blocks(text: str, on_block: Optional[Callable[[_Block], None]] = None) -> str:
+    if not TOKEN_BLOCK.search(text):
+        return text
     out, pos = [], 0
+    protected, offset, code_index = [], 0, 0
+    for code, chunk in segments(text):
+        if code:
+            protected.append((offset, offset + len(chunk)))
+        offset += len(chunk)
     while True:
         m = TOKEN_BLOCK.search(text, pos)
         if not m:
             break
+        while code_index < len(protected) and protected[code_index][1] <= m.start():
+            code_index += 1
+        if code_index < len(protected) and protected[code_index][0] <= m.start() < protected[code_index][1]:
+            end = protected[code_index][1]
+            out.append(text[pos:end])
+            pos = end
+            continue
         block = _next_block(text, m.start())
         if block is None or block.start != m.start():
             out.append(text[pos:m.start() + 1])
@@ -301,7 +318,10 @@ def _norm_name(raw: Any) -> str:
 
 def _json_loose(raw: Any) -> Any:
     value = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(raw or "").strip())
-    for candidate in (value, re.sub(r",\s*([\]}])", r"\1", value)):
+    repaired = re.sub(r'("(?:[^"\\]|\\.)*")|,\s*(?=[\]}])', lambda m: m.group(1) or "", value)
+    escaped = re.sub(r'\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4})|\\',
+                     lambda m: "\\\\" if m.group(0) == "\\" else m.group(0), repaired)
+    for candidate in (value, repaired, escaped):
         try:
             return json.loads(candidate)
         except ValueError:
@@ -376,7 +396,7 @@ def _call_expr(body: str) -> Optional[Dict[str, Any]]:
 _PARAMS = re.compile(
     r"""<parameter\s*(?:=\s*|name\s*=\s*["'])([\w.-]+)["']?[^>]*>([\s\S]*?)</parameter>"""
     r"""|<arg_key>([\s\S]*?)</arg_key>\s*<arg_value>([\s\S]*?)</arg_value>"""
-    r"""|<[｜|]\s*DSML\s*[｜|]\s*parameter\s+name\s*=\s*"([^"]+)"[^>]*>([\s\S]*?)</[｜|]\s*DSML\s*[｜|]\s*parameter>""",
+    r"""|<[｜|]\s*DSML\s*[｜|]\s*parameter\s+name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)</[｜|]\s*DSML\s*[｜|]\s*parameter\s*>""",
     re.I)
 
 def _xml_params(body: str) -> Optional[Dict[str, Any]]:
@@ -391,12 +411,29 @@ def _xml_params(body: str) -> Optional[Dict[str, Any]]:
         else:
             key, value = m.group(5), m.group(6)
         if key and key.strip():
-            args[key.strip()] = _scalar(value)
+            string_value = re.search(r"""\bstring\s*=\s*["']true["']""", m.group(0).split(">", 1)[0], re.I)
+            args[key.strip()] = value if string_value else _scalar(value)
     return args if found else None
+
+
+def _invoke_args(body: str, *, dsml: bool = False) -> Dict[str, Any]:
+    args = _xml_params(body)
+    wrapped = args is not None
+    if args is None:
+        span = _scan_json(body, 0)
+        args = _args(body[span[0]:span[1]]) if span else {}
+    # Only DSML XML uses these names as transport holders. Ordinary XML
+    # parameters and direct JSON bodies already describe the tool's argument map.
+    if dsml and wrapped and len(args) == 1:
+        key = next(iter(args))
+        if key in ("args", "arguments", "parameters", "input") and isinstance(args[key], dict):
+            return args[key]
+    return args
 
 def _calls_from_block(block: _Block) -> List[Dict[str, Any]]:
     inner, open_ = block.inner or "", block.open or ""
     out: List[Dict[str, Any]] = []
+    dsml = bool(re.match(r"<[｜|]\s*DSML\s*[｜|]", open_, re.I))
 
     def add(name: str, args: Any) -> None:
         name = _norm_name(name)
@@ -410,17 +447,18 @@ def _calls_from_block(block: _Block) -> List[Dict[str, Any]]:
     if m:
         add(m.group(1), _xml_params(inner) or _args(inner.strip()))
         return out
-    m = re.match(r"""<invoke\s+name\s*=\s*["']([^"']+)""", open_, re.I)
+    m = re.match(r"""<(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s+name\s*=\s*["']([^"']+)""", open_, re.I)
     if m:
-        add(m.group(1), _xml_params(inner) or {})
+        if block.closed:
+            add(m.group(1), _invoke_args(inner, dsml=dsml))
         return out
     m = re.search(r"commentary\s+to=([\w.:-]+)", open_, re.I)
     if m:
         add(m.group(1), _args(inner.strip()))
         return out
     for m in re.finditer(r"""<(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s+name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)"""
-                         r"""</(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke>""", inner, re.I):
-        add(m.group(1), _xml_params(m.group(2)) or {})
+                         r"""</(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s*>""", inner, re.I):
+        add(m.group(1), _invoke_args(m.group(2), dsml=dsml or bool(re.match(r"<[｜|]\s*DSML\s*[｜|]", m.group(0), re.I))))
     if out:
         return out
     for m in re.finditer(r"(?:<\|tool_call_begin\|>)?\s*([\w.:-]+)\s*<\|tool_call_argument_begin\|>\s*([\s\S]*?)\s*"

@@ -299,11 +299,12 @@ class TunnelTest(unittest.TestCase):
     def test_a_fake_cloudflared_is_run_and_its_address_read(self) -> None:
         temp = tempfile.mkdtemp()
         fake = Path(temp) / "cloudflared"
-        fake.write_text("#!/bin/sh\necho 'INF |  https://fake-words-here.trycloudflare.com  |'\nsleep 30\n", encoding="utf-8")
-        fake.chmod(0o755)
+        fake.write_text("import time\nprint('INF |  https://fake-words-here.trycloudflare.com  |', flush=True)\ntime.sleep(30)\n", encoding="utf-8")
+        popen = subprocess.Popen
         tunnel = public_tunnel.Tunnel()
         with patch.object(public_tunnel, "find_binary", lambda: str(fake)), \
-                patch.object(public_tunnel, "_conf_path", lambda: Path(temp) / "conf.json"):
+                patch.object(public_tunnel, "_conf_path", lambda: Path(temp) / "conf.json"), \
+                patch.object(public_tunnel.subprocess, "Popen", lambda command, **kwargs: popen([sys.executable, *command], **kwargs)):
             status = tunnel.start(8320)
             try:
                 self.assertEqual(status["state"], "running")
@@ -357,13 +358,16 @@ class TunnelReviewTest(unittest.TestCase):
         temp = tempfile.mkdtemp()
         fake = Path(temp) / "cloudflared"
         out = Path(temp) / "seen.txt"
-        fake.write_text(f"#!/bin/sh\necho \"ARGS:$*\" > {out}\necho \"ENV:$TUNNEL_TOKEN\" >> {out}\nsleep 30\n",
+        fake.write_text("import os, pathlib, sys, time\n" +
+                        f"pathlib.Path({str(out)!r}).write_text('ARGS:' + ' '.join(sys.argv[1:]) + '\\nENV:' + os.environ.get('TUNNEL_TOKEN', ''))\n" +
+                        "time.sleep(30)\n",
                         encoding="utf-8")
-        fake.chmod(0o755)
+        popen = subprocess.Popen
         tunnel = public_tunnel.Tunnel()
         token = "T" * 40
         with patch.object(public_tunnel, "find_binary", lambda: str(fake)), \
-                patch.object(public_tunnel, "_conf_path", lambda: Path(temp) / "conf.json"):
+                patch.object(public_tunnel, "_conf_path", lambda: Path(temp) / "conf.json"), \
+                patch.object(public_tunnel.subprocess, "Popen", lambda command, **kwargs: popen([sys.executable, *command], **kwargs)):
             tunnel.save_config({"mode": "named", "token": token, "hostname": "api.example.com"})
             tunnel.start(8320)
             try:

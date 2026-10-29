@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
-SHOTS = Path("/workspace/work/shots/r25/selects")
+SHOTS = ROOT / "build" / "selects-browser-shots"
 sys.path.insert(0, str(ROOT))
 
 from tests.settings_shell_test import _chromium  # noqa: E402
@@ -267,16 +267,23 @@ class SelectFlashBrowser(unittest.TestCase):
         self.assertTrue(page.evaluate(f"!!document.querySelector('{host}')"))
         self.tap(f"{host} > .mpick-btn")
         time.sleep(0.2)
-        self.assertEqual(page.evaluate(f"document.querySelectorAll('{host} .mpick-item[disabled]').length"), 5)
-        page.evaluate(f"document.querySelector('{host} .mpick-item[disabled]').click()")
+        page.evaluate("""host => {
+          const owner = document.querySelector(host);
+          const pop = [...document.querySelectorAll('body > .mpick-pop')].find(el => el._layerOwner === owner);
+          if (!pop) throw new Error('Missing portaled picker for ' + host);
+          pop.id = 'r25-pop';
+        }""", host)
+        popup = "#r25-pop"
+        self.assertEqual(page.evaluate(f"document.querySelectorAll('{popup} .mpick-item[disabled]').length"), 5)
+        page.evaluate(f"document.querySelector('{popup} .mpick-item[disabled]').click()")
         self.assertEqual(page.evaluate("document.getElementById('r25-pick').value"), "v0")
 
         for _ in range(3):
             page.keyboard.press("ArrowDown")
-            self.assertFalse(page.evaluate(f"!!document.querySelector('{host} .mpick-item.cur[disabled]')"))
+            self.assertFalse(page.evaluate(f"!!document.querySelector('{popup} .mpick-item.cur[disabled]')"))
         page.keyboard.press("Enter")
         self.assertEqual(page.evaluate("document.getElementById('r25-pick').value"), "v6",
-                         page.evaluate(f"[document.activeElement.outerHTML.slice(0, 80), document.querySelector('{host}').className, document.querySelector('{host} .mpick-item.cur')?.textContent]"))
+                         page.evaluate(f"[document.activeElement.outerHTML.slice(0, 80), document.querySelector('{host}').className, document.querySelector('{popup} .mpick-item.cur')?.textContent]"))
         self.assertFalse(page.evaluate(f"document.querySelector('{host}').classList.contains('open')"))
         page.evaluate("document.getElementById('r25-box').remove()")
 

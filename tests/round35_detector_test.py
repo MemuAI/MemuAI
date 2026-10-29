@@ -158,8 +158,10 @@ class NewerQuizAndCatalogueTest(unittest.TestCase):
         dates = [date for date, _question, _pattern in detector.QUIZ]
         self.assertEqual(dates, sorted(dates))
         self.assertEqual((len(dates), dates[-1]), (19, "2026-02"))
-        source = (ROOT / "app" / "detector.py").read_text(encoding="utf-8")
-        self.assertIn("do NOT append events newer than what current models know", source)
+        for _date, question, pattern in detector.QUIZ:
+            self.assertTrue(question.strip())
+            self.assertTrue(pattern.strip())
+            re.compile(pattern)
 
     def test_knowing_the_whole_list_gives_february_2026(self) -> None:
 

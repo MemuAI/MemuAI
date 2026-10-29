@@ -59,7 +59,7 @@ class PgStateResponseTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.headers["content-type"].startswith("application/json"))
         data = response.json()
-        self.assertEqual(set(data), {"models", "image_models", "video_models", "music_models", "memory"})
+        self.assertEqual(set(data), {"models", "image_models", "video_models", "music_models", "memory", "unavailable_models"})
         self.assertEqual(jsonable_encoder(data), data)
 
         self.assertEqual(response.content,

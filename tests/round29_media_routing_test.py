@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,7 +107,8 @@ class PromptTest(unittest.TestCase):
             for word in ("8k", "masterpiece", "ultra detailed", "best quality"):
                 self.assertNotIn(word, text, name)
         js = (ROOT / "app/pgstatic/media-routing.js").read_text(encoding="utf-8")
-        block = js.split("PROMPT (r29b-media-routing)")[1].split("/PROMPT (r29b-media-routing)")[0]
+        start = js.index("  function promptBlock(")
+        block = js[start:js.index("  const imageList", start)]
         self.assertIn("memuai-image", block)
         self.assertIn("memuai-video", block)
         self.assertLess(len(media_routing.DECISION_SYSTEM), 900, "the decision prompt must stay tiny")
@@ -297,7 +299,9 @@ class EndToEndTest(unittest.TestCase):
         old = os.environ.get("HOME")
         os.environ["HOME"] = home
         try:
-            r = self.client.post(self.servers.pg + "/api/pg/media/save", json={"url": url, "name": "clip"}).json()
+            with patch("pathlib.Path.home", return_value=Path(home)), \
+                    patch("app.quick_apps.downloads_folder", return_value=str(Path(home) / "Downloads")):
+                r = self.client.post(self.servers.pg + "/api/pg/media/save", json={"url": url, "name": "clip"}).json()
             self.assertTrue(r.get("ok"), r)
             self.assertTrue(r["path"].startswith(home))
             self.assertTrue(r["name"].endswith(".webm"))

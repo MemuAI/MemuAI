@@ -175,6 +175,10 @@ class MusicHandlersTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.lib.close()
+        from app.music import library
+        with library._LIBS_LOCK:
+            library._LIBS = {key: value for key, value in library._LIBS.items() if value is not cls.lib}
         for key, value in cls.env.items():
             if value is None:
                 os.environ.pop(key, None)

@@ -549,15 +549,21 @@ class BrowserAndComputer(unittest.TestCase):
             return json.dumps({"action": "done", "report": state["text"], "reason": "done"})
 
         edge = automation_runtime.EdgeAutomation()
-        try:
+
+        async def exercise():
             with patch.object(automation_runtime, "DATA_DIR", str(sessions)):
-                run(automation_runtime.run_browser_agent(edge, scripted, model="m", task="greet",
-                                                         initial_url=f"http://127.0.0.1:{server.server_address[1]}/", max_steps=5))
-            self.assertEqual((edge.status, edge.error), ("done", ""))
-            self.assertIn("Hi, Мемю!", edge.report)
-            self.assertTrue(all(seen), "every step got a screenshot")
+                try:
+                    await automation_runtime.run_browser_agent(edge, scripted, model="m", task="greet",
+                                                               initial_url=f"http://127.0.0.1:{server.server_address[1]}/", max_steps=5)
+                    self.assertEqual((edge.status, edge.error), ("done", ""))
+                    self.assertIn("Hi, Мемю!", edge.report)
+                    self.assertTrue(all(seen), "every step got a screenshot")
+                finally:
+                    await edge.close_browser()
+
+        try:
+            run(exercise())
         finally:
-            run(edge.close_browser())
             server.shutdown()
             server.server_close()
         leftovers = list((sessions / "memuai" / "browser-sessions").glob("session-*")) if (sessions / "memuai").exists() else []
@@ -601,15 +607,15 @@ class StatisticsLayout(unittest.TestCase):
 
 class OneVersion(unittest.TestCase):
     def test_every_copy_of_the_version_says_the_release_number(self):
-        self.assertEqual(version.APP_VERSION, "4.0")
-        self.assertEqual(version.windows_version(), "4.0.0.0")
+        self.assertRegex(version.APP_VERSION, r"^\d+\.\d+(?:\.\d+){0,2}$")
+        self.assertEqual(version.windows_version(), ".".join(map(str, version.version_tuple())))
         from app import cli
         self.assertEqual(cli.VERSION, version.APP_VERSION, "MemuCode CLI has no version of its own")
-        for name in ("memuai-version.txt", "memuai-proxy-version.txt", "memucode-version.txt"):
+        for name in ("memuai-version.txt", "memuai-proxy-version.txt", "memucode-version.txt", "memunote-version.txt", "memufiles-version.txt", "memu-version.txt"):
             text = read(name)
-            self.assertIn("filevers=(4, 0, 0, 0)", text, name)
-            self.assertIn("'FileVersion', '4.0.0.0'", text, name)
-            self.assertIn("'ProductVersion', '4.0.0.0'", text, name)
+            self.assertIn(f"filevers={version.version_tuple()}", text, name)
+            self.assertIn(f"'FileVersion', '{version.windows_version()}'", text, name)
+            self.assertIn(f"'ProductVersion', '{version.windows_version()}'", text, name)
 
         build_script = read("build.py")
         for product in ("memuai", "proxy"):
@@ -634,12 +640,12 @@ class OneVersion(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("memuai_build_script", ROOT / "build.py")
         build = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(build)
-        self.assertEqual(build.app_version(), "4.0")
-        self.assertEqual({build.target_version(key, "4.0") for key in ("memuai", "proxy", "memucode")}, {"4.0"})
+        self.assertEqual(build.app_version(), version.APP_VERSION)
+        self.assertEqual({build.target_version(key, version.APP_VERSION) for key in build.TARGETS}, {version.APP_VERSION})
 
     def test_the_banner_and_the_version_command_read_the_same_number(self):
         from app.cli import VERSION
-        self.assertEqual(VERSION, "4.0")
+        self.assertEqual(VERSION, version.APP_VERSION)
 
 class InstallerOptionsPage(unittest.TestCase):
     """Round 15 made the five option rows of the Inno page share its height. The

@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -221,7 +222,7 @@ def test_window_wiring_r40():
         assert (ROOT / "app/memunote/static/js/slides" / name).exists()
 
 def _node():
-    node = subprocess.run(["which", "node"], capture_output=True, text=True).stdout.strip()
+    node = shutil.which("node")
     if not node:
         pytest.skip("node is not installed")
     return node

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from .config import DATA_DIR
+from .dfy_agent import _browser_args
 
 Completion = Callable[[str, list[dict]], Awaitable[str]]
 
@@ -370,6 +371,36 @@ _CDP_KEYS: dict[str, tuple[str, str, int, str]] = {
 }
 _CDP_MODIFIERS = {"alt": 1, "ctrl": 2, "control": 2, "meta": 4, "cmd": 4, "shift": 8}
 
+
+def _browser_children(process: subprocess.Popen | None) -> list[Any]:
+    """Capture process identities before Edge exits and its children become orphans."""
+    if process is None:
+        return []
+    try:
+        import psutil
+        return psutil.Process(process.pid).children(recursive=True)
+    except Exception:
+        return []
+
+
+def _reap_browser_children(children: list[Any]) -> None:
+    if not children:
+        return
+    import psutil
+    for child in reversed(children):
+        try:
+            child.terminate()
+        except psutil.Error:
+            pass
+    _gone, alive = psutil.wait_procs(children, timeout=3)
+    for child in alive:
+        try:
+            child.kill()
+        except psutil.Error:
+            pass
+    psutil.wait_procs(alive, timeout=3)
+
+
 class EdgeAutomation:
     """Headless Edge driven over CDP.
 
@@ -485,7 +516,10 @@ class EdgeAutomation:
         ]
         if self.headless:
             command.insert(1, "--headless=new")
-        extra = os.environ.get("MEMUAI_BROWSER_ARGS", "").split()
+        try:
+            extra = _browser_args(os.environ.get("MEMUAI_BROWSER_ARGS", ""))
+        except ValueError:
+            extra = []
         command.extend(arg for arg in extra if arg.startswith("--"))
         command.append("about:blank")
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -573,7 +607,6 @@ class EdgeAutomation:
         await self.command("Runtime.runIfWaitingForDebugger", session_id=session_id)
 
     async def _receive(self, socket_value: Any) -> None:
-        cancelled = False
         try:
             async for raw in socket_value:
                 message = json.loads(raw)
@@ -589,18 +622,12 @@ class EdgeAutomation:
                     self._event_tasks.add(task)
                     task.add_done_callback(self._event_tasks.discard)
         except asyncio.CancelledError:
-            cancelled = True
-            if self.socket is socket_value and self.process and self.process.poll() is None:
-                try:
-                    self.process.terminate()
-                except OSError:
-                    pass
             raise
         except Exception as exc:
             if self.socket is socket_value:
                 self.log(self.tr("Соединение с браузером закрыто: ", "The browser connection closed: ") + str(exc), kind="warn")
         finally:
-            if self.socket is socket_value and not cancelled:
+            if self.socket is socket_value:
                 for pending in self._pending.values():
                     if not pending.done():
                         pending.set_exception(RuntimeError(self.tr("Соединение с браузером закрыто", "The browser connection closed")))
@@ -1081,7 +1108,7 @@ class EdgeAutomation:
         await asyncio.shield(task)
 
     async def _close_browser(self) -> None:
-
+        children = await asyncio.to_thread(_browser_children, self.process)
         if self.socket is not None and self.process and self.process.poll() is None:
             try:
                 await self.command("Browser.close", session_id="", timeout=3)
@@ -1104,6 +1131,13 @@ class EdgeAutomation:
             except Exception:
                 pass
         if process and process.poll() is None:
+            if os.name == "nt":
+                try:
+                    await asyncio.to_thread(subprocess.run, ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                            creationflags=subprocess.CREATE_NO_WINDOW, timeout=5)
+                except Exception:
+                    pass
             try:
                 process.terminate()
             except OSError:
@@ -1129,14 +1163,7 @@ class EdgeAutomation:
                     process.kill()
                 except Exception:
                     pass
-        if process and os.name == "nt":
-
-            try:
-                await asyncio.to_thread(subprocess.run, ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                        creationflags=subprocess.CREATE_NO_WINDOW, timeout=5)
-            except Exception:
-                pass
+        await asyncio.to_thread(_reap_browser_children, children)
         if profile and profile.name.startswith("session-") and profile != self.user_data_dir:
 
             for _attempt in range(6):

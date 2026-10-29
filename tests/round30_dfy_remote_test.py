@@ -7,13 +7,17 @@ stand-in ``ssh`` binary that runs the remote command locally. No network beyond 
 import asyncio
 import json
 import os
+import platform
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from contextlib import contextmanager, ExitStack
 from pathlib import Path
+from unittest.mock import patch
 
 from app import dfy_agent as A
 from app.dfy_remote import (HttpTransport, LocalTransport, MachineStore, RemoteMachines, SshTransport,
@@ -21,6 +25,38 @@ from app.dfy_remote import (HttpTransport, LocalTransport, MachineStore, RemoteM
 from app.dfy_vault import SecretVault
 
 ROOT = Path(__file__).resolve().parents[1]
+
+def python_command(root: Path, source: str, *, confirmation=False):
+    """Only a uniquely named helper owned by this temporary fixture is executed."""
+    script = root / ("helper-%d.py" % time.monotonic_ns())
+    script.write_text(source, encoding="utf-8")
+    # A venv inside MemuAI is itself protected from destructive shell commands;
+    # these standard-library-only helpers use its external base interpreter.
+    args = [getattr(sys, "_base_executable", sys.executable), "-u", str(script)]
+    if confirmation:
+        # This inert argv label exercises the real command confirmation gate.
+        args.append("rmdir /s")
+    return subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+
+
+def cleanup_command(root: Path, target: Path):
+    assert target.parent.resolve() == root.resolve() and target != root
+    return python_command(root, "from pathlib import Path\nimport shutil\n"
+                          f"root = Path({str(root)!r}).resolve()\n"
+                          f"target = Path({str(target)!r}).resolve()\n"
+                          "assert target.parent == root and target != root\n"
+                          "shutil.rmtree(target)\n", confirmation=True)
+
+
+@contextmanager
+def no_mutation():
+    """A failed negative assertion must never reach a filesystem/process mutator."""
+    with ExitStack() as stack:
+        for target in ("pathlib.Path.open", "pathlib.Path.mkdir", "pathlib.Path.unlink",
+                       "pathlib.Path.rmdir", "shutil.rmtree", "shutil.move",
+                       "subprocess.Popen", "subprocess.run", "os.kill"):
+            stack.enter_context(patch(target, side_effect=AssertionError("mutation reached: " + target)))
+        yield
 
 def start_agent(tmp: Path, *extra: str):
     """Real agent on 127.0.0.1:<free port>; returns (process, pairing code)."""
@@ -73,21 +109,33 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(levels[risky], "confirm", risky)
 
     def test_self_protection_resolves_symlinks_and_parents(self):
-        link = self.root / "innocent"
-        link.symlink_to(self.app / "data")
-        for op, params in [("fs_delete", {"path": str(link / "chats.json"), "confirmed": True}),
-                           ("fs_delete", {"path": str(self.root), "recursive": True, "confirmed": True}),
-                           ("fs_write", {"path": str(link / "chats.json"), "text": "", "confirmed": True}),
+        system = os.environ.get("WINDIR", r"C:\Windows") if os.name == "nt" else "/etc"
+        for op, params in [("fs_delete", {"path": str(self.root), "recursive": True, "confirmed": True}),
+                           ("fs_write", {"path": str(self.app / "data" / "chats.json"), "text": "", "confirmed": True}),
                            ("fs_move", {"source": str(self.app), "target": str(self.root / "x"), "confirmed": True}),
                            ("fs_write", {"path": A.__file__, "text": "#", "confirmed": True}),
-                           ("fs_delete", {"path": "/", "recursive": True, "confirmed": True}),
-                           ("fs_delete", {"path": "/etc", "recursive": True, "confirmed": True}),
-                           ("exec", {"command": f"rm -rf {link}/", "confirmed": True}),
+                           ("fs_delete", {"path": str(Path(system).anchor), "recursive": True, "confirmed": True}),
+                           ("fs_delete", {"path": system, "recursive": True, "confirmed": True}),
+                           ("exec", {"command": f"rm -rf {self.app}/", "confirmed": True}),
                            ("proc_kill", {"pid": os.getpid(), "confirmed": True})]:
-            with self.assertRaises(A.Refused, msg=op) as caught:
+            with no_mutation(), self.assertRaises(A.Refused, msg=op) as caught:
                 self.agent.call(op, params)
             self.assertNotIsInstance(caught.exception, A.NeedsConfirm, op)
         self.assertTrue((self.app / "data" / "chats.json").exists())
+
+    def test_self_protection_resolves_symlink(self):
+        link = self.root / "innocent"
+        try:
+            link.symlink_to(self.app / "data", target_is_directory=True)
+        except OSError as exc:
+            if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows account lacks symlink privilege")
+            raise
+        for op, params in [("fs_delete", {"path": str(link / "chats.json"), "confirmed": True}),
+                           ("fs_write", {"path": str(link / "chats.json"), "text": "", "confirmed": True}),
+                           ("exec", {"command": f"rm -rf {link}/", "confirmed": True})]:
+            with no_mutation(), self.assertRaises(A.Refused):
+                self.agent.call(op, params)
 
     def test_confirmation_and_ops(self):
         work = self.root / "work"
@@ -104,9 +152,11 @@ class GuardTests(unittest.TestCase):
             self.agent.call("fs_delete", {"path": str(work / "b.txt")})
         self.agent.call("fs_delete", {"path": str(work / "b.txt"), "confirmed": True})
         self.assertFalse((work / "b.txt").exists())
-        with self.assertRaises(A.NeedsConfirm):
-            self.agent.call("exec", {"command": f"rm -rf {work}"})
-        self.assertEqual(self.agent.call("exec", {"command": f"rm -rf {work}", "confirmed": True})["exit_code"], 0)
+        command = cleanup_command(self.root, work)
+        with no_mutation(), self.assertRaises(A.NeedsConfirm):
+            self.agent.call("exec", {"command": command, "cwd": str(self.root)})
+        self.assertEqual(self.agent.call("exec", {"command": command, "cwd": str(self.root), "confirmed": True})["exit_code"], 0)
+        self.assertFalse(work.exists())
 
     def test_roots_whitelist_only_narrows(self):
         allowed = self.root / "allowed"
@@ -117,22 +167,24 @@ class GuardTests(unittest.TestCase):
             agent.call("fs_read", {"path": "/etc/hostname"})
         with self.assertRaises(A.Refused):
             agent.call("fs_list", {"path": "/etc", "roots": ["/etc"]})
-        self.assertEqual(agent.call("exec", {"command": "pwd", "roots": [str(allowed)]})["output"].strip(),
+        self.assertEqual(agent.call("exec", {"command": "cd" if os.name == "nt" else "pwd", "roots": [str(allowed)]})["output"].strip(),
                          str(allowed.resolve()))
 
     def test_exec_timeout_truncation_and_cancel(self):
-        result = self.agent.call("exec", {"command": "echo start; sleep 5; echo never", "timeout": 1})
+        command = python_command(self.root, "import time\nprint('start', flush=True)\ntime.sleep(5)\nprint('never')\n")
+        result = self.agent.call("exec", {"command": command, "timeout": 1})
         self.assertEqual(result["status"], "timeout")
         self.assertIn("start", result["output"])
         self.assertLess(result["duration"], 4)
         small = A.Agent(self.guard, max_output=100, state=self.root / "state")
-        big = small.call("exec", {"command": "yes | head -n 1000"})
+        big = small.call("exec", {"command": python_command(self.root, "print('line\\n' * 1000)\n")})
         self.assertTrue(big["truncated"])
         self.assertLessEqual(len(big["output"]), 100)
         import threading
         holder = {}
+        slow = python_command(self.root, "import time\ntime.sleep(20)\n")
         thread = threading.Thread(target=lambda: holder.update(r=self.agent.call(
-            "exec", {"command": "sleep 20", "job": "j1", "timeout": 30})))
+            "exec", {"command": slow, "job": "j1", "timeout": 30})))
         thread.start()
         time.sleep(0.5)
         self.assertTrue(self.agent.call("exec_cancel", {"job": "j1"})["ok"])
@@ -185,7 +237,8 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.machines.store.list()[0]["online"])
 
         chunks = []
-        result = await self.machines.call(row["id"], "exec", {"command": "for i in 1 2 3; do echo line$i; done"},
+        command = python_command(self.root, "import sys\nsys.stdout.buffer.write(b'line1\\nline2\\nline3\\n')\n")
+        result = await self.machines.call(row["id"], "exec", {"command": command},
                                           on_chunk=chunks.append)
         self.assertEqual(result["exit_code"], 0)
         self.assertEqual("".join(chunks), "line1\nline2\nline3\n")
@@ -197,12 +250,14 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(A.NeedsConfirm):
             await self.machines.call(row["id"], "fs_delete", {"path": str(work), "recursive": True})
         with self.assertRaises(A.NeedsConfirm):
-            await self.machines.call(row["id"], "exec", {"command": f"rm -rf {work}"})
+            await self.machines.call(row["id"], "exec", {"command": cleanup_command(self.root, work)})
 
-        (self.root / "alias").symlink_to(self.script)
-        for op, params in [("fs_delete", {"path": str(self.root / "alias"), "confirmed": True}),
-                           ("exec", {"command": f"rm -f {self.script}", "confirmed": True}),
-                           ("exec", {"command": "pkill -f memuai_remote_agent", "confirmed": True}),
+        # Source/process command classification is checked without executing a
+        # destructive fallback if the guard regresses.
+        guard = A.Guard(protect=[str(self.script)])
+        for command in (f"rm -f {self.script}", "pkill -f memuai_remote_agent"):
+            self.assertEqual(guard.classify(command)["level"], "blocked")
+        for op, params in [("fs_delete", {"path": str(self.script), "confirmed": True}),
                            ("fs_delete", {"path": str(self.root / "agent-home"), "recursive": True, "confirmed": True})]:
             with self.assertRaises(A.Refused, msg=op):
                 await self.machines.call(row["id"], op, params)
@@ -219,7 +274,8 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancel_running_command(self):
         row = self.machines.store.add({"code": self.code})
-        job = asyncio.create_task(self.machines.call(row["id"], "exec", {"command": "sleep 30", "job": "slow"},
+        command = python_command(self.root, "import time\ntime.sleep(30)\n")
+        job = asyncio.create_task(self.machines.call(row["id"], "exec", {"command": command, "job": "slow"},
                                                      on_chunk=lambda _t: None))
         await asyncio.sleep(0.8)
         cancelled = await self.machines.call(row["id"], "exec_cancel", {"job": "slow"})
@@ -227,7 +283,19 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
         result = await asyncio.wait_for(job, 10)
         self.assertEqual(result["status"], "cancelled")
 
+    async def test_remote_symlink_protection(self):
+        try:
+            (self.root / "alias").symlink_to(self.script)
+        except OSError as exc:
+            if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows account lacks symlink privilege")
+            raise
+        row = self.machines.store.add({"code": self.code})
+        with self.assertRaises(A.Refused):
+            await self.machines.call(row["id"], "fs_delete", {"path": str(self.root / "alias"), "confirmed": True})
+
 class SshTransportTests(unittest.IsolatedAsyncioTestCase):
+    @unittest.skipIf(os.name == "nt", "POSIX SSH stand-in requires a local executable /bin/sh fixture")
     async def test_ssh_runs_agent_without_install(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -304,18 +372,30 @@ class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_local_machine_task_with_confirmation(self):
         work = self.root / "proj"
+        create = python_command(self.root, "from pathlib import Path\n"
+                                f"p = Path({str(work)!r})\np.mkdir()\n"
+                                "(p / 'a.txt').write_text('hello\\n')\nprint('a.txt')\n")
+        cleanup = cleanup_command(self.root, work)
         model = ScriptedModel([
-            {"action": "shell", "command": f"mkdir -p {work} && echo hello > {work}/a.txt && ls {work}"},
+            {"action": "shell", "command": create},
             {"action": "file_read", "path": str(work / "a.txt")},
-            {"action": "shell", "command": f"rm -rf {work}", "reason": "clean up"},
+            {"action": "shell", "command": cleanup, "reason": "clean up"},
             {"action": "shell", "command": "rm -rf /"},
             {"action": "done", "result": "cleaned"},
         ])
+        # The deliberately forbidden literal below is never allowed to reach
+        # an OS shell, even if command classification itself regresses.
+        original_popen = subprocess.Popen
+        def safe_popen(args, *positional, **kwargs):
+            if args == "rm -rf /":
+                raise AssertionError("forbidden literal reached Popen")
+            return original_popen(args, *positional, **kwargs)
+        self.enterContext(patch.object(A.subprocess, "Popen", side_effect=safe_popen))
         mgr = self.manager(model)
         task = await mgr.create("сделай и убери", target="local")
         await self.wait(task, ("waiting_user",))
         self.assertEqual(task.question["kind"], "confirm")
-        self.assertIn(f"rm -rf {work}", task.question["prompt"])
+        self.assertIn(cleanup, task.question["prompt"])
         self.assertTrue((work / "a.txt").exists())
         await mgr.answer(task.id, {"approve": True})
         await self.wait(task, ("done", "failed"))
@@ -338,7 +418,7 @@ class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
     async def test_declined_danger_is_not_run_and_local_needs_setting(self):
         keep = self.root / "keep"
         keep.mkdir()
-        model = ScriptedModel([{"action": "shell", "command": f"rm -rf {keep}"},
+        model = ScriptedModel([{"action": "shell", "command": cleanup_command(self.root, keep)},
                                {"action": "done", "result": "ok"}])
         mgr = self.manager(model)
         task = await mgr.create("удали", target="local")
@@ -354,7 +434,9 @@ class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
             await mgr.create("x", target="no-such-machine")
 
     async def test_cancel_stops_remote_command(self):
-        model = ScriptedModel([{"action": "shell", "command": "sleep 30; echo late > %s" % (self.root / "late")}])
+        command = python_command(self.root, "import time\nfrom pathlib import Path\ntime.sleep(30)\n"
+                                 f"Path({str(self.root / 'late')!r}).write_text('late')\n")
+        model = ScriptedModel([{"action": "shell", "command": command}])
         mgr = self.manager(model)
         task = await mgr.create("долго", target="local")
         deadline = time.monotonic() + 10
@@ -406,7 +488,7 @@ class HttpApiTests(unittest.TestCase):
                     added = client.post("/api/dfy/remote/machines", json={"code": code, "name": "prod"}).json()
                     machine = added["machine"]
                     self.assertTrue(machine["online"])
-                    self.assertEqual(machine["os"], "linux")
+                    self.assertEqual(machine["os"], platform.system().lower())
                     listing = client.get("/api/dfy/remote/machines").json()
                     token = A.parse_pairing_code(code)["token"]
                     self.assertNotIn(token, json.dumps(listing))
@@ -458,7 +540,8 @@ class SameHostProtectionTests(unittest.IsolatedAsyncioTestCase):
                     await machines.call(row["id"], "fs_delete", {"path": str(root / "keep"), "recursive": True,
                                                                  "confirmed": True})
                 with self.assertRaises(A.Refused):
-                    await machines.call(row["id"], "exec", {"command": f"rm -rf {ROOT / 'app'}", "confirmed": True})
+                    await machines.call(row["id"], "fs_delete", {"path": str(fake / "app"),
+                                                                "recursive": True, "confirmed": True})
                 self.assertTrue((root / "keep").exists() and (ROOT / "app" / "dfy.py").exists() and (fake / "app").exists())
             finally:
                 process.terminate()
@@ -488,12 +571,14 @@ class HelpersTests(unittest.TestCase):
         self.assertIn("exit_code=0", model)
 
     def test_local_transport_protects_memuai(self):
-        machines = RemoteMachines(Path(tempfile.mkdtemp()), SecretVault(Path(tempfile.mkdtemp()), use_dpapi=False))
-        self.assertIsInstance(machines.local, LocalTransport)
-        verdict = machines.local.agent.guard.classify(f"rm -rf {ROOT}/app")
-        self.assertEqual(verdict["level"], "blocked")
-        with self.assertRaises(A.Refused):
-            machines.local.agent.call("fs_delete", {"path": str(ROOT / "app" / "dfy.py"), "confirmed": True})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            machines = RemoteMachines(root, SecretVault(root, use_dpapi=False))
+            self.assertIsInstance(machines.local, LocalTransport)
+            verdict = machines.local.agent.guard.classify(f"rm -rf {ROOT}/app")
+            self.assertEqual(verdict["level"], "blocked")
+            with no_mutation(), self.assertRaises(A.Refused):
+                machines.local.agent.call("fs_delete", {"path": str(ROOT / "app" / "dfy.py"), "confirmed": True})
 
     def test_store_never_exposes_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:

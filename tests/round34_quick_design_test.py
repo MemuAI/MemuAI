@@ -129,17 +129,17 @@ class Names(unittest.TestCase):
 class CacheBusters(unittest.TestCase):
     def test_bumped(self) -> None:
         index, quick, layer = read(STATIC / "index.html"), read(QUICK / "index.html"), read(QUICK / "layer.html")
-        for ref in ("/memory.css?v=1.2-r40", "/stuck.css?v=1.1-r34", "/memu-ctxmenu.js?v=1.1-r34", "/quick-settings.js?v=1.2-r34"):
+        for ref in ("/memory.css?v=1.2-r40", "/stuck.css?v=1.1-r34", "/memu-ctxmenu.js?v=4.1", "/quick-settings.js?v=1.2-r34"):
             self.assertIn(ref, index)
         for ref in ("/quick/quick-dfy.css?v=1.3-r34", "/stuck.css?v=1.1-r34", "/quick/quick-md.js?v=1.3-r34",
                     "/quick/quick-copy.js?v=1.1-r34", "/quick/quick-design.css?v="):
             self.assertIn(ref, quick)
-        for ref in ("/quick/layer.css?v=1.3-r34", "/memu-ctxmenu.js?v=1.1-r34"):
+        for ref in ("/quick/layer.css?v=1.3-r34", "/memu-ctxmenu.js?v=4.1"):
             self.assertIn(ref, layer)
         self.assertIn("/quick/quick-md.js?v=1.3-r34", read(QUICK / "sticker.html"))
         self.assertIn('const TEXT_V = "?v=1.1-r34";', read(QUICK / "plugins" / "canvas-embed.js"))
         self.assertIn("/quick/panel-text-editor.css?v=1.1-r34", read(QUICK / "plugins" / "canvas-look-settings.js"))
-        self.assertIn('loadScript("/memu-ctxmenu.js?v=1.1-r34")', read(QUICK / "plugins" / "canvas.js"))
+        self.assertIn('loadScript("/memu-ctxmenu.js?v=4.1")', read(QUICK / "plugins" / "canvas.js"))
         manifest = {p["id"]: p for p in json.loads(read(QUICK / "plugins" / "index.json"))["plugins"]}
         for plugin in ("canvas", "commands", "features"):
             self.assertGreaterEqual(int(manifest[plugin]["v"].rsplit("-r", 1)[1]), 34, (plugin, manifest[plugin]["v"]))

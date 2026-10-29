@@ -55,7 +55,7 @@ def _safe_read(path: Path, query_tokens: set[str], limit: int) -> tuple[str, boo
             raw = handle.read(max(limit * 3, limit) + 1)
     except OSError:
         return "", False
-    if b"\x00" in raw[:8192]:
+    if b"\x00" in raw[:8192] and not raw.startswith((b"\xff\xfe", b"\xfe\xff")):
         return "", False
     clipped = len(raw) > max(limit * 3, limit)
     truncated = clipped
@@ -115,7 +115,7 @@ def build_work_context(root: str | Path, query: str, *, active_paths: list[str] 
                 resolved = path.resolve()
                 resolved.relative_to(project)
                 stat = resolved.stat()
-            except (OSError, ValueError):
+            except (OSError, ValueError, RuntimeError):
                 continue
             rel = resolved.relative_to(project).as_posix()
             index.append(rel)

@@ -49,7 +49,7 @@ class MemuNoteSetupTest(unittest.TestCase):
     def engine(self, version: str) -> Engine:
         stub = self.base / f"stub-{version}.exe"
         stub.write_bytes(STUB)
-        setup = self.base / f"{version}-Setup.exe"
+        setup = self.base / f"{version}-Setup-{len(self.paks)}.exe"
         payload.assemble(stub, dist_with_memunote(self.base, version), {"product": "memuai", "version": version},
                          setup, preset=1, workers=2, block_target=16 * 1024)
         pak = payload.Payload(setup)

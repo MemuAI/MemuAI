@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('app/docs', 'app/docs')]
+datas = [('app/docs', 'app/docs'), ('app/dfy_agent.py', 'app')]
 binaries = []
 hiddenimports = ['websockets', 'pypdf', 'winotify', 'PIL.Image', 'PIL.ImageGrab', 'PIL.ImageDraw', 'PIL.ImageFont', 'app.cli.vision', 'app.instant_answers', 'app.cli.commands.config_cmds', 'app.cli.commands.info_cmds', 'app.cli.commands.model_cmds', 'app.cli.commands.session_cmds', 'app.cli.commands.work_cmds', 'app.cli.commands.dashboard_cmds', 'app.cli.commands.decisions_cmds', 'app.cli.commands.foreign_cmds', 'app.cli.commands.import_cmds', 'app.cli.commands.routing_cmds', 'app.cli.commands.schedule_cmds', 'app.cli.commands.skill_cmds', 'app.cli.foreign', 'app.cli.foreign.agy', 'app.cli.foreign.claude', 'app.cli.foreign.codex', 'app.cli.foreign.configs', 'app.cli.foreign.cursor', 'app.cli.foreign.gemini', 'app.cli.foreign.grok', 'app.cli.foreign.handoff', 'app.cli.foreign.importer', 'app.cli.foreign.model', 'app.cli.foreign.opencode', 'app.cli.foreign.protobuf', 'app.cli.schedule', 'app.cli.triage', 'app.cli.risk', 'app.cli.modelmeta', 'app.cli.skillkit', 'app.cli.editor', 'app.cli.tools.skills', 'sqlite3', 'tomllib', 'app.cli.remote', 'app.cli.remote_host', 'app.memory_v2', 'app.stuck_detector', 'app.answer_guard', 'app.cli.errors', 'app.cli.autocontinue', 'app.cli.ratelimit', 'app.cli.selfdoc', 'app.cli.commands.autocontinue_cmds', 'app.cli.commands.guide_cmds', 'app.model_names', 'app.reasoning_levels']
 tmp_ret = collect_all('prompt_toolkit')

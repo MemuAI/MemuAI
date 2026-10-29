@@ -73,15 +73,16 @@
       const rows = JSON.parse(result?.text || "{}").data;
       if (!Array.isArray(rows) || !rows.length) throw new Error(tr("API не вернул список моделей", "API returned no model list"));
       const counts = new Map(), names = new Map(), specs = new Map(), tails = new Map();
-      const perMillion = (value) => { const n = Number(value); return value === undefined || value === null || value === "" || !Number.isFinite(n) || n < 0 ? null : n * 1e6; };
+      const perMillion = (value) => { const n = Number(value) * 1e6; return !["number", "string"].includes(typeof value) || String(value).trim() === "" || !Number.isFinite(n) || n < 0 ? null : n; };
       for (const row of rows) {
+        if (!row || typeof row !== "object") continue;
         if (typeof row.id === "string" && row.id) {
           const arch = row.architecture || {}, pricing = row.pricing || {};
           const spec = { context: +row.context_length || +row.top_provider?.context_length || 0, input: perMillion(pricing.prompt), output: perMillion(pricing.completion),
-            inputs: (arch.input_modalities || []).filter((x) => typeof x === "string"), outputs: (arch.output_modalities || []).filter((x) => typeof x === "string") };
+            inputs: (Array.isArray(arch.input_modalities) ? arch.input_modalities : []).filter((x) => typeof x === "string"), outputs: (Array.isArray(arch.output_modalities) ? arch.output_modalities : []).filter((x) => typeof x === "string") };
           specs.set(row.id.toLowerCase(), spec);
           const tail = norm(row.id);
-          if (tail && !tails.has(tail)) tails.set(tail, spec);
+          if (tail) tails.set(tail, tails.has(tail) ? null : spec);
         }
         const id = typeof row.id === "string" ? row.id : "", slash = id.indexOf("/");
         if (slash <= 0) continue;
@@ -149,12 +150,14 @@
   function sourceOf(event) { const title = String(event.title || ""); return title.includes(" · ") ? title.split(" · ").slice(1).join(" · ") : title; }
   function parseEvent(event) {
     const source = sourceOf(event), at = eventTime(event), models = [], other = [];
+    const entries = (Array.isArray(event.models) ? event.models : []).filter((model) => model && typeof model.key === "string" && typeof model.name === "string");
+    if (entries.length) models.push(...entries.map((model) => ({ name: model.name, key: model.key, source, at, event: event.id, spec: model.spec })));
     for (const line of String(event.text || "").split("\n")) {
       const text = line.trim();
       if (!text) continue;
-      const added = /^\+\s+(.+?)\s+·\s+(\S.*)$/.exec(text);
-      if (added) models.push({ name: added[1], key: added[2], source, at, event: event.id });
-      else other.push(text);
+      const added = /^\+\s+(.+)\s+·\s+(\S.*)$/.exec(text);
+      if (added) { if (!entries.length) models.push({ name: added[1], key: added[2], source, at, event: event.id }); }
+      else if (!entries.length || (!/^\s+(?:Цена \/|Price \/)/.test(line) && !/^\+\s/.test(line))) other.push(text);
     }
     return { event, source, at, models, other };
   }
@@ -164,15 +167,17 @@
     return id.includes("/") ? id.split("/")[0] : "";
   }
   function hue(text) { let h = 0; for (const ch of String(text)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 360; }
-  function norm(value) { return String(value || "").toLowerCase().replace(/^models\//, "").split("/").pop().replace(/:[a-z0-9-]+$/, "").replace(/[^a-z0-9]+/g, ""); }
+  function norm(value) { return String(value || "").toLowerCase().replace(/^models\//, "").split("/").pop().replace(/[^a-z0-9:]+/g, ""); }
   function specFor(model) {
-    if (!state.specs.size) return null;
-    return state.specs.get(String(model.key).toLowerCase()) || state.specsByTail.get(norm(model.key)) || state.specsByTail.get(norm(model.name)) || null;
+    const key = String(model.key).toLowerCase();
+    const live = state.specs.get(key) || (!key.replace(/^models\//, "").includes("/") && (state.specsByTail.get(norm(key)) || state.specsByTail.get(norm(model.name))));
+    return model.spec && typeof model.spec === "object" ? { ...live, ...model.spec } : live || null;
   }
   function compact(n) { n = +n || 0; return n >= 1e6 ? `${+(n / 1e6).toFixed(n % 1e6 ? 1 : 0)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n); }
   function money(value) {
     if (value === null || value === undefined || !Number.isFinite(value)) return "";
     if (value === 0) return tr("бесплатно", "free");
+    if (value > 0 && value < 0.001) return "$" + Memu.i18n.number(value, { maximumSignificantDigits: 3 });
     return "$" + Memu.i18n.number(value, { maximumFractionDigits: value < 1 ? 3 : 2 });
   }
   const MODALITY = { text: ["текст", "text"], image: ["изобр.", "image"], file: ["файлы", "files"], audio: ["аудио", "audio"], video: ["видео", "video"] };
@@ -215,7 +220,8 @@
       specs.push(`<span class="am-spec"><i>${tr("цена 1M", "price 1M")}</i>${esc(money(spec.input) || "—")} → ${esc(money(spec.output) || "—")}</span>`);
     }
     if (spec?.inputs?.length) specs.push(`<span class="am-spec"><i>${tr("вход", "in")}</i>${esc(spec.inputs.map(modality).join(" · "))}</span>`);
-    if (spec?.outputs?.some((kind) => kind !== "text")) specs.push(`<span class="am-spec accent"><i>${tr("выход", "out")}</i>${esc(spec.outputs.map(modality).join(" · "))}</span>`);
+    if (spec?.outputs?.length) specs.push(`<span class="am-spec accent"><i>${tr("выход", "out")}</i>${esc(spec.outputs.map(modality).join(" · "))}</span>`);
+    else specs.push(`<span class="am-spec dim"><i>${tr("выход", "out")}</i>${tr("не указан", "not listed")}</span>`);
     return `<article class="am-model ${unread(model) ? "unread" : ""}" data-model-key="${esc(model.key)}">
       <span class="am-mono" style="--hue:${hue(label)}" aria-hidden="true">${esc(String(label || "?").charAt(0).toUpperCase())}</span>
       <div class="am-model-main">

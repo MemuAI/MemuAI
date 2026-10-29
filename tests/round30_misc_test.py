@@ -71,7 +71,7 @@ class TokenEstimateTest(unittest.TestCase):
     @unittest.skipUnless(NODE, "node is not installed")
     def test_js_twin_has_the_same_table_and_the_same_numbers(self) -> None:
         source = (STATIC / "tokens.js").read_text(encoding="utf-8")
-        table = source[source.index("/* TABLE-BEGIN */"):source.index("/* TABLE-END */")]
+        table = source[source.index("const FAMILIES = ["):source.index("const BY_ID = ")]
         rows = re.findall(r'id: "([\w-]+)", label: "([^"]+)", coef: \[([^\]]+)\]', table)
         self.assertEqual([(row["id"], row["label"], row["coef"]) for row in te.FAMILIES],
                          [(rid, label, [float(x) for x in coef.split(",")]) for rid, label, coef in rows])

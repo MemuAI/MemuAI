@@ -154,10 +154,12 @@ class WiringTest(unittest.TestCase):
         files = (ROOT / "app/memufiles/static/js/app.js").read_text(encoding="utf-8")
         self.assertIn('else if (ev.type === "settings") this.reloadSettings();', files)
         self.assertIn('window.addEventListener("focus", () => this.reloadSettings());', files)
-        self.assertIn("app.applySettings(await api(\"settings\", changes));", (ROOT / "app/memufiles/static/js/dialogs.js").read_text(encoding="utf-8"))
+        dialogs = (ROOT / "app/memufiles/static/js/dialogs.js").read_text(encoding="utf-8")
+        self.assertIn('import("./feat41.js").then((m) => m.settingsDialog(app, group))', dialogs)
+        self.assertIn("app.applySettings(await api(\"settings\", changes));", (ROOT / "app/memufiles/static/js/feat41.js").read_text(encoding="utf-8"))
         index = (ROOT / "app/pgstatic/index.html").read_text(encoding="utf-8")
         self.assertLess(index.index("/app-settings-form.js"), index.index("/memunote-settings.js"))
-        self.assertIn('href="/app-settings-form.css?v=1.0-r38"', index)
+        self.assertRegex(index, r'href="/app-settings-form\.css\?v=[^"\s]+"')
         self.assertIn("app_settings_api.register(app)", (ROOT / "app/playground_api.py").read_text(encoding="utf-8"))
 
     def test_setup_has_no_whats_new(self):

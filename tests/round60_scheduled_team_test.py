@@ -7,7 +7,7 @@ from app.state import state
 from app.team_runtime import TeamContextChanged
 
 class ScheduledTeam(unittest.IsolatedAsyncioTestCase):
-    async def run_case(self, behavior, status='completed', rows=None, active=None):
+    async def run_case(self, behavior, status='completed', rows=None, active=None, task=None):
         active = active if active is not None else {'id':'default'}
         spec={'id':'team', 'name':'Team', 'manager_model':'text-manager', 'members':[{'id':'lead','name':'Lead','role':'Lead','model':'text-worker'}]}
         save=Mock()
@@ -17,8 +17,15 @@ class ScheduledTeam(unittest.IsolatedAsyncioTestCase):
             def snapshot(self):return {'id':self.id,'status':status}
             async def run(self):return await behavior(self)
         with patch.object(pgdata,'load_profiles',side_effect=lambda:{'active_id':active['id']}),patch.object(teams,'load',return_value=[spec]),patch.object(schedule_runtime,'_lang',return_value='en'),patch.object(state,'find_model',return_value=None),patch.object(state,'enabled_models',return_value=rows or []),patch('app.team_runtime.TeamRun',Run),patch('app.teams_api._save_run',save):
-            result=await schedule_runtime._team({'team_id':'team','prompt':'Research this'})
+            result=await schedule_runtime._team({'team_id':'team','prompt':'Research this',**(task or {})})
         return result,save
+
+    async def test_direct_team_action_expands_scheduling_variables(self):
+        async def behavior(run):
+            self.assertEqual(run.kwargs['messages'][-1]['content'], 'Digest: 7')
+            return {'text':'Done','run':run.snapshot()}
+        result,_=await self.run_case(behavior,task={'prompt':'{{task_name}}: {{run_count}}','name':'Digest','run_count':7})
+        self.assertTrue(result[0])
 
     async def test_profile_guard_and_failed_run_are_persisted(self):
         active={'id':'default'}

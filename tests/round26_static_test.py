@@ -213,7 +213,9 @@ def _url_of(expr):
             parts.append(re.sub(r"\$\{[^}]*\}", "x", m.group(2)))
         else:
             if parts and not parts[-1].endswith("/"):
-                break
+                if "?" in parts[-1] or "#" in parts[-1]:
+                    break
+                return ""  # a dynamically appended path is not one concrete route
             parts.append("x")
     return "".join(parts).split("?")[0].split("#")[0]
 
@@ -352,6 +354,8 @@ class FrontendBackendRoutesTest(unittest.TestCase):
                         a0 = m.end()
                         a1, end = _scan_to(s, a0, ","), _scan_to(s, a0, "")
                         url = _url_of(s[a0:a1])
+                        if not url:
+                            continue
                         rest = s[a1 + 1:end] if a1 < end else ""
                         where = f"{rel}:{s.count(chr(10), 0, m.start()) + 1}"
                         rule = (HELPERS.get((rel, short))

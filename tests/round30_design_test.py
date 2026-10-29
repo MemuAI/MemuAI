@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -35,6 +36,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from app import appearance_extra, pgdata, themes  # noqa: E402
+from app.version import APP_VERSION  # noqa: E402
 from appearance_preferences_test import ratio  # noqa: E402
 from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 
@@ -90,7 +92,9 @@ class AppearancePreferences(unittest.TestCase):
             m = re.search(r'/' + re.escape(asset) + r'\?v=([^"]+)"', index)
             self.assertTrue(m, asset)
 
-            self.assertTrue(re.search(r"-r(\d+)$", m.group(1)) and int(re.search(r"-r(\d+)$", m.group(1)).group(1)) >= 30, (asset, m.group(1)))
+            legacy = re.search(r"-r(\d+)$", m.group(1))
+            self.assertTrue(m.group(1) == APP_VERSION or legacy and int(legacy.group(1)) >= 30,
+                            (asset, m.group(1)))
 
 class Themes(unittest.TestCase):
     def test_new_pairs_exist_in_both_modes(self):
@@ -278,6 +282,45 @@ class LiveWindow(unittest.TestCase):
         prefs = self.http.get(self.servers.pg + "/api/pg/preferences").json()
         self.assertNotIn("Tab", json.dumps(prefs.get("hotkeys") or {}))
         self.assertEqual(page.evaluate(f"document.querySelector('[data-hk-record=\"{ids[1]}\"]').getAttribute('aria-label')"), before)
+
+    def test_hotkeys_delayed_global_settings_keep_recording_until_saved(self):
+        page = self.open()
+        page.evaluate("""() => {
+          const original = window.fetch;
+          window.delayedHotkeys = [];
+          window.completedHotkeys = 0;
+          window.fetch = (url, ...args) => {
+            if (/^\\/api\\/(quick\\/(config|features|canvas)|assistant\\/config)/.test(String(url))) {
+              return new Promise(resolve => window.delayedHotkeys.push(() => resolve({ok: true, json: async () => { window.completedHotkeys++; return {}; }})));
+            }
+            return original(url, ...args);
+          };
+          window.shortcutEvents = 0;
+          window.addEventListener('keydown', e => { if (e.code === 'F12') window.shortcutEvents++; }, true);
+          showSettings(); openSettingsPage('hotkeys');
+        }""")
+        page.wait_for_function("() => window.delayedHotkeys.length >= 4")
+        button = page.locator("[data-hk-record]").first
+        shortcut_id = button.get_attribute("data-hk-record")
+        button.click()
+        self.assertTrue(page.evaluate("MemuHotkeys.recording"))
+        count = page.evaluate("() => { const pending = window.delayedHotkeys.splice(0); pending.forEach(resolve => resolve()); return pending.length; }")
+        page.wait_for_function("count => window.completedHotkeys === count", arg=count)
+        page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+        page.wait_for_function("() => window.MemuHotkeys.recording && document.querySelector('.hk-record.recording')")
+        self.assertEqual(button.get_attribute("aria-pressed"), "true")
+        page.keyboard.press("Control+Alt+F12")
+        page.wait_for_function("() => !MemuHotkeys.recording")
+        page.wait_for_function("id => S.preferences.shortcuts?.[id] === 'Ctrl+Alt+F12'", arg=shortcut_id)
+        self.assertEqual(page.evaluate("window.shortcutEvents"), 0)
+        page.wait_for_function("() => !document.querySelector('.hk-record.recording')")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            prefs = self.http.get(self.servers.pg + "/api/pg/preferences").json()
+            if (prefs.get("shortcuts") or {}).get(shortcut_id) == "Ctrl+Alt+F12":
+                break
+            time.sleep(.1)
+        self.assertEqual((prefs.get("shortcuts") or {}).get(shortcut_id), "Ctrl+Alt+F12")
 
     def test_search_chips_stay_on_one_line(self):
         """Terminal's bracketed chips at 1366 px and every design in a narrow window used to wrap «Ещё» onto a second line."""

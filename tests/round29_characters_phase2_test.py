@@ -47,12 +47,12 @@ MODULE_JS = r"""
     const resolved = await Memu.fetchImport("https://chub.ai/characters/someone/some-card", { resolve: true });
     const card = await Memu.fetchImport("someone/some-card", { kind: "character" });
     const json = JSON.parse(atob(card.file.base64));
-    let wrong = "";
-    try { await Memu.fetchImport("https://chub.ai/lorebooks/someone/book", { kind: "character" }); } catch (e) { wrong = e.code || e.message; }
-    let bad = "";
-    try { await Memu.fetchImport("http://127.0.0.1/card.png"); } catch (e) { bad = e.code || e.message; }
+    let wrong = "", wrongLang = "";
+    try { await Memu.fetchImport("https://chub.ai/lorebooks/someone/book", { kind: "character" }); } catch (e) { wrong = e.code || e.message; wrongLang = Memu.lang; }
+    let bad = "", badLang = "";
+    try { await Memu.fetchImport("http://127.0.0.1/card.png"); } catch (e) { bad = e.code || e.message; badLang = Memu.lang; }
     Memu.log("RESULT " + JSON.stringify({ back, keys, preset, text: done.text, deltas, reasoning: done.reasoning,
-      resolved: resolved.source + ":" + resolved.id, name: json.data.name, type: card.type, wrong, bad }));
+      resolved: resolved.source + ":" + resolved.id, name: json.data.name, type: card.type, wrong, wrongLang, bad, badLang }));
   } catch (e) { Memu.log("FAIL " + (e && e.message), "error"); }
 })();
 """
@@ -77,7 +77,7 @@ class ModuleTestStandMocksTest(unittest.TestCase):
             (mod / "assets" / "presets" / "p.json").write_text('{"name":"P"}', encoding="utf-8")
             harness = root / "memu-module-test.js"
             harness.write_text(pack.harness_source(), encoding="utf-8")
-            proc = subprocess.run(["node", str(harness), str(mod), "--json"], capture_output=True, text=True, timeout=90)
+            proc = subprocess.run(["node", str(harness), str(mod), "--json", "--lang", "ru"], capture_output=True, text=True, encoding="utf-8", timeout=90)
             report = json.loads(proc.stdout)
             logs = report.get("logs") or []
             line = next((x for x in logs if x.startswith("RESULT ")), None)
@@ -92,8 +92,10 @@ class ModuleTestStandMocksTest(unittest.TestCase):
             self.assertEqual(data["resolved"], "chub:someone/some-card")
             self.assertEqual(data["type"], "character")
             self.assertEqual(data["name"], "Mock character")
-            self.assertIn("лорбук", data["wrong"])
-            self.assertIn("не распознана", data["bad"])
+            self.assertIn(data["wrongLang"], ("ru", "en"))
+            self.assertIn(data["badLang"], ("ru", "en"))
+            self.assertIn("lorebook" if data["wrongLang"] == "en" else "лорбук", data["wrong"])
+            self.assertIn("not recognised" if data["badLang"] == "en" else "не распознана", data["bad"])
 
     def test_net_import_needs_permission(self) -> None:
         from app import modules_ai_pack as pack

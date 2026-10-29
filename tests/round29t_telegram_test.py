@@ -210,9 +210,13 @@ class MiniAppFrontEnd(unittest.TestCase):
         self.assertRegex(self.app, r'class="msg-error">[^\n]*data-regen="1"')
 
     def test_enter_while_answering_does_not_stop(self):
-        block = self.app[self.app.index('if (e.key === "Enter" && !e.shiftKey'):][:900]
-        self.assertIn("Stop", block)
-        self.assertRegex(block, r"C\.job|busy|running")
+        start = self.app.index('input.addEventListener("keydown"')
+        block = self.app[start:self.app.index('input.addEventListener("focus"', start)]
+        script = ("let handler, clicks=0, notices=0; const C={job:{}}, input={value:'queued',addEventListener:(name,fn)=>{handler=fn;}},"
+                  "send={disabled:false,click:()=>{clicks++;}},toast=()=>{notices++;},tr=(ru,en)=>en,enterSends=()=>true;" + block +
+                  "handler({key:'Enter',shiftKey:false,isComposing:false,preventDefault(){}});"
+                  "console.log(JSON.stringify({clicks,notices,running:!!C.job}));")
+        self.assertEqual(json.loads(_node(script)), {"clicks": 0, "notices": 1, "running": True})
 
     def test_rail_is_wide_enough_for_labels(self):
         width = int(re.search(r"--rail-w:\s*(\d+)px", self.layout).group(1))

@@ -3,7 +3,7 @@ const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const source = readFileSync('app/pgstatic/app.js', 'utf8');
-const controller = source.slice(source.indexOf('let updateInfo = null;'), source.indexOf('// Round 36 (perf): the status is polled'));
+const controller = source.slice(source.indexOf('let updateInfo = null;'), source.indexOf('let updateStatusTimer = 0;'));
 
 function fixture(enabled = true) {
   const calls = [], messages = [], timers = [];

@@ -38,7 +38,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
 
     def test_startup_cover_waits_for_hydrated_state(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
-        boot = js[js.index("async function bootApp()") : js.index("/* ==================== MEMUAI V3.0", js.index("async function bootApp()"))]
+        boot = js[js.index("async function bootApp()") : js.index("const DEFAULT_PROFILES =", js.index("async function bootApp()"))]
         self.assertLess(boot.index("await refreshState()"), boot.index("finishBootScreen()"))
         self.assertNotIn("notify_badge", js)
 
@@ -229,7 +229,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
         self.assertIn("web_search {query, queries?, limit?, read?}", js)
         self.assertIn('id="st-search-provider"', js)
         self.assertIn("openSearchModeMenu", js)
-        render_caps = js[js.index("function renderCaps()") : js.index("/* ------------------------------ чаты")]
+        render_caps = js[js.index("function renderCaps()") : js.index("window.__m_chats")]
         self.assertIn("ts.oncontextmenu = openSearchModeMenu", render_caps)
         self.assertIn('button.closest(".settings-body, .panel")', js)
 

@@ -185,7 +185,7 @@ class LayerPage(unittest.TestCase):
         for key in ("KeyZ", "KeyY", "ArrowLeft", '"F10"', '"ContextMenu"', '"Delete"'):
             self.assertIn(key, LAYER_JS, key)
         self.assertIn('id="ql-guides"', LAYER_HTML)
-        self.assertIn('/memu-ctxmenu.js?v=1.1-r34', LAYER_HTML)
+        self.assertIn('/memu-ctxmenu.js?v=4.1', LAYER_HTML)
         self.assertLess(LAYER_HTML.index("memu-ctxmenu.js"), LAYER_HTML.index("quick/layer.js"))
         for name in ("onShow", "onHide", "setKeepout", "setEdit"):
             self.assertRegex(LAYER_JS, rf"\b{name}\b")
@@ -211,7 +211,8 @@ class SharedMenu(unittest.TestCase):
                        'addEventListener("visibilitychange", onVis)', 'k === "Escape"', 'close("pick")'):
             self.assertIn(needle, MENU_JS, needle)
         self.assertIn("MemuLayers.open", MENU_JS)
-        self.assertIn("setTimeout(() => { if (cur === c) attach(); }, 0)", MENU_JS)
+        self.assertIn("if (cur === c) attach();", MENU_JS)
+        self.assertNotIn("setTimeout(() => { if (cur === c) attach(); }, 0)", MENU_JS)
 
     def test_stays_in_bounds(self):
         place = MENU_JS.split("function place(el, o)", 1)[1].split("function close(", 1)[0]
@@ -221,15 +222,15 @@ class SharedMenu(unittest.TestCase):
 
     def test_main_window_wiring(self):
         index = (STATIC / "index.html").read_text(encoding="utf-8")
-        self.assertIn('/memu-ctxmenu.js?v=1.1-r34', index)
+        self.assertIn('/memu-ctxmenu.js?v=4.1', index)
         self.assertLess(index.index("memu-ctxmenu.js"), index.index("/panels.js?v="))
-        self.assertIn("/panels.js?v=1.7-r30", index)
+        self.assertRegex(index, r'/panels\.js\?v=[^"\s]+')
         ctx = PANELS_JS.split("let lastDown = null;", 1)[1].split("document.addEventListener(\"keydown\"", 1)[0]
         self.assertIn("event.stopPropagation()", ctx)
         self.assertIn("}, true);", ctx)
         self.assertIn("elementFromPoint", ctx)
         self.assertIn("window.MemuCtxMenu && !EMBED", PANELS_JS)
-        self.assertIn('loadScript("/memu-ctxmenu.js?v=1.1-r34")', CANVAS_JS)
+        self.assertIn('loadScript("/memu-ctxmenu.js?v=4.1")', CANVAS_JS)
         manifest = json.loads((STATIC / "quick" / "plugins" / "index.json").read_text(encoding="utf-8"))
         canvas = next(p for p in manifest["plugins"] if p["id"] == "canvas")
         self.assertRegex(canvas["v"], r"-r(29|3\d)$")

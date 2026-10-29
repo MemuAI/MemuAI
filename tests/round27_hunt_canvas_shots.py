@@ -59,6 +59,8 @@ async def main(out: Path) -> int:
                                          "ui": {"onboarded": True}, "endpoint": {"source": "proxy"}})
         if path == "/api/pg/state":
             return await r.fulfill(json={"models": base.MODELS, "image_models": []})
+        if path == "/api/quick/canvas/app-icon":
+            return await r.fulfill(json={"ok": False, "error": "App icons are available on Windows only"})
         if path.startswith("/api/quick/canvas") or path.startswith("/api/pg/panels"):
             return await r.continue_()
         if path == "/api/assistant/state":

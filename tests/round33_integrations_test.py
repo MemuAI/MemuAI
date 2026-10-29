@@ -490,21 +490,29 @@ class NotionPropertiesTest(unittest.TestCase):
 
 class WiringTest(unittest.TestCase):
     def test_ui_sets_and_cards_match_the_server(self):
+        import shutil
+        import subprocess
         ui = (ROOT / "app/pgstatic/integrations-ui.js").read_text(encoding="utf-8")
-        start = ui.index("const DANGER_TOOLS = new Set([")
-        danger = set(re.findall(r'"(\w+)"', ui[start:ui.index("]);", start)]))
-        self.assertEqual(danger, ig.DANGER_TOOLS)
+        if not shutil.which("node"):
+            self.skipTest("Node.js required for the initialized UI tool sets")
+        script = "const vm=require('vm'),fs=require('fs');const c={window:{}};vm.createContext(c);vm.runInContext(fs.readFileSync(0,'utf8'),c);console.log(JSON.stringify([...c.window.MemuIntegrations.DANGER]));"
+        process = subprocess.run(["node", "-e", script], input=ui, capture_output=True, text=True, encoding="utf-8", check=True)
+        danger = set(json.loads(process.stdout))
+        self.assertEqual(danger, {tool for tool in ig.DANGER_TOOLS if not tool.startswith("chrome_")})
         self.assertTrue(ig.ALWAYS_CONFIRM <= ig.WRITE_TOOLS)
         for name in ig.WRITE_TOOLS:
+            if name.startswith("chrome_"):
+                continue  # Browser tools use connected_services and its configured control policy.
             self.assertRegex(ui, r"\b%s: \[" % name, "a confirmation card for " + name)
         self.assertIn("Use this client for an AI-powered agent", ui)
         for api in ("gmail.googleapis.com", "calendar-json.googleapis.com", "drive.googleapis.com", "docs.googleapis.com",
                     "sheets.googleapis.com", "tasks.googleapis.com", "people.googleapis.com"):
             self.assertIn(api, ui)
         api = (ROOT / "app/playground_api.py").read_text(encoding="utf-8")
-        line = next(row for row in api.splitlines() if 'tool.startswith(("github_"' in row)
+        dispatch = "\n".join(row for row in api.splitlines() if 'if tool.startswith((' in row)
         for prefix in ig.TOOL_PREFIXES:
-            self.assertIn('"%s"' % prefix, line)
+            self.assertIn('"%s"' % prefix, dispatch)
+        self.assertIn('connected_services.run(tool, args, confirmed=body.get("confirmed") is True)', api)
 
     def test_status_carries_hints_and_tool_sets(self):
         data = ig.status()

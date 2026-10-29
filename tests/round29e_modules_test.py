@@ -171,7 +171,7 @@ class PanelConnectButton(unittest.TestCase):
         self.assertIn('"int-" + service', body)
         self.assertIn('handoff: { settings: "apps" }', body)
         index = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
-        self.assertIn("/panels.js?v=1.7-r30", index)
+        self.assertRegex(index, r'<script src="/panels\.js\?v=[^"\s]+"></script>')
 
 if __name__ == "__main__":
     unittest.main()

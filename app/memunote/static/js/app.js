@@ -716,11 +716,16 @@ async function reloadTab(tab) {
   const sel = p?.view && p.view.__tab === tab.id ? p.view.state.selection.main.head : 0;
   const scroll = p?.view?.scrollDOM.scrollTop || 0;
   if (DOC_KINDS.has(tab.kind)) {
-    const info = await api("open", { path: tab.path }); tab.html = info.html; tab.mtime = info.mtime;
+    await loadTab(tab);
     tab.doc?.destroy(); tab.doc = null; tab.box?.remove(); tab.box = null;
     if (p) showInPane(p, tab); markDirty(tab, false); return;
   }
-  if (!isTextTab(tab)) { tab.comp?.destroy?.(); tab.box?.remove(); tab.box = null; const info = await api("open", { path: tab.path }); tab.mtime = info.mtime; tab.size = info.size; if (p) showInPane(p, tab); return; }
+  if (!isTextTab(tab)) {
+    await loadTab(tab);
+    tab.comp?.destroy?.(); tab.comp = null; tab.box?.remove(); tab.box = null;
+    if (p) showInPane(p, tab);
+    markDirty(tab, false); return;
+  }
   await loadTab(tab, { encoding: tab.encoding });
   const text = tab.initialText; delete tab.initialText;
   for (const q of MN.panes) {
@@ -995,7 +1000,17 @@ async function checkExternalNow() {
     tab.missing = false;
     if (st.mtime && Math.abs(st.mtime - tab.mtime) > 2) {
       if (await appendTail(tab, st)) continue;
-      if (!tab.dirty || tab.follow) { tab.mtime = st.mtime; await reloadTab(tab); if (!tab.follow && tab.kind !== "log") toast(t("reloaded", { name: tab.name }), { ms: 1800 }); }
+      if (!tab.dirty || tab.follow) {
+        try {
+          await reloadTab(tab);
+          if (!tab.follow && tab.kind !== "log") toast(t("reloaded", { name: tab.name }), { ms: 1800 });
+        } catch (error) {
+          if (tab.bannerFor !== st.mtime) {
+            tab.bannerFor = st.mtime; banner(tab, "changed", st.mtime);
+            toast(t("open_failed") + ": " + error.message, { kind: "error" });
+          }
+        }
+      }
       else if (tab.bannerFor !== st.mtime) { tab.bannerFor = st.mtime; banner(tab, "changed", st.mtime); }
     }
   }

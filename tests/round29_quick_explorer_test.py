@@ -191,7 +191,8 @@ class ToolsTests(unittest.TestCase):
 
     def test_duplicates(self) -> None:
         dups = qe.find_duplicates(self.ctx)
-        self.assertEqual(dups["groups"], [{"size": 12, "files": dups["groups"][0]["files"]}])
+        expected_size = (self.folder / "a.txt").stat().st_size
+        self.assertEqual(dups["groups"], [{"size": expected_size, "files": dups["groups"][0]["files"]}])
         self.assertEqual(sorted(dups["groups"][0]["files"]), ["a.txt", "b.txt"])
 
     def test_context_block_and_request_settings(self) -> None:

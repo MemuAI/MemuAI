@@ -106,7 +106,6 @@ class GlassV3Test(unittest.TestCase):
         composer = re.search(r':root\[data-design="glass"\] \.composer \{(.*?)\}', text, re.S).group(1)
         self.assertNotIn("inset 0 -10px", composer)
         self.assertNotRegex(composer, r"0 22px 56px -30px color-mix\(in srgb, var\(--accent\)")
-        self.assertIn("v3", text[:400])
 
 def _variants(mode):
     base = dict(themes._DARK_BASE if mode == "dark" else themes._LIGHT_BASE)

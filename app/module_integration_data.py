@@ -15,6 +15,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from .module_integration import data_source
+from .model_listing import find_spec, listing_spec
 
 _THUMB_LIMIT = 400_000
 
@@ -61,20 +62,11 @@ def _fetch_openrouter() -> Dict[str, Dict[str, Any]]:
     response = httpx.get("https://openrouter.ai/api/v1/models", timeout=8)
     response.raise_for_status()
     specs = {}
-    for item in (response.json() or {}).get("data") or []:
+    payload = response.json()
+    for item in (payload.get("data") or []) if isinstance(payload, dict) else []:
         if not isinstance(item, dict) or not item.get("id"):
             continue
-        pricing = item.get("pricing") or {}
-
-        def per_million(value: Any) -> Optional[float]:
-            try:
-                number = float(value)
-            except (TypeError, ValueError):
-                return None
-            return round(number * 1e6, 4) if number >= 0 else None
-        specs[str(item["id"]).lower()] = {"context": int(item.get("context_length") or 0),
-                                          "input": per_million(pricing.get("prompt")),
-                                          "output": per_million(pricing.get("completion"))}
+        specs[str(item["id"]).lower()] = listing_spec(item)
     return specs
 
 def catalog() -> Dict[str, Dict[str, Any]]:
@@ -117,25 +109,36 @@ def api_models_digest(limit: int = 8, *, prices: bool = True) -> Dict[str, Any]:
     for event in sorted(data.get("events") or [], key=lambda e: -int(e.get("id") or 0)):
         title = str(event.get("title") or "")
         source = title.split(" · ", 1)[1] if " · " in title else title
-        for line in str(event.get("text") or "").splitlines():
-            found = re.match(r"^\+\s+(.+?)\s+·\s+(\S.*)$", line.strip())
-            if not found or (source, found.group(2)) in seen:
+        entries = [(item["name"], item["key"]) for item in event.get("models", [])
+                   if isinstance(item, dict) and isinstance(item.get("name"), str) and isinstance(item.get("key"), str)] if isinstance(event.get("models"), list) else []
+        if not entries:
+            entries = [(found[1], found[2]) for line in str(event.get("text") or "").splitlines()
+                       if (found := re.match(r"^\+\s+(.+)\s+·\s+(\S.*)$", line.strip()))]
+        for name, identity in entries:
+            if (source, identity) in seen:
                 continue
-            seen.add((source, found.group(2)))
-            key = found.group(2).strip()
+            seen.add((source, identity))
+            key = identity.strip()
             bare = key.removeprefix("models/")
-            name = found.group(1).strip()
+            name = name.strip()
             models.append({"name": name.split(": ", 1)[1] if ": " in name else name, "key": key, "source": source,
                            "family": bare.split("/", 1)[0] if "/" in bare else "", "at": float(event.get("at") or 0),
+                           "_event_id": int(event.get("id") or 0),
                            "seen": int(event.get("id") or 0) <= int(data.get("seen") or 0)})
+    snapshots = {}
+    for event in data.get("events") or []:
+        for model in event.get("models", []) if isinstance(event.get("models"), list) else []:
+            if isinstance(model, dict) and isinstance(model.get("spec"), dict):
+                snapshots[(int(event.get("id") or 0), model.get("key"))] = model["spec"]
     models = models[:max(1, min(20, limit))]
     if prices and models:
         specs = catalog()
-        tails = {_norm(k): v for k, v in specs.items()}
         for model in models:
-            spec = specs.get(model["key"].lower()) or tails.get(_norm(model["key"])) or tails.get(_norm(model["name"]))
+            spec = find_spec(model["key"], model["name"], specs)
             if spec:
-                model.update(context=spec["context"], input=spec["input"], output=spec["output"])
+                model.update(spec)
+    for model in models:
+        model.update(snapshots.get((model.pop("_event_id"), model["key"]), {}))
     status = _monitor_status("api-models")
     sources = [s for s in status.get("sources") or [] if isinstance(s, dict)]
     return {"models": models, "enabled": bool(status.get("enabled")), "sources": len(sources),

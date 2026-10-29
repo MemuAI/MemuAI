@@ -68,6 +68,7 @@ TARGETS = {
         "product": "MemuAI Proxy",
         "comments": "Local OpenAI-compatible gateway that balances requests across your own AI provider accounts. Listens on 127.0.0.1 only.",
         "data": ["app/static;app/static", "app/pgstatic;app/pgstatic", "app/companion_kb;app/companion_kb",
+                 "app/dfy_agent.py;app",
 
                  "app/local_catalog;app/local_catalog",
 
@@ -133,6 +134,7 @@ TARGETS = {
         "product": "MemuAI Desktop",
         "comments": "Desktop client for working with AI models: chat, MemuCode, agents, modules and local models.",
         "data": ["app/pgstatic;app/pgstatic", "app/module_builtins;app/module_builtins", "app/module_catalog_seed.json;app",
+                 "app/dfy_agent.py;app",
                  "app/docs;app/docs", "app/companion_kb;app/companion_kb", "app/tgapp;app/tgapp",
 
                  "app/memunote/static/js/slides;app/memunote/static/js/slides", "app/memunote/static/slides.css;app/memunote/static",
@@ -234,7 +236,7 @@ TARGETS = {
         "product": "MemuCode CLI",
         "comments": "Terminal coding agent of MemuAI: edits code, runs commands in a sandbox, uses the models of MemuAI Proxy.",
         "console": True,
-        "data": ["app/docs;app/docs"],
+        "data": ["app/docs;app/docs", "app/dfy_agent.py;app"],
         "hidden": ["websockets", "pypdf", "winotify", "PIL.Image", "PIL.ImageGrab", "PIL.ImageDraw", "PIL.ImageFont",
 
                    "app.cli.vision", "app.instant_answers",
@@ -374,6 +376,7 @@ TARGETS = {
         "product": "MemuAI Proxy",
         "comments": "Local OpenAI-compatible gateway that balances requests across your own AI provider accounts. Listens on 127.0.0.1 only.",
         "data": ["build/proxy-only-static;app/static", "build/proxy-only-kb;app/companion_kb",
+                 "app/dfy_agent.py;app",
                  "app/local_catalog;app/local_catalog",
                  "app/module_builtins;app/module_builtins", "app/module_catalog_seed.json;app", "icon.png;.", "icon.ico;."],
         "hidden": COMMON_HIDDEN + ["uvicorn.protocols.http.h11_impl", "uvicorn.lifespan.off",

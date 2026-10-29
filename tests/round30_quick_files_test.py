@@ -15,6 +15,7 @@ import time
 import unittest
 from pathlib import Path
 from unittest import mock
+from urllib.parse import quote
 
 class FsCase(unittest.TestCase):
     def setUp(self):
@@ -23,12 +24,24 @@ class FsCase(unittest.TestCase):
         self.home = self.tmp / "home"
         for name in ("Desktop", "Downloads", "Documents"):
             (self.home / name).mkdir(parents=True)
-        env = {"HOME": str(self.home), "XDG_DATA_HOME": str(self.home / ".local" / "share"),
+        env = {"HOME": str(self.home), "USERPROFILE": str(self.home),
+               "APPDATA": str(self.tmp / "appdata"), "LOCALAPPDATA": str(self.tmp / "localappdata"),
+               "XDG_DATA_HOME": str(self.home / ".local" / "share"),
                "XDG_CONFIG_HOME": str(self.home / ".config"), "XDG_DESKTOP_DIR": str(self.home / "Desktop"),
                "XDG_DOWNLOAD_DIR": str(self.home / "Downloads"), "XDG_DOCUMENTS_DIR": str(self.home / "Documents"),
                "OneDrive": ""}
         self.env = mock.patch.dict(os.environ, env)
         self.env.start()
+        from app import quick_apps_win, quick_trash
+        folder_names = {"desktop": "Desktop", "downloads": "Downloads", "documents": "Documents"}
+        self.folder_patch = mock.patch.object(quick_apps_win, "known_folder",
+            side_effect=lambda key: str(self.home / folder_names[key]) if key in folder_names else "")
+        self.folder_patch.start()
+        self.addCleanup(self.folder_patch.stop)
+        # The contract below tests the freedesktop trash format on every OS.
+        self.trash_patch = mock.patch.object(quick_trash, "send", side_effect=quick_trash._xdg_send)
+        self.trash_patch.start()
+        self.addCleanup(self.trash_patch.stop)
         self.settings = dict(quick_apps.DEFAULT_SETTINGS)
         self.patch = mock.patch.object(quick_apps, "settings", side_effect=lambda: dict(self.settings))
         self.patch.start()
@@ -151,7 +164,8 @@ class Changes(FsCase):
     def test_system_folders_and_cross_drive_are_refused(self):
         from app import quick_files as qf
         with self.assertRaises(qf.FilesError) as err:
-            qf.tool_change(None, {"ops": [{"op": "mkdir", "path": "/etc/memu-test"}]}, "en")
+            system_path = "C:/Windows/memu-test" if qf.IS_WINDOWS else "/etc/memu-test"
+            qf.tool_change(None, {"ops": [{"op": "mkdir", "path": system_path}]}, "en")
         self.assertEqual(err.exception.code, "read_only")
 
     def test_delete_goes_to_the_trash_after_the_click_and_undo_restores(self):
@@ -169,7 +183,7 @@ class Changes(FsCase):
         trash = self.home / ".local" / "share" / "Trash"
         self.assertEqual((trash / "files" / "old.txt").read_text(encoding="utf-8"), "bye")
         info = (trash / "info" / "old.txt.trashinfo").read_text(encoding="utf-8")
-        self.assertIn("Path=" + str(victim).replace(" ", "%20"), info)
+        self.assertIn("Path=" + quote(str(victim)), info)
         qe.undo(result["set"]["undo"])
         self.assertEqual(victim.read_text(encoding="utf-8"), "bye")
         self.assertFalse((trash / "info" / "old.txt.trashinfo").exists())

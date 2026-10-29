@@ -92,7 +92,7 @@ class WorkUiContracts(unittest.TestCase):
         self.assertIn('id="work-browser"', html)
         self.assertNotIn('id="work-computer"', html)
         self.assertNotIn('class="cap-caret"', html)
-        render_caps = js[js.index("function renderCaps()") : js.index("/* ------------------------------ чаты")]
+        render_caps = js[js.index("function renderCaps()") : js.index("function loadLocalChats()")]
         self.assertIn("ts.oncontextmenu = openSearchModeMenu", render_caps)
         self.assertIn('case "/plan"', js)
         self.assertIn('case "/access"', js)

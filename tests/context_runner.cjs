@@ -11,7 +11,7 @@ const contextSource = fs.readFileSync(path.join(root, "tokens.js"), "utf8").repl
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const video = fs.readFileSync(path.join(root, "video.js"), "utf8");
 const from = app.indexOf("function imageTokenEstimate(");
-const to = app.indexOf("// ---------- повторная отправка с картинками");
+const to = app.indexOf("function modelSeesImages(", from);
 if (from < 0 || to < 0) {
   process.stdout.write(JSON.stringify({ error: "context functions not found in app.js" }) + "\n");
   process.exit(0);

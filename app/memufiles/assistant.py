@@ -44,7 +44,8 @@ MAX_ITEMS_TO_MODEL = 150
 MAX_PLAN_ITEMS = 20000
 PLAN_OPS = ("trash", "delete", "move", "copy", "rename", "mkdir", "write", "edit", "replace")
 ORGANIZE_OPS = ("classify_and_organize", "organize", "classify")
-TOOL_RE = re.compile(r"<tool>\s*(\{.*?\})\s*</tool>|```tool\s*(\{.*?\})\s*```", re.S)
+TOOL_RE = re.compile(r"<tool>\s*(\{.*?\})\s*</tool>|```tool\s*(\{.*?\})\s*```", re.S | re.I)
+FOREIGN_TOOL_RE = re.compile(r"<[｜|]\s*DSML\s*[｜|]|<tool_calls?\b|<function_calls>|<invoke\b|<function\s*=|```\s*memuai-tool\b", re.I)
 
 PROMPT_RU = """Ты — ИИ-помощник файлового менеджера MemuFiles. Рабочая папка (scope): {scope}
 ОС: {os}. Сегодня: {today}. Отвечай по-русски, кратко и по делу.
@@ -604,37 +605,54 @@ def _parse_py_call(text: str) -> Optional[Dict[str, Any]]:
         call = ast.parse(match.group(1).strip(), mode="eval").body
         if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
             raise ValueError("not a call")
+        if call.args or any(kw.arg is None for kw in call.keywords):
+            raise ValueError("only named arguments are supported")
+        if len({kw.arg for kw in call.keywords}) != len(call.keywords):
+            raise ValueError("duplicate arguments")
         args = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords if kw.arg}
-    except (SyntaxError, ValueError):
+    except (SyntaxError, ValueError, TypeError, RecursionError):
         return {"name": "_bad_json", "args": {}, "raw": match.group(1)[:300], "start": match.start()}
     return {"name": call.func.id, "args": args, "start": match.start()}
 
 def parse_tool(text: str) -> Optional[Dict[str, Any]]:
     match = TOOL_RE.search(text or "")
-    if not match:
-        return _parse_py_call(text)
-    raw = match.group(1) or match.group(2) or ""
-    try:
-        data = json.loads(raw)
-    except ValueError:
-
-        try:
-            data = json.loads(re.sub(r",\s*([}\]])", r"\1", raw))
-        except ValueError:
-            import ast
-            try:
-                data = ast.literal_eval(raw)
-            except (ValueError, SyntaxError, TypeError, RecursionError):
-                return {"name": "_bad_json", "args": {}, "raw": raw[:300], "start": match.start()}
-    if not isinstance(data, dict):
+    python_call = _parse_py_call(text)
+    foreign = FOREIGN_TOOL_RE.search(text or "")
+    starts = [candidate for candidate in (match.start() if match else None,
+              python_call["start"] if python_call else None, foreign.start() if foreign else None) if candidate is not None]
+    first = min(starts) if starts else None
+    if not match or match.start() != first:
+        if python_call is not None and python_call["start"] == first:
+            return python_call
+        if foreign:
+            if foreign.group(0).startswith("```"):
+                from ..cli.protocol import parse
+                parsed = parse(text, finished=True)
+                if parsed.calls:
+                    return {"name": parsed.calls[0].name, "args": parsed.calls[0].args, "start": foreign.start()}
+            else:
+                from ..answer_guard import extract_calls
+                _visible, calls = extract_calls(text)
+                if calls:
+                    return {"name": calls[0]["tool"], "args": calls[0]["args"], "start": foreign.start()}
         return None
-    return {"name": str(data.get("name") or data.get("tool") or ""), "args": data.get("args") or data.get("arguments") or {},
-            "start": match.start()}
+    raw = match.group(1) or match.group(2) or ""
+    from ..cli.protocol import LenientError, normalize_call, read_json
+    try:
+        read = read_json(raw, 0)
+        call = normalize_call(read.value) if not read.incomplete and not raw[read.end:].strip() else None
+    except (LenientError, ValueError, TypeError, RecursionError):
+        call = None
+    if call is None:
+        return {"name": "_bad_json", "args": {}, "raw": raw[:300], "start": match.start()}
+    return {"name": call.name.lower(), "args": call.args, "start": match.start()}
 
 class HoldBack:
     """Stream visible text but never show the start of a ``<tool>`` block."""
 
-    MARKERS = ("<tool>", "```tool", "<|tool_call_start|>", "<\u200b|tool_call_start|>")
+    MARKERS = ("<tool>", "```tool", "<|tool_call_start|>", "<\u200b|tool_call_start|>",
+               "<｜dsml｜", "<|dsml|", "<tool_call", "<function_calls>", "<invoke", "<function=", "```memuai-tool")
+    MARKER_RE = re.compile("|".join(re.escape(marker) for marker in MARKERS) + r"|<[｜|]\s*DSML\s*[｜|]", re.I)
 
     def __init__(self) -> None:
         self.buffer = ""
@@ -645,19 +663,22 @@ class HoldBack:
         self.buffer += text
         if self.stopped:
             return ""
-        for marker in self.MARKERS:
-            index = self.buffer.find(marker)
-            if index >= 0:
-                self.stopped = True
-                out = self.buffer[self.shown:index]
-                self.shown = index
-                return out
+        lowered = self.buffer.lower()
+        match = self.MARKER_RE.search(self.buffer)
+        if match:
+            self.stopped = True
+            out = self.buffer[self.shown:match.start()]
+            self.shown = match.start()
+            return out
         safe = len(self.buffer)
         for marker in self.MARKERS:
             for size in range(min(len(marker) - 1, len(self.buffer)), 0, -1):
-                if marker.startswith(self.buffer[-size:]):
+                if marker.startswith(lowered[-size:]):
                     safe = min(safe, len(self.buffer) - size)
                     break
+        candidate = self.buffer.rfind("<")
+        if candidate >= 0 and re.fullmatch(r"<[｜|]\s*d?s?m?l?\s*[｜|]?", self.buffer[candidate:], re.I):
+            safe = min(safe, candidate)
         out = self.buffer[self.shown:safe]
         self.shown = safe
         return out
@@ -734,8 +755,12 @@ def run_chat(scope: str, history: List[Dict[str, str]], lang: str, llm: Callable
                 if visible:
                     emit({"t": "delta", "text": visible})
             final = "".join(parts)
+            tail = hold.finish()
+            if tail:
+                emit({"t": "delta", "text": tail})
             call2 = parse_tool(final)
-            emit({"t": "final", "text": (final[:call2["start"]] if call2 else final).strip()})
+            visible_final = final[:call2["start"]] if call2 else final[:hold.shown] if hold.stopped else final
+            emit({"t": "final", "text": visible_final.strip()})
             return
         if name == "_bad_json":
             result: Dict[str, Any] = {"error": "bad_json", "hint": "args must be valid JSON"}

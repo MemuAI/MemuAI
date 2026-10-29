@@ -59,7 +59,15 @@ assert.equal(modelsDevRows({r:{name:'R',models:{x:{id:'reseller-only-alias'}}}})
 assert.equal(modelsDevRows({a:{models:{x:{id:'x',canonical_model_id:'v/x',status:'deprecated'}}}}).length,0);
 assert.equal(modelKey('anthropic/claude-sonnet-4.5'),modelKey('claude-sonnet-4-5-20250929'));assert.notEqual(modelKey('openai/gpt-5'),modelKey('openai/gpt-5-mini'));
 assert.equal(mergeCatalogs([{id:'anthropic/claude-sonnet-4.5',cutoff:''}],[{id:'anthropic/claude-sonnet-4-5',cutoff:'2025-03'}]).length,1);
-console.log(JSON.stringify({passed:true,comparison_ties:true,expanded_catalog_deduplicated:true,variant_selection:true,exact_model_family:true,org_collision_excluded:true,lower_is_better:true,missing_not_zero:true,stale_and_partial_errors:true,index_same_core:true}));
+for (const malformed of [null,true,false,1,'image',{},[]]) {
+  const optional=slim({id:'optional',architecture:{input_modalities:malformed,output_modalities:malformed}});
+  assert(Array.isArray(optional.in));assert(Array.isArray(optional.out));
+  const dev=slimModelsDev({id:'vendor'}, {id:'m',modalities:{input:malformed,output:malformed}});
+  assert(Array.isArray(dev.in));assert(Array.isArray(dev.out));
+}
+assert.equal(slim(null).id,'');
+assert.equal(perMillion(false),null);assert.equal(perMillion([]),null);assert.equal(perMillion('1e308'),null);assert.equal(perMillion('0'),0);
+console.log(JSON.stringify({passed:true,malformed_metadata:true,comparison_ties:true,expanded_catalog_deduplicated:true,variant_selection:true,exact_model_family:true,org_collision_excluded:true,lower_is_better:true,missing_not_zero:true,stale_and_partial_errors:true,index_same_core:true}));
 `,ctx);
 vm.runInContext(`(async()=>{
   await new Promise(resolve=>setTimeout(resolve,0));

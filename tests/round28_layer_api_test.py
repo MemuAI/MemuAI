@@ -444,7 +444,7 @@ class Wiring(unittest.TestCase):
             self.assertIn("app.quick_layer", text, spec)
             self.assertIn("app.quick_layer_core", text, spec)
 
-        self.assertRegex((ROOT / "app" / "version.py").read_text(encoding="utf-8"), r'APP_VERSION = "\d+\.\d+"', "one APP_VERSION")
+        self.assertRegex((ROOT / "app" / "version.py").read_text(encoding="utf-8"), r'APP_VERSION = "\d+\.\d+(?:\.\d+)*"', "one APP_VERSION")
 
     def test_every_layer_string_has_both_languages(self):
         import re

@@ -159,7 +159,8 @@ def _memunote_sections():
 class SettingsPathsTest(unittest.TestCase):
     def test_settings_pages_list_matches_app(self):
         source = (PG / "app.js").read_text(encoding="utf-8")
-        block = source[source.index("function settingsPages()"):source.index("/* Switch the page inside an open settings dialog")]
+        start = source.index("function settingsPages()")
+        block = source[start:source.index("\nfunction ", start + 1)]
         pages = re.findall(r'P\("[a-z]+", "[a-z]+", [^,]+, "([^"]+)", "([^"]+)"', block)
         self.assertEqual({ru for ru, _ in pages}, SETTINGS_PAGES_RU)
         self.assertEqual({en for _, en in pages}, SETTINGS_PAGES_EN)

@@ -150,10 +150,11 @@ class RuntimeQualityTests(unittest.TestCase):
         for name, text, expected in (("new", "-ngl, --n-gpu-layers N\n-fit, --fit [on|off]  fit to memory", True),
                                      ("old", "-ngl, --n-gpu-layers N\n--flash-attn", False)):
             script = folder / f"llama-{name}"
-            script.write_text(f"#!/bin/sh\ncat <<'EOF'\n{text}\nEOF\n")
-            script.chmod(0o755)
-            with patch.object(lm, "_load_catalog", return_value={"models": {}, "settings": {}, "runtime": {}}):
+            script.write_text("mock executable", encoding="utf-8")
+            with patch.object(lm, "_load_catalog", return_value={"models": {}, "settings": {}, "runtime": {}}), \
+                    patch.object(lm.subprocess, "run", return_value=SimpleNamespace(stdout=text, stderr="")) as probe:
                 self.assertEqual(lm.supports_fit(str(script)), expected, name)
+                self.assertEqual(probe.call_args.args[0], [str(script), "--help"])
 
     def test_default_context_follows_the_hardware(self):
         self.assertEqual(lm.default_context(5 * GB, {"context_length": 32768}), 16384)

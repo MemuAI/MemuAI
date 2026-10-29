@@ -24,7 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 STATIC = ROOT / "app" / "pgstatic"
-CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
+CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or ("/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 SHOW = "{fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8, pinned:false, source:'hotkey', page:null}"
 MODELS = [{"id": "gemini-2.5-flash", "caps": {"vision": True, "search": True}}]
 CLOSE_CONFIRM = {"id": "c1", "action": "app.close", "title": "Закрыть приложение", "status": "confirm",

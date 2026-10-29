@@ -14,7 +14,7 @@ const ctx = { window: {}, S: { workspaces: {} }, PG_LANG: 'ru', icon: () => '', 
   memeText: (ru) => ru, console };
 vm.createContext(ctx);
 vm.runInContext(section('const esc = ', 'const ICONS = {'), ctx);
-vm.runInContext(section('const CODE_LANGUAGE_NAMES = {', '/* ------------------------------ тема'), ctx);
+vm.runInContext(section('const CODE_LANGUAGE_NAMES = {', 'function setTheme('), ctx);
 vm.runInContext(section('function cappedChats(', 'let chatsSaveSoonTimer'), ctx);
 const md = (text) => vm.runInContext('mdRender', ctx)(text);
 

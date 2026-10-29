@@ -58,7 +58,11 @@ def _env(tmp_path):
     return dict(os.environ, MEMUAI_DATA_DIR=str(tmp_path / "data"), PYTHONPATH=str(ROOT))
 
 def _chromium():
-    return os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
+    from tests.round32_slides_test import _chromium as installed_chromium
+    executable = installed_chromium()
+    if not executable:
+        pytest.skip("Chromium is not installed")
+    return executable
 
 def test_startup_imports_stay_light(tmp_path):
     """The hand-off path (memufiles.py → crash → desktop) must not pull urllib/http.client/traceback/tempfile, and

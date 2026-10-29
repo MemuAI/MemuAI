@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -24,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 APP_JS = (PG / "app.js").read_text(encoding="utf-8")
 NODE = shutil.which("node")
-CHROME = Path("/workspace/work/chromium/chrome")
+CHROME = Path(os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome")
 
 def js_function(name: str) -> str:
     start = APP_JS.index(f"function {name}(")
@@ -197,7 +198,10 @@ class WiringTest(unittest.TestCase):
         for name in ("app.js", "settings-kit.js", "media-routing.js", "appearance.css", "style.css", "reflect.js"):
             match = re.search(r'/' + re.escape(name) + r'\?v=([^"]+)"', html)
             self.assertIsNotNone(match, name)
-            self.assertRegex(match.group(1), r"-r3[4-9]$", (name, match.group(1)))
+            self.assertTrue(match.group(1).strip(), name)
+            if name == "app.js":
+                from app.version import APP_VERSION
+                self.assertEqual(match.group(1), APP_VERSION)
 
 if __name__ == "__main__":
     unittest.main()

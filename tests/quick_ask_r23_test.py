@@ -16,6 +16,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 from app import quick_ask_core as core
 from app import quick_ask_endpoint as endpoint
@@ -345,7 +346,8 @@ class CompanionCarryTests(unittest.TestCase):
 
     def test_manager_actions_off_windows(self) -> None:
         from app.companion_window import CompanionWindowManager
-        manager = CompanionWindowManager("http://127.0.0.1:1", state_root=lambda: Path("/nonexistent"))
+        with patch("app.companion_window.sys.platform", "linux"):
+            manager = CompanionWindowManager("http://127.0.0.1:1", state_root=lambda: Path("/nonexistent"))
         self.assertFalse(manager.supported)
         self.assertEqual(manager.handle("drag", {}), {})
         self.assertIn("pinned", manager.handle("status", {}))

@@ -99,7 +99,7 @@ class DesktopSourceContractTest(unittest.TestCase):
         cls.tg = (root / "telegram-settings.js").read_text(encoding="utf-8")
 
     def test_desktop_posts_only_changed_keys(self):
-        self.assertIn('api("/api/pg/preferences", { method: "POST", body: patch })', self.app)
+        self.assertRegex(self.app, r'api\("/api/pg/preferences", \{ method: "POST", body: patch(?:,|\s*\})')
         self.assertNotIn('body: snapshot', self.app)
 
     def test_desktop_polls_preferences_and_profiles(self):

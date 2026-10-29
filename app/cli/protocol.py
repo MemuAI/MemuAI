@@ -804,6 +804,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
             errors.append(f"the block does not contain a JSON array of calls: {raw.strip()[:200]!r}")
     out.append(source[last:])
     cleaned = "".join(out)
+    cleaned = _strip_content_blocks(cleaned)
 
     def tag_call(match: re.Match) -> str:
         try:
@@ -841,6 +842,11 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
     if "<function=" in cleaned:
         cleaned = _QWEN_FUNCTION.sub(qwen_call, cleaned)
         cleaned = re.sub(r"<tool_call>\s*</tool_call>", "", cleaned)
+    if re.search(r"<[｜|]\s*DSML\s*[｜|]", cleaned, re.I):
+        from ..answer_guard import extract_calls
+        cleaned, foreign = extract_calls(cleaned)
+        for row in foreign[:MAX_CALLS_PER_ROUND - len(calls)]:
+            calls.append(ParsedCall(name=row["tool"], args=row["args"], raw_name=row["tool"]))
     cleaned = _strip_content_blocks(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return ParseResult(cleaned, calls, errors, repairs, cut_off)
@@ -940,6 +946,11 @@ class StreamHider:
                 if opener.startswith(low[-size:]):
                     hold = max(hold, size)
                     break
+        possible = low.rfind("<")
+        if possible >= 0:
+            tail = low[possible:]
+            if re.fullmatch(r"<[｜|](?:\s*d?s?m?l?(?:\s*[｜|]\s*\w*(?:\s+[^>]*)?)?)?", tail):
+                hold = max(hold, len(tail))
         return hold
 
     def feed(self, text: str) -> str:
@@ -961,6 +972,12 @@ class StreamHider:
                     index = low.find(opener)
                     if index >= 0 and (best is None or index < best[0]):
                         best = (index, opener, closer)
+                dsml = re.search(r"<[｜|]\s*dsml\s*[｜|]\s*(function_calls|calls|invoke\b[^>]*)\s*>", low)
+                if dsml and (best is None or dsml.start() < best[0]):
+                    kind = dsml.group(1).split()[0]
+                    closer = "dsml:" + kind
+                    self.CLOSERS[closer] = re.compile(r"</[｜|]\s*DSML\s*[｜|]\s*" + re.escape(kind) + r"\s*>", re.I)
+                    best = (dsml.start(), dsml.group(0), closer)
                 if best is None:
                     hold = self._hold_len(low)
                     shown.append(self.buffer[:len(self.buffer) - hold])
@@ -987,7 +1004,12 @@ class StreamHider:
                     index = self.buffer.lower().find(self.closer)
                     size = len(self.closer)
                 if index < 0:
-                    keep = (24 if pattern is not None else len(self.closer) - 1)
+                    if pattern is not None:
+                        start = self.buffer.rfind("<")
+                        tail = self.buffer[start:] if start >= 0 else ""
+                        keep = len(tail) if ">" not in tail and (tail == "<" or tail.startswith("</")) else 0
+                    else:
+                        keep = len(self.closer) - 1
                     keep = min(keep, len(self.buffer))
                     self._swallow(self.buffer[:len(self.buffer) - keep])
                     self.buffer = self.buffer[len(self.buffer) - keep:]

@@ -28,7 +28,7 @@ class StaticAppTest(unittest.TestCase):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         for ref in re.findall(r'(?:src|href)="([^"#?]+)', html):
             self.assertTrue((STATIC / ref).is_file(), ref)
-        self.assertIn('type="module" src="js/app.js"', html)
+        self.assertIn('type="module" src="js/app.js?v=4.1"', html)
 
         self.assertNotRegex(html, r"<script(?![^>]*\bsrc=)[^>]*>")
 

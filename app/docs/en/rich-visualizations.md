@@ -9,7 +9,7 @@ MemuAI can place branching flows, sortable rankings, comparisons, charts, tables
 
 An underlined entity name opens a panel on the right with a summary, images, facts and sources supplied in that message. The panel does not independently verify those facts: the model should provide reliable sources. Remote images pass through the protected media proxy; local network destinations are blocked.
 
-Under **Settings → Chat → What answers may contain**, disable all visualizations, just custom HTML blocks or just images. Disabled blocks retain readable text. The `/visual` command explicitly requests a visual answer for the current chat.
+Under **Settings → Chat & replies → What answers may contain**, disable all visualizations, just custom HTML blocks or just images. Disabled blocks retain readable text. The `/visual` command explicitly requests a visual answer for the current chat.
 
 Copying and exporting messages preserves names, values, steps and explanations rather than JSON or interface code. Custom blocks use their model-supplied text summary.
 

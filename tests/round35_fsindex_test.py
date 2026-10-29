@@ -52,6 +52,7 @@ def idx():
 def data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(fsindex, "_SERVICE", None)
+    monkeypatch.setattr(fw, "everything_info", lambda: {"installed": False, "running": False, "via": ""})
     yield tmp_path
     if fsindex._SERVICE is not None:
         fsindex._SERVICE.stop()
@@ -193,7 +194,12 @@ def test_walker_exclusions_and_hidden(tmp_path):
     (tmp_path / "a" / "keep" / "f.txt").write_text("1")
     (tmp_path / "a" / "node_modules" / "x" / "skip.txt").write_text("1")
     (tmp_path / "a" / ".hidden").write_text("1")
-    os.symlink(tmp_path / "a" / "keep", tmp_path / "a" / "link")
+    try:
+        os.symlink(tmp_path / "a" / "keep", tmp_path / "a" / "link", target_is_directory=True)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symlink privilege unavailable")
+        raise
     rules = fsindex.Exclusions(["node_modules", str(tmp_path / "a" / "keep2")])
     batches = fsindex.walk([str(tmp_path / "a")], rules)
     snap = fsindex.Snapshot.build(batches, [str(tmp_path)])

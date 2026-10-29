@@ -21,7 +21,7 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r39-mod-icons-
 
 from app import module_icons, modules_host, modules_validate  # noqa: E402
 
-BUILTINS = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn")
+BUILTINS = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb")
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h20v20H2z" fill="#f80"/></svg>'
 
 def _png(size=64, color=(200, 80, 120, 255)) -> bytes:
@@ -225,7 +225,9 @@ class StaticTest(unittest.TestCase):
         self.assertIn("/module-icons.css?v=", index)
         modules = (static / "modules.js").read_text(encoding="utf-8")
         self.assertNotIn("moduleIcon(row.icon)", modules, "every module row draws its own icon")
-        self.assertIn("data-module-icon-edit", modules)
+        self.assertIn('data-module-more="${esc(row.id)}"', modules)
+        self.assertIn('if (row) moreMenu(event, row);', modules)
+        self.assertIn('t("Сменить иконку…", "Change icon…")', modules)
         self.assertEqual(modules.count("MemuModuleIcon.picker(row)"), 2, "launcher menu + card «More»")
         apps = (static / "module-apps.js").read_text(encoding="utf-8")
         self.assertIn("MemuModuleIcon.png(fresh, 256)", apps)
@@ -308,7 +310,7 @@ class BrowserTest(unittest.TestCase):
             page.evaluate("() => MemuModules.closeAll && MemuModules.closeAll()")
 
             page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
-            page.wait_for_selector("[data-module-icon-edit] .mico", timeout=15000)
+            page.wait_for_selector(".ms-module-icon .mico", timeout=15000)
             page.wait_for_timeout(500)
             self.shot(page, f"cards-{theme}")
             if theme == "dark":

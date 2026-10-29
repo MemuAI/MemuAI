@@ -321,7 +321,9 @@ async def api_models_recent(args, ctx):
         price = ""
         if m.get("input") is not None or m.get("output") is not None:
             price = (_money(m.get("input"), en) or "—") + " → " + (_money(m.get("output"), en) or "—")
-        meta = " · ".join(x for x in (m.get("family") or m["source"], price and tr(f"{price} за 1M", f"{price} per 1M"),
+        outputs = {"text": tr("текст", "text"), "image": tr("изображения", "images"), "audio": tr("аудио", "audio"), "video": tr("видео", "video")}
+        output = ", ".join(outputs.get(value, value) for value in m.get("outputs", []))
+        meta = " · ".join(x for x in (m.get("family") or m["source"], output, price and tr(f"{price} за 1M", f"{price} per 1M"),
                                       m.get("context") and tr(f"контекст {m['context'] // 1000}K", f"{m['context'] // 1000}K context")) if x)
         items.append({"title": m["name"], "subtitle": meta, "at": m["at"], "mono": (m.get("family") or m["source"] or "?")[:1].upper(),
                       "open": True, "detail": {"query": m["key"]}})

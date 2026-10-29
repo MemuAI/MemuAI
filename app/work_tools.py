@@ -265,7 +265,7 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         raise WorkError("Нужен непустой query")
     pattern = str(args.get("glob") or "").strip()
     limit = max(1, min(MAX_MATCHES, int(args.get("limit") or 60)))
-    context = max(0, min(6, int(args.get("context") or 1)))
+    context = max(0, min(6, int(args["context"] if args.get("context") is not None else 1)))
     flags = 0 if args.get("case_sensitive") else re.IGNORECASE
     try:
         needle = re.compile(query if args.get("regex") else re.escape(query), flags)
@@ -453,7 +453,10 @@ def tool_insert(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     position = args.get("line")
     index = len(lines) if position is None else max(0, min(len(lines), int(position) - 1))
     block = text if text.endswith("\n") else text + "\n"
-    after = "".join(lines[:index]) + block + "".join(lines[index:])
+    prefix = "".join(lines[:index])
+    if prefix and not prefix.endswith("\n"):
+        prefix += "\n"
+    after = prefix + block + "".join(lines[index:])
     _atomic_write(target, _with_eol(after, eol), encoding)
     return {"path": relative(root, target), "line": index + 1,
             "diff": unified_diff(before, after, relative(root, target))}
@@ -496,10 +499,16 @@ def tool_append(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         original, truncated, encoding = read_text_meta(target)
         eol, before = _eol(original), _lf(original)
         if truncated:
-
-            with target.open("a", encoding="utf-8" if encoding == "utf-8-sig" else encoding,
+            with target.open("rb") as handle:
+                bom = handle.read(2)
+                handle.seek(max(0, target.stat().st_size - 4))
+                tail = handle.read()
+            codec = ("utf-16-be" if bom == b"\xfe\xff" else "utf-16-le") if encoding == "utf-16" else encoding
+            ends_line = tail.endswith(b"\x00\n" if codec == "utf-16-be" else b"\n\x00") if encoding == "utf-16" else tail.endswith(b"\n")
+            suffix = ("" if ends_line else "\n") + (text if text.endswith("\n") else text + "\n")
+            with target.open("a", encoding="utf-8" if codec == "utf-8-sig" else codec,
                              newline="") as handle:
-                handle.write(_with_eol(text if text.endswith("\n") else text + "\n", eol))
+                handle.write(_with_eol(suffix, eol))
             return {"path": relative(root, target), "appended": len(text), "diff": ""}
     after = before + ("" if not before or before.endswith("\n") else "\n") + \
         (text if text.endswith("\n") else text + "\n")

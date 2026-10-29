@@ -165,7 +165,9 @@ class MarkdownRunner(unittest.TestCase):
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or "",
-                      "/workspace/work/chromium/chrome"):
+                      "/workspace/work/chromium/chrome",
+                      r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                      r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"):
         if candidate and os.path.exists(candidate):
             return candidate
     return ""

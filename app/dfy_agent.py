@@ -31,6 +31,7 @@ Windows/macOS) и даёт DFY полный доступ к среде: кома
 from __future__ import annotations
 
 import base64
+import codecs
 import hashlib
 import hmac
 import json
@@ -60,6 +61,164 @@ DEFAULT_TIMEOUT = 120.0
 MAX_TIMEOUT = 3600.0
 AUTH_WINDOW = 300
 WINDOWS = os.name == "nt"
+
+
+def _output_codepages() -> List[str]:
+    """Legacy encodings used by Windows console commands with redirected output."""
+    pages: List[str] = []
+    if WINDOWS:
+        try:
+            import ctypes
+            kernel = ctypes.windll.kernel32
+            for getter in ("GetConsoleOutputCP", "GetOEMCP"):
+                try:
+                    page = int(getattr(kernel, getter)())
+                    codec = f"cp{page}"
+                    # UTF-8 is always attempted first; a detached GUI process
+                    # has no console and GetConsoleOutputCP returns zero.
+                    if page and page != 65001 and codec not in pages:
+                        codecs.lookup(codec)
+                        pages.append(codec)
+                except (AttributeError, LookupError, OSError, TypeError, ValueError):
+                    continue
+        except (AttributeError, ImportError, OSError):
+            pass
+    return pages
+
+
+def _decode_output(raw: bytes, legacy_codepages: List[str], *, final: bool = True) -> str:
+    try:
+        return codecs.getincrementaldecoder("utf-8")().decode(raw, final=final)
+    except UnicodeDecodeError:
+        for codec in legacy_codepages:
+            try:
+                return codecs.getincrementaldecoder(codec)().decode(raw, final=final)
+            except (LookupError, UnicodeDecodeError):
+                continue
+        return codecs.getincrementaldecoder("utf-8")("replace").decode(raw, final=final)
+
+
+def _browser_args(value: str) -> List[str]:
+    if not WINDOWS:
+        return shlex.split(value)
+    import ctypes
+    from ctypes import wintypes
+    shell = ctypes.WinDLL("shell32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    shell.CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
+    shell.CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    count = ctypes.c_int()
+    argv = shell.CommandLineToArgvW('memu-browser ' + value, ctypes.byref(count))
+    if not argv:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return [argv[i] for i in range(1, count.value)]
+    finally:
+        kernel.LocalFree(argv)
+
+
+class _WindowsJob:
+    """Own one command tree, including children whose immediate parent exits."""
+
+    def __init__(self) -> None:
+        import ctypes
+        from ctypes import wintypes
+        self._kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._lock = threading.Lock()
+        signatures = {
+            "CreateJobObjectW": ([ctypes.c_void_p, wintypes.LPCWSTR], wintypes.HANDLE),
+            "AssignProcessToJobObject": ([wintypes.HANDLE, wintypes.HANDLE], wintypes.BOOL),
+            "TerminateJobObject": ([wintypes.HANDLE, wintypes.UINT], wintypes.BOOL),
+            "CloseHandle": ([wintypes.HANDLE], wintypes.BOOL),
+            "CreateToolhelp32Snapshot": ([wintypes.DWORD, wintypes.DWORD], wintypes.HANDLE),
+            "OpenThread": ([wintypes.DWORD, wintypes.BOOL, wintypes.DWORD], wintypes.HANDLE),
+            "ResumeThread": ([wintypes.HANDLE], wintypes.DWORD),
+        }
+        for name, (args, result) in signatures.items():
+            method = getattr(self._kernel, name)
+            method.argtypes, method.restype = args, result
+        self._handle = self._kernel.CreateJobObjectW(None, None)
+        if not self._handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+
+    def bind_and_resume(self, process: subprocess.Popen) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        class ThreadEntry(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                        ("th32ThreadID", wintypes.DWORD), ("th32OwnerProcessID", wintypes.DWORD),
+                        ("tpBasePri", wintypes.LONG), ("tpDeltaPri", wintypes.LONG),
+                        ("dwFlags", wintypes.DWORD)]
+
+        if not self._kernel.AssignProcessToJobObject(self._handle, int(process._handle)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        # Popen closes the primary thread handle. The still-suspended process
+        # cannot create children until its sole initial thread is resumed.
+        snapshot = self._kernel.CreateToolhelp32Snapshot(0x4, 0)  # TH32CS_SNAPTHREAD
+        if snapshot == ctypes.c_void_p(-1).value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            entry = ThreadEntry()
+            entry.dwSize = ctypes.sizeof(entry)
+            for name in ("Thread32First", "Thread32Next"):
+                method = getattr(self._kernel, name)
+                method.argtypes, method.restype = [wintypes.HANDLE, ctypes.POINTER(ThreadEntry)], wintypes.BOOL
+            available = self._kernel.Thread32First(snapshot, ctypes.byref(entry))
+            while available:
+                if entry.th32OwnerProcessID == process.pid:
+                    thread = self._kernel.OpenThread(0x2, False, entry.th32ThreadID)  # THREAD_SUSPEND_RESUME
+                    if not thread:
+                        raise ctypes.WinError(ctypes.get_last_error())
+                    try:
+                        if self._kernel.ResumeThread(thread) == 0xFFFFFFFF:
+                            raise ctypes.WinError(ctypes.get_last_error())
+                        return
+                    finally:
+                        self._kernel.CloseHandle(thread)
+                available = self._kernel.Thread32Next(snapshot, ctypes.byref(entry))
+            raise OSError("The suspended command's primary thread was not found")
+        finally:
+            self._kernel.CloseHandle(snapshot)
+
+    def terminate(self) -> bool:
+        with self._lock:
+            return not self._handle or bool(self._kernel.TerminateJobObject(self._handle, 1))
+
+    def close(self, *, terminate: bool = False) -> None:
+        with self._lock:
+            if self._handle:
+                if terminate:
+                    self._kernel.TerminateJobObject(self._handle, 1)
+                self._kernel.CloseHandle(self._handle)
+                self._handle = None
+
+
+def _command_process(command: str, **kwargs: Any) -> subprocess.Popen:
+    if not WINDOWS:
+        return subprocess.Popen(command, shell=True, **kwargs)
+    job = _WindowsJob()
+    process = None
+    try:
+        # Assign the job before the command can run: assigning a running shell
+        # can lose fast children between CreateProcess and AssignProcessToJobObject.
+        process = subprocess.Popen(command, shell=True, creationflags=0x4 | subprocess.CREATE_NO_WINDOW, **kwargs)
+        process._memu_windows_job = job
+        job.bind_and_resume(process)
+        return process
+    except BaseException:
+        job.close(terminate=True)
+        if process is not None:
+            try:
+                process.kill()
+                process.wait(timeout=5)
+            finally:
+                if process.stdout:
+                    process.stdout.close()
+        raise
+
 
 class Refused(Exception):
     """Отказ по правилам безопасности (ответ 403 с человеческим текстом)."""
@@ -445,8 +604,11 @@ class Agent:
                                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if not WINDOWS:
             popen_kwargs["start_new_session"] = True
-        process = subprocess.Popen(command, shell=True, **popen_kwargs)
         with self._lock:
+            if job in self.jobs:
+                raise Refused("Задание с таким ID уже выполняется",
+                              "A job with this ID is already running")
+            process = _command_process(command, **popen_kwargs)
             self.jobs[job] = process
         chunks: List[str] = []
         size = 0
@@ -459,18 +621,32 @@ class Agent:
         watchdog = threading.Timer(timeout, expire)
         watchdog.daemon = True
         watchdog.start()
+        legacy_codepages = _output_codepages()
         try:
             assert process.stdout is not None
-            for raw in iter(process.stdout.readline, b""):
-                text = raw.decode("utf-8", "replace")
-                if size < self.max_output:
-                    piece = text[:self.max_output - size]
+            while True:
+                available = max(0, self.max_output - size)
+                # A full prefix holds more than the remaining character budget
+                # even with four-byte UTF-8. Subsequent output is drained in
+                # bounded chunks, including a command's single enormous line.
+                limit = 4 * available + 4 if available else 64 * 1024
+                raw = process.stdout.readline(limit)
+                if not raw:
+                    break
+                if not available:
+                    truncated = True
+                    continue
+                # A full prefix can end inside a UTF-8 character. That pending
+                # tail is outside the output budget and must not select OEM decoding.
+                text = _decode_output(raw, legacy_codepages, final=len(raw) < limit or raw.endswith(b"\n"))
+                if len(text) > available:
+                    truncated = True
+                if available:
+                    piece = text[:available]
                     chunks.append(piece)
                     size += len(piece)
                     if on_chunk:
                         on_chunk(job, piece)
-                else:
-                    truncated = True
             process.wait(timeout=10)
         except BaseException:
             self._terminate(process)
@@ -479,6 +655,9 @@ class Agent:
             watchdog.cancel()
             with self._lock:
                 self.jobs.pop(job, None)
+            windows_job = getattr(process, "_memu_windows_job", None)
+            if windows_job is not None:
+                windows_job.close()
             try:
                 if process.stdout:
                     process.stdout.close()
@@ -503,7 +682,23 @@ class Agent:
     def _terminate(process: subprocess.Popen) -> None:
         try:
             if WINDOWS:
-                process.terminate()
+                windows_job = getattr(process, "_memu_windows_job", None)
+                if windows_job is not None and windows_job.terminate():
+                    process.wait(timeout=5)
+                    return
+                if process.poll() is not None:
+                    return
+                # Killing the shell first loses the ancestry needed by /T:
+                # children can keep the captured output pipe open forever.
+                try:
+                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, timeout=5,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                if process.poll() is None:
+                    process.terminate()
             else:
                 os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             try:
@@ -868,7 +1063,7 @@ class Agent:
         args += [str(a) for a in params.get("args") or [] if str(a).startswith("--")][:20]
 
         try:
-            own = shlex.split(os.environ.get("MEMUAI_BROWSER_ARGS", ""), posix=not WINDOWS)
+            own = _browser_args(os.environ.get("MEMUAI_BROWSER_ARGS", ""))
         except ValueError:
             own = []
         args += [a for a in own if a.startswith("--")][:20]

@@ -39,7 +39,7 @@ class LocalClientsSkipSystemProxy(unittest.TestCase):
             self.assertFalse(trusts_env(base), base)
         for base in ("https://api.openai.com/v1", "https://api.groq.com/openai/v1"):
             self.assertTrue(trusts_env(base), base)
-        voice = list(_client_calls("app/voice_runtime.py"))
+        voice = list(_client_calls("app/stt_providers.py"))
         self.assertTrue(voice and all("trust_env" in kw for kw in voice))
         tts = list(_client_calls("app/tts_providers.py"))
         self.assertTrue(tts and all("trust_env" in kw for kw in tts))

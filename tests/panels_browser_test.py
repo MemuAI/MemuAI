@@ -182,7 +182,9 @@ class PanelsBrowserTest(unittest.TestCase):
         self.assertEqual(bar.locator(".mp-more").inner_text(), "+4")
 
         page.set_viewport_size({"width": 700, "height": 700})
-        page.wait_for_timeout(250)
+        # ResizeObserver/RAF fitting can finish after the entrance animation,
+        # especially while other isolated browser suites are running.
+        page.wait_for_function("[...document.querySelectorAll('#panels-appbar .mp-chip[data-panel-id]')].filter(c => !c.hidden).length < 4")
         top = page.evaluate("(() => { const b = document.querySelector('#topbar').getBoundingClientRect(); return b.height; })()")
         self.assertLess(top, 60)
         visible = page.evaluate("[...document.querySelectorAll('#panels-appbar .mp-chip[data-panel-id]')].filter(c => !c.hidden).length")

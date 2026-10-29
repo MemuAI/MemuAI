@@ -8166,6 +8166,17 @@ function extractMemFacts(text, source = null, assistant = null) {
 function extractWorkProtocols(text, assistant, source = null) {
   const context = source || assistantSources.get(assistant) || captureChatSource();
   let cleaned = String(text || "");
+  const recoveredTools = [];
+  if (typeof MemuAnswerGuard !== "undefined" && !assistant?._noMoreTools) {
+    const foreign = MemuAnswerGuard.extractCalls(cleaned);
+    if (foreign.calls.length) {
+      cleaned = foreign.text;
+      for (const call of foreign.calls) {
+        if (call.tool === "memuai-command") cleaned += "\n```memuai-command\n" + JSON.stringify(call.args) + "\n```";
+        else recoveredTools.push(call);
+      }
+    }
+  }
   const planRe = /```memuai-plan\s*\n([\s\S]*?)```/gi;
   cleaned = cleaned.replace(planRe, (_, raw) => {
     try {
@@ -8244,7 +8255,7 @@ function extractWorkProtocols(text, assistant, source = null) {
       const data = JSON.parse(raw.trim());
       const command = String(data.command || data.cmd || "").trim().slice(0, 12000);
       const shell = String(data.shell || "powershell").toLowerCase();
-      if (command && isProjectMode(context.mode) && context.workspaces.active_id) assistant.workCommand = { status: "pending", command, shell, reason: String(data.reason || "").slice(0, 300), project_id: context.workspaces.active_id, result: "" };
+      if (command && !assistant?._noMoreTools && isProjectMode(context.mode) && context.workspaces.active_id) assistant.workCommand = { status: "pending", command, shell, reason: String(data.reason || "").slice(0, 300), project_id: context.workspaces.active_id, result: "" };
     } catch (e) {}
     return "";
   });
@@ -8259,7 +8270,7 @@ function extractWorkProtocols(text, assistant, source = null) {
     } catch (e) {}
     return "";
   });
-  const toolCalls = [];
+  const toolCalls = recoveredTools;
   const parsedTools = parseToolBlocks(cleaned);
   cleaned = parsedTools.text;
   toolCalls.push(...parsedTools.calls);
@@ -8369,10 +8380,11 @@ function parseToolBlocks(text) {
     let data = null;
     try { data = JSON.parse(raw.trim()); }
     catch (e) {
-      try { data = JSON.parse(raw.trim().replace(/,\s*([\]}])/g, "$1")); }
+      const repaired = raw.trim().replace(/("(?:[^"\\]|\\.)*")|,\s*(?=[\]}])/g, (match, quoted) => quoted || "");
+      try { data = JSON.parse(repaired); }
       catch (e2) {
 
-        try { data = JSON.parse(rebalanceJsonClosers(raw.trim().replace(/,\s*([\]}])/g, "$1"))); }
+        try { data = JSON.parse(rebalanceJsonClosers(repaired)); }
         catch (e3) { errors.push(`${e.message}: ${raw.trim().slice(0, 300)}`); continue; }
       }
     }

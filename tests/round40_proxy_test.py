@@ -396,7 +396,7 @@ def test_web_models_ui_bilingual_and_hooked():
     pairs += re.findall(r'\[\s*"[^"]*"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\]', src)
     assert len(pairs) > 40
     assert not [en for _ru, en in pairs if re.search("[А-Яа-яЁё]", en)]
-    assert not re.search(r"MemuAI(?! Proxy)", src.split("*/", 1)[1])
+    assert not re.search(r"MemuAI(?! Proxy)", re.sub(r"/\*[\s\S]*?\*/", "", src))
     node = shutil.which("node")
     if node:
         for name in ("web-models.js", "composite.js", "app.js", "model_caps.js"):

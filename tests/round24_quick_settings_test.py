@@ -339,7 +339,7 @@ except Exception:  # pragma: no cover
 def _pretty_select_source() -> str:
     app = (PG / "app.js").read_text(encoding="utf-8")
     start = app.index("function closePrettySelects(")
-    end = app.index("/* ------------------------------ верхняя панель окна")
+    end = app.index("async function copyText(", start)
     return app[start:end]
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")

@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -466,7 +467,7 @@ def test_window_wiring():
     assert "'app.canvas'" in (ROOT / "MemuAI.spec").read_text(encoding="utf-8")
 
 def test_canvas_js_pure_helpers_in_node():
-    node = subprocess.run(["which", "node"], capture_output=True, text=True).stdout.strip()
+    node = shutil.which("node")
     if not node:
         pytest.skip("node is not installed")
     script = r"""

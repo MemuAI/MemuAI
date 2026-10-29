@@ -24,7 +24,9 @@ NODE = shutil.which("node")
 def _py_in_tz(tz: str, code: str) -> dict:
     """Run ``code`` (prints JSON) with the process timezone set to ``tz`` — the server runs on the user's PC."""
     env = {**os.environ, "TZ": tz, "PYTHONPATH": str(ROOT)}
-    out = subprocess.run([sys.executable, "-c", textwrap.dedent(code)], capture_output=True, text=True, env=env,
+    setup = ("from app import panels\nfrom tests.timezone_fixture import local_datetime\n"
+             + f"panels.datetime = local_datetime({tz!r})\n")
+    out = subprocess.run([sys.executable, "-c", setup + textwrap.dedent(code)], capture_output=True, text=True, env=env,
                          timeout=60, cwd=str(ROOT))
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout.strip().splitlines()[-1])
@@ -107,7 +109,7 @@ class PanelsJsTest(unittest.TestCase):
 
     def _iso_shown(self, lang: str, values):
         a = PANELS_JS.index("  const ISO_VALUE =")
-        b = PANELS_JS.index("  /** A field as its raw string")
+        b = PANELS_JS.index("  const plain =", a)
         script = (f"const en = () => {json.dumps(lang == 'en')};\n" + PANELS_JS[a:b] +
                   f"\nconsole.log(JSON.stringify({json.dumps(values)}.map(isoShown)));")
         return self._node("Europe/Moscow", script)

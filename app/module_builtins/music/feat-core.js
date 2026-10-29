@@ -52,14 +52,20 @@ const Cfg = (() => {
 })();
 
 let changeTimer = 0;
+let changeWaiters = [], changeRun = Promise.resolve();
 
 function libraryChanged(opts) {
   clearTimeout(changeTimer);
-  return new Promise((resolve) => {
-    changeTimer = setTimeout(async () => {
-      await (opts && opts.playlistsOnly ? loadPlaylists() : refreshAll());
-      if (!(opts && opts.quiet) && ["library", "playlists", "playlist", "liked", "album", "artist", "genre", "folder"].includes(S.view)) rerender();
-      resolve();
+  return new Promise((resolve, reject) => {
+    changeWaiters.push({ opts: opts || {}, resolve, reject });
+    changeTimer = setTimeout(() => {
+      const waiters = changeWaiters;
+      changeWaiters = []; changeTimer = 0;
+      changeRun = changeRun.catch(() => {}).then(async () => {
+        await (waiters.every(w => w.opts.playlistsOnly) ? loadPlaylists() : refreshAll());
+        if (waiters.some(w => !w.opts.quiet) && ["library", "playlists", "playlist", "liked", "album", "artist", "genre", "folder"].includes(S.view)) rerender();
+      });
+      changeRun.then(() => waiters.forEach(w => w.resolve()), error => waiters.forEach(w => w.reject(error)));
     }, opts && opts.now ? 0 : 250);
   });
 }

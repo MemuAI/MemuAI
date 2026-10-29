@@ -39,7 +39,7 @@ except ImportError:
     HAVE_PPTX = False
 
 def _chromium():
-    for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome", shutil.which("chromium") or "", shutil.which("google-chrome") or "",
+    for path in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome", shutil.which("chromium") or "", shutil.which("google-chrome") or "",
                  r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"):
         if path and os.path.exists(path):
             return path

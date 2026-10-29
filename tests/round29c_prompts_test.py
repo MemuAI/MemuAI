@@ -53,7 +53,7 @@ class BasePromptTest(unittest.TestCase):
 class ScheduleRulesBlockTest(unittest.TestCase):
     def _block(self, text: str) -> str:
         a = APP_JS.index("const SCHEDULE_INTENT_RE")
-        b = APP_JS.index("/* Среда Work/MemuCode", a)
+        b = APP_JS.index("function workRuntimePrompt(", a)
         script = ("globalThis.MemuPlan = { protocol: 'PROTO' };\n" + APP_JS[a:b] +
                   f"\nconsole.log(JSON.stringify(scheduleRulesPromptBlock({json.dumps(text)})));")
         out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)

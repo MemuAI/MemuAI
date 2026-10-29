@@ -60,10 +60,14 @@ def lnk_target(path: str) -> str:
     flags = struct.unpack_from("<I", data, 0x14)[0]
     pos = 0x4C
     if flags & 0x1:
+        if pos + 2 > len(data):
+            return ""
         pos += 2 + struct.unpack_from("<H", data, pos)[0]
     if not flags & 0x2 or pos + 28 > len(data):
         return ""
     size, header, info_flags, _vol, local_off, net_off, suffix_off = struct.unpack_from("<7I", data, pos)
+    if size < 28 or header < 28 or header > size or pos + size > len(data):
+        return ""
     info = data[pos:pos + size]
 
     def ansi(off: int) -> str:

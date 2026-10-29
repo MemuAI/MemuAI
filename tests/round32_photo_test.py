@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 STATIC = ROOT / "app" / "memunote" / "static"
 PHOTO_JS = STATIC / "js" / "photo"
-CHROME = next((p for p in ("/usr/bin/chromium", "/workspace/work/chromium/chrome") if os.path.exists(p)), None)
+CHROME = next((p for p in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome") if p and os.path.exists(p)), None)
 
 from app.memunote import photo  # noqa: E402
 from app.memunote.formats import images, psd  # noqa: E402
@@ -119,6 +119,27 @@ class ImagesTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_multiframe_image_resources_close_and_output_remains_valid(self) -> None:
+        import gc
+        import warnings
+        from PIL import Image
+        path = self.tmp / "owned-animation.gif"
+        first = Image.new("RGB", (3, 3), "red")
+        second = Image.new("RGB", (3, 3), "blue")
+        first.save(path, save_all=True, append_images=[second], duration=50, loop=0)
+        with warnings.catch_warnings(record=True) as found:
+            warnings.simplefilter("always", ResourceWarning)
+            decoded = images.decode(str(path), frame=1)
+            result = images.frames(str(path))
+            merged = images._merged_with_pillow(str(path))
+            gc.collect()
+        self.assertFalse([str(w.message) for w in found if path.name in str(w.message)])
+        self.assertEqual(decoded["frames"], 2)
+        self.assertEqual(result["total"], 2)
+        for value in (base64.b64decode(decoded["png"]), base64.b64decode(result["frames"][1]["png"]), merged):
+            with Image.open(io.BytesIO(value)) as output:
+                self.assertEqual(output.size, (3, 3))
 
     def test_every_encoder_produces_a_readable_file(self) -> None:
         from PIL import Image

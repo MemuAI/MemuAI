@@ -33,7 +33,7 @@ class MonitorTest(unittest.TestCase):
         async def fake_read(_source):
             return dict(self.records)
 
-        async def fake_notify(_module, title, text, telegram=True):
+        async def fake_notify(_module, title, text, telegram=True, **kwargs):
             self.sent.append(text)
 
         for target, value in (("read_source", fake_read), ("notify", fake_notify)):

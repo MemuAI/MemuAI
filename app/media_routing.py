@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -543,24 +544,45 @@ def register(app: Any, *, stream_lines, web_search=None) -> None:
         """Copy a generated file of this profile to ~/Downloads/MemuAI (WebView2 ignores <a download>)."""
         try:
             body = await request.json()
-            match = re.search(r"/api/pg/media/file/([0-9a-f]{64}\.(?:mp4|webm|mov|png|jpg|webp|gif))", str(body.get("url") or ""))
+            from urllib.parse import parse_qs, urlsplit
+            url = urlsplit(str(body.get("url") or ""))
+            match = re.fullmatch(r"/api/pg/media/file/([0-9a-f]{64}\.(?:mp4|webm|mov|png|jpg|webp|gif))", url.path)
             if not match:
                 return JSONResponse({"error": "File not found"}, 404)
-            source = media_folder(_active_profile()) / match.group(1)
+            active = _active_profile()
+            expected = parse_qs(url.query).get("profile_id", [""])[0]
+            if expected and expected != active:
+                return JSONResponse({"error": "Profile changed"}, 403)
+            source = media_folder(active) / match.group(1)
             if not source.is_file() or source.is_symlink():
                 return JSONResponse({"error": "File not found"}, 404)
             raw_name = str(body.get("name") or ("memuai-" + match.group(1)[:12] + source.suffix))
             name = re.sub(r"[\\/:*?\"<>|\r\n\t]+", "_", raw_name).strip(" .")[:120] or "memuai-media" + source.suffix
             if not name.lower().endswith(source.suffix):
                 name += source.suffix
-            folder = Path.home() / "Downloads" / "MemuAI"
+            from .quick_apps import downloads_folder
+            folder = Path(downloads_folder() or Path.home() / "Downloads") / "MemuAI"
             folder.mkdir(parents=True, exist_ok=True)
-            target = folder / name
-            stem, suffix, index = target.stem, target.suffix, 2
-            while target.exists():
-                target = folder / ("%s (%d)%s" % (stem, index, suffix))
-                index += 1
-            await asyncio.to_thread(__import__("shutil").copyfile, source, target)
+
+            def copy_export():
+                target = folder / name
+                stem, suffix, index = target.stem, target.suffix, 2
+                while True:
+                    try:
+                        output = target.open("xb")
+                        break
+                    except FileExistsError:
+                        target = folder / ("%s (%d)%s" % (stem, index, suffix))
+                        index += 1
+                try:
+                    with output, source.open("rb") as incoming:
+                        shutil.copyfileobj(incoming, output)
+                except BaseException:
+                    target.unlink(missing_ok=True)
+                    raise
+                return target
+
+            target = await asyncio.to_thread(copy_export)
             return {"ok": True, "path": str(target), "name": target.name, "bytes": target.stat().st_size}
         except Exception as exc:
             return JSONResponse({"error": str(exc)[:300]}, 400)

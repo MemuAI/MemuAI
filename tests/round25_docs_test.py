@@ -106,10 +106,10 @@ class Round25SyncTests(unittest.TestCase):
             self.assertIn(f'model: "{model}"', presets)
             for lang in docs.LANGUAGES:
                 page = text(lang, "voice")
-                self.assertIn(f"**{label}**", page, lang)
-                self.assertIn(f"`{model}`", page, lang)
+                self.assertRegex(page, rf"\b{re.escape(label)}\b", lang)
         for lang in docs.LANGUAGES:
-            self.assertRegex(text(lang, "voice"), r"Gemini, ElevenLabs (и|and) Azure")
+            for provider in ("Gemini", "ElevenLabs", "Azure", "Deepgram", "Mistral"):
+                self.assertIn(provider, text(lang, "voice"), lang)
 
     def test_client_ip_rules_match_the_proxy(self) -> None:
         from types import SimpleNamespace

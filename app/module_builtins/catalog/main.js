@@ -83,9 +83,9 @@ function compact(value) {
 
 function perMillion(value) {
   if (value === undefined || value === null || value === "") return undefined;
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n * 1e6;
+  const n = Number(value) * 1e6;
+  if (!["number", "string"].includes(typeof value) || String(value).trim() === "" || !Number.isFinite(n) || n < 0) return null;
+  return n;
 }
 
 function money(value) {
@@ -324,6 +324,7 @@ async function loadBenchmarks(force=false) {
 }
 
 function slim(model) {
+  model = model && typeof model === "object" ? model : {};
   const arch = model.architecture || {};
   const pricing = model.pricing || {};
   const top = model.top_provider || {};
@@ -337,8 +338,8 @@ function slim(model) {
     created: Number(model.created) || 0,
     context: Number(model.context_length) || Number(top.context_length) || 0,
     maxOut: Number(top.max_completion_tokens) || 0,
-    in: (arch.input_modalities || []).filter((x) => typeof x === "string"),
-    out: (arch.output_modalities || []).filter((x) => typeof x === "string"),
+    in: (Array.isArray(arch.input_modalities) ? arch.input_modalities : []).filter((x) => typeof x === "string"),
+    out: (Array.isArray(arch.output_modalities) ? arch.output_modalities : []).filter((x) => typeof x === "string"),
     price: {
       input: perMillion(pricing.prompt), output: perMillion(pricing.completion),
       cacheRead: perMillion(pricing.input_cache_read), cacheWrite: perMillion(pricing.input_cache_write),
@@ -369,8 +370,8 @@ function slimModelsDev(provider, model) {
   return { id, name: String(model.name || model.id || id), org: slug === provider.id ? provider.name || slug : slug,
     slug, created: Date.parse(model.release_date || "") / 1000 || 0,
     context: Number(model.limit?.context) || 0, maxOut: Number(model.limit?.output) || 0,
-    in: (model.modalities?.input || []).filter(x => typeof x === "string"),
-    out: (model.modalities?.output || []).filter(x => typeof x === "string"),
+    in: (Array.isArray(model.modalities?.input) ? model.modalities.input : []).filter(x => typeof x === "string"),
+    out: (Array.isArray(model.modalities?.output) ? model.modalities.output : []).filter(x => typeof x === "string"),
     price: {input:price("input"), output:price("output"), cacheRead:price("cache_read"), cacheWrite:price("cache_write")},
     tools:!!model.tool_call, reasoning:!!model.reasoning, structured:!!model.structured_output, web:false,
     params:[], moderated:false, cutoff:String(model.knowledge || ""), expires:"", hf:"", tokenizer:"",

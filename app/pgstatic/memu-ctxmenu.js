@@ -182,7 +182,7 @@
 
   const inside = (t) => !!(cur && t && t.nodeType === 1 && cur.el.contains(t));
   function onDown(e) {
-    if (!cur || inside(e.target)) return;
+    if (!cur || e === cur.openingEvent || inside(e.target)) return;
     const c = cur;
     close("outside");
     if (c.opts.swallowOutside) { e.preventDefault(); e.stopPropagation(); c.swallowClick = performance.now(); swallowNext(); }
@@ -193,7 +193,7 @@
     setTimeout(() => window.removeEventListener("click", stop, true), 450);
   }
   function onKey(e) {
-    if (!cur) return;
+    if (!cur || e === cur.openingEvent) return;
     const el = cur.el;
     const list = stops(el);
     const at = list.findIndex((n) => n.classList.contains("mcm-active"));
@@ -290,7 +290,7 @@
     const items = o.items.filter(Boolean);
 
     const clean = items.filter((it, i, all) => it.type !== "sep" || (i > 0 && i < all.length - 1 && all[i - 1].type !== "sep"));
-    const c = { el, opts: o, items: clean, owner: o.owner || null, closing: false, layer: false };
+    const c = { el, opts: o, items: clean, owner: o.owner || null, closing: false, layer: false, openingEvent: o.event || window.event || null };
     render(c);
     (o.container || document.body).appendChild(el);
     place(el, o);
@@ -314,7 +314,9 @@
       try { MemuLayers.open({ el, anchor: c.owner || null, owner: el, close: (reason) => { if (cur === c) close(reason || "replaced"); }, focus: false }); c.layer = true; } catch (e) {  }
     }
 
-    setTimeout(() => { if (cur === c) attach(); }, 0);
+    // The next input event can arrive before a zero-delay timer. Listen now,
+    // while ignoring the event that opened this menu as it finishes dispatching.
+    if (cur === c) attach();
     requestAnimationFrame(() => {
       if (cur !== c) return;
       const first = stops(el)[0];

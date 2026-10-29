@@ -23,6 +23,7 @@ import asyncio
 import contextvars
 import json
 import logging
+import math
 import os
 import subprocess
 import time
@@ -130,7 +131,10 @@ def _earliest_due() -> Optional[float]:
         return None
     best = None
     for task in tasks:
-        if task.get("enabled") is False and not task.get("run_now"):
+        enabled = task.get("enabled", True)
+        if isinstance(enabled, str):
+            enabled = enabled.strip().lower() not in ("", "0", "false", "no", "off")
+        if not enabled and not task.get("run_now"):
             continue
         if task.get("run_now"):
             return time.time()
@@ -138,7 +142,8 @@ def _earliest_due() -> Optional[float]:
         state = task.get("rule_state") if isinstance(task.get("rule_state"), dict) else {}
         values.append(state.get("event_at"))
         for value in values:
-            if isinstance(value, (int, float)) and (best is None or value < best):
+            if (isinstance(value, (int, float)) and not isinstance(value, bool)
+                    and math.isfinite(value) and value > 0 and (best is None or value < best)):
                 best = float(value)
     return best
 
@@ -446,8 +451,8 @@ async def _team(task: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
     if not raw_prompt:
         return False, tr(lang, "Пустое задание для команды", "Empty team task"), {"kind": "team", "team_id": team["id"]}
     try:
-        from .scheduler import _fill_template
-        prompt = _fill_template(raw_prompt, task=task)
+        from .schedule_conds_ext import render_vars
+        prompt = render_vars({**task, "prompt": raw_prompt}, lang=lang)["prompt"]
     except Exception:
         prompt = raw_prompt
 

@@ -1144,10 +1144,10 @@ def extension(art: Dict[str, Any]) -> str:
     return EXT.get(str(art.get("type")), "txt")
 
 def safe_filename(title: str, ext: str) -> str:
-    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", str(title or "")).strip(" .")
-    name = re.sub(r"\s+", " ", name)[:80] or "canvas"
-    if name.upper() in ("CON", "PRN", "AUX", "NUL") or re.fullmatch(r"(?i)(com|lpt)\d", name):
-        name = "_" + name
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f\u27e6\u27e7]+', " ", str(title or "")).strip(" .")
+    name = re.sub(r"\s+", " ", name)[:80].rstrip(" .") or "canvas"
+    if re.match(r"(?i)^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)", name):
+        name = ("_" + name)[:80].rstrip(" .")
     return f"{name}.{ext}" if ext and not name.lower().endswith("." + ext.lower()) else name
 
 def parse_table(text: str) -> List[List[str]]:
@@ -1664,7 +1664,10 @@ def register(app) -> None:
             art, row = content_of(chat_id, aid, v or None)
         except (KeyError, ValueError):
             return bad("not found", 404)
-        data, filename, media = export_bytes(art, row, fmt)
+        try:
+            data, filename, media = export_bytes(art, row, fmt)
+        except ValueError as exc:
+            return bad(str(exc))
         from urllib.parse import quote
         ascii_name = re.sub(r"[^A-Za-z0-9._-]+", "_", filename) or "canvas"
         return Response(data, media_type=media, headers={

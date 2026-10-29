@@ -73,9 +73,11 @@ CHECK = r"""(scope) => {
         const vbar = /stable/.test(cs.scrollbarGutter || "") && el.scrollHeight <= el.clientHeight ? 0 :
           el.offsetWidth - el.clientWidth - b("Left") - b("Right");
         const hbar = el.offsetHeight - el.clientHeight - b("Top") - b("Bottom");
-        if (vbar > 0 && el.scrollHeight - el.clientHeight <= 4 && shown(el))
+        // A 1–4px overflow is still real overflow (font metrics and viewport
+        // thresholds vary across platforms), rather than a forced empty bar.
+        if (vbar > 0 && el.scrollHeight <= el.clientHeight && shown(el))
           out.push(`vertical scrollbar, content fits (${el.scrollHeight}/${el.clientHeight}px): ${path(el)}`);
-        if (hbar > 0 && el.scrollWidth - el.clientWidth <= 4 && shown(el))
+        if (hbar > 0 && el.scrollWidth <= el.clientWidth && shown(el))
           out.push(`horizontal scrollbar, content fits (${el.scrollWidth}/${el.clientWidth}px): ${path(el)}`);
         // A one-row strip (tabs, chips, a toolbar) never scrolls up and down: a bar there is a few stray pixels.
         if (vbar > 0 && el.clientHeight < 64 && shown(el))

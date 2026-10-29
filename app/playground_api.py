@@ -1605,12 +1605,13 @@ def create_app() -> FastAPI:
         except ValueError:
 
             package["i18n"] = {}
-        from .music.api import music_csp
+        from .music.api import csp_sources as music_csp
         extra_src = (" " + music_csp()) if "music" in (package.get("permissions") or []) and music_csp() else ""
         page = Response(module_document(package, body.get("saved") or {},
                                         env=body.get("env") or _module_env()),
                         media_type="text/html; charset=utf-8")
         page.headers["X-Frame-Options"] = "SAMEORIGIN"
+        page.headers["Cache-Control"] = "no-store"
         page.headers["Content-Security-Policy"] = (
             "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
             f"img-src data: blob:{extra_src}; media-src data: blob:{extra_src}; font-src data:; "
@@ -1644,6 +1645,7 @@ def create_app() -> FastAPI:
         page = Response(module_document(package, saved, env={**_module_env(), "toolbar": "host" if chrome == "host" else ""}),
                         media_type="text/html; charset=utf-8")
         page.headers["X-Frame-Options"] = "SAMEORIGIN"
+        page.headers["Cache-Control"] = "no-store"
 
         from .music.api import csp_sources as music_csp
         music_src = " " + music_csp() if "music" in (package.get("permissions") or []) else ""
@@ -5050,7 +5052,8 @@ def create_app() -> FastAPI:
     def _memuai_downloads_dir():
         """~/Downloads/MemuAI — одно предсказуемое место для всего скачанного."""
         from pathlib import Path as _Path
-        base = _Path.home() / "Downloads" / "MemuAI"
+        from .quick_apps import downloads_folder
+        base = _Path(downloads_folder() or _Path.home() / "Downloads") / "MemuAI"
         base.mkdir(parents=True, exist_ok=True)
         return base
 
@@ -5073,7 +5076,7 @@ def create_app() -> FastAPI:
                 name = "_" + name
             if url.startswith("data:"):
                 header, _, payload = url.partition(",")
-                data = base64.b64decode(payload) if "base64" in header \
+                data = base64.b64decode(urllib.parse.unquote_to_bytes(payload), validate=True) if ";base64" in header \
                     else urllib.parse.unquote_to_bytes(payload)
             elif url:
                 current = await asyncio.to_thread(_safe_media_url, url)
@@ -5102,10 +5105,19 @@ def create_app() -> FastAPI:
                 folder.mkdir(parents=True, exist_ok=True)
             target = folder / name
             stem, suffix, index = target.stem, target.suffix, 2
-            while target.exists():
-                target = target.parent / ("%s (%d)%s" % (stem, index, suffix))
-                index += 1
-            target.write_bytes(data)
+            while True:
+                try:
+                    output = target.open("xb")
+                    break
+                except FileExistsError:
+                    target = target.parent / ("%s (%d)%s" % (stem, index, suffix))
+                    index += 1
+            try:
+                with output:
+                    output.write(data)
+            except BaseException:
+                target.unlink(missing_ok=True)
+                raise
             return {"ok": True, "path": str(target), "name": target.name, "bytes": len(data)}
         except Exception as e:
             return JSONResponse({"error": str(e)}, 400)

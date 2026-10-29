@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 STATIC = ROOT / "app" / "pgstatic"
-CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
+CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or ("/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 SHOW = "{fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8, pinned:false, source:'hotkey', page:%s}"
 MODELS = [{"id": "gemini-2.5-flash", "caps": {"vision": True, "search": True}}]
 CARD = {"id": "k1", "action": "text.summarize", "title": "Кратко пересказать", "status": "done", "kind": "text",
@@ -105,7 +105,9 @@ async def main(out: Path) -> int:
         async def open_page(theme="dark", page_ctx="null"):
             state["prefs"]["theme"] = theme
             page = await browser.new_page(viewport={"width": 720, "height": 640})
-            page.on("pageerror", lambda e: problems.append(f"pageerror: {e}"))
+            page.on("pageerror", lambda e: (problems.append(f"pageerror: {e}"), print("PAGEERROR:", e)))
+            page.on("requestfailed", lambda request: print("REQUESTFAILED:", request.url, request.failure))
+            page.on("console", lambda message: print("CONSOLE:", message.text) if message.type == "error" else None)
             await page.route("**/*", route)
             await page.goto(base + "/quick/?native=1", wait_until="load")
             await page.wait_for_timeout(400)

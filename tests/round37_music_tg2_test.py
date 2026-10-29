@@ -51,7 +51,7 @@ class Static(unittest.TestCase):
         self.assertIn("networkFirst", sw)
         self.assertRegex(sw, r"SKIP = /\^\(api\\/\|m\\/\|music\\/")
         self.assertIn("status >= 500", sw)
-        self.assertNotIn("telegram.org", sw.split("*/", 1)[1])
+        self.assertNotIn("telegram.org", re.sub(r"/\*.*?\*/", "", sw, flags=re.S))
         js = self.read("music.js")
         self.assertIn('navigator.serviceWorker.register("sw.js", { scope: "./" })', js)
         app = self.read("app.js")

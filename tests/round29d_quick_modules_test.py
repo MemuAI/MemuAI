@@ -210,7 +210,7 @@ class PanelWallText(unittest.TestCase):
         if not shutil.which("node"):
             self.skipTest("node is required")
         js = (pathlib.Path(__file__).resolve().parents[1] / "app" / "pgstatic" / "panels.js").read_text(encoding="utf-8")
-        body = js[js.index("function wallText("):js.index("/* ------------------------------------------------------------ blocks */")]
+        body = js[js.index("function wallText("):js.index("function wallButton(")]
         script = (f"const en = () => {json.dumps(lang == 'en')}; const t = (ru, e) => (en() ? e : ru);\n{body}\n"
                   f"console.log(JSON.stringify(wallText({json.dumps(wall, ensure_ascii=False)})));")
         return json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)

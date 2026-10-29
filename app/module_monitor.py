@@ -19,6 +19,7 @@ from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 import httpx
 
 from . import modules_host
+from .model_listing import listing_spec
 from .storage import load_json_with_recovery, mutate_json
 
 def _path():
@@ -77,7 +78,12 @@ in error messages. DNS/address validation is repeated on each hop.
                     error = ValueError(f"API HTTP {response.status_code}")
 
                     try:
-                        error.body = (await response.aread())[:8192].decode("utf-8", "replace")
+                        body = bytearray()
+                        async for chunk in response.aiter_bytes():
+                            body.extend(chunk[:8192 - len(body)])
+                            if len(body) >= 8192:
+                                break
+                        error.body = bytes(body).decode("utf-8", "replace")
                     except Exception:
                         error.body = ""
                     raise error
@@ -163,7 +169,9 @@ def extract(text, spec):
                          if field(row, key) is not None), None)
         if identity is None or str(identity) == "":
             continue
-        identity = str(identity)[:300]
+        identity = str(identity).strip()[:300]
+        if not identity or any(ord(char) < 32 for char in identity):
+            continue
         label = next((field(row, key) for key in spec.get("label_keys", ["name", "id"])
                       if field(row, key)), identity)
         keys = spec.get("value_keys", [])
@@ -174,8 +182,8 @@ def extract(text, spec):
         values = {key: field(row, key) for key in keys}
         if values and all(value is None for value in values.values()):
             continue
-        result[identity] = {"id": identity, "name": str(label)[:300], "values": values,
-                            "family": _family(identity)}
+        result[identity] = {"id": identity, "name": re.sub(r"\s+", " ", str(label)).strip()[:300], "values": values,
+                            "family": _family(identity), "spec": listing_spec(row)}
     if not result:
         raise ValueError("Не удалось прочитать записи / Could not extract records")
     return result
@@ -323,10 +331,10 @@ def configure(module_id, payload):
             if prior and all(source.get(key) == prior.get(key) for key in _DATA_IDENTITY):
                 source.update({key: prior[key] for key in _RUNTIME_KEYS if key in prior})
 
-                if "last_attempt" in prior:
+                credentials_unchanged = source.get("auth") == prior.get("auth") and source.get("api_key", "") == prior.get("api_key", "")
+                if "last_attempt" in prior and credentials_unchanged:
                     source["last_attempt"] = prior["last_attempt"]
-                if "error" in prior and source.get("auth") == prior.get("auth") \
-                        and ("api_key" not in spec or not spec.get("api_key")):
+                if "error" in prior and credentials_unchanged:
                     source["error"] = prior["error"]
         data["jobs"][module_id] = {"enabled": bool(payload.get("enabled", True)),
                 "interval": max(300, min(86400, int(payload.get("interval", 3600)))),
@@ -337,8 +345,33 @@ def configure(module_id, payload):
     _mutate(change)
     return status(module_id)
 
-async def notify(module_id, title, text, telegram=True):
+async def notify(module_id, title, text, telegram=True, *, models=None):
     require(module_id, "notify")
+    from .pgdata import load_preferences
+    prefs = load_preferences()
+    details = []
+    if module_id == "api-models" and models:
+        from .model_listing import find_spec, notification_detail
+        specs = {}
+        if any("spec" in model and (model["spec"].get("input") is None or model["spec"].get("output") is None or not model["spec"].get("outputs")) for model in models):
+            from .module_integration_data import catalog
+            specs = await asyncio.to_thread(catalog)
+        for model in models[:50]:
+            spec = dict(find_spec(model["id"], model["name"], specs))
+            spec.update({key: value for key, value in model.get("spec", {}).items() if value is not None and value != [] and value != 0})
+            # A declared zero is a real free price; it must override catalogue fallback.
+            for key in ("input", "output"):
+                if model.get("spec", {}).get(key) == 0:
+                    spec[key] = 0.0
+            details.append({"key": model["id"], "name": model["name"], "spec": spec})
+        by_key = {model["key"]: model for model in details}
+        lines = []
+        for line in str(text).splitlines():
+            lines.append(line)
+            found = re.match(r"^\+\s+(.+)\s+·\s+(\S.*)$", line)
+            if found and found[2] in by_key:
+                lines.append("  " + notification_detail(by_key[found[2]]["spec"], en=str(prefs.get("language", "ru")).startswith("en")))
+        text = "\n".join(lines)
     title, text = str(title)[:150], str(text)[:10000]
     def append(data):
 
@@ -346,6 +379,8 @@ async def notify(module_id, title, text, telegram=True):
             data["ack"] = _acknowledged(data)
         data["sequence"] = int(data.get("sequence", 0)) + 1
         event = {"id": data["sequence"], "module_id": module_id, "title": title, "text": text, "at": time.time()}
+        if details:
+            event["models"] = details
         data["events"] = (data.get("events", []) + [event])[-200:]
         return data
     _mutate(append)
@@ -354,8 +389,6 @@ async def notify(module_id, title, text, telegram=True):
         module_event(module_id, title, text)
     except Exception:
         pass
-    from .pgdata import load_preferences
-    prefs = load_preferences()
     if prefs.get("notify_windows", True):
         from .desktop_notifications import show_completion
         try:
@@ -392,7 +425,7 @@ async def scan(module_id, *, force=False):
         _mutate(claim)
         if not claimed:
             continue
-        source, messages = claimed[0], []
+        source, messages, new_models = claimed[0], [], []
         try:
 
             records = await asyncio.wait_for(read_source(source), timeout=150)
@@ -404,6 +437,7 @@ async def scan(module_id, *, force=False):
                 for key, value in visible.items():
                     if key not in seen:
                         messages.append("+ " + value["name"] + " · " + key)
+                        new_models.append(value)
                     elif job.get("mode") == "changes" and key in baseline and baseline[key] != value["values"]:
                         before = baseline[key]
                         details = ", ".join(f"{field_name}: {before.get(field_name)} → {number}"
@@ -417,6 +451,13 @@ async def scan(module_id, *, force=False):
                        "families_available": sorted({value["family"] for value in records.values() if value["family"]}),
                        "last_success": time.time(), "error": ""}
         except asyncio.CancelledError:
+            def release(data):
+                current = data.get("jobs", {}).get(module_id, {})
+                for item in current.get("sources", []):
+                    if item["id"] == source_id and item.get("lease", {}).get("id") == lease:
+                        item.pop("lease", None)
+                        item.pop("last_attempt", None)
+            _mutate(release)
             raise
         except Exception as exc:
 
@@ -439,7 +480,8 @@ async def scan(module_id, *, force=False):
         _mutate(commit)
         if committed and messages:
             title = row.get("title", module_id) + " · " + source["title"]
-            await notify(module_id, title, "\n".join(messages[:50]) + (f"\n+{len(messages)-50}" if len(messages) > 50 else ""), job.get("telegram", True))
+            args = {"models": new_models} if module_id == "api-models" else {}
+            await notify(module_id, title, "\n".join(messages[:50]) + (f"\n+{len(messages)-50}" if len(messages) > 50 else ""), job.get("telegram", True), **args)
     return status(module_id)
 
 def _acknowledged(data):

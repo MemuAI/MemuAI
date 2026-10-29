@@ -181,7 +181,7 @@ class AppbarUnitTest(unittest.TestCase):
         self.assertIn("--memu-appbar-h", modules_host.BRIDGE_JS)
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         for name in ("module-focus.js", "module-focus.css", "module-appbar.js", "module-appbar.css"):
-            self.assertIn(f"/{name}?v=3.6-r38", html)
+            self.assertRegex(html, r"/" + __import__("re").escape(name) + r'\?v=[^"\s]+')
         js = (STATIC / "modules.js").read_text(encoding="utf-8")
         self.assertIn('case "appbar":', js)
         self.assertIn("MemuModuleFocus.replayKey", js)

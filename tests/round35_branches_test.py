@@ -299,8 +299,8 @@ class StaticWiringTest(unittest.TestCase):
             self.assertIn("app.chat_tree", (ROOT / spec).read_text(encoding="utf-8"), spec)
 
 def _chromium():
-    for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome"):
-        if os.path.exists(path):
+    for path in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome"):
+        if path and os.path.exists(path):
             return path
     return None
 

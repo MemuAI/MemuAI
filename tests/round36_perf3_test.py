@@ -93,10 +93,11 @@ class StaticTest(unittest.TestCase):
 
     def test_versions(self):
         index = read("index.html")
-        for ref in ("/style.css?v=1.9-r41", "/design.css?v=3.4-r36", "/panels.css?v=1.5-r36", "/panels-layout.css?v=3.6-r36",
-                    "/memucode.css?v=2.4-r36", "/settings.css?v=1.4-r36", "designs/glass.css?v=3.2-r36", "designs/grid.css?v=1.2-r36",
-                    "/app.js?v=1.30-r41", "/memucode.js?v=2.6-r36"):
-            self.assertIn(ref, index)
+        for asset in ("/style.css", "/design.css", "/panels.css", "/panels-layout.css", "/memucode.css", "/settings.css",
+                      "designs/glass.css", "designs/grid.css", "/app.js", "/memucode.js"):
+            self.assertRegex(index, re.escape(asset) + r'\?v=[^"\s]+"')
+        from app.version import APP_VERSION
+        self.assertIn(f'/app.js?v={APP_VERSION}"', index)
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):

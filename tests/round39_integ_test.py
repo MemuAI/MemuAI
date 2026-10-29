@@ -61,6 +61,10 @@ class ServerSideTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        cls.lib.close()
+        from app.music import library
+        with library._LIBS_LOCK:
+            library._LIBS = {key: value for key, value in library._LIBS.items() if value is not cls.lib}
         if cls.old is None:
             os.environ.pop("MEMUAI_DATA_DIR", None)
         else:

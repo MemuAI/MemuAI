@@ -55,6 +55,12 @@ class FakeShell(module_apps.Shell):
         Path(link).write_text(json.dumps({k: str(v) for k, v in kwargs.items()}), encoding="utf-8")
         return True
 
+    def retarget_icons(self, module_id, icon, icon_dir):
+        return []
+
+    def notify(self, paths):
+        pass
+
 class _Events:
     def __init__(self):
         self.handlers = []
@@ -467,9 +473,13 @@ class RoutesTest(unittest.TestCase):
     def setUpClass(cls):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+        cls.shell_patch = mock.patch.object(module_apps, "SHELL", FakeShell(modules_host.default_root() / "test-shell"))
+        cls.shell_patch.start()
+        cls.addClassCleanup(cls.shell_patch.stop)
         cls.app = FastAPI()
         module_apps.register(cls.app)
         cls.client = TestClient(cls.app)
+        cls.addClassCleanup(cls.client.close)
         root = modules_host.default_root()
         root.mkdir(parents=True, exist_ok=True)
         for module_id in ("translator", "studio", "characters"):
@@ -554,7 +564,7 @@ class StaticUiTest(unittest.TestCase):
     def test_module_app_hooks(self):
         js = (STATIC / "modules.js").read_text(encoding="utf-8")
         for needle in ("MA().redirectOpen(moduleId)", "MA().bootModuleApp(open)", "MA().lastClosed(win.id)",
-                       "MA().renderSettings(host)", "MA().minimizeNative()", 'new CustomEvent("memu-modules-changed")',
+                       "MA().renderSettings(settings)", "MA().minimizeNative()", 'new CustomEvent("memu-modules-changed")',
                        "dropWindow:", "windowBox:"):
             self.assertIn(needle, js)
         apps = (STATIC / "module-apps.js").read_text(encoding="utf-8")
@@ -580,6 +590,9 @@ class BrowserTest(unittest.TestCase):
             raise unittest.SkipTest(f"playwright/uvicorn unavailable: {exc}")
         from app import pgdata
         from app.playground_api import create_app
+        cls.shell_patch = mock.patch.object(module_apps, "SHELL", FakeShell(modules_host.default_root() / "test-shell"))
+        cls.shell_patch.start()
+        cls.addClassCleanup(cls.shell_patch.stop)
         root = modules_host.default_root()
         root.mkdir(parents=True, exist_ok=True)
         for module_id in modules_host.BUILTIN_ORDER:
@@ -689,6 +702,7 @@ class BrowserTest(unittest.TestCase):
 
             page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
             self.wait(page, "document.getElementById('mapp-settings')", 20)
+            page.click("details.ms-global > summary")
             if lang == "en":
                 self.assertNotRegex(page.evaluate("() => document.getElementById('mapp-settings').innerText"), "[А-Яа-яЁё]")
             page.click('#mapp-settings input[value="keep"]')

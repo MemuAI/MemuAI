@@ -80,7 +80,7 @@
    ]
   },
   "chats": {
-   "hash": "cc744fa562f91f5b",
+   "hash": "27f83866962ce810",
    "generated": "2026-10-14",
    "model": "qwen3.8-flash",
    "tldr": "Chats keep every conversation separate with its own history, model and settings, and support temporary chats, local storage, branches, Canvas outputs, and export.",
@@ -366,7 +366,7 @@
    ]
   },
   "modules": {
-   "hash": "e85f7b66a189d08e",
+   "hash": "bf89873a35086ea0",
    "generated": "2026-10-10",
    "tldr": "A **module** is a small HTML/CSS/JavaScript application that runs inside the MemuAI window without network access, using the `Memu` object as its only bridge to models, generation and file saving. Use it to build calculators, translators, design panels or any single-window tool that needs MemuAI capabilities.",
    "points": [
@@ -403,7 +403,7 @@
    ]
   },
   "modules-bridge-app": {
-   "hash": "5d52b1fac407713f",
+   "hash": "7eab4547b49565de",
    "generated": "2026-10-10",
    "model": "deepseek-v4.1-flash",
    "tldr": "Notifications, search, events gives MemuAI modules APIs for in-app and Windows notifications, web search, page fetching, host event subscriptions, logging, background monitoring, package assets and import by link.",
@@ -416,7 +416,7 @@
    ]
   },
   "modules-bridge-chat": {
-   "hash": "c4bbd74be94ba721",
+   "hash": "33baf8b342dd117b",
    "generated": "2026-10-10",
    "model": "manual",
    "tldr": "**Model requests** let a module obtain AI output via `Memu.request` for a single answer, `Memu.stream` for a streamed response, or `Memu.complete` for a full message‑array request; choose the method that matches the interaction style you need.",
@@ -454,12 +454,12 @@
    ]
   },
   "modules-builtins": {
-   "hash": "7bdcf0681e63eee9",
+   "hash": "538a0cc30627ccd4",
    "generated": "2026-10-14",
    "model": "qwen3.8-flash",
-   "tldr": "Built-in modules give you nine optional tools—Translator, MemuAI Studio, MemuAI Design, Benchmarks, Model catalog, New API models, Characters, MemuMusic, and MemuLearn—that extend MemuAI through the same bridge as your code, and you use them when you need translation, media generation, design, benchmarking, model discovery, API monitoring, roleplay, music, or learning.",
+   "tldr": "Built-in modules give you ten optional tools—Translator, MemuAI Studio, MemuAI Design, Benchmarks, Model catalog, New API models, Characters, MemuMusic, MemuLearn, and MemuDB—that extend MemuAI through the same bridge as your code, and you use them when you need translation, media generation, design, benchmarking, model discovery, API monitoring, roleplay, music, learning, or databases.",
    "points": [
-    "Nine modules ship with MemuAI and are **disabled by default**; modules such as New API models and MemuLearn are enabled in module settings.",
+    "Ten modules ship with MemuAI and are **disabled by default**; modules such as New API models and MemuLearn are enabled in module settings.",
     "Any built-in module opens with the \"Code\" button, and \"Reset to shipped\" restores the original.",
     "MemuAI Studio has Images, Video, Audio, Transcription, and Music sections; Stop cancels local waiting, but a provider-accepted job may still finish and be billed.",
     "MemuAI Design turns a request and optional images into a website, keeps the last 12 versions, and ++Ctrl+S++ saves the HTML.",
@@ -517,7 +517,7 @@
    ]
   },
   "modules-launcher": {
-   "hash": "856995b05f303d72",
+   "hash": "6680497c4352aa0d",
    "generated": "2026-10-10",
    "tldr": "Module buttons provide access to enabled modules inside MemuAI, with placement controlled by `launcher.slot` and visibility managed independently of the enable state. Use these settings to organize quick tools, conversation helpers, or frequently accessed apps in the interface.",
    "points": [
@@ -554,7 +554,7 @@
    ]
   },
   "modules-permissions": {
-   "hash": "cf06a23b46bdee94",
+   "hash": "fbe02ed67c8a2eec",
    "generated": "2026-10-25",
    "model": "editorial-review",
    "tldr": "Module permissions determine which MemuAI bridge methods are available. The sandbox separates modules from chats, memory, profiles and direct network access; authors should request only needed capabilities and declare special access explicitly.",
@@ -603,7 +603,7 @@
    ]
   },
   "modules-storage": {
-   "hash": "fc5d2742128dac7c",
+   "hash": "1b12249d74d0c664",
    "generated": "2026-10-10",
    "model": "gpt-oss-120b",
    "tldr": "Memu.save lets modules persist lightweight state (settings, drafts, small history) via the host’s `persist` store, while Memu.store provides a file‑based store for larger JSON data such as chats, each visible only to the module.",
@@ -692,7 +692,7 @@
    ]
   },
   "proxy": {
-   "hash": "bb75a79692d36fcc",
+   "hash": "ed39199d54a6aa7f",
    "generated": "2026-10-25",
    "model": "editorial-review",
    "tldr": "MemuAI Proxy combines provider accounts and models behind one API and manages routing, reliability and logs. Its panel also shows statistics, spending estimates and an API-balance planner.",
@@ -1040,12 +1040,12 @@
     "Workers hand results to a reviewer; repairs need lead approval and the manager presents the result. Individual tool failures do not abort the whole run.",
     "Select members to inspect actions and reports. Budgets and concurrency are configurable; hidden reasoning stays private."
    ],
-   "hash": "e58427ceb44e6d4c",
+   "hash": "6f246de72dade231",
    "generated": "2026-10-25",
    "model": "editorial-review"
   },
   "rich-visualizations": {
-   "hash": "d339c9eebe56e3ed",
+   "hash": "f7e62039dc814b34",
    "generated": "2026-10-25",
    "model": "editorial-review",
    "tldr": "Flows, rankings, entity cards, interactive tools and readable text copying.",
@@ -1056,7 +1056,7 @@
    ]
   },
   "module-catalog": {
-   "hash": "93c88351b70a94fc",
+   "hash": "5e3d0b3b6b0596cb",
    "generated": "2026-10-25",
    "model": "editorial-review",
    "tldr": "Install repository additions, update or roll back packages, contribute modules and choose another source.",

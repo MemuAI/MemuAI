@@ -20,7 +20,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "app" / "pgstatic" / "quick" / "plugins" / "commands-settings.js"
-CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
+from tests.round25_chat_test import _chromium
+CHROME = _chromium()
 ORIGIN = "http://memu.test"
 
 HARNESS = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><style>
@@ -46,7 +47,7 @@ def _client():
 class SourceGuard(unittest.TestCase):
     def test_render_restores_the_view(self) -> None:
         src = PLUGIN.read_text(encoding="utf-8")
-        block = src[src.index("function render() {"):src.index("/* Round 23 (Settings → Быстрый доступ")]
+        block = src[src.index("function render() {"):src.index("function partCommandsHtml(")]
         self.assertRegex(block, re.compile(r"const view = snapshotView\(\);\s*el\.innerHTML", re.S))
         self.assertLess(block.index("enhanceSelects(el)"), block.index("restoreView(view);"),
                         "focus goes to the enhanced control, after enhanceSelects")

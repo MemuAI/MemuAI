@@ -11,9 +11,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest import mock
+from tests.round25_chat_test import _chromium
 
 os.environ.setdefault("MEMUAI_ASSISTANT_NO_WARM", "1")
 
@@ -175,7 +176,7 @@ class Handlers(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.backend = FakeBackend()
         self.engine = ac.Engine(backend=self.backend, store=ac.Store(self.tmp / "a.json"), audit=ac.Audit(self.tmp / "a.jsonl"),
-                                clock=lambda: datetime(2026, 7, 1, 12, 0).timestamp(), now_fn=lambda: NOW)
+                                clock=lambda: datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc).timestamp(), now_fn=lambda: NOW)
 
     def run_action(self, action, params, lang="ru"):
         return asyncio.run(self.engine.run(action, params, lang=lang))
@@ -322,7 +323,7 @@ class PageContracts(unittest.TestCase):
         self.assertIn("/^#[0-9a-f]{6}$/i.test(String(card.swatch", js)
         self.assertIn("tools:", js)
 
-@unittest.skipUnless(Path("/workspace/work/chromium/chrome").exists() or Path("/usr/bin/chromium").exists(), "no Chromium")
+@unittest.skipUnless(_chromium(), "no Chromium")
 class Headless(unittest.TestCase):
     def test_window_checks(self) -> None:
         try:

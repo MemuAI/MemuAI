@@ -27,20 +27,27 @@ def run(coro):
     return asyncio.run(coro)
 
 class WorkToolsTest(unittest.TestCase):
+    def symlink(self, source, target):
+        try:
+            os.symlink(source, target, target_is_directory=True)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows symlink privilege unavailable")
+            raise
     def setUp(self) -> None:
         self.root = Path(tempfile.mkdtemp()).resolve()
         (self.root / "src").mkdir()
         (self.root / "src" / "main.py").write_text("print('hi')\n", encoding="utf-8")
 
     def test_deleting_a_link_keeps_its_target(self) -> None:
-        os.symlink(self.root / "src", self.root / "lib", target_is_directory=True)
+        self.symlink(self.root / "src", self.root / "lib")
         result = work_tools.run("work_delete", self.root, {"path": "lib"})
         self.assertTrue(result["deleted"])
         self.assertFalse(os.path.lexists(self.root / "lib"))
         self.assertTrue((self.root / "src" / "main.py").is_file())
 
     def test_moving_a_link_moves_the_link(self) -> None:
-        os.symlink(self.root / "src", self.root / "lib", target_is_directory=True)
+        self.symlink(self.root / "src", self.root / "lib")
         work_tools.run("work_move", self.root, {"path": "lib", "to": "vendor_lib"})
         self.assertTrue((self.root / "vendor_lib").is_symlink())
         self.assertTrue((self.root / "src" / "main.py").is_file())

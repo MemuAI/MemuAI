@@ -39,8 +39,9 @@ class LocalTimeAcrossDst(unittest.TestCase):
     def test_hours_and_bounds_after_the_clocks_change(self):
 
         code = """
-from datetime import datetime
 from app import reflect
+from tests.timezone_fixture import local_datetime
+datetime = reflect.datetime = local_datetime("Europe/Berlin")
 now = datetime(2026, 11, 5, 12, 0)
 ts = lambda *a: int(datetime(*a).timestamp() * 1000)
 start, end = reflect.period_bounds("3m", now)

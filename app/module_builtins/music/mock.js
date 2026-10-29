@@ -94,7 +94,9 @@ const MockMusic = (() => {
     return { tracks: tracks.length, minutes: days.reduce((s, d) => s + d.minutes, 0), artists: ARTISTS.length, top_artists: top,
       top_tracks: clone(tracks.slice().sort((a, b) => b.plays - a.plays).slice(0, 8)), recent: clone(recent.slice().reverse()), days, hours };
   }
+  const manualLyrics = new Map();
   function lyrics(id) {
+    if (manualLyrics.has(id)) return clone(manualLyrics.get(id));
     const t = byId(id); if (!t) return { synced: null, plain: null, source: null };
     if (Number(id.slice(1)) % 7 === 0) return { synced: null, plain: null, source: null };
     const r = seeded(hash(id));
@@ -203,6 +205,24 @@ const MockMusic = (() => {
           artist: ARTISTS[(hash(q) + i) % ARTISTS.length], duration: 160 + i * 17, url: "https://music.youtube.com/watch?v=demo" + i, thumb: null, source: i % 3 ? "youtube" : "ytmusic" }));
       }
       case "lyrics.get": return lyrics(a.id);
+      case "lyrics.set": {
+        if (!byId(a.id)) throw new Error("track not found");
+        const text = String(a.text || "").replace(/\r\n/g, "\n").trim().slice(0, 200000);
+        if (!text) { manualLyrics.delete(a.id); return { synced: null, plain: null, source: "" }; }
+        const synced = [];
+        text.split("\n").forEach((line) => {
+          const m = line.match(/^\s*((?:\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\])+)(.*)$/);
+          if (!m) return;
+          for (const stamp of m[1].matchAll(/\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g)) {
+            const seconds = Number(stamp[1]) * 60 + Number(stamp[2]) + Number("0." + (stamp[3] || "0"));
+            synced.push([seconds, m[2].trim()]);
+          }
+        });
+        synced.sort((left, right) => left[0] - right[0]);
+        const value = { synced: synced.length ? synced : null, plain: synced.length ? synced.map((row) => row[1]).join("\n") : text, source: "manual", offset: 0, alts: [] };
+        manualLyrics.set(a.id, value);
+        return clone(value);
+      }
 
       case "online.search": {
         const q = String(a.q || "").trim(); if (!q) return { results: [], source: a.source, via: "", error: "" };

@@ -20,7 +20,7 @@ def read(name: str) -> str:
 
 def settings_tab(html: str) -> str:
     start = html.index('<section class="tab" id="tab-settings">')
-    return html[start:html.index("<!-- ============ ЛОГИ", start)]
+    return html[start:html.index('<section class="tab" id="tab-logs">', start)]
 
 class ProxySettingsPageTest(unittest.TestCase):
     @classmethod

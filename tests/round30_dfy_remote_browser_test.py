@@ -10,6 +10,7 @@ import asyncio
 import http.server
 import json
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -48,6 +49,7 @@ class _Site(http.server.BaseHTTPRequestHandler):
 class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix="r30-rb-")
+        self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         _Site.seen = []
         self.site = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Site)
@@ -62,12 +64,11 @@ class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
             else:
                 os.environ[key] = value
         self.site.shutdown()
-        self.tmp.cleanup()
 
     def agent(self, *, resolve_site: bool):
 
         os.environ["MEMUAI_BROWSER_EXECUTABLE"] = CHROMIUM
-        rules = f" '--host-resolver-rules=MAP site.test.example 127.0.0.1:{self.site.server_port}'" if resolve_site else ""
+        rules = f' "--host-resolver-rules=MAP site.test.example 127.0.0.1:{self.site.server_port}"' if resolve_site else ""
 
         os.environ["MEMUAI_BROWSER_ARGS"] = "--no-sandbox" + (" --no-proxy-server" + rules if resolve_site else "")
         process, code, _script = start_agent(self.root)
@@ -76,11 +77,25 @@ class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
 
     @staticmethod
     def _stop(process):
-        process.terminate()
+        children = []
+        if os.name == "nt" and process.poll() is None:
+            import psutil
+            try:
+                children = psutil.Process(process.pid).children(recursive=True)
+            except psutil.NoSuchProcess:
+                pass
+            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+        elif process.poll() is None:
+            process.terminate()
         try:
             process.wait(10)
         except Exception:
             process.kill()
+            process.wait(10)
+        if children:
+            psutil.wait_procs(children, timeout=10)
         process.stdout.close()
 
     def manager(self, model):

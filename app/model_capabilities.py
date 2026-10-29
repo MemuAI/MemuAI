@@ -132,7 +132,7 @@ def _num(value: Any) -> Optional[float]:
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     return number if number == number and number not in (float("inf"), float("-inf")) else None
 
@@ -145,11 +145,12 @@ def _per_million(value: Any) -> Optional[float]:
     number = _num(value)
     if number is None or number < 0:
         return None
-    return round(number * 1_000_000, 6)
+    scaled = number * 1_000_000
+    return scaled if scaled < float("inf") else None
 
 def _price(value: Any) -> Optional[float]:
     number = _num(value)
-    return None if number is None or number < 0 else round(number, 6)
+    return None if number is None or number < 0 else number
 
 def _date(value: Any) -> str:
     """Unix seconds/ms or a date string → ``YYYY-MM-DD`` (or the original text, trimmed)."""
@@ -171,6 +172,13 @@ def _bare(model: str) -> str:
     text = text.split("/")[-1]
     return re.split(r":(?![0-9]{2}$)", text)[0]
 
+
+def _catalog_key(model: str) -> str:
+    """Canonical spelling while keeping separately priced API variants."""
+    text = str(model or "").strip().lower().lstrip("~")
+    variant = text.rsplit("/", 1)[-1].partition(":")[2]
+    return model_info.canonical(text) + (":" + variant if variant else "")
+
 def normalize_openrouter(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(row, dict) or not row.get("id"):
         return None
@@ -182,9 +190,9 @@ def normalize_openrouter(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     name = str(row.get("name") or row["id"])
     model_in = _modalities(arch.get("input_modalities"))
     model_out = _modalities(arch.get("output_modalities"))
-    if not model_in and isinstance(arch.get("modality"), str) and "->" in arch["modality"]:
+    if isinstance(arch.get("modality"), str) and "->" in arch["modality"]:
         left, right = arch["modality"].split("->", 1)
-        model_in, model_out = _modalities(left), _modalities(right)
+        model_in, model_out = model_in or _modalities(left), model_out or _modalities(right)
     price = {
         "input": _per_million(pricing.get("prompt")), "output": _per_million(pricing.get("completion")),
         "cache_read": _per_million(pricing.get("input_cache_read")),
@@ -197,7 +205,7 @@ def normalize_openrouter(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "request": _price(pricing.get("request")),
     }
     tiers = []
-    for tier in pricing.get("overrides") or []:
+    for tier in pricing.get("overrides", []) if isinstance(pricing.get("overrides"), list) else []:
         if isinstance(tier, dict):
             tiers.append({"min_prompt_tokens": tier.get("min_prompt_tokens"),
                           "input": _per_million(tier.get("prompt")), "output": _per_million(tier.get("completion"))})
@@ -241,7 +249,7 @@ def normalize_models_dev(provider_id: str, provider: Dict[str, Any], row: Dict[s
     modal = row.get("modalities") if isinstance(row.get("modalities"), dict) else {}
     canonical_id = str(row.get("canonical_model_id") or "")
     efforts: List[str] = []
-    for option in row.get("reasoning_options") or []:
+    for option in row.get("reasoning_options", []) if isinstance(row.get("reasoning_options"), list) else []:
         if isinstance(option, dict):
             efforts += _strs(option.get("values") or option.get("efforts") or [])
     return {
@@ -277,7 +285,10 @@ def models_dev_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     for provider_id, provider in (data or {}).items():
         if not isinstance(provider, dict):
             continue
-        for row in (provider.get("models") or {}).values():
+        models = provider.get("models")
+        if not isinstance(models, dict):
+            continue
+        for row in models.values():
             slim = normalize_models_dev(str(provider_id), provider, row)
             if slim is None:
                 continue
@@ -339,6 +350,7 @@ class _Catalog:
     def __init__(self) -> None:
         self.stamp: Tuple[float, float] = (-1.0, -1.0)
         self.by_key: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.by_id: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self.meta: Dict[str, Any] = {}
         self.checked = 0.0
         self._module_path: Optional[str] = None
@@ -371,10 +383,13 @@ class _Catalog:
         if module:
             meta["module"] = True
         index: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        by_id: Dict[str, Dict[str, Dict[str, Any]]] = {}
         for row in rows + module:
-            key = model_info.canonical(str(row["id"]).lstrip("~"))
+            identity = str(row["id"]).strip().lower().lstrip("~")
+            key = _catalog_key(identity)
             if not key:
                 continue
+            by_id.setdefault(identity, {})[row["source"]] = row
             slot = index.setdefault(key, {})
             current = slot.get(row["source"])
 
@@ -382,13 +397,13 @@ class _Catalog:
             if current is None or rank < current["_rank"]:
                 slot[row["source"]] = {**row, "_rank": rank}
         meta["rows"] = len(rows) + len(module)
-        self.by_key, self.meta, self.stamp = index, meta, stamp
+        self.by_key, self.by_id, self.meta, self.stamp = index, by_id, meta, stamp
 
     def match(self, model: str) -> Dict[str, Tuple[Dict[str, Any], str]]:
         """``{source: (row, "exact"|"canonical")}`` for one model name."""
         self.ensure()
-        key = model_info.canonical(model)
-        found = self.by_key.get(key) or {}
+        key = _catalog_key(model)
+        found = {**self.by_key.get(key, {}), **self.by_id.get(str(model).strip().lower().lstrip("~"), {})}
         bare = _bare(model)
         result: Dict[str, Tuple[Dict[str, Any], str]] = {}
         for source, row in found.items():

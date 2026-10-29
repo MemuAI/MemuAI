@@ -69,7 +69,7 @@ class NoHideOnBlur(unittest.TestCase):
         js = read(QUICK / "quick.js")
         self.assertNotIn('windowAction("blur")', js, "the page no longer asks to hide on focus loss")
 
-        block = js[js.index('if (e.key === "Escape") {\n        // Round 24'):]
+        block = js[js.index('if (e.key === "Escape") {', js.index("function bind()")):]
         block = block[:block.index("closeWindow();")]
         self.assertIn('emit("escape"', block)
         self.assertIn("if (S.busy) { stop(); return; }", block)
@@ -197,7 +197,7 @@ class Frontend(unittest.TestCase):
             self.skipTest("node missing")
         src = read(QUICK / "quick-dfy.js")
         start = src.index("const ACTION_RE")
-        end = src.index("/* ------------------------------------------------------------ network")
+        end = src.index("async function json(")
         script = src[start:end] + """
 const yes = ["забронируй отель в Казани", "Закажи пиццу домой", "купи билет до Москвы на пятницу", "book a table for two at 7", "please order a taxi"];
 const no = ["как забронировать отель?", "что такое DFY", "переведи текст", "закажи?", "hi"];
@@ -218,7 +218,8 @@ if (bad.length) { console.log(JSON.stringify(bad)); process.exit(1); }
 
     def test_headless_flow(self) -> None:
         """The Playwright checks (tests/round24_quick_window_shots.py) when Chromium is available."""
-        chrome = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
+        from tests.round25_chat_test import _chromium
+        chrome = _chromium()
         try:
             import playwright  # noqa: F401
         except Exception:

@@ -82,6 +82,9 @@ class ReleaseMetadataTests(unittest.TestCase):
 class UpdateAPITests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         from app import pgdata, playground_api
+        version = patch("app.version.APP_VERSION", "3.8")
+        version.start()
+        self.addCleanup(version.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.payload = release()

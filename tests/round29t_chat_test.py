@@ -243,7 +243,8 @@ class Phase2Chat3(unittest.TestCase):
         self.assertIn('else if (window.MemuSearch && shortcutActive("search", "Ctrl+K", e)) { e.preventDefault(); MemuSearch.toggle(); }', app)
         self.assertIn('if (e.target?.closest?.(".msx-root")) return;', app)
         js = (STATIC / "search.js").read_text(encoding="utf-8")
-        self.assertIn("a result that leads elsewhere closes the dialog first", js)
+        activate = js[js.index("function activate(entry)"):js.index("async function secondary(entry)")]
+        self.assertLess(activate.index("close(false);"), activate.index("openTarget("))
         self.assertIn('H.value("search", "Ctrl+K")', js)
         self.assertNotIn("btn.innerHTML = `<kbd>Ctrl K</kbd>`;", js)
         for lang, word in (("ru", "фильтр списка чатов"), ("en", "filters the chat list")):

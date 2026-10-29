@@ -128,7 +128,7 @@ class DfyReason(unittest.TestCase):
             with mock.patch.object(ar, "_edge_executable", side_effect=missing):
                 st = self.manager({"dfy_enabled": True, "dfy_model": "vision/m", "language": "en"}, root).status()
                 self.assertFalse(st["ready"])
-                self.assertEqual(st["reason"], "Microsoft Edge was not found. Install Edge/WebView2 and try again")
+                self.assertEqual(st["reason"], "Microsoft Edge was not found")
                 st = self.manager({"dfy_enabled": True, "dfy_model": "vision/m"}, root).status()
                 self.assertIn("Microsoft Edge не найден", st["reason"])
 

@@ -13,7 +13,8 @@ const MemuAnswerGuard = (() => {
     { open: /<function_calls>/iy, close: /<\/function_calls>/i, call: true },
     { open: /<invoke\s+name\s*=\s*["'][^"']+["'][^>]*>/iy, close: /<\/invoke>/i, call: true },
     { open: /<function\s*=\s*[\w.-]+\s*>/iy, close: /<\/function>/i, call: true },
-    { open: /<[｜|]\s*DSML\s*[｜|]\s*function_calls>/iy, close: /<\/[｜|]\s*DSML\s*[｜|]\s*function_calls>/i, call: true },
+    { open: /<[｜|]\s*DSML\s*[｜|]\s*(?:function_calls|calls)\s*>/iy, close: /<\/[｜|]\s*DSML\s*[｜|]\s*(?:function_calls|calls)\s*>/i, call: true },
+    { open: /<[｜|]\s*DSML\s*[｜|]\s*invoke\s+name\s*=\s*["'][^"']+["'][^>]*>/iy, close: /<\/[｜|]\s*DSML\s*[｜|]\s*invoke\s*>/i, call: true },
     { open: /<[｜|]tool[▁_ ]calls[▁_ ]begin[｜|]>/iy, close: /<[｜|]tool[▁_ ]calls[▁_ ]end[｜|]>/i, call: true },
     { open: /<\|tool_calls_section_begin\|>/iy, close: /<\|tool_calls_section_end\|>/i, call: true },
     { open: /<\|tool_call_begin\|>/iy, close: /<\|tool_call_end\|>/i, call: true },
@@ -165,7 +166,8 @@ const MemuAnswerGuard = (() => {
     const tailStart = Math.max(text.lastIndexOf("<"), text.lastIndexOf("["), text.lastIndexOf("◁"));
     if (tailStart < 0 || text.length - tailStart > 40) return text;
     const tail = text.slice(tailStart);
-    if (/[\s]/.test(tail.slice(1)) && !/^<invoke /i.test(tail) && !/^<\|channel\|>/i.test(tail)) return text;
+    if (/[\s]/.test(tail.slice(1)) && !/^<invoke /i.test(tail) && !/^<\|channel\|>/i.test(tail)
+        && !/^<[｜|]\s*DSML\b/i.test(tail)) return text;
     const low = tail.toLowerCase();
     const possible = OPENER_WORDS.some((word) => word.toLowerCase().startsWith(low) || (low.startsWith(word.toLowerCase().replace(/>$/, "")) && !low.includes(">")))
       || /^<\|[\w|]*$/.test(tail) || /^<｜[^｜]*$/.test(tail)
@@ -194,14 +196,28 @@ const MemuAnswerGuard = (() => {
     return { content: source.slice(last.index + last[0].length).replace(/^\s+/, ""), reasoning: before.trim() };
   }
 
-  const TOKEN_BLOCK = /<[｜|](?:\s*DSML\s*[｜|]\s*function_calls>|tool[▁_ ]calls[▁_ ]begin[｜|]>|tool_calls_section_begin\|>)/i;
+  const TOKEN_BLOCK = /<[｜|](?:\s*DSML\s*[｜|]\s*(?:(?:function_calls|calls)\s*>|invoke\s+name\s*=)|tool[▁_ ]calls[▁_ ]begin[｜|]>|tool_calls_section_begin\|>)/i;
   function tokenBlocks(text, onBlock) {
+    if (!TOKEN_BLOCK.test(text)) return text;
     let out = "", pos = 0;
+    const protectedSpans = [];
+    let offset = 0, codeIndex = 0;
+    for (const segment of segments(text)) {
+      if (segment.code) protectedSpans.push([offset, offset + segment.text.length]);
+      offset += segment.text.length;
+    }
     for (;;) {
       const rest = text.slice(pos);
       const m = rest.match(TOKEN_BLOCK);
       if (!m) break;
       const start = pos + m.index;
+      while (codeIndex < protectedSpans.length && protectedSpans[codeIndex][1] <= start) codeIndex++;
+      if (codeIndex < protectedSpans.length && protectedSpans[codeIndex][0] <= start && start < protectedSpans[codeIndex][1]) {
+        const end = protectedSpans[codeIndex][1];
+        out += text.slice(pos, end);
+        pos = end;
+        continue;
+      }
       const block = nextBlock(text, start);
       if (!block || block.start !== start) { out += text.slice(pos, start + 1); pos = start + 1; continue; }
       out += text.slice(pos, start);
@@ -236,7 +252,10 @@ const MemuAnswerGuard = (() => {
   function parseJsonLoose(raw) {
     const value = String(raw || "").trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
     try { return JSON.parse(value); } catch (e) {  }
-    try { return JSON.parse(value.replace(/,\s*([\]}])/g, "$1")); } catch (e) { return undefined; }
+    const repaired = value.replace(/("(?:[^"\\]|\\.)*")|,\s*(?=[\]}])/g, (match, quoted) => quoted || "");
+    try { return JSON.parse(repaired); } catch (e) {  }
+    const escaped = repaired.replace(/\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4})|\\/g, match => match === "\\" ? "\\\\" : match);
+    try { return JSON.parse(escaped); } catch (e) { return undefined; }
   }
   function argsOf(value) {
     if (typeof value === "string") { const parsed = parseJsonLoose(value); value = parsed === undefined ? { value } : parsed; }
@@ -286,20 +305,36 @@ const MemuAnswerGuard = (() => {
   }
   function xmlParams(body) {
     const args = {};
-    const re = /<parameter\s*(?:=\s*|name\s*=\s*["'])([\w.-]+)["']?[^>]*>([\s\S]*?)<\/parameter>|<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>|<[｜|]\s*DSML\s*[｜|]\s*parameter\s+name\s*=\s*"([^"]+)"[^>]*>([\s\S]*?)<\/[｜|]\s*DSML\s*[｜|]\s*parameter>/gi;
+    const re = /<parameter\s*(?:=\s*|name\s*=\s*["'])([\w.-]+)["']?[^>]*>([\s\S]*?)<\/parameter>|<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>|<[｜|]\s*DSML\s*[｜|]\s*parameter\s+name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/[｜|]\s*DSML\s*[｜|]\s*parameter\s*>/gi;
     let m, found = false;
     while ((m = re.exec(body))) {
       found = true;
       const key = (m[1] || m[3] || m[5] || "").trim();
       const value = m[1] ? m[2] : m[3] !== undefined ? m[4] : m[6];
-      if (key) args[key] = scalar(value);
+      if (key) args[key] = /\bstring\s*=\s*["']true["']/i.test(m[0].split(">", 1)[0]) ? value : scalar(value);
     }
     return found ? args : null;
+  }
+  function invokeArgs(body, dsml = false) {
+    let args = xmlParams(body);
+    const wrapped = args !== null;
+    if (args === null) {
+      const span = scanJson(body, 0);
+      args = span ? argsOf(body.slice(span.start, span.end)) : {};
+    }
+    const keys = Object.keys(args);
+    // Named object parameters are only transport holders in DSML XML.
+    if (dsml && wrapped && keys.length === 1 && ["args", "arguments", "parameters", "input"].includes(keys[0])) {
+      const value = args[keys[0]];
+      if (value && typeof value === "object" && !Array.isArray(value)) return value;
+    }
+    return args;
   }
   function callsFromBlock(block) {
     const inner = block.inner || "";
     const open = block.open || "";
     const out = [];
+    const dsml = /^<[｜|]\s*DSML\s*[｜|]/i.test(open);
     if (block.rule.tag) {
       const name = normName(block.rule.tag);
       const params = xmlParams(inner);
@@ -312,9 +347,9 @@ const MemuAnswerGuard = (() => {
       if (name) out.push({ tool: name, args: xmlParams(inner) || argsOf(inner.trim()) });
       return out;
     }
-    if ((m = open.match(/<invoke\s+name\s*=\s*["']([^"']+)/i))) {
+    if ((m = open.match(/<(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s+name\s*=\s*["']([^"']+)/i))) {
       const name = normName(m[1]);
-      if (name) out.push({ tool: name, args: xmlParams(inner) || {} });
+      if (name && block.closed) out.push({ tool: name, args: invokeArgs(inner, dsml) });
       return out;
     }
     if ((m = open.match(/commentary\s+to=([\w.:-]+)/i))) {
@@ -323,10 +358,10 @@ const MemuAnswerGuard = (() => {
       return out;
     }
 
-    const invokeRe = /<(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s+name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke>/gi;
+    const invokeRe = /<(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s+name\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/(?:[｜|]\s*DSML\s*[｜|]\s*)?invoke\s*>/gi;
     while ((m = invokeRe.exec(inner))) {
       const name = normName(m[1]);
-      if (name) out.push({ tool: name, args: xmlParams(m[2]) || {} });
+      if (name) out.push({ tool: name, args: invokeArgs(m[2], dsml || /^<[｜|]\s*DSML\s*[｜|]/i.test(m[0])) });
     }
     if (out.length) return out;
 

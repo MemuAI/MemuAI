@@ -265,6 +265,7 @@ class FreshPreferencesTest(BotTestCase):
         self.fake.responders["getUpdates"] = unpair_then_deliver
         await runner.poll_once(stale)
         await asyncio.gather(*list(runner.handlers), return_exceptions=True)
+        await runner.flush_offset()
         self.assertFalse(any("Помощь" in text for text in self.fake.sent_texts()))
 
     async def test_switched_off_during_the_long_poll_answers_nothing(self):

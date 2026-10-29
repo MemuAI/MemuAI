@@ -246,7 +246,7 @@ class StaticUiTest(unittest.TestCase):
 
     def test_app_js_is_cache_busted(self):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r'src="/app\.js\?v=3\.(5-r3[4-9]|6-r4[0-9])')
+        self.assertRegex(html, r'src="/app\.js\?v=[^"\s]+"')
 
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_app_js_parses(self):

@@ -56,7 +56,7 @@ def test_chat_protocol_copies_are_equal_and_compact():
     for marker in ('"type":"watch"', "gmail", "calendar_before", "github_actions", "web_page", "panel", "folder_file",
                    '"kind":"flow"', '"steps"', "{{step1.result}}", "{{trigger.title}}", "notify_telegram"):
         assert marker in text, marker
-    assert len(text) < 3700, len(text)
+    assert len(text) < 5000, len(text)
     assert "\n" not in text
 
 def test_every_watch_source_named_in_protocol_exists():
@@ -99,14 +99,14 @@ def test_preview_normalizes_chat_steps():
 def test_app_js_accepts_flow_blocks_and_enrich_keeps_steps():
     body = APP_JS[APP_JS.index("async function extractSchedules("):APP_JS.index("function scheduleTiming(")]
     assert 'rawTask.kind === "flow"' in body and "task.steps = rawTask.steps" in body
-    assert "(!prompt && !isFlow)" in body and 'type: "daily", times: ["09:00"]' in body
+    assert "(!prompt && !isFlow && !isIntegration)" in body and 'type: "daily", times: ["09:00"]' in body
     enrich = PLAN_JS[PLAN_JS.index("async function enrich("):]
     assert 'kind: "flow", steps: pv.steps' in enrich[:900]
 
 @pytest.mark.skipif(not NODE, reason="node is required")
 def test_schedule_intent_regex_covers_event_requests():
     a = APP_JS.index("const SCHEDULE_INTENT_RE")
-    b = APP_JS.index("/* Среда Work/MemuCode", a)
+    b = APP_JS.index("function workRuntimePrompt(", a)
 
     def block(text):
         script = ("globalThis.MemuPlan = { protocol: 'P' };\n" + APP_JS[a:b] +

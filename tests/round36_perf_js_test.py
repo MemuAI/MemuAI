@@ -14,6 +14,7 @@ Run: NO_PROXY=127.0.0.1,localhost MEMUAI_DATA_DIR=/tmp/x MEMU_TEST_CHROMIUM=… 
 from __future__ import annotations
 
 import os
+import re
 import time
 import unittest
 from pathlib import Path
@@ -69,8 +70,10 @@ class StaticTest(unittest.TestCase):
 
     def test_cache_versions(self):
         html = read("index.html")
-        for ref in ("/app.js?v=1.30-r41", "/tooltip.js?v=1.2-r36", "/branches.css?v=3.5-r36"):
-            self.assertIn(ref, html)
+        for asset in ("/app.js", "/tooltip.js", "/branches.css"):
+            self.assertRegex(html, re.escape(asset) + r'\?v=[^"\s]+"')
+        from app.version import APP_VERSION
+        self.assertIn(f'/app.js?v={APP_VERSION}"', html)
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):

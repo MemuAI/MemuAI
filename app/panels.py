@@ -1477,6 +1477,8 @@ def _lenient_target(value: Any) -> str:
     if clock:
         hour, minute = int(clock.group(1)), int(clock.group(2))
         meridiem = (clock.group(3) or "").lower()
+        if minute > 59 or (meridiem and not 1 <= hour <= 12) or (not meridiem and hour > 23):
+            return ""
         if meridiem == "pm" and hour < 12:
             hour += 12
         elif meridiem == "am" and hour == 12:
@@ -1485,9 +1487,12 @@ def _lenient_target(value: Any) -> str:
     offset = re.search(r"(?:UTC|GMT)\s*([+-])(\d{1,2})(?::?(\d{2}))?", rest)
     if offset:
         sign = 1 if offset.group(1) == "+" else -1
-        tz = timezone(sign * timedelta(hours=int(offset.group(2)), minutes=int(offset.group(3) or 0)))
+        offset_hour, offset_minute = int(offset.group(2)), int(offset.group(3) or 0)
+        if offset_hour > 23 or offset_minute > 59:
+            return ""
+        tz = timezone(sign * timedelta(hours=offset_hour, minutes=offset_minute))
     try:
-        moment = datetime(year, month, day, hour % 24, minute % 60, tzinfo=tz)
+        moment = datetime(year, month, day, hour, minute, tzinfo=tz)
     except ValueError:
         return ""
     if moment.tzinfo is None:
@@ -3070,7 +3075,7 @@ def _finish(pid: str, *, values: Optional[Dict[str, Any]] = None, sources: Optio
         if wall is None:
             partial = (values or {}).pop("_partial_wall", None)
             panel["data"] = {**panel.get("data", {}), **(values or {})}
-            if sources:
+            if sources is not None:
                 panel["sources"] = _clean_sources(sources)
             panel["status"] = "live"
             panel["wall"] = _clean_wall({**partial, "at": now}) if partial else None

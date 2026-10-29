@@ -300,8 +300,29 @@ class LayersCrawlTest(unittest.TestCase):
         page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
         page.wait_for_selector("[data-module-more]", timeout=20000)
         page.wait_for_timeout(1500)
+        page.locator("[data-module-more]").nth(1).scroll_into_view_if_needed()
+        page.wait_for_timeout(200)  # let scrolling settle before opening its menu
+        page.evaluate("""() => {
+            window.__menuTrace = [];
+            for (const type of ['scroll', 'wheel', 'resize', 'blur', 'pointerdown']) {
+                window.addEventListener(type, e => {
+                    const menu = document.getElementById('context-menu');
+                    if (menu?.classList.contains('visible')) window.__menuTrace.push({type, target: e.target?.id || e.target?.className || e.target?.nodeName});
+                }, true);
+            }
+            const original = window.hideContextMenu;
+            window.hideContextMenu = (...args) => {
+                const menu = document.getElementById('context-menu');
+                if (menu?.classList.contains('visible')) window.__menuTrace.push({type: 'hide', stack: new Error().stack});
+                return original(...args);
+            };
+        }""")
         page.locator("[data-module-more]").nth(1).click()
-        page.locator("#context-menu button", has_text="Сменить иконку").click()
+        try:
+            page.locator("#context-menu button", has_text="Сменить иконку").click(timeout=8000)
+        except Exception as exc:
+            trace = page.evaluate("() => window.__menuTrace")
+            raise AssertionError(f"Menu became unavailable: {trace}") from exc
         page.wait_for_selector(".mico-dialog", timeout=5000)
         page.keyboard.press("Escape")
         page.wait_for_timeout(400)
@@ -329,14 +350,17 @@ class LayersCrawlTest(unittest.TestCase):
         page.evaluate("() => { currentSettingsTab = 'search'; showSettings(); }")
         page.wait_for_selector(".mpick:has(#st-search-provider)", state="attached", timeout=20000)
         page.wait_for_timeout(500)
-        page.evaluate("() => { const w = document.getElementById('st-search-provider').closest('.mpick, .pretty-select'); w.scrollIntoView({ block: 'end' }); w.querySelector('button').click(); }")
+        page.evaluate("() => document.getElementById('st-search-provider').closest('.mpick, .pretty-select').scrollIntoView({ block: 'end', behavior: 'instant' })")
+        page.wait_for_timeout(200)  # a scroll event otherwise immediately closes the new layer
+        page.evaluate("() => document.getElementById('st-search-provider').closest('.mpick, .pretty-select').querySelector('button').click()")
         page.wait_for_timeout(300)
         info = page.evaluate("""() => { const m = document.querySelector('body > .mpick-pop'); if (!m) return null;
             const r = m.getBoundingClientRect(), b = document.getElementById('st-search-provider').closest('.mpick').getBoundingClientRect();
             const pts = []; for (const fx of [.1, .5, .9]) for (const fy of [.1, .5, .9]) pts.push([r.left + r.width * fx, r.top + r.height * fy]);
             return { up: r.bottom <= b.top + 1, covered: pts.filter(([x, y]) => !m.contains(document.elementFromPoint(x, y))).length,
                      z: getComputedStyle(m).zIndex }; }""")
-        self.assertIsNotNone(info, "the list is not in the top layer")
+        diagnostic = page.evaluate("""() => { const s = document.getElementById('st-search-provider'); const w = s.closest('.mpick'); const p = document.querySelector('.mpick-pop'); return {disabled:s.disabled, open:w.className, button:w.querySelector('button')?.outerHTML, popParent:p?.parentElement?.tagName, popClass:p?.className, layers:!!window.MemuLayers}; }""")
+        self.assertIsNotNone(info, "the list is not in the top layer: " + json.dumps(diagnostic, ensure_ascii=False))
         self.assertTrue(info["up"])
         self.assertEqual(info["covered"], 0)
 

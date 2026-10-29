@@ -96,9 +96,13 @@ class ProbeKey(unittest.TestCase):
 
     def test_good_key_shows_model_count(self):
         for status in (200, 400, 422):
-            (ok, msg), _ = _check(status)
+            (ok, msg), session = _check(status)
             self.assertIs(ok, True, status)
-            self.assertIn("моделей: 2", msg)
+            if status == 200:
+                self.assertIn("API чата отвечает", msg)
+            else:
+                self.assertIn("моделей: 2", msg)
+            self.assertEqual(session.posts[0][1]["model"], "m-a")
 
     def test_declared_models_win_for_probe(self):
         _, session = _check(400, fields={"models": "my-model, other"})

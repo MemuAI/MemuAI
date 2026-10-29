@@ -136,17 +136,33 @@ class Servers:
         for key in ("NO_PROXY", "no_proxy"):
             os.environ[key] = "127.0.0.1,localhost"
         self.servers = []
+        self.threads = []
 
         from unittest.mock import patch
         home = Path(self.data) / "home"
         home.mkdir(parents=True, exist_ok=True)
         self._home = patch("pathlib.Path.home", return_value=home)
         self._home.start()
+        # The language scan uses synthetic Telegram credentials only. Keep its
+        # UI available without downloading binaries or opening external tunnels.
+        from app import tg_webapp
+        self._tunnel = patch.object(tg_webapp.Manager, "_ensure_tunnel")
+        self._tunnel.start()
+        from app import fsindex
+        self._index_env = patch.dict(os.environ, {"MEMUAI_FSINDEX_NOSTART": "1"})
+        self._index_env.start()
+        self._drives = patch.object(fsindex, "available_drives", return_value=[{
+            "path": str(home), "type": "fixed", "label": "Test volume", "fs": ""}])
+        self._drives.start()
+        self._roots = patch.object(fsindex, "default_roots", return_value=[str(home)])
+        self._roots.start()
 
     def _run(self, app, port):
         import uvicorn
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
-        threading.Thread(target=server.run, daemon=True).start()
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+        self.threads.append(thread)
         self.servers.append(server)
         for _ in range(400):
             if server.started:
@@ -192,9 +208,38 @@ class Servers:
     def stop(self) -> None:
         for server in self.servers:
             server.should_exit = True
+        for thread in self.threads:
+            thread.join(timeout=5)
+        if any(thread.is_alive() for thread in self.threads):
+            for server in self.servers:
+                server.force_exit = True
+            for thread in self.threads:
+                thread.join(timeout=5)
+        if any(thread.is_alive() for thread in self.threads):
+            # Retain the isolation patches if a daemon is still shutting down.
+            alive = [server.config.port for server, thread in zip(self.servers, self.threads) if thread.is_alive()]
+            raise RuntimeError(f"Isolated language-scan server did not stop: {alive}")
         if getattr(self, "_home", None):
             self._home.stop()
             self._home = None
+        if getattr(self, "_tunnel", None):
+            self._tunnel.stop()
+            self._tunnel = None
+        for name in ("_index_env", "_drives", "_roots"):
+            patcher = getattr(self, name, None)
+            if patcher:
+                patcher.stop()
+                setattr(self, name, None)
+
+def _isolate_network(context) -> None:
+    def route(request_route):
+        parsed = urllib.parse.urlsplit(request_route.request.url)
+        if parsed.scheme not in ("http", "https") or parsed.hostname in ("127.0.0.1", "localhost", "::1"):
+            request_route.continue_()
+        else:
+            request_route.abort()
+    context.route("**/*", route)
+
 
 class Scan:
     def __init__(self, page, product: str, lang: str):
@@ -278,6 +323,7 @@ def scan_memuai(browser, servers: Servers, lang: str, *, width: int = 1360, heig
         client.post(servers.pg + "/api/pg/preferences", json={"language": lang, "profile_onboarded": False,
                                                               "updates_enabled": False})
     ctx = browser.new_context(viewport={"width": width, "height": height}, bypass_csp=True)
+    _isolate_network(ctx)
     ctx.add_init_script(f"try {{ localStorage.setItem('memu_lang', '{lang}'); }} catch (_) {{}}")
     page = ctx.new_page()
     scan = Scan(page, "memuai", lang)
@@ -362,6 +408,7 @@ PROXY_TABS = ("home", "accounts", "local", "public", "chat", "detector", "settin
 
 def scan_proxy(browser, servers: Servers, lang: str, *, theme: str = "dark", shots: Path | None = None) -> Scan:
     ctx = browser.new_context(viewport={"width": 1440, "height": 900}, bypass_csp=True)
+    _isolate_network(ctx)
     ctx.add_init_script(f"try {{ localStorage.setItem('oh_lang', '{lang}'); localStorage.setItem('oh_theme', '{theme}'); }} catch (_) {{}}")
     page = ctx.new_page()
     scan = Scan(page, "proxy", lang)
@@ -397,6 +444,7 @@ def scan_tgapp(browser, servers: Servers, lang: str) -> Scan:
     hash_part = urllib.parse.urlencode({"tgWebAppData": init, "tgWebAppVersion": "7.10", "tgWebAppPlatform": "android",
                                         "tgWebAppThemeParams": json.dumps({"bg_color": "#17212b"})})
     ctx = browser.new_context(viewport={"width": 390, "height": 760}, bypass_csp=True)
+    _isolate_network(ctx)
     page = ctx.new_page()
     scan = Scan(page, "tgapp", lang)
     page.goto(f"{servers.tg}/tgapp/#{hash_part}")
@@ -418,6 +466,7 @@ INSTALLER_CASES = ("screen=welcome", "screen=edition", "screen=location", "scree
 
 def scan_installer(browser, lang: str) -> Scan:
     ctx = browser.new_context(viewport={"width": 960, "height": 620}, bypass_csp=True)
+    _isolate_network(ctx)
     page = ctx.new_page()
     scan = Scan(page, "installer", lang)
     ui = (ROOT / "installer" / "ui" / "index.html").as_uri()

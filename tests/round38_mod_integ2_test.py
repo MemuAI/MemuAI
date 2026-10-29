@@ -29,7 +29,7 @@ NOW = time.time()
 EVENTS = {"events": [
     {"id": 1, "module_id": "api-models", "title": "Новые модели API · OpenRouter", "text": "+ OpenAI: GPT-6 mini · openai/gpt-6-mini", "at": NOW - 7200},
     {"id": 2, "module_id": "api-models", "title": "Новые модели API · OpenRouter",
-     "text": "+ Anthropic: Claude Opus 5.5 · anthropic/claude-opus-5.5\n+ Qwen: Qwen 4 Max · qwen/qwen-4-max", "at": NOW - 600},
+     "text": "+ Anthropic: Claude Opus 5.5 · anthropic/claude-opus-5.5\n+ Qwen: Qwen 4 Max · qwen/qwen-4-max:free", "at": NOW - 600},
 ], "seen": 1}
 CATALOG = {"anthropic/claude-opus-5.5": {"context": 1000000, "input": 15.0, "output": 75.0},
            "openai/gpt-6-mini": {"context": 400000, "input": 0.25, "output": 2.0},

@@ -144,7 +144,7 @@ class Scripts(unittest.TestCase):
         dfy = (QUICK / "quick-dfy.js").read_text(encoding="utf-8")
         self.assertIn("record(entry)", dfy)
 
-@unittest.skipUnless(Path("/workspace/work/chromium/chrome").exists() or Path("/usr/bin/chromium").exists(), "no Chromium")
+@unittest.skipUnless(Path(os.environ.get("MEMU_TEST_CHROMIUM", "/workspace/work/chromium/chrome")).is_file() or Path("/usr/bin/chromium").is_file(), "no Chromium")
 class Headless(unittest.TestCase):
     def test_window_checks(self) -> None:
         try:

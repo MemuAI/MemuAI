@@ -178,7 +178,7 @@ def test_plan_parts_follow_chapters(pdf_doc, docx_doc):
 
 def test_estimate_uses_catalogue_prices(pdf_doc, monkeypatch):
     from app import pricing
-    monkeypatch.setattr(pricing, "lookup", lambda model, provider="", overrides=None: pricing.Price(1.0, 4.0, source="test"))
+    monkeypatch.setattr(pricing, "lookup", lambda model, provider="", overrides=None, account_id="": pricing.Price(1.0, 4.0, source="test"))
     est = B.estimate(pdf_doc, "custom-test-model", confirm_usd=0.05)
     assert est["parts"] == 20 and est["unit"] == "глава" and est["price_known"]
     assert est["input_tokens"] > pdf_doc["tokens"] and est["requests"] >= 21

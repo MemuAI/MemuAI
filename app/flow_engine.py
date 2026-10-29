@@ -920,24 +920,41 @@ def runs_dir() -> Path:
     return path
 
 def _run_path(run_id: str) -> Path:
-    safe = re.sub(r"[^0-9A-Za-z_-]", "", run_id)[:40]
-    if not safe:
+    if not isinstance(run_id, str) or not re.fullmatch(r"[0-9A-Za-z_-]{1,40}", run_id):
         raise FlowError("Неверный id запуска", "Bad run id")
-    return runs_dir() / f"{safe}.json"
+    return runs_dir() / f"{run_id}.json"
 
 def _index_entry(run: Dict[str, Any]) -> Dict[str, Any]:
     return {k: run.get(k) for k in ("id", "task_id", "task_name", "status", "dry_run", "started", "finished",
                                     "trigger", "boot", "summary", "wait_kind", "wake_at", "form_id")}
 
 def save_run(run: Dict[str, Any]) -> None:
-    from .storage import mutate_json, save_json
+    from .storage import mutate_json
     run["updated"] = time.time()
-    save_json(_run_path(run["id"]), run, backup=False)
+
+    def write(raw: Any):
+        previous = raw.get("control") if isinstance(raw, dict) else None
+        current = run.get("control")
+        if isinstance(previous, dict):
+            control = dict(previous)
+            if isinstance(current, dict) and current.get("continue_seq", 0) >= previous.get("continue_seq", 0):
+                control.update(current)
+            control["cancel"] = bool(previous.get("cancel") or (current or {}).get("cancel"))
+            run["control"] = control
+        return True, run
+
+    mutate_json(_run_path(run["id"]), {}, write, backup=False,
+                validator=lambda v: isinstance(v, dict), repair_invalid=True)
+    _save_run_index(run)
+
+
+def _save_run_index(run: Dict[str, Any]) -> None:
+    from .storage import mutate_json
 
     def upd(raw: Any):
         data = raw if isinstance(raw, dict) and isinstance(raw.get("runs"), list) else {"runs": []}
         rows = [r for r in data["runs"] if isinstance(r, dict) and r.get("id") != run["id"]]
-        rows.insert(0, _index_entry(run))
+        rows.insert(0, _index_entry(load_run(run["id"]) or run))
         dropped = rows[MAX_RUNS:]
         data["runs"] = rows[:MAX_RUNS]
         for row in dropped:
@@ -959,7 +976,7 @@ def load_run(run_id: str) -> Optional[Dict[str, Any]]:
     if not path.exists():
         return None
     data = load_json_with_recovery(path, None)
-    return data if isinstance(data, dict) else None
+    return data if isinstance(data, dict) and data.get("id") == run_id else None
 
 def list_runs(task_id: str = "", limit: int = 30, *, status: str = "") -> List[Dict[str, Any]]:
     from .storage import load_json_with_recovery
@@ -1467,7 +1484,7 @@ class FlowRunner:
             return run
         except Stop as stop:
             run["status"] = "done"
-            run["ok"] = stop.args[0] != "fail" if stop.args else True
+            run["ok"] = True
             run["stopped"] = stop.message
             if getattr(stop, "failed", False):
                 run["ok"] = False
@@ -1477,6 +1494,14 @@ class FlowRunner:
             run["status"] = "cancelled"
             run["ok"] = False
             run["finished"] = time.time()
+            for form_id in set((run.get("asks") or {}).values()):
+                try:
+                    form = await asyncio.to_thread(self.sv.form_state, form_id)
+                    if form and form.get("status") == "pending":
+                        await asyncio.to_thread(self.sv.settle_form, form_id, "cancelled")
+                        self.sv.drop_telegram_form(form_id)
+                except Exception as exc:
+                    log.info("flow: could not close cancelled question: %s", exc)
             self._persist()
             raise
         except StepFailed as exc:
@@ -1523,11 +1548,13 @@ class FlowRunner:
 
     async def _block(self, steps: List[Dict[str, Any]], prefix: str, depth: int = 1) -> None:
         for step in steps:
-            if self.cancel.is_set():
+            if self.cancel.is_set() or (self.run.get("control") or {}).get("cancel"):
                 raise asyncio.CancelledError()
             if step.get("disabled"):
                 continue
             await self._step(step, prefix + step["id"], depth)
+            if self.cancel.is_set() or (self.run.get("control") or {}).get("cancel"):
+                raise asyncio.CancelledError()
 
     async def _step(self, step: Dict[str, Any], key: str, depth: int) -> None:
         number = self.numbers.get(step["id"], "?")
@@ -1535,6 +1562,8 @@ class FlowRunner:
         rec = self.done.get(key)
         if isinstance(rec, dict) and rec.get("status") in ("ok", "error", "simulated", "skipped") and step["type"] not in CONTAINERS:
             self._set_output(step, rec)
+            if rec.get("status") == "error" and not step.get("continue_on_error"):
+                raise StepFailed(tr(self.lang, f"Шаг {number} «{title}»: ", f"Step {number} “{title}”: ") + str(rec.get("error") or "error"))
             return
         if step["type"] in CONTAINERS:
             await self._container(step, key, depth, number, title)
@@ -1559,8 +1588,14 @@ class FlowRunner:
                 entry["status"] = "waiting"
                 self._log(entry)
                 raise
-            except (Stop, asyncio.CancelledError):
-                entry.update(status="ok" if not isinstance(asyncio.CancelledError, type) else "ok", finished=time.time())
+            except Stop as stop:
+                entry.update(status="error" if getattr(stop, "failed", False) else "ok", finished=time.time())
+                if getattr(stop, "failed", False):
+                    entry["error"] = stop.message
+                self._log(entry)
+                raise
+            except asyncio.CancelledError:
+                entry.update(status="cancelled", finished=time.time())
                 self._log(entry)
                 raise
             except asyncio.TimeoutError:
@@ -1780,7 +1815,7 @@ class FlowRunner:
             if seconds <= 60:
                 await asyncio.sleep(seconds)
                 return {"result": seconds, "short": f"{seconds} s"}
-            wake = time.time() + seconds
+            wake = waited or time.time() + seconds
             self.run["waits"][key] = wake
             raise Paused({"kind": "wait", "key": key, "wake_at": wake})
         if t == "ask_user":
@@ -2173,35 +2208,62 @@ def start_background(task: Dict[str, Any], run: Dict[str, Any], services: Servic
     job.add_done_callback(lambda _j, key=run["id"]: _ACTIVE.pop(key, None))
 
 def cancel_run(run_id: str) -> bool:
-    run = load_run(run_id)
-    if not run:
+    from .storage import mutate_json
+    try:
+        path = _run_path(run_id)
+    except FlowError:
         return False
     job = _ACTIVE.get(run_id)
-    if job is not None:
-        job.cancel()
-    control = dict(run.get("control") or {})
-    control["cancel"] = True
-    run["control"] = control
-    if run.get("status") in ("waiting", "paused", "queued") or (run.get("status") == "running" and job is None and run.get("boot") != PROCESS_BOOT):
-        if run.get("form_id"):
-            try:
-                from . import ask_user as au
-                au.STORE.settle(str(run["form_id"]), "cancelled")
-            except Exception:
-                pass
-        run.update(status="cancelled", ok=False, finished=time.time())
-    save_run(run)
+    forms = []
+    changed = []
+    def change(run):
+        if not isinstance(run, dict) or run.get("id") != run_id:
+            return False, run
+        control = dict(run.get("control") or {})
+        control["cancel"] = True
+        run["control"] = control
+        if run.get("status") in ("waiting", "paused", "queued") or (run.get("status") == "running" and job is None and run.get("boot") != PROCESS_BOOT):
+            if run.get("form_id"):
+                forms.append(str(run["form_id"]))
+            run.update(status="cancelled", ok=False, finished=time.time())
+        run["updated"] = time.time()
+        changed.append(True)
+        return True, run
+    run = mutate_json(path, None, change, backup=False)
+    if not changed:
+        return False
+    _save_run_index(run)
+    for form_id in forms:
+        try:
+            from . import ask_user as au
+            au.STORE.settle(form_id, "cancelled")
+        except Exception:
+            pass
+    if job is not None and not job.done():
+        job.get_loop().call_soon_threadsafe(job.cancel)
     return True
 
 def continue_run(run_id: str, *, all_steps: bool = False) -> bool:
-    run = load_run(run_id)
-    if not run or run.get("status") not in ("paused", "running"):
+    from .storage import mutate_json
+    try:
+        path = _run_path(run_id)
+    except FlowError:
         return False
-    control = dict(run.get("control") or {})
-    control["continue_seq"] = int(control.get("continue_seq") or 0) + 1
-    control["all"] = bool(all_steps)
-    run["control"] = control
-    save_run(run)
+    changed = []
+    def change(run):
+        if not isinstance(run, dict) or run.get("id") != run_id or run.get("status") not in ("paused", "running"):
+            return False, run
+        control = dict(run.get("control") or {})
+        control["continue_seq"] = int(control.get("continue_seq") or 0) + 1
+        control["all"] = bool(all_steps)
+        run["control"] = control
+        run["updated"] = time.time()
+        changed.append(True)
+        return True, run
+    run = mutate_json(path, None, change, backup=False)
+    if not changed:
+        return False
+    _save_run_index(run)
     return True
 
 def step_catalog(lang: str = "ru") -> List[Dict[str, Any]]:

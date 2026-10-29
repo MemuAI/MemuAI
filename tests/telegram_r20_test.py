@@ -394,17 +394,18 @@ class AnswerTest(BotTestCase):
 
     async def test_stop_button_and_native_stop_update(self):
         release = asyncio.Event()
+        received = asyncio.Event()
 
         async def slow(*_a, **_k):
             yield {"choices": [{"delta": {"content": "часть"}}]}
+            received.set()
             await release.wait()
             yield {"choices": [{"delta": {"content": " ещё"}}]}
 
         with patch("app.chat.chat_service.stream_completion", slow):
             task = asyncio.create_task(telegram_bot._answer_ai(self.client, TOKEN, str(OWNER), "x",
                                                                pgdata.load_preferences()))
-            for _ in range(20):
-                await asyncio.sleep(0.01)
+            await asyncio.wait_for(received.wait(), timeout=5)
             generation = telegram_bot._generations[str(OWNER)]
             generation.draft_ids.add(55)
             self.assertFalse(telegram_bot._stop_generation(str(OWNER), draft_id=99))

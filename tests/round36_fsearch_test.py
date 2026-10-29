@@ -9,6 +9,7 @@ Windows only.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import socket
 import sys
@@ -99,7 +100,7 @@ def test_ops_on_search_results(tree):
     assert [r["name"] for r in fsindex.search("заметки")] == ["заметки.txt"]
     assert op(action="undo", op=gone["op"]).json()["code"] == "nothing_to_undo"
 
-def test_ops_safety(tree):
+def test_ops_safety(tree, monkeypatch):
     c = client()
     op = lambda **b: c.post("/api/fsindex/op", json={"lang": "en", **b})            # noqa: E731
 
@@ -108,12 +109,17 @@ def test_ops_safety(tree):
     assert r.status_code == 400 and r.json()["code"] == "not_shown" and other.exists()
 
     home = os.path.expanduser("~")
-    fsindex_api._remember([{"path": home}, {"path": "/usr"}])
-    for target in (home, "/usr"):
+    system = os.environ.get("WINDIR", "C:/Windows") if os.name == "nt" else "/usr"
+    def forbidden_mutation(*_args, **_kwargs):
+        raise AssertionError("Safety tests must not mutate real system folders")
+    monkeypatch.setattr(fsindex_ops, "queue", forbidden_mutation)
+    monkeypatch.setattr(os, "rename", forbidden_mutation)
+    fsindex_api._remember([{"path": home}, {"path": system}])
+    for target in (home, system):
         for action, extra in (("trash", {}), ("rename", {"name": "x"})):
             r = op(action=action, path=target, **extra)
             assert r.status_code == 400 and r.json()["code"] == "protected", (target, action)
-    assert os.path.isdir("/usr")
+    assert os.path.isdir(system)
 
     fsindex_api._remember([{"path": str(tree / "nope.txt")}])
     assert op(action="exec", path=str(other)).status_code == 400
@@ -131,13 +137,13 @@ def test_frontend_contract():
 
     assert "MutationObserver" not in js and "function bindHost" in js and "function schedule" in js
 
-    assert "/memu-ctxmenu.js?v=1.1-r34" in js and "MemuCtxMenu" in js
+    assert "/memu-ctxmenu.js?v=4.1" in js and "MemuCtxMenu" in js
     for key in ('"F2"', '"Delete"', '"ContextMenu"', '"F10"', '"KeyC"', '"KeyX"'):
         assert key in js
     for action in ("rename", "duplicate", "compress", "trash", "undo", "properties", "attach", "open_with"):
         assert f'"{action}"' in js or f"'{action}'" in js
     manifest = (ROOT / "app" / "pgstatic" / "quick" / "plugins" / "index.json").read_text(encoding="utf-8")
-    assert '"1.1-r36"' in manifest
+    assert next(row for row in json.loads(manifest)["plugins"] if row["id"] == "fsearch")["v"] == "4.1"
 
 def _free_port() -> int:
     with socket.socket() as s:
@@ -188,6 +194,7 @@ async def _ui_flow(base: str, tree: Path, shots: str = "") -> list:
         browser = await pw.chromium.launch(executable_path=CHROME, args=["--no-sandbox"])
         try:
             for theme, lang in (("dark", "ru"), ("light", "en")):
+                checkpoints = []
                 state.update(theme=theme, lang=lang)
                 page = await browser.new_page(viewport={"width": 720, "height": 640})
                 page.on("pageerror", lambda e: problems.append(f"pageerror: {e}"))
@@ -215,6 +222,7 @@ async def _ui_flow(base: str, tree: Path, shots: str = "") -> list:
                 await page.keyboard.type("x", delay=0)
                 await page.keyboard.press("Backspace")
                 await page.wait_for_timeout(300)
+                checkpoints.append(await page.evaluate("({stage:'typing',query:QuickFileSearch.state().query,input:document.getElementById('fs-q')?.value,names:QuickFileSearch.state().items.map(r=>r.name),focus:document.activeElement?.id})"))
                 if not same or await page.evaluate("document.getElementById('fs-q').dataset.mark") != "1":
                     problems.append("the search field was re-rendered")
                 if shots:
@@ -245,7 +253,8 @@ async def _ui_flow(base: str, tree: Path, shots: str = "") -> list:
                 await page.mouse.click(5, 5)
                 await page.wait_for_timeout(250)
                 if await page.locator(".mcm").count():
-                    problems.append("menu stuck after an outside click")
+                    details = await page.evaluate("({hit:document.elementFromPoint(5,5)?.id || document.elementFromPoint(5,5)?.className, current:!!MemuCtxMenu.current(), menus:[...document.querySelectorAll('.mcm')].map(e=>({class:e.className,rect:e.getBoundingClientRect().toJSON()}))})")
+                    problems.append("menu stuck after an outside click: " + str(details))
 
                 await page.focus("#fs-q")
                 await page.keyboard.press("Shift+F10")
@@ -254,6 +263,12 @@ async def _ui_flow(base: str, tree: Path, shots: str = "") -> list:
                 await page.wait_for_timeout(200)
 
                 target = page.locator(".fs-row", has_text="notes.txt" if theme == "dark" else "заметки.txt")
+                try:
+                    await target.wait_for(state="visible", timeout=5000)
+                except Exception:
+                    details = await page.evaluate("({query:QuickFileSearch.state().query,input:document.getElementById('fs-q')?.value,names:QuickFileSearch.state().items.map(r=>r.name),focus:document.activeElement?.id})")
+                    problems.append(f"missing properties target: theme={theme}, lang={lang}, state={details}, checkpoints={checkpoints}")
+                    break
                 await target.click(button="right")
                 await page.wait_for_selector(".mcm", timeout=3000)
                 await page.locator(".mcm-item", has_text="Свойства" if lang == "ru" else "Properties").click()
@@ -332,4 +347,4 @@ def test_ui_menu_flow(tree):
         problems = asyncio.run(_ui_flow(f"http://127.0.0.1:{port}", tree, shots))
     finally:
         server.should_exit = True
-    assert problems == []
+    assert problems == [], "\n".join(problems)

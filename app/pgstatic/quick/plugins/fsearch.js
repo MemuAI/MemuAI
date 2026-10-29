@@ -512,7 +512,7 @@
     if (!ctxReady) {
       ctxReady = new Promise((resolve) => {
         const s = document.createElement("script");
-        s.src = "/memu-ctxmenu.js?v=1.1-r34"; s.async = true;
+        s.src = "/memu-ctxmenu.js?v=4.1"; s.async = true;
         s.onload = () => resolve(window.MemuCtxMenu || null);
         s.onerror = () => { ctxReady = null; resolve(null); };
         document.head.appendChild(s);

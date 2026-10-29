@@ -75,7 +75,7 @@ class InternalPromptsWiredTest(unittest.TestCase):
 class BareToolCallsTest(unittest.TestCase):
     def _calls(self, text: str):
         a = APP_JS.index("function bareToolCalls(")
-        b = APP_JS.index("/* Переводит «чужие» вызовы поиска", a)
+        b = APP_JS.index("function foreignSearchCalls(", a)
         script = APP_JS[a:b] + f"\nconsole.log(JSON.stringify(bareToolCalls({json.dumps(text)})));"
         out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)

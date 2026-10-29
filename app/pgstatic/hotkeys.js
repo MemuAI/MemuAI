@@ -525,7 +525,7 @@
     return false;
   }
 
-  const state = { recording: null, query: "", filter: "all", host: null };
+  const state = { recording: null, query: "", filter: "all", host: null, pendingRender: false };
 
   root.addEventListener("keydown", (e) => {
     const rec = state.recording;
@@ -563,7 +563,12 @@
     const rec = state.recording;
     state.recording = null;
     if (!rec) return;
-    if (rowOnly) refreshRow(rec.id); else rerender();
+    if (rowOnly) {
+      refreshRow(rec.id);
+      // A click on another shortcut starts recording synchronously. Let it do
+      // so before applying any deferred full render.
+      if (state.pendingRender) queueMicrotask(() => { if (state.pendingRender) rerender(); });
+    } else rerender();
   }
 
   function refreshRow(id) {
@@ -676,6 +681,8 @@
   function render() {
     const host = state.host;
     if (!host || !host.isConnected) return;
+    if (state.recording) { state.pendingRender = true; return; }
+    state.pendingRender = false;
     if (!$(".hk-shell", host)) {
       host.innerHTML = `<div class="hk-shell">
         <div class="hk-hero"></div>
@@ -771,6 +778,7 @@
   function mountSettings(host) {
     const target = host || $("#hk-root") || $("#pane-hotkeys");
     if (!target) return;
+    if (state.host !== target && state.recording) stopRecording(true);
     state.host = target;
     render();
     if (!globalCache) loadGlobals().then(() => render()).catch(() => {});

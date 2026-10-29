@@ -3649,11 +3649,16 @@ class _BotRunner:
                 self.pending_off += 1
                 await self._sleep(1)
                 return
-            if self.token or (self.status and self.status != "disabled"):
-                await self.write_status("disabled", force=True)
+            was_active = bool(self.token or (self.status and self.status != "disabled"))
+            # Finish the old token's checkpoint before clearing its identity.
+            # Otherwise the deferred save can overwrite it with an empty token
+            # and replay previously handled updates after enabling the bot.
+            await self.flush_offset()
             self.token, self.offset, self.failures, self.conflicts = "", 0, 0, 0
             self.status_token = token if valid_token(token) else ""
             self.release_lock()
+            if was_active:
+                await self.write_status("disabled", force=True)
             await self._sleep(3)
             return
         self.pending_off = 0

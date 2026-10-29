@@ -65,7 +65,8 @@ def decode(path: str, frame: int = 0) -> Dict[str, Any]:
         head = handle.read(4)
     if head == b"8BPS":
         from . import psd
-        data = open(path, "rb").read()
+        with open(path, "rb") as handle:
+            data = handle.read()
         try:
             doc = psd.read_psd(data)
             png = doc["merged"]
@@ -75,9 +76,9 @@ def decode(path: str, frame: int = 0) -> Dict[str, Any]:
                     "frames": 1, "layers": _b64_layers(doc["layers"])}
         except psd.UnsupportedPSD:
             png = _merged_with_pillow(path)
-            img = _pil().open(io.BytesIO(png))
-            return {"format": "PSD", "width": img.width, "height": img.height, "png": b64(png), "frames": 1,
-                    "layers": [], "warning": "psd_flattened"}
+            with _pil().open(io.BytesIO(png)) as img:
+                return {"format": "PSD", "width": img.width, "height": img.height, "png": b64(png), "frames": 1,
+                        "layers": [], "warning": "psd_flattened"}
     Image = _pil()
     try:
         img = Image.open(path)
@@ -88,25 +89,26 @@ def decode(path: str, frame: int = 0) -> Dict[str, Any]:
         if ext in ("heic", "heif"):
             raise ImageFormatError("HEIC/HEIF needs the optional pillow-heif package", "heic") from exc
         raise ImageFormatError(f"cannot read the image: {exc}", "unreadable") from exc
-    fmt = img.format or ""
-    n = int(getattr(img, "n_frames", 1) or 1)
-    if fmt == "ICO":
-        sizes = sorted(img.info.get("sizes") or img.ico.sizes(), key=lambda s: s[0] * s[1])
-        if sizes:
-            img.size = sizes[-1]
-        n = len(sizes) or 1
-    elif n > 1 and frame:
-        img.seek(max(0, min(n - 1, frame)))
-    img.load()
-    out = img.convert("RGBA") if img.mode != "RGBA" else img
-    return {"format": fmt, "width": out.width, "height": out.height, "png": b64(_to_png(out)), "frames": n,
-            "dpi": list(img.info.get("dpi") or [])[:2]}
+    with img:
+        fmt = img.format or ""
+        n = int(getattr(img, "n_frames", 1) or 1)
+        if fmt == "ICO":
+            sizes = sorted(img.info.get("sizes") or img.ico.sizes(), key=lambda s: s[0] * s[1])
+            if sizes:
+                img.size = sizes[-1]
+            n = len(sizes) or 1
+        elif n > 1 and frame:
+            img.seek(max(0, min(n - 1, frame)))
+        img.load()
+        out = img.convert("RGBA") if img.mode != "RGBA" else img
+        return {"format": fmt, "width": out.width, "height": out.height, "png": b64(_to_png(out)), "frames": n,
+                "dpi": list(img.info.get("dpi") or [])[:2]}
 
 def _merged_with_pillow(path: str) -> bytes:
     Image = _pil()
-    img = Image.open(path)
-    img.load()
-    return _to_png(img.convert("RGBA"))
+    with Image.open(path) as img:
+        img.load()
+        return _to_png(img.convert("RGBA"))
 
 def _b64_layers(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = []
@@ -123,21 +125,21 @@ def _b64_layers(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def frames(path: str, limit: int = MAX_FRAMES) -> Dict[str, Any]:
     Image = _pil()
-    img = Image.open(path)
     rows: List[Dict[str, Any]] = []
-    if img.format == "ICO":
-        for size in sorted(img.ico.sizes(), key=lambda s: -s[0] * s[1])[:limit]:
-            frame = img.ico.getimage(size)
-            rows.append({"png": b64(_to_png(frame.convert("RGBA"))), "width": frame.width, "height": frame.height,
-                         "label": f"{size[0]}×{size[1]}"})
-        return {"format": "ICO", "frames": rows, "total": len(rows)}
-    total = int(getattr(img, "n_frames", 1) or 1)
-    for i in range(min(total, limit)):
-        img.seek(i)
-        frame = img.convert("RGBA")
-        rows.append({"png": b64(_to_png(frame)), "width": frame.width, "height": frame.height,
-                     "duration": int(img.info.get("duration") or 0)})
-    return {"format": img.format or "", "frames": rows, "total": total}
+    with Image.open(path) as img:
+        if img.format == "ICO":
+            for size in sorted(img.ico.sizes(), key=lambda s: -s[0] * s[1])[:limit]:
+                frame = img.ico.getimage(size)
+                rows.append({"png": b64(_to_png(frame.convert("RGBA"))), "width": frame.width, "height": frame.height,
+                             "label": f"{size[0]}×{size[1]}"})
+            return {"format": "ICO", "frames": rows, "total": len(rows)}
+        total = int(getattr(img, "n_frames", 1) or 1)
+        for i in range(min(total, limit)):
+            img.seek(i)
+            frame = img.convert("RGBA")
+            rows.append({"png": b64(_to_png(frame)), "width": frame.width, "height": frame.height,
+                         "duration": int(img.info.get("duration") or 0)})
+        return {"format": img.format or "", "frames": rows, "total": total}
 
 def encode(png: bytes, fmt: str, quality: int = 90, background: str = "#ffffff",
            extra: Optional[Dict[str, Any]] = None) -> bytes:

@@ -46,6 +46,9 @@ for(const id of ["warm","therapist","storyteller","challenger","charismatic","wi
 prefs.voice_live_primary_personality="romantic";pc.PG_LANG="en";assert(pc.buildLivePersonalityInstructions().includes("Romantic (18+)"));assert(pc.buildLivePersonalityInstructions().includes("TONE EXAMPLE in English"));
 const classic=fn("buildSystemPrompt");assert(classic.includes("${buildLivePersonalityInstructions()}"),"classic STT/chat/TTS uses same behavior builder");
 
-const models=vm.createContext({S:{models:[{id:"speech-chat",caps:{audio:true,text:true}},{id:"song",caps:{music:true,text:false}},{id:"multimodal-music-chat",caps:{music:true,text:true}}]},pref:()=>[]});
-vm.runInContext(fn("modelCaps")+"\n"+fn("isMusicOnlyModel")+"\n"+fn("visibleModels"),models);assert.deepEqual(Array.from(models.visibleModels(),x=>x.id),["speech-chat","multimodal-music-chat"]);
+const models=vm.createContext({S:{models:[{id:"song",caps:{music:true,text:false,vision:true}},{id:"speech-chat",caps:{audio:true,text:true,vision:true}},{id:"multimodal-music-chat",caps:{music:true,text:true}}]},pref:(key,fallback)=>key==="hidden_models"?["multimodal-music-chat"]:fallback,isImageModel:()=>false});
+vm.runInContext(fn("modelCaps")+"\n"+fn("isMusicOnlyModel")+"\n"+fn("visibleModels")+"\n"+fn("defaultVisionModel"),models);
+assert(models.isMusicOnlyModel("song"));assert(!models.isMusicOnlyModel("speech-chat"));assert(!models.isMusicOnlyModel("multimodal-music-chat"));
+assert.equal(models.defaultVisionModel(),"speech-chat","music-only models cannot handle a vision fallback");
+assert.deepEqual(Array.from(models.visibleModels(),x=>x.id),["song","speech-chat"],"picker keeps specialized models and honors hidden models");
 console.log("Round17 Live PASS: quiet short WAV, late transcript, quiet next turn, bounded fallback, no blank audio, 12 behavioral personas, shared classic/native instructions, music-only filtering");

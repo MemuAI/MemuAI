@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import argparse
 import os
 from pathlib import Path
 import re
@@ -47,6 +48,17 @@ voice_contract_test work_agent_contract_test
 """.split()
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("modules", nargs="*", help="test module names (without tests.)")
+    parser.add_argument("--jobs", type=int, default=3)
+    parser.add_argument("--timeout", type=float, default=150)
+    args = parser.parse_args()
+    if not 1 <= args.jobs <= 8 or args.timeout <= 0:
+        parser.error("jobs must be 1–8 and timeout must be positive")
+    modules = list(dict.fromkeys(args.modules or MODULES))
+    for module in modules:
+        if not re.fullmatch(r"[A-Za-z_]\w*", module) or not (ROOT / "tests" / (module + ".py")).is_file():
+            parser.error(f"unknown test module: {module}")
     log_dir = ROOT / "build" / ("audit-isolated-" + time.strftime("%Y%m%d-%H%M%S"))
     log_dir.mkdir(parents=True)
 
@@ -54,35 +66,53 @@ def main():
         data = log_dir / module / "data"
         env = dict(os.environ, PYTHONUTF8="1", MEMUAI_DATA_DIR=str(data),
                    MEMUFILES_TRASH_DIR=str(data / "trash"), NO_PROXY="127.0.0.1,localhost")
+        if not env.get("MEMU_TEST_CHROMIUM"):
+            for candidate in (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                              r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"):
+                if Path(candidate).is_file():
+                    env["MEMU_TEST_CHROMIUM"] = candidate
+                    break
         for key in list(env):
-            if key.startswith(("XKIRO_", "MEMU_LIVE_")):
+            if (key.startswith(("XKIRO_", "MEMU_LIVE_", "SOL_", "REFORM_", "YANDEX_", "AWS9_"))
+                    or key.endswith(("_KEY", "_KEY2", "_KEY3", "_TOKEN"))
+                    or "_LIVE" in key or key == "MEMUAI_PROXY_URL"):
                 env.pop(key)
         started = time.monotonic()
         try:
             result = subprocess.run([sys.executable, "-u", "-m", "unittest", "tests." + module, "-q"],
-                                    cwd=ROOT, env=env, capture_output=True, timeout=150,
+                                    cwd=ROOT, env=env, capture_output=True, timeout=args.timeout,
                                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-            output = (result.stdout + result.stderr).decode("utf-8", "replace")
+            output = (result.stdout + result.stderr).decode("utf-8", "replace").replace("\r\n", "\n")
             status = result.returncode
-            if status == 5 and "NO TESTS RAN" in output:
+            # unittest reports success even when a module contains only pytest
+            # functions. Such a module must actually run before it can pass.
+            count = re.search(r"Ran (\d+) tests?", output)
+            if (status == 5 and "NO TESTS RAN" in output) or (status == 0 and count and int(count[1]) == 0):
                 result = subprocess.run([sys.executable, "-u", "-m", "pytest", "tests/" + module + ".py",
                                          "-q", "--tb=short", "--disable-warnings"], cwd=ROOT, env=env,
-                                        capture_output=True, timeout=150,
+                                        capture_output=True, timeout=args.timeout,
                                         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-                output = (result.stdout + result.stderr).decode("utf-8", "replace")
+                output = (result.stdout + result.stderr).decode("utf-8", "replace").replace("\r\n", "\n")
                 status = result.returncode
         except subprocess.TimeoutExpired as exc:
             output = ((exc.stdout or b"") + (exc.stderr or b"")).decode("utf-8", "replace") + "\nMODULE TIMEOUT\n"
             status = -1
         (log_dir / (module + ".log")).write_text(output, encoding="utf-8")
         count = re.search(r"Ran (\d+) tests?", output)
-        pytest_counts = re.findall(r"(\d+) (?:passed|failed|skipped|errors?)(?:,| in|$)", output.splitlines()[-1] if output.splitlines() else "")
-        return {"module": module, "exit": status, "tests": int(count[1]) if count else sum(map(int, pytest_counts)),
+        summary = output.splitlines()[-1] if output.splitlines() else ""
+        pytest_counts = dict((kind, int(number)) for number, kind in re.findall(r"(\d+) (passed|failed|skipped|errors?|xfailed|xpassed)\b", summary))
+        skipped = re.search(r"skipped=(\d+)", output) if count else None
+        tests = int(count[1]) if count else sum(pytest_counts.values())
+        # Empty modules and import-only helpers are never a successful check.
+        if status == 0 and tests == 0:
+            status = 5
+        return {"module": module, "exit": status, "tests": tests,
+                "skipped": int(skipped[1]) if skipped else pytest_counts.get("skipped", 0),
                 "seconds": round(time.monotonic() - started, 1)}
 
     rows = []
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        for result in as_completed([pool.submit(run, m) for m in (sys.argv[1:] or MODULES)]):
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        for result in as_completed([pool.submit(run, m) for m in modules]):
             row = result.result()
             rows.append(row)
             print(("PASS" if row["exit"] == 0 else "FAIL"), row["module"], row["tests"], flush=True)

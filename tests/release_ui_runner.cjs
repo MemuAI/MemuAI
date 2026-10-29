@@ -11,10 +11,10 @@ const ctx={S,profileSwitching:false,assistantSources:new WeakMap(),PG_LANG:'en',
   activeChatProfileId:()=>S.profileState.active_id,activeMeme:()=>null,currentProfile:()=>({name:'name',bio:'bio'}),currentModel:()=>S.models[0].id,workAccessMode:()=> 'full',isProjectMode:(mode=S.mode)=>['work','code'].includes(mode),
   api:async(p,options)=>{writes.push({p,...options});return{};},toast:()=>{},memeText:(ru,en)=>en,promptData:String,internalPromptText:()=>'',pref:(key,fallback)=>S.preferences[key]??fallback,getSkills:()=>[],mcpPromptBlock:()=>'',browserSkillModel:()=>'',computerUseSkillModel:()=>'',updateWorkUI:()=>{},parseToolBlocks:text=>({text,calls:[],errors:[]}),bareToolCalls:()=>[],extractForeignSearchCalls:text=>text,renderMessages:()=>{},persistChatSnapshot:(id,messages)=>writes.push({snapshot:id,messages}),askConfirm:async()=>true,setTimeout:()=>0,handlePostGeneration:()=>{}};
 vm.createContext(ctx);
-vm.runInContext(section('function profileReferenceContext(', '/* Текст внутреннего промпта'),ctx);
+vm.runInContext(section('function profileReferenceContext(', 'function internalPromptText('),ctx);
 vm.runInContext(section('function buildSystemPrompt(', 'window.__m_messages'),ctx);
-vm.runInContext(section('function sourceProfileActive(', '/* Часы ответа'),ctx);
-vm.runInContext(section('function extractMemFacts(', '/* Разбор скрытых блоков'),ctx);
+vm.runInContext(section('function sourceProfileActive(', 'const turnClocks = '),ctx);
+vm.runInContext(section('function extractMemFacts(', 'function parseToolBlocks('),ctx);
 vm.runInContext(section('function parseWorkBlocks(', 'function previewWorkActions('),ctx);
 vm.runInContext(section('async function extractSchedules(', 'function scheduleTiming('),ctx);
 const temporary=ctx.captureChatSource();

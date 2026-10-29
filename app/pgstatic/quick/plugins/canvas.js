@@ -68,7 +68,7 @@
   }
   const iconsReady = icons ? Promise.resolve() : loadScript("/quick/plugins/canvas-icons.js?v=1.0-r27").then(() => { icons = window.MemuCanvasIcons; }).catch(() => {});
 
-  if (!window.MemuCtxMenu) loadScript("/memu-ctxmenu.js?v=1.1-r34").catch(() => {});
+  if (!window.MemuCtxMenu) loadScript("/memu-ctxmenu.js?v=4.1").catch(() => {});
   function faceHtml(action) {
     const ic = action.icon || { kind: "builtin", value: "bolt" };
     if (ic.kind === "emoji") return `<span class="qcv-emoji">${esc(ic.value)}</span>`;

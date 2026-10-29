@@ -139,7 +139,7 @@ class WizardFlow(unittest.TestCase):
         page = await browser.new_page(viewport={"width": 960, "height": 620})
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
-        await page.goto(f"{(UI / 'index.html').as_uri()}?mock=1&shot=1&{query}", wait_until="load")
+        await page.goto(f"{(UI / 'index.html').as_uri()}?mock=1&shot=1&version={_APP_VERSION}&{query}", wait_until="load")
         for _ in range(80):
             await page.wait_for_timeout(25)
             if await page.evaluate("() => !!window.__memuUi && document.documentElement.getAttribute('data-screen')"):
@@ -285,7 +285,7 @@ class WizardFlow(unittest.TestCase):
         self.assertEqual(await ev("__t.calls().length"), 0)
         text = await ev("document.getElementById('summary').innerText")
         self.assertIn("2.0", text)
-        self.assertIn("3.6", text)
+        self.assertIn(_APP_VERSION, text)
         self.assertIn("остаются на месте", text)
         self.assertEqual(await ev("document.querySelector('.step[data-step=\"progress\"] span').textContent"), "Обновление")
 
@@ -300,7 +300,7 @@ class WizardFlow(unittest.TestCase):
         await page.close()
 
         for kind, label in (("reinstall", "Переустановить"), ("downgrade", f"Установить {_APP_VERSION}")):
-            page, errors2 = await self._open(browser, f"lang=ru&kind={kind}")
+            page, errors2 = await self._open(browser, f"lang=ru&kind={kind}" + ("&from=9.0" if kind == "downgrade" else ""))
             self.assertEqual(await self._ev(page, "__t.label()"), label)
             await self._step(page, "__t.click('#btn-start')")
             self.assertEqual(await self._ev(page, "__t.screen()"), "review")

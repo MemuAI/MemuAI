@@ -66,10 +66,11 @@ class IntegrationsWiringTest(unittest.TestCase):
         api = source("app/playground_api.py")
 
         from app import integrations as ig
-        line = next(row for row in api.splitlines() if 'tool.startswith(("github_"' in row)
+        dispatch = "\n".join(row for row in api.splitlines() if 'if tool.startswith((' in row)
         for prefix in ig.TOOL_PREFIXES:
-            self.assertIn('"%s"' % prefix, line, prefix)
+            self.assertIn('"%s"' % prefix, dispatch, prefix)
         self.assertIn("integrations_api.run_tool", api)
+        self.assertIn("connected_services.run(tool, args, confirmed=body.get(\"confirmed\") is True)", api)
 
     def test_frontend_pane_and_guide(self):
         js = source("app/pgstatic/app.js")

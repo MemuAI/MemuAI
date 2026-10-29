@@ -20,7 +20,7 @@ source = (root / "app/static/app.js").read_text(encoding="utf-8")
 i18n = (root / "app/static/i18n.js").read_text(encoding="utf-8")
 log_code = source[source.index("let logsLoading = false;"):source.index("function syncLogsTimer()")]
 clear_start = source.index('$("#logs-clear").onclick =')
-clear_code = source[clear_start:source.index("/* --------- журнал сервера", clear_start)]
+clear_code = source[clear_start:source.index("let applogCache = ", clear_start)]
 escape_code = next(line for line in source.splitlines() if line.startswith("function esc(s)"))
 state_code = "\n".join(line for line in source.splitlines() if line.startswith(("let logsState =", "let logsExpanded =", "let logsPromptsExpanded =")))
 

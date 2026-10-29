@@ -102,7 +102,7 @@ class ImportedChats(unittest.TestCase):
 
     def test_export_keeps_manual_titles_and_import_drops_the_oldest(self):
         self.assertIn("titleManual: !!chat.titleManual", APP_JS)
-        panel = APP_JS[APP_JS.index("function openChatImportPanel("):APP_JS.index("// --- импорт информации о пользователе")]
+        panel = APP_JS[APP_JS.index("function openChatImportPanel("):APP_JS.index("function aboutFactsFallback(")]
         self.assertIn(".sort((a, b) => (+b.updated || 0) - (+a.updated || 0))", panel)
         self.assertNotIn("Math.min(rows.length, 200)", panel)
 
@@ -123,7 +123,7 @@ class SystemPromptWithoutPrompt(unittest.TestCase):
             "const browserSkillModel = () => false, computerUseSkillModel = () => false, currentModel = () => 'm';\n"
             "const profileReferenceContext = () => '', runtimeContextBlock = () => 'RUNTIME', PG_LANG = 'ru';\n"
             "const buildLivePersonalityInstructions = () => '';\n")
-        script = _slice_js("function buildSystemPrompt(", "/* Изменчивая часть системного промпта") + (
+        script = _slice_js("function buildSystemPrompt(", "function runtimeContextBlock(") + (
             "const run = new Function(" + json.dumps(stubs) + " + code + "
             f"'\\nreturn buildSystemPrompt({{ mode: {json.dumps(mode)}, model: \"m\", "
             "workspaces: { items: [{ id: \"p1\", name: \"Proj\" }], active_id: \"p1\" } });');\n"
@@ -178,7 +178,7 @@ class ChatClientFixes(unittest.TestCase):
         self.assertIn('"The message is empty"', edit)
 
     def test_integrations_list_is_retried_and_fallback_titles_are_bilingual(self):
-        self.assertIn("if (sys && !integrationsCache.loaded) await refreshIntegrations();", APP_JS)
+        self.assertRegex(APP_JS, r"if \(sys && \(!integrationsCache\.loaded \|\|[^\n]+\)\) await refreshIntegrations\(\);")
         self.assertIn('"Temporary chat" : "Временный чат"', APP_JS)
         self.assertNotIn('|| "Чат";', APP_JS)
 
@@ -292,7 +292,7 @@ class PanelsHumanWalls(unittest.TestCase):
 
     def test_failed_chip_is_not_an_endless_spinner(self):
         js = (ROOT / "app" / "pgstatic" / "panels.js").read_text(encoding="utf-8")
-        body = js[js.index("function chipHtml"):js.index("/* ------------------------------------------------------------ mount")]
+        body = js[js.index("function chipHtml"):js.index("function ensureMounts(")]
         self.assertIn('panel.status === "failed" && !!panel.wall', body)
         self.assertIn("wallText(panel.wall, panel)", body, "the tooltip explains the wall")
 
@@ -315,9 +315,9 @@ class DeepResearchInterrupted(unittest.TestCase):
         self.assertEqual(out, {"changed": True, "again": False, "status": "cancelled", "fin": True, "done": False})
 
     def test_restore_and_stop_settle_research_and_reload_is_explained(self):
-        restore = APP_JS[APP_JS.index("«Вечный» индикатор после перезапуска"):APP_JS.index("if (stale) renderMessages();")]
+        restore = APP_JS[APP_JS.index("async function openChat("):APP_JS.index("if (stale) renderMessages();")]
         self.assertIn("MemuResearch.settle(m.research)", restore)
-        stop = APP_JS[APP_JS.index("Задачи нет, а ответ всё ещё «идёт»"):APP_JS.index("async function useVisionFallback")]
+        stop = APP_JS[APP_JS.index("function setSendBusy("):APP_JS.index("async function useVisionFallback")]
         self.assertIn("MemuResearch.settle(m.research)", stop)
         catch = APP_JS[APP_JS.index("const result = await MemuResearch.run("):APP_JS.index("if (usedResearch) {")]
         self.assertIn("connectionLost", catch)
@@ -331,7 +331,7 @@ class PrivateAttachmentPrep(unittest.TestCase):
     закрывал уже другое окно (например, Настройки)."""
 
     def _run(self, mode):
-        script = _slice_js("async function privateAttachmentPrep", "/* Как обработать видео") + (
+        script = _slice_js("async function privateAttachmentPrep", "function chooseVideoDelivery(") + (
             "let onClose=null, closes=[], seen=null;"
             "globalThis.panel=(h,k,o)=>{onClose=o.onClose;};"
             "globalThis.closePanel=(r)=>{closes.push(r);};"
@@ -401,7 +401,7 @@ class SketchIsNotLost(unittest.TestCase):
     показывал предупреждение и тут же стирал рисунок без возможности вернуть."""
 
     def test_add_attachment_files_reports_how_many_were_attached(self):
-        script = _slice_js("async function addAttachmentFiles", "/* Видео разбирается на кадры") + (
+        script = _slice_js("async function addAttachmentFiles", "async function addVideoAttachments(") + (
             "globalThis.window=globalThis;"
             "globalThis.PG_LANG='en';globalThis.MemuVideo=undefined;const toasts=[];"
             "globalThis.toast=(m)=>toasts.push(m);globalThis.renderAttachments=()=>{};"

@@ -470,8 +470,8 @@ class ForgivingParser(unittest.TestCase):
         return protocol.parse("Working.\n```memuai-tool\n" + body + "\n```" + tail)
 
     def test_windows_paths_with_single_backslashes(self):
-        result = self.parse('[{"tool": "LS", "args": {"path": "C:\\Users\\Mem_Cho\\Projects\\site"}}]')
-        self.assertEqual(result.calls[0].args["path"], "C:\\Users\\Mem_Cho\\Projects\\site")
+        result = self.parse('[{"tool": "LS", "args": {"path": "C:\\Users\\Example\\Projects\\site"}}]')
+        self.assertEqual(result.calls[0].args["path"], "C:\\Users\\Example\\Projects\\site")
         self.assertTrue(result.repairs)
         self.assertEqual(result.errors, [])
 

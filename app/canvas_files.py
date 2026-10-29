@@ -24,6 +24,7 @@ MARK_CLOSE = "\u27e7"
 MARK_RE = re.compile(r"^\u27e6file: (.+?)\u27e7$", re.M)
 MAX_FILES = 40
 _BAD_PART = re.compile(r'[<>:"|?*\x00-\x1f\u27e6\u27e7]')
+_WINDOWS_DEVICE = re.compile(r"^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)", re.I)
 WEB_EXT = (".html", ".htm")
 STYLE_EXT = (".css",)
 SCRIPT_EXT = (".js", ".mjs")
@@ -39,13 +40,14 @@ def is_bundle(text: Any) -> bool:
 def clean_path(value: Any) -> str:
     """``./src\\app.js`` → ``src/app.js``; raises ValueError for ``..``, absolute/drive paths and bad characters."""
     raw = str(value or "").strip().replace("\\", "/")
-    if re.match(r"^[A-Za-z]:", raw):
+    if raw.startswith("/") or re.match(r"^[A-Za-z]:", raw):
         raise ValueError(f"file path must be relative: {raw!r}")
     parts = [p for p in raw.split("/") if p not in ("", ".")]
     if not parts:
         raise ValueError("file path is empty")
     for part in parts:
-        if part == ".." or _BAD_PART.search(part) or len(part) > 80 or part.strip(" .") == "":
+        if (part == ".." or _BAD_PART.search(part) or len(part) > 80 or part.strip(" .") == ""
+                or part != part.rstrip(" .") or _WINDOWS_DEVICE.match(part)):
             raise ValueError(f"bad file path: {raw!r}")
     path = "/".join(parts)
     if len(path) > 160:
@@ -107,7 +109,10 @@ def _strip_fence(content: str) -> str:
 
 def find_file(files: Sequence[Tuple[str, str]], ref: Any) -> int:
     """Index of a file by exact path, then case-insensitive, then by its base name when unique. -1 if none."""
-    key = str(ref or "").strip().replace("\\", "/").lstrip("./")
+    try:
+        key = clean_path(ref)
+    except ValueError:
+        return -1
     for n, (path, _c) in enumerate(files):
         if path == key:
             return n
@@ -120,8 +125,11 @@ def find_file(files: Sequence[Tuple[str, str]], ref: Any) -> int:
 
 def file_of_line(bundle: str, line_index: int) -> Tuple[str, int]:
     """0-based line of a bundle → (path, 1-based line inside that file); ("", 0) on a marker line / outside."""
+    lines = bundle.split("\n")
+    if line_index < 0 or line_index >= len(lines):
+        return "", 0
     path, start = "", 0
-    for n, line in enumerate(bundle.split("\n")):
+    for n, line in enumerate(lines):
         m = MARK_RE.match(line)
         if m:
             if n == line_index:
@@ -129,15 +137,17 @@ def file_of_line(bundle: str, line_index: int) -> Tuple[str, int]:
             path, start = m.group(1), n + 1
         elif n == line_index:
             return path, n - start + 1
-    return path, max(0, line_index - start + 1) if path else 0
+    return "", 0
 
 def ext_of(path: str) -> str:
     return path.rsplit(".", 1)[-1].lower() if "." in path.rsplit("/", 1)[-1] else ""
 
 def entry_of(files: Sequence[Tuple[str, str]]) -> str:
     paths = [p for p, _c in files]
-    if "index.html" in paths:
-        return "index.html"
+    for default in ("index.html", "index.htm"):
+        for path in paths:
+            if path.lower() == default:
+                return path
     html = [p for p in paths if p.lower().endswith(WEB_EXT)]
     return sorted(html, key=lambda p: (p.count("/"), p))[0] if html else ""
 
@@ -178,11 +188,11 @@ def assemble(files: Sequence[Tuple[str, str]]) -> Dict[str, Any]:
     segs: List[Tuple[str, str, int]] = []
 
     def style_block(path: str) -> List[Tuple[str, str, int]]:
-        body = fmap[path].replace("</style", "<\\/style")
+        body = re.sub(r"</style", lambda m: "<\\/" + m.group()[2:], fmap[path], flags=re.I)
         return [(f'<style data-memu-file="{path}">\n', "", 0), (body, path, 1), ("\n</style>", "", 0)]
 
     def script_block(path: str, attrs: str = "") -> List[Tuple[str, str, int]]:
-        body = fmap[path].replace("</script", "<\\/script")
+        body = re.sub(r"</script", lambda m: "<\\/" + m.group()[2:], fmap[path], flags=re.I)
         keep = re.sub(_ATTR_RE, "", attrs).strip()
         keep = re.sub(r"\b(defer|async)\b", "", keep).strip()
         return [(f'<script data-memu-file="{path}"{(" " + keep) if keep else ""}>\n', "", 0), (body, path, 1), ("\n</script>", "", 0)]
@@ -282,10 +292,10 @@ def assemble(files: Sequence[Tuple[str, str]]) -> Dict[str, Any]:
 
 def to_zip(files: Iterable[Tuple[str, str]], folder: str = "") -> bytes:
     buf = io.BytesIO()
-    prefix = (folder.strip("/") + "/") if folder else ""
+    prefix = (clean_path(folder) + "/") if folder else ""
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for path, content in files:
-            zf.writestr(prefix + path, content.encode("utf-8"))
+            zf.writestr(prefix + clean_path(path), content.encode("utf-8"))
     return buf.getvalue()
 
 def listing(files: Sequence[Tuple[str, str]]) -> List[Dict[str, Any]]:

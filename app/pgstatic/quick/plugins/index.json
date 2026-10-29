@@ -79,7 +79,7 @@
       "settings": "canvas-settings.js",
       "settings_css": "canvas-settings.css",
       "backend": "app.quick_canvas",
-      "v": "1.8-r34",
+      "v": "4.1",
       "title": {
         "ru": "Панели и быстрые действия",
         "en": "Panels and quick actions"
@@ -120,7 +120,7 @@
       "settings": "fsearch-settings.js",
       "settings_css": "fsearch-settings.css",
       "backend": "app.fsindex_api",
-      "v": "1.1-r36",
+      "v": "4.1",
       "title": {
         "ru": "Поиск файлов на ПК",
         "en": "PC file search"

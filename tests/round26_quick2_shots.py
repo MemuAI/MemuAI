@@ -71,7 +71,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             else:
                 send({"event": "delta", "text": "Ответ на: " + str(body.get("text") or "")})
             send({"event": "done", "model": "deepseek-v4.1-flash", "tier": "fast"})
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
 
 async def main(out: Path) -> int:
@@ -133,7 +133,9 @@ async def main(out: Path) -> int:
         async def open_page(theme="dark", lang="ru"):
             state["prefs"].update(theme=theme, language=lang)
             page = await browser.new_page(viewport={"width": 720, "height": 640})
-            page.on("pageerror", lambda e: problems.append(f"pageerror: {e}"))
+            page.on("pageerror", lambda e: (problems.append(f"pageerror: {e}"), print("PAGEERROR:", e)))
+            page.on("requestfailed", lambda request: print("REQUESTFAILED:", request.url, request.failure))
+            page.on("console", lambda message: print("CONSOLE:", message.text) if message.type == "error" else None)
             await page.route("**/*", route)
             await page.goto(base + "/quick/?native=1", wait_until="load")
             await page.wait_for_timeout(400)

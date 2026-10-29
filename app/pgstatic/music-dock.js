@@ -25,6 +25,7 @@
   };
   const meta = new Map();
   let audio = null, el = null, es = null, reportTimer = 0, clockTimer = 0, playedFor = "", cssLoaded = false, announced = { sig: "", now: null };
+  let pendingSeek = null, loadGeneration = 0, sourceGeneration = 0;
 
   async function call(op, args) {
     const res = await fetch("/api/pg/music/call", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -53,7 +54,7 @@
     return ws;
   }
   const now = () => Date.now() / 1000;
-  const position = () => (st.mode === "local" && audio ? audio.currentTime || 0
+  const position = () => (st.mode === "local" && audio ? (pendingSeek ? pendingSeek.at : audio.currentTime || 0)
     : st.playing ? Math.min(st.duration || 1e9, st.position + (now() - st.posAt) * (st.speed || 1)) : st.position);
 
   function ensureCss() {
@@ -240,7 +241,7 @@
     return takeOver(true);
   }
   function seekTo(sec) {
-    if (st.mode === "local" && audio) { try { audio.currentTime = Math.max(0, Math.min((audio.duration || 1e9) - 0.2, sec)); } catch (_) {  } report(); }
+    if (st.mode === "local" && audio) { if (pendingSeek) pendingSeek.at = Math.max(0, sec); else { try { audio.currentTime = Math.max(0, Math.min((audio.duration || 1e9) - 0.2, sec)); } catch (_) {  } } report(); }
     else if (st.mode === "remote") { st.position = sec; st.posAt = now(); remote("seek", { position: sec }); }
     progress();
   }
@@ -259,7 +260,12 @@
     audio.addEventListener("play", () => { st.playing = true; render(); report({}); session(); });
     audio.addEventListener("pause", () => { if (st.mode !== "local") return; st.playing = false; render(); report({}); });
     audio.addEventListener("seeked", () => { progress(); });
-    audio.addEventListener("loadedmetadata", () => { st.duration = audio.duration || st.duration; progress(); });
+    audio.addEventListener("loadedmetadata", () => {
+      if (st.mode === "local" && pendingSeek && pendingSeek.generation === loadGeneration && sourceGeneration === loadGeneration) {
+        try { audio.currentTime = pendingSeek.at; pendingSeek = null; report(); } catch (_) {  }
+      }
+      st.duration = audio.duration || st.duration; progress();
+    });
     audio.addEventListener("ratechange", () => { progress(); report(); });
     audio.addEventListener("waiting", () => { el && el.classList.add("is-wait"); });
     audio.addEventListener("playing", () => { el && el.classList.remove("is-wait"); progress(); });
@@ -291,19 +297,24 @@
   }
   async function loadTrack(id, { at = 0, autoplay = true } = {}) {
     const a = ensureAudio();
+    const generation = ++loadGeneration;
+    const requested = Number(at);
+    pendingSeek = { generation, at: Number.isFinite(requested) ? Math.max(0, requested) : 0 };
     if (st.mode !== "local") st.localSince = now();
     st.mode = "local"; st.trackId = id; playedFor = "";
-    st.track = await trackMeta(id);
+    const track = await trackMeta(id);
+    if (generation !== loadGeneration || st.mode !== "local") return false;
+    st.track = track;
     if (!st.track) { st.playing = false; render(); return false; }
     st.duration = st.track.duration || 0;
     const url = await soft("stream_url", { id });
-    if (!url || st.trackId !== id) return false;
+    if (!url || generation !== loadGeneration || st.mode !== "local") return false;
+    sourceGeneration = generation;
     a.src = typeof url === "string" ? url : url.url || "";
     a.volume = Math.max(0, Math.min(1, st.volume * st.volume));
-    if (at > 0) a.addEventListener("loadedmetadata", () => { try { a.currentTime = at; } catch (_) {  } }, { once: true });
     st.dismissed = false;
     render(); session();
-    if (autoplay) { try { await a.play(); } catch (_) { st.playing = false; render(); } } else { st.playing = false; render(); report(); }
+    if (autoplay) { try { await a.play(); } catch (_) { if (generation === loadGeneration && st.mode === "local") { st.playing = false; render(); } } } else { st.playing = false; render(); report(); }
     return true;
   }
   function play() { if (!audio || !audio.src) return st.trackId ? loadTrack(st.trackId, { at: st.position }) : null; return audio.play().catch(() => null); }

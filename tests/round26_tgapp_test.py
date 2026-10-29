@@ -47,7 +47,9 @@ def init_data(user_id: int = USER, **extra) -> str:
 
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
-                      shutil.which("chromium") or "", "/workspace/work/chromium/chrome"):
+                      shutil.which("chromium") or "", "/workspace/work/chromium/chrome",
+                      r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                      r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"):
         if candidate and os.path.exists(candidate):
             return candidate
     return ""
@@ -59,6 +61,8 @@ except Exception:  # pragma: no cover - optional dependency
 
 def _browser(play):
     path = _chromium()
+    if not path:
+        raise unittest.SkipTest("chromium missing")
     return play.chromium.launch(executable_path=path or None, args=["--no-sandbox"])
 
 class TelegramSettingsNetworkTest(unittest.IsolatedAsyncioTestCase):

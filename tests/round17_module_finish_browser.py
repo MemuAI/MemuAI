@@ -70,10 +70,11 @@ async def check():
         for width in (1440, 640, 420, 320):
             for theme in ("light", "dark"):
                 await navigate("translator", width, theme, "en")
-                geometry = await ui("const l=d.querySelector('.tr-langs').getBoundingClientRect(),s=d.querySelector('#settings').getBoundingClientRect(),m=d.querySelector('#mode-seg').getBoundingClientRect();return {languageTop:l.top,settingsTop:s.top,settingsBottom:s.bottom,modesTop:m.top,overflow:d.documentElement.scrollWidth>d.documentElement.clientWidth};")
+                geometry = await ui("const l=d.querySelector('.tr-langs').getBoundingClientRect(),s=d.querySelector('#settings').getBoundingClientRect(),m=d.querySelector('#mode-seg').getBoundingClientRect();return {languageTop:l.top,languageBottom:l.bottom,settingsTop:s.top,settingsBottom:s.bottom,modesTop:m.top,settingsVisible:s.width>0&&s.height>0&&s.left>=0&&s.right<=d.documentElement.clientWidth,controlsOverlap:l.left<s.right&&s.left<l.right&&l.top<s.bottom&&s.top<l.bottom,overflow:d.documentElement.scrollWidth>d.documentElement.clientWidth};")
                 assert not geometry["overflow"], (width, theme, geometry)
+                assert geometry["settingsVisible"] and not geometry["controlsOverlap"], (width, theme, geometry)
                 if width <= 760:
-                    assert abs(geometry["languageTop"]-geometry["settingsTop"]) <= 5 and geometry["settingsBottom"] <= geometry["modesTop"], geometry
+                    assert max(geometry["languageBottom"],geometry["settingsBottom"]) <= geometry["modesTop"] + 1, geometry
                 await ui("d.querySelector('#settings').click();return true;")
                 assert await ui("return !d.querySelector('#panel').hidden && d.querySelector('#settings').getAttribute('aria-pressed')==='true';")
                 await ui("d.querySelector('[data-close-drawer]').click();return true;")

@@ -25,7 +25,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 STATIC = ROOT / "app" / "pgstatic"
-CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
+from tests.round25_chat_test import _chromium
+CHROME = _chromium()
 SHOW = "{fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8, pinned:%s}"
 MODELS = [{"id": "gemini-2.5-flash", "caps": {"vision": True, "search": True}}]
 CARDS = {

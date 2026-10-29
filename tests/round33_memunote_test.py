@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
 NOTE = APP / "memunote"
 JS = NOTE / "static" / "js"
-CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
+CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or ("/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 
 def _node():
     return shutil.which("node")

@@ -17,6 +17,7 @@
   function money(v) {
     if (v === null || v === undefined || !isFinite(v)) return "";
     if (+v === 0) return t("бесплатно", "free");
+    if (v > 0 && v < 0.001) return "$" + (+v).toLocaleString(en() ? "en-US" : "ru-RU", { maximumSignificantDigits: 3 });
     return "$" + (+v).toLocaleString(en() ? "en-US" : "ru-RU", { maximumFractionDigits: v < 1 ? 3 : 2 });
   }
   function ctx(n) { n = +n || 0; return n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + "M" : n >= 1e3 ? Math.round(n / 1e3) + "K" : ""; }
@@ -29,7 +30,7 @@
   }
   function price(m) {
     if (m.input === undefined && m.output === undefined) return "";
-    if (+m.input === 0 && +m.output === 0) return '<span class="mk-pill">' + esc(t("бесплатно", "free")) + "</span>";
+    if (m.input === 0 && m.output === 0) return '<span class="mk-pill">' + esc(t("бесплатно", "free")) + "</span>";
     return '<span class="am-price" title="' + esc(t("за 1M токенов: вход → выход", "per 1M tokens: input → output")) + '">' + esc(money(m.input) || "—") + "<i>→</i>" + esc(money(m.output) || "—") + "</span>";
   }
   function render(d) {
@@ -45,7 +46,9 @@
       return;
     }
     root.innerHTML = headHtml + '<ul class="mk-list">' + models.map(function (m) {
-      var meta = [lab(m), ctx(m.context) && ctx(m.context) + t(" контекст", " context"), ago(m.at)].filter(Boolean).join(" · ");
+      var labels = { text: t("текст", "text"), image: t("изображения", "images"), audio: t("аудио", "audio"), video: t("видео", "video"), embeddings: t("эмбеддинги", "embeddings") };
+      var output = Array.isArray(m.outputs) ? m.outputs.map(function (value) { return labels[value] || value; }).join(", ") : "";
+      var meta = [lab(m), output, ctx(m.context) && ctx(m.context) + t(" контекст", " context"), ago(m.at)].filter(Boolean).join(" · ");
       return '<li><button type="button" class="mk-row" data-key="' + esc(m.key) + '"><span class="mk-mono" style="--h:' + hue(lab(m)) + '" aria-hidden="true">' + esc(lab(m).charAt(0)) + "</span>" +
         '<span class="mk-main"><b title="' + esc(m.key) + '">' + esc(m.name) + (m.seen ? "" : ' <span class="am-dot" aria-label="' + esc(t("новая", "new")) + '"></span>') + "</b><small>" + esc(meta) + "</small></span>" +
         '<span class="mk-side">' + price(m) + "</span></button></li>";

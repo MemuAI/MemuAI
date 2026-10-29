@@ -51,9 +51,8 @@ def seed(pgdata, quick_features):
 class StaticTest(unittest.TestCase):
     def test_files_wired(self):
         html = read("index.html")
-        for ref in ("/compare.css?v=3.5-r37", "/composer-snippets.css?v=3.5-r37", "/compare.js?v=3.5-r37",
-                    "/composer-snippets.js?v=3.5-r37", "/branches.js?v=3.5-r37"):
-            self.assertIn(ref, html)
+        for asset in ("/compare.css", "/composer-snippets.css", "/compare.js", "/composer-snippets.js", "/branches.js"):
+            self.assertRegex(html, re.escape(asset) + r'\?v=[^"\s]+"')
         self.assertLess(html.index("/branches.js?v="), html.index("/compare.js?v="))
         self.assertLess(html.index("/app.js?v="), html.index("/composer-snippets.js?v="))
 

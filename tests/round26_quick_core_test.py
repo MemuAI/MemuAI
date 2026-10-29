@@ -255,7 +255,7 @@ class PageScripts(unittest.TestCase):
         self.assertIn("onPage(page, replace = false)", js)
         self.assertIn("if (event.url || event.title) turn.page", js)
 
-@unittest.skipUnless(Path("/workspace/work/chromium/chrome").exists() or Path("/usr/bin/chromium").exists(), "no Chromium")
+@unittest.skipUnless(Path(os.environ.get("MEMU_TEST_CHROMIUM", "/workspace/work/chromium/chrome")).is_file() or Path("/usr/bin/chromium").is_file(), "no Chromium")
 class Headless(unittest.TestCase):
     def test_window_checks(self) -> None:
         try:
