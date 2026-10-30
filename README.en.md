@@ -181,6 +181,8 @@ MemuAI is designed for **64-bit Windows 10 and Windows 11**. The interface requi
 3. Open MemuAI Proxy and add an account, your own API, or a local model.
 4. Return to MemuAI, choose a model, and start chatting.
 
+In the MemuAI installer, you can select which specific programs will be installed. MemuAI Proxy is required for installation, while additional applications such as MemuAI, MemuCode CLI, MemuNote and MemuFiles - are downloaded optionally. Additionally, other details can be modified in the installer.
+
 ### Automatic updates
 
 MemuAI checks GitHub Releases on launch and every 15 minutes. Updates download in the background; once an update is ready, a blue install button appears next to the Proxy status. After you confirm, MemuAI closes and opens the installer.
