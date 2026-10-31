@@ -16,6 +16,9 @@ LATEST_URL = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
 MAX_INSTALLER_SIZE = 1024 * 1024 * 1024
 _VERSION = r"\d{1,6}(?:\.\d{1,6}){1,3}"
 _SETUP = re.compile(rf"^MemuAI-Setup-([vV]?{_VERSION})\.exe$", re.I)
+_PROXY_SETUP = re.compile(rf"^MemuAIProxy-Setup-([vV]?{_VERSION})\.exe$", re.I)
+# Какой установщик искать в релизе: полный набор или только Proxy.
+INSTALLER_KINDS = ("suite", "proxy")
 
 def installer_environment() -> dict[str, str]:
     """Start an independent frozen installer, rather than a child of our bootloader."""
@@ -97,12 +100,18 @@ def https_url(value: object) -> str:
         raise ValueError("Некорректный HTTPS-адрес обновления / Invalid update HTTPS URL")
     return text
 
-def release_offer(payload: dict, current: str) -> dict:
+def release_offer(payload: dict, current: str, installer: str = "suite") -> dict:
     """Read GitHub Releases or the existing custom JSON manifest format.
 
-    Only the full suite installer is eligible: a Proxy-only exe must never
-    replace MemuAI. Legacy tags such as 'MemuAI' use the installer filename.
+    With ``installer="suite"`` (the default) only the full suite installer
+    is eligible: a Proxy-only exe must never replace MemuAI. With
+    ``installer="proxy"`` only ``MemuAIProxy-Setup-<version>.exe`` counts,
+    and a manifest ``download_url`` on its own is not enough: a release
+    without the Proxy asset reports ``missing_installer``. Legacy tags
+    such as 'MemuAI' use the installer filename.
     """
+    if installer not in INSTALLER_KINDS:
+        raise ValueError("Неизвестный вид установщика / Unknown installer kind")
     result = {"current_version": current, "latest_version": current,
               "update_available": False, "release_url": RELEASES_URL, "status": "current"}
     if payload.get("draft") or payload.get("prerelease"):
@@ -110,7 +119,8 @@ def release_offer(payload: dict, current: str) -> dict:
     assets = payload.get("assets") or []
     if not isinstance(assets, list):
         raise ValueError("Некорректный список файлов релиза / Invalid release asset list")
-    setups = [(a, _SETUP.fullmatch(str(a.get("name") or "")))
+    pattern = _PROXY_SETUP if installer == "proxy" else _SETUP
+    setups = [(a, pattern.fullmatch(str(a.get("name") or "")))
               for a in assets if isinstance(a, dict) and a.get("state", "uploaded") == "uploaded"]
     setups = [(a, match.group(1).lstrip("vV")) for a, match in setups if match]
     latest = next((str(payload[k]).strip().lstrip("vV") for k in ("version", "tag_name")
@@ -125,7 +135,9 @@ def release_offer(payload: dict, current: str) -> dict:
     if version_number(latest) <= (version_number(current) or (0, 0, 0, 0)):
         return result
     asset = next((a for a, v in setups if version_number(v) == version_number(latest)), {})
-    url = asset.get("browser_download_url") or payload.get("download_url")
+    # A custom manifest points at the suite installer, so it may only
+    # stand in for the suite kind; the Proxy kind needs its own asset.
+    url = asset.get("browser_download_url") or (payload.get("download_url") if installer == "suite" else "")
     if not url:
         result["status"] = "missing_installer"
         return result

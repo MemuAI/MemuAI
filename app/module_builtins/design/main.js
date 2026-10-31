@@ -2,6 +2,32 @@
 
 const t = (key, vars) => Memu.t(key, vars);
 const saved = Memu.saved || {};
+/* Shared model picker: provider names come from the catalogue via
+ * MemuModelSelector (never a raw "custom" provider); options are
+ * grouped by provider with <optgroup> so mountSelect shows the same
+ * sections. Falls back to the plain <select> when the host did not
+ * inline the component. */
+function providerNameOf(item) {
+  try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(item); } catch (e) {}
+  return item.provider_label || item.account || item.provider || "";
+}
+function groupedModelOptions(items) {
+  const groups = {};
+  items.forEach((item) => { const g = providerNameOf(item); (groups[g] = groups[g] || []).push(item); });
+  return Object.keys(groups).sort().map((g) => {
+    const opts = groups[g].map((item) => `<option value="${esc(item.id)}" data-provider="${esc(g)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("");
+    return g ? `<optgroup label="${esc(g)}">${opts}</optgroup>` : opts;
+  }).join("");
+}
+function mountModelSelector(select, opts) {
+  try {
+    if (window.MemuModelSelector && window.MemuModelSelector.mountSelect) {
+      return window.MemuModelSelector.mountSelect(select, opts);
+    }
+  } catch (e) {}
+  return null;
+}
+
 const defaults = (Memu.manifest && Memu.manifest.bridge) || {};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -364,11 +390,12 @@ Memu.models().then((rows) => {
   const usable = chat.length ? chat : list;
   modelState = usable.length ? "ready" : "none";
   if (usable.length) {
-    el.model.innerHTML = usable.map((item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("");
+    el.model.innerHTML = groupedModelOptions(usable);
   } else drawEmptyModelOption();
 
   const wanted = [saved.model, defaults.model, (usable.find((item) => item.default) || {}).id].find((id) => id && usable.some((item) => item.id === id));
   if (wanted) el.model.value = wanted;
+  mountModelSelector(el.model, { preset: "grid", kind: "chat" });
   if (!usable.length) setStatus(t("model.connect"), "error");
 }).catch((error) => {
   modelState = "error";

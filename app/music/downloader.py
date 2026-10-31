@@ -975,11 +975,28 @@ def manager() -> Manager:
             _MANAGER = Manager()
         return _MANAGER
 
+def _limit(value: Any, default: int) -> int:
+    """``limit`` comes from JSON args: numeric strings work, anything else is the default."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            try:
+                return int(float(value.strip()))
+            except ValueError:
+                return default
+    return default
+
+
 def search_online(q: str, limit: int = 12, music: bool = False, runner_factory: Callable[[], Runner] = Runner) -> List[Dict[str, Any]]:
     q = str(q or "").strip()
     if not q:
         return []
-    limit = max(1, min(30, int(limit or 12)))
+    limit = max(1, min(30, _limit(limit, 12)))
     runner = runner_factory()
     if music:
         data = runner.json("https://music.youtube.com/search?q=" + _quote(q) + "#songs", flat=True, limit=limit)

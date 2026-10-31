@@ -146,8 +146,8 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
   background: transparent; font: 650 15px/1.2 var(--d-display); letter-spacing: -.01em; gap: 6px;
 }
 .dd-btn:hover { background: var(--d-hover); border-color: transparent; }
-.dd-btn .chev { font-size: 10px; opacity: .7; transition: transform .2s var(--ease); }
-.dropdown:has(.dd-pop[style*="block"]) .dd-btn .chev { transform: rotate(180deg); }
+.dd-btn .chev { opacity: .7; transition: color .15s ease, border-color .15s ease; }
+.dropdown:has(.dd-pop[style*="block"]) .dd-btn .chev { transform: rotate(45deg); border-color: var(--accent); color: var(--accent); }
 .context-meter { font: 500 11.5px/1 var(--d-small); color: var(--muted); padding: 5px 9px; border-radius: 999px; background: var(--d-line-soft); border: 0; opacity: 1; }
 .context-meter.warn { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .context-meter.critical { background: color-mix(in srgb, var(--danger) 16%, transparent); }

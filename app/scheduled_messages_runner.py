@@ -31,6 +31,7 @@ from . import scheduled_messages as sm
 log = logging.getLogger("memuai.schedsend")
 
 TICK_SECONDS = 3.0
+MAX_STARTS_PER_TICK = 10
 _RUNNING: Set[str] = set()
 _TASKS: Set[asyncio.Task] = set()
 _SEEN: Dict[str, Dict[str, Any]] = {}
@@ -206,6 +207,15 @@ async def execute(item: Dict[str, Any], profile_id: str, *, window_open: bool) -
     report.update({"ok": True, "answer_error": answer_error, "model": model})
     return report
 
+def pick_due(rows: List[Dict[str, Any]], stamp: int, limit: int = MAX_STARTS_PER_TICK) -> List[Dict[str, Any]]:
+    """The due rows one tick may start, oldest first, at most ``limit``.
+
+    A backlog of hundreds of due messages used to be claimed and started
+    all at once; the rest wait for the next tick, still due, in order."""
+    due = [row for row in rows if sm.is_due(row, stamp)]
+    due.sort(key=lambda row: int(row.get("due_at") or 0))
+    return due[:max(0, int(limit))]
+
 async def _run(item: Dict[str, Any], profile_id: str, window_open: bool) -> None:
     key = f"{profile_id}:{item['id']}"
     try:
@@ -258,7 +268,7 @@ async def tick(*, now: Optional[int] = None) -> int:
         rows = await asyncio.to_thread(sm.load, profile_id)
         seen.update({"rev": await asyncio.to_thread(sm.revision, profile_id), "next_due": sm.next_due(rows)})
         _SEEN[profile_id] = seen
-        due_rows = [row for row in rows if sm.is_due(row, stamp)]
+        due_rows = pick_due(rows, stamp)
         if not due_rows:
             continue
         if prefs is None:

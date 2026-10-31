@@ -32,15 +32,15 @@
 .dfy-target-label { font-weight: 600; letter-spacing: .02em; }
 .dfy-target select, .qdfy-target select { appearance: none; -webkit-appearance: none; border: 0; background-color: transparent; color: var(--text); font: inherit; font-weight: 600;
   cursor: pointer; text-overflow: ellipsis;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-size: 4px 4px; background-repeat: no-repeat; }
-.dfy-target select { height: 26px; max-width: 200px; padding: 0 18px 0 2px; border-radius: 999px; background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%; }
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a96' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 10 5 5 5-5'/></svg>");
+  background-size: 13px 13px; background-repeat: no-repeat; background-position: right 4px center; }
+.dfy-target select { height: 26px; max-width: 200px; padding: 0 18px 0 2px; border-radius: 999px; }
 .dfy-target select:focus-visible, .qdfy-target select:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
 .dfy-target select option, .qdfy-target select option { color: var(--text); background: var(--panel, #1c1c20); }
 .qa-plugin.qdfy-target { display: flex; align-items: center; gap: 2px; padding: 0 14px 2px var(--qa-pad, 18px); }
 .qa-plugin.qdfy-target:empty { display: none; }
 .qdfy-target .dfy-target-label { color: var(--muted); font-size: 11.5px; }
-.qdfy-target select { font-size: 12px; height: 24px; max-width: 220px; padding: 0 16px 0 4px; border-radius: 7px; background-position: calc(100% - 8px) 55%, calc(100% - 4px) 55%; }
+.qdfy-target select { font-size: 12px; height: 24px; max-width: 220px; padding: 0 16px 0 4px; border-radius: 7px; }
 .qdfy-target select:hover { background-color: color-mix(in srgb, var(--text) 6%, transparent); }
 .dfy-machines { display: flex; flex-direction: column; }
 .dfy-machine { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 10px 0;

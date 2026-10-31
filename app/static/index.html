@@ -624,6 +624,35 @@
             </div>
           </div>
           </div>
+          <div class="sg-group" id="sg-updates-group" hidden>
+          <h4 class="sg-gtitle" data-i18n="sg.g.updates">Автообновления</h4>
+          <div class="sg-card">
+            <div class="sg-row" data-k="обновления update автообновление версия version установщик installer">
+              <div class="sg-text"><div class="sg-label" id="upd-status-label">—</div><div class="sg-desc" data-i18n="sg.upd.d">Новые версии отдельного Proxy: проверка, скачивание и установка. Если рядом установлен полный набор, обновления приходят через него.</div><div class="sg-desc"><span data-i18n="sg.upd.current">Текущая версия</span>: <span class="mono" id="upd-current">—</span> · <span data-i18n="sg.upd.last">Последняя проверка</span>: <span id="upd-last">—</span></div><div class="sg-desc" id="upd-error" hidden></div></div>
+              <div class="sg-ctl"><span class="sg-inline"><button class="btn small" type="button" id="upd-check" data-i18n="sg.upd.check">Проверить сейчас</button><button class="btn small" type="button" id="upd-download" data-i18n="sg.upd.download">Скачать</button><button class="btn small" type="button" id="upd-install" data-i18n="sg.upd.install">Установить и перезапустить</button></span></div>
+            </div>
+            <div class="sg-row" id="upd-progress-row" hidden data-k="обновления загрузка прогресс download progress">
+              <div class="sg-text"><div class="sg-label" data-i18n="sg.upd.downloading">Скачиваем установщик…</div><div class="sg-desc" id="upd-bytes"></div></div>
+              <div class="sg-ctl"><progress id="upd-progress" max="100" value="0" style="width:160px"></progress></div>
+            </div>
+            <div class="sg-row" data-k="обновления автоматически проверять проверка update check automatic">
+              <div class="sg-text"><label class="sg-label" for="upd-enabled" data-i18n="sg.upd.enabled">Проверять обновления автоматически</label><div class="sg-desc" data-i18n="sg.upd.enabled.d">Фоновая проверка по расписанию, без остановки Proxy.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="upd-enabled" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="обновления скачивать автоматически загрузка download auto">
+              <div class="sg-text"><label class="sg-label" for="upd-autodownload" data-i18n="sg.upd.autodownload">Скачивать найденные обновления</label><div class="sg-desc" data-i18n="sg.upd.autodownload.d">Установка начинается только после вашего нажатия.</div></div>
+              <div class="sg-ctl"><label class="switch"><input type="checkbox" id="upd-autodownload" role="switch"><span class="slider"></span></label></div>
+            </div>
+            <div class="sg-row" data-k="обновления частота интервал проверка interval frequency">
+              <div class="sg-text"><label class="sg-label" for="upd-interval" data-i18n="sg.upd.interval">Как часто проверять</label></div>
+              <div class="sg-ctl"><select id="upd-interval"><option value="6" data-i18n="sg.upd.interval.6">Каждые 6 часов</option><option value="12" data-i18n="sg.upd.interval.12">Каждые 12 часов</option><option value="24" data-i18n="sg.upd.interval.24">Раз в день</option><option value="168" data-i18n="sg.upd.interval.168">Раз в неделю</option></select></div>
+            </div>
+            <div class="sg-row" data-k="обновления канал стабильные тестовые channel stable preview">
+              <div class="sg-text"><label class="sg-label" for="upd-channel" data-i18n="sg.upd.channel">Канал обновлений</label><div class="sg-desc" data-i18n="sg.upd.channel.d">Пока обновления приходят только из стабильных версий.</div></div>
+              <div class="sg-ctl"><select id="upd-channel"><option value="stable" data-i18n="sg.upd.channel.stable">Стабильные версии</option><option value="preview" data-i18n="sg.upd.channel.preview">Стабильные и тестовые</option></select></div>
+            </div>
+          </div>
+          </div>
           <div class="sg-group sg-danger">
           <h4 class="sg-gtitle" data-i18n="sg.g.danger">Опасная зона</h4>
           <div class="sg-card">

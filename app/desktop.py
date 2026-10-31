@@ -250,7 +250,6 @@ class DesktopShell:
         self.ready_on_load = False
 
     def run(self) -> None:
-        import webview
         global _active_shell
         _active_shell = self
         if sys.platform == "win32" and self.app_user_model_id:
@@ -260,6 +259,15 @@ class DesktopShell:
                 win_app_identity.set_process_app_id(self.app_user_model_id)
             except Exception:
                 pass
+        try:
+            import webview
+        except ImportError:
+            if sys.platform == "win32":
+                raise
+            if self.show_tray:
+                self._start_tray()
+            self._serve_in_browser()
+            return
         tray_started = False
         if self.show_tray:
             tray_started = self._start_tray()
@@ -294,15 +302,45 @@ class DesktopShell:
                 self.window.events.loaded += lambda *_: self.on_ready(self.window)
         self.window.events.closing += self._on_closing
         try:
-            try:
-                webview.start(gui="edgechromium")
-            except TypeError:
-                webview.start()
+            self._start_gui(webview)
+        except Exception:
+            if sys.platform == "win32":
+                raise
+            self._serve_in_browser()
         finally:
             self.quit_event.set()
             self._stop_tray()
             self.window = None
             _active_shell = None
+
+    @staticmethod
+    def _start_gui(webview) -> None:
+        """Start pywebview's event loop.
+
+        Windows pins WebView2 (``edgechromium``); on any other platform
+        the installed backend (GTK/WebKit, Qt, ...) is auto-detected —
+        asking for ``edgechromium`` there only exists on Windows and
+        raises, so no ``gui`` is passed at all.
+        """
+        if sys.platform == "win32":
+            try:
+                webview.start(gui="edgechromium")
+            except TypeError:
+                webview.start()
+            return
+        webview.start()
+
+    def _serve_in_browser(self) -> None:
+        """No usable webview (not installed, or no GUI backend): open the
+        local page in the default browser and stay alive until shutdown
+        is requested, the same fallback MemuNote and MemuFiles use."""
+        import webbrowser
+        try:
+            webbrowser.open(self.url)
+        except Exception:
+            pass
+        print(f"[{self.title}] окно недоступно — панель открыта в браузере: {self.url}")
+        self.quit_event.wait()
 
     def _apply_native_theme(self, *_args) -> None:
         """CSS does not paint the native frame or backing pixels at DPI resize edges."""

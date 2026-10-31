@@ -16,6 +16,35 @@ def _number(value: Any, multiplier: float = 1) -> float | None:
     return result if math.isfinite(result) and result >= 0 else None
 
 
+def _created(value: Any) -> int | None:
+    """Release time of a catalogue row as a Unix timestamp, or None.
+
+    OpenRouter sends ``created`` as Unix seconds; other catalogues may send
+    a numeric string or an ISO date. Anything else (missing, negative, far
+    future, garbage) is not a date and is dropped, so a bad row can never
+    poison the sort. The key is only added when a real date exists, so
+    rows without one keep the exact spec shape they always had.
+    """
+    if isinstance(value, bool) or value is None or value == "":
+        return None
+    try:
+        stamp = float(value)
+    except (TypeError, ValueError):
+        try:
+            from datetime import datetime
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+            stamp = parsed.timestamp()
+        except (TypeError, ValueError, OverflowError):
+            return None
+    if not math.isfinite(stamp) or stamp <= 0:
+        return None
+    if stamp >= 1e12:
+        stamp /= 1000
+    if stamp > 4102444800:
+        return None
+    return int(stamp)
+
+
 def listing_spec(row: Any) -> dict:
     if not isinstance(row, dict):
         return {}
@@ -34,6 +63,9 @@ def listing_spec(row: Any) -> dict:
         inputs, outputs = arch["modality"].split("->", 1)
         result["inputs"] = result["inputs"] or modes(inputs.split("+"))
         result["outputs"] = result["outputs"] or modes(outputs.split("+"))
+    created = _created(row.get("created"))
+    if created:
+        result["created"] = created
     return result
 
 

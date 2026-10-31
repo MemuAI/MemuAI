@@ -52,7 +52,10 @@
 .mmp-empty { padding: 18px 10px; text-align: center; color: var(--muted); font-size: 13px; }
 .mmp-pop { position: fixed; z-index: 1300; display: flex; flex-direction: column; gap: 6px; padding: 8px; width: 440px; max-width: calc(100vw - 16px);
   background: var(--panel); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); animation: pop .14s ease; }
-.mmp-pop .mmp-list { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; margin: 0; overscroll-behavior: contain; }
+.mmp-pop .mmp-list { flex: 1 1 auto; min-height: 0; max-height: none; overflow-y: auto; margin: 0; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent; }
+.mmp-pop .mmp-list::-webkit-scrollbar { width: 8px; }
+.mmp-pop .mmp-list::-webkit-scrollbar-track { margin: 8px 0; background: transparent; }
+.mmp-pop .mmp-list::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .mmp-title { padding: 2px 4px 0; font: 650 12px/1.3 var(--sans); color: var(--muted); }
 .mmp-search { position: relative; display: flex; align-items: center; }
 .mmp-search > .mmp-ic { position: absolute; left: 10px; color: var(--muted); pointer-events: none; }

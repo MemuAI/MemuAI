@@ -711,9 +711,23 @@ function assistSettingsSection() {
   var a = S.settings.assist;
   function set(k, v) { a[k] = v; saveSettings(); }
   var models = textModels();
+  var modelSel = selectEl([["", t("as_model_chat")]].concat(models.map(function (m) { return [m.id, m.name || m.id]; })), a.model || "", function (v) { set("model", v); });
+  modelSel.setAttribute("data-assist-model", "1");
+  /* Provider names for the shared selector: each option carries the
+   * catalogue provider name, so the picker groups by real provider
+   * instead of deriving it from the id alone. Mounted by
+   * drawConnectionPanel once the section is in the document. */
+  try {
+    Array.prototype.forEach.call(modelSel.options, function (opt) {
+      var m = modelRow(opt.value);
+      if (!m) return;
+      if (window.MemuModelSelector) opt.dataset.providerLabel = window.MemuModelSelector.providerName(m);
+      opt.dataset.kind = "chat";
+    });
+  } catch (e) {}
   return section(t("as_settings"), "sparkle", [
     h("div", { class: "ch-hint", text: t("as_settings_hint") }),
-    field("as_model", selectEl([["", t("as_model_chat")]].concat(models.map(function (m) { return [m.id, m.name || m.id]; })), a.model || "", function (v) { set("model", v); })),
+    field("as_model", modelSel),
     field("as_lang", selectEl([["auto", t("as_lang_auto")], ["ru", t("ai_lang_ru")], ["en", t("ai_lang_en")]], a.lang || "auto", function (v) { set("lang", v); })),
     toggle("as_buttons", a.buttons !== false, function (v) { set("buttons", v); }, "as_buttons_hint")
   ]);

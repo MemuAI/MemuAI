@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 import uuid
@@ -47,6 +48,23 @@ Rules:
 PREVIEW_KINDS = ("file_read", "file_list", "file_find", "process_list")
 CHUNK_INTERVAL = 0.7
 LIVE_TAIL = 1200
+
+# Steps whose re-execution with identical arguments gives the identical
+# result: reads, and a file write with the same content (an overwrite, not
+# an append). Shell commands, deletes, moves, downloads and package installs
+# are never replayed — running them twice is a different outcome.
+IDEMPOTENT_ACTIONS = ("file_read", "file_list", "file_find", "file_stat", "sysinfo",
+                      "process_list", "file_write")
+_VOLATILE_KEYS = ("timeout", "reason", "confirmed", "job")
+
+def step_key(kind: str, action: Dict[str, Any]) -> str:
+    """Stable fingerprint of one step, ignoring volatile fields."""
+    payload = {key: value for key, value in (action or {}).items() if key not in _VOLATILE_KEYS}
+    raw = json.dumps([kind, payload], ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+def is_idempotent(kind: str) -> bool:
+    return kind in IDEMPOTENT_ACTIONS
 
 def _state_block(task: Any, info: Dict[str, Any]) -> str:
     target = task.target or {}
@@ -156,6 +174,18 @@ async def run(manager: Any, task: Any) -> None:
                 raise RuntimeError("Модель повторяет неизвестные действия")
             continue
 
+        # Resume checkpoint: an idempotent step that already succeeded (this
+        # run, or the run before the interruption) is replayed from its
+        # recorded outcome instead of executed again — the model sees the
+        # same result, the machine sees no second write.
+        key = step_key(kind, action)
+        completed = getattr(task, "completed_keys", None) or {}
+        if is_idempotent(kind) and key in completed:
+            cached = str(completed[key])[:600]
+            task.history.append(f"{kind}: replayed from checkpoint — {cached}")
+            await manager._add_step(task, kind, "replayed from checkpoint: " + cached[:300], redact)
+            continue
+
         if detector.enabled:
             verdict = detector.observe(action, state=json.dumps(task.cwd), label=redact(
                 f"{kind} {action.get('command') or action.get('path') or action.get('name') or ''}")[:160])
@@ -169,6 +199,10 @@ async def run(manager: Any, task: Any) -> None:
 
         task.machine_steps += 1
         ok, detail, outcome = await _perform(manager, task, kind, action, redact, lang)
+        if ok and is_idempotent(kind):
+            keys = getattr(task, "completed_keys", None)
+            if isinstance(keys, dict):
+                keys[key] = str(outcome)[:600]
         if not ok:
             failures += 1
             detector.note_result(error=detail)

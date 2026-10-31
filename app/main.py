@@ -243,5 +243,8 @@ def create_app() -> FastAPI:
     register_geminiweb(app)
     from .model_refresh import register as register_model_refresh
     register_model_refresh(app)
+
+    from .proxy_updates import register_proxy_update_routes
+    register_proxy_update_routes(app)
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")
     return app

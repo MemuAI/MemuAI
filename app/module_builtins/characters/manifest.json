@@ -127,6 +127,136 @@
         ]
       }
     ],
-    "skill": "integration/skill.md"
+    "skill": "integration/skill.md",
+    "planning": [
+      {
+        "id": "save-chat-messages",
+        "title": "Сохранить длинный чат с персонажем",
+        "title_en": "Save a long character chat",
+        "description": "Напомнить сохранить или экспортировать чат, когда в нём станет много сообщений.",
+        "description_en": "Remind to save or export a chat once it grows to many messages.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "messages",
+          "threshold": 30,
+          "scope": "per_chat"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Чат с персонажем превысил порог сообщений — сохраните или экспортируйте его в модуле «Персонажи», чтобы не потерять историю.",
+          "text_en": "characters"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Сообщений в чате",
+            "label_en": "Messages in a chat",
+            "default": 30,
+            "min": 5,
+            "max": 1000
+          }
+        ]
+      },
+      {
+        "id": "save-chat-tokens",
+        "title": "Сохранить большой чат с персонажем",
+        "title_en": "Save a large character chat",
+        "description": "Напомнить сохранить или экспортировать чат, когда он превысит порог токенов.",
+        "description_en": "Remind to save or export a chat once it exceeds the token threshold.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "tokens",
+          "threshold": 500000,
+          "scope": "per_chat"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Чат с персонажем превысил порог токенов — сохраните или экспортируйте его в модуле «Персонажи», чтобы не потерять историю.",
+          "text_en": "characters"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Токенов в чате",
+            "label_en": "Tokens in a chat",
+            "default": 500000,
+            "min": 10000,
+            "max": 5000000
+          }
+        ]
+      },
+      {
+        "id": "total-messages-1000",
+        "title": "Тысяча сообщений с персонажами",
+        "title_en": "A thousand messages with characters",
+        "description": "Сообщить, когда общее число сообщений во всех чатах с персонажами достигнет тысячи.",
+        "description_en": "Notify when the total number of messages across all character chats reaches one thousand.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "messages",
+          "threshold": 1000,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Во всех чатах с персонажами уже тысяча сообщений — самое время сохранить самые ценные истории и навести порядок в списке чатов.",
+          "text_en": "All character chats together have reached one thousand messages — a good moment to save the most valuable stories and tidy up the chat list."
+        }
+      },
+      {
+        "id": "total-tokens-million",
+        "title": "Миллион токенов в чатах",
+        "title_en": "A million tokens in chats",
+        "description": "Попросить модель подвести итог, когда общий объём чатов достигнет миллиона токенов.",
+        "description_en": "Ask the model to sum up the chats once their total volume reaches one million tokens.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "tokens",
+          "threshold": 1000000,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Подведи итог чатов с персонажами: какие персонажи и сюжеты встречаются чаще всего, какие чаты стоит сохранить, а какие — завершить или архивировать. Коротко, списком.",
+          "prompt_en": "Sum up the character chats: which characters and storylines come up most often, and which chats are worth saving or wrapping up. Briefly, as a list."
+        }
+      },
+      {
+        "id": "characters-collection",
+        "title": "Десять персонажей в коллекции",
+        "title_en": "Ten characters in the collection",
+        "description": "Сообщить, когда в модуле появится десять персонажей.",
+        "description_en": "Notify when the module has ten characters.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 10,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "В коллекции уже десять персонажей — проверьте карточки, лорбуки и пресеты, чтобы у каждого персонажа всё было на месте.",
+          "text_en": "The collection already has ten characters — check the cards, lorebooks and presets so every character is complete."
+        }
+      },
+      {
+        "id": "weekly-characters",
+        "title": "Итоги недели с персонажами",
+        "title_en": "A week with characters: round-up",
+        "description": "Раз в неделю попросить модель подвести итог чатов и предложить новые сюжеты.",
+        "description_en": "Once a week, ask the model to round up the chats and suggest new storylines.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Подведи итог недели чатов с персонажами: самые яркие моменты, незавершённые сюжеты и три идеи для продолжения. Коротко, списком.",
+          "prompt_en": "Round up the week's character chats: the brightest moments, unfinished storylines and three ideas for what happens next. Briefly, as a list."
+        }
+      }
+    ]
   }
 }

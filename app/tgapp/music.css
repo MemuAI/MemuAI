@@ -401,3 +401,47 @@ html[data-layout="split"] .mm-ah-bg, html[data-layout="split"] .mm-ph-bg { -webk
 
 :root.mm-look .tab[data-tab="music"] { --accent: var(--mm-a1); }
 :root.mm-look[data-scheme="light"] .tab[data-tab="music"] { --accent: color-mix(in srgb, var(--mm-a1) 72%, #000); }
+
+/* Player menu above the full player: the sheet lives in #sheet-root (z 41)
+   while .mm-full is z 60, so without this the "..." menu opened invisibly
+   under the player and piled up behind it. */
+html.mm-full-open .sheet-backdrop { z-index: 69; }
+html.mm-full-open .sheet { z-index: 70; }
+html.mm-full-open .toast-root { z-index: 71; }
+
+/* Lyrics toolbar (romanize / offset / tap-sync / words / own lyrics).
+   The bar lives in .mm-ly-bar-host, a non-scrolling strip above the lyrics
+   scroll area, so it can never cover a lyric line. */
+.mm-ly-bar-host { display: none; }
+html.mm-full-open .mm-full.pane .mm-stage { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+html.mm-full-open .mm-full.pane .mm-ly-bar-host:not([hidden]) { display: block; flex: none; position: relative; z-index: 3; margin-bottom: 10px; }
+html.mm-full-open .mm-full.pane .mm-lyrics, html.mm-full-open .mm-full.pane .mm-queue { position: relative; inset: auto; flex: 1 1 auto; min-height: 0; }
+.mm-ly-bar-host .mm-ly-bar { position: static; margin: 0; background: rgba(20, 20, 26, .92); }
+.mm-ly-bar { position: static; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 16px; padding: 8px 10px; border-radius: 14px; background: rgba(20, 20, 26, .92); }
+.mm-ly-bar-src { flex: 1 1 100%; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; opacity: .55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-ly-chip { display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 11px; border-radius: 15px; background: rgba(255, 255, 255, .12); color: #fff; font-size: 13px; font-weight: 650; }
+.mm-ly-chip svg { width: 14px; height: 14px; }
+.mm-ly-chip.on { background: #fff; color: #0c0c10; }
+.mm-ly-off { display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 4px; border-radius: 15px; background: rgba(255, 255, 255, .12); }
+.mm-ly-off button { min-width: 28px; height: 24px; padding: 0 6px; border-radius: 12px; color: #fff; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mm-ly-off button:active { background: rgba(255, 255, 255, .2); }
+.mm-ly-w { transition: color .2s; border-radius: 4px; }
+.mm-ly.on .mm-ly-w { color: rgba(255, 255, 255, .55); }
+.mm-ly.on .mm-ly-w.past { color: rgba(255, 255, 255, .34); }
+.mm-ly.on .mm-ly-w.on { color: #fff; }
+
+/* Queue management. */
+.mm-queue-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 8px; }
+.mm-queue-head h4 { margin: 0; }
+.mm-q-clear { font-size: 13px; font-weight: 650; color: rgba(255, 255, 255, .75); padding: 6px 8px; border-radius: 10px; background: rgba(255, 255, 255, .1); }
+.mm-q-x { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; color: rgba(255, 255, 255, .6); font-size: 18px; line-height: 1; }
+.mm-q-x:active { background: rgba(255, 255, 255, .14); }
+
+/* Phone playback controls in the full player. */
+.mm-vol .mm-mute { width: 34px; height: 34px; color: #fff; }
+.mm-vol .mm-mute svg { width: 19px; height: 19px; }
+.mm-vol .mm-mute.off { opacity: .45; }
+.mm-speed span { font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.mm-ff .mm-speed.on, .mm-ff .mm-sleep.on { color: #fff; background: rgba(255, 255, 255, .14); }
+.mm-genres { margin: 0 20px 10px; }
+.mm-genres:empty { display: none; }

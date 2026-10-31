@@ -25,7 +25,7 @@ from .i18n import tr
 from .llm import ChatRequest, LLMError, Usage
 from .project import AgentDef
 from .session import Session, new_id
-from .tokens import estimate_messages, estimate_text
+from .tokens import estimate_messages, estimate_text, fit_messages
 from .tools.base import Prepared, ToolCall, ToolContext, ToolError, ToolResult
 from .ui_base import BaseUI
 
@@ -34,6 +34,18 @@ if TYPE_CHECKING:  # pragma: no cover
 
 RESULT_CHARS = 60_000
 MAX_INVALID_STREAK = 6
+MAX_REQUEST_RETRIES = 2
+RETRY_BASE_SECONDS = 2.0
+RETRY_CAP_SECONDS = 30.0
+
+def retry_delay(attempt: int, *, jitter: float = 0.0) -> float:
+    """Backoff before request retry ``attempt`` (1-based): 2s, 4s, 8s …,
+    capped, with an optional deterministic jitter share for tests and for
+    spreading retries out. Never negative, never over the cap."""
+    delay = RETRY_BASE_SECONDS * (2 ** max(0, int(attempt) - 1))
+    if jitter:
+        delay += delay * max(0.0, min(1.0, float(jitter)))
+    return max(0.0, min(RETRY_CAP_SECONDS, delay))
 
 MAX_EMPTY_NUDGES = 2
 EMPTY_REPLY_NUDGE = ("[Your last reply was empty. Continue the task: call the next tool you need, or, if the work is "
@@ -193,13 +205,37 @@ class Agent:
                 converted.append({"role": "user", "content": reminder})
         schemas = [tool.schema() for tool in tools] if native else None
         settings = self.runtime.settings
+        tools_text = json.dumps(schemas, ensure_ascii=False) if schemas else ""
+        window = 0
+        try:
+            window = int(self.runtime.effective_window() or 0)
+        except Exception:
+            window = 0
+        if window:
+            # Last-resort hard limit, after compaction/elision had their turn:
+            # a request that still does not fit is cut by priority — the
+            # system prompt and the newest exchanges survive, the middle is
+            # dropped and the model is told so. Without this the provider
+            # rejects the whole turn and nothing is done at all.
+            total = estimate_messages(converted) + estimate_text(system) + estimate_text(tools_text)
+            if total > window:
+                fitted = fit_messages(converted, window - estimate_text(tools_text),
+                                      system_tokens=estimate_text(system), reserve_tokens=512)
+                converted = fitted["messages"]
+                if fitted["dropped"]:
+                    # Appended, never inserted mid-round: a note between an
+                    # assistant tool call and its results would break the
+                    # pairing the providers require.
+                    converted.append({"role": "user", "content": (
+                        f"[To fit the context window, {fitted['dropped']} earlier message(s) "
+                        f"(≈{fitted['omitted_tokens']} tokens) were omitted; the newest exchanges "
+                        "are verbatim.]")})
         request = ChatRequest(
             model=self.model, system=system, messages=converted, tools=schemas,
             effort=str(settings.get("effort") or "auto"), thinking=bool(settings.get("thinking")),
             web_search=bool(settings.get("web_search")), max_tokens=int(settings.get("max_output_tokens") or 0),
             temperature=settings.get("temperature"), session=self.session.id,
             show_thinking=bool(settings.get("show_thinking")))
-        tools_text = json.dumps(schemas, ensure_ascii=False) if schemas else ""
         return request, system, tools_text
 
     async def run_turn(self, content: Any, *, kind: str = "prompt", display: str = "",
@@ -703,10 +739,10 @@ class Agent:
                     self.ui.status(tr("Модель не приняла изображение — пробую с описанием",
                                       "The model did not take the picture — trying with a description"))
                     continue
-                if attempt < 2 and not texts and not output.calls and (exc.retryable or _retryable(exc)):
+                if attempt < MAX_REQUEST_RETRIES and not texts and not output.calls and (exc.retryable or _retryable(exc)):
                     attempt += 1
-                    self.ui.status(tr(f"Повтор запроса ({attempt}/2)…", f"Retrying ({attempt}/2)…"))
-                    await asyncio.sleep(2.0 * attempt)
+                    self.ui.status(tr(f"Повтор запроса ({attempt}/{MAX_REQUEST_RETRIES})…", f"Retrying ({attempt}/{MAX_REQUEST_RETRIES})…"))
+                    await asyncio.sleep(retry_delay(attempt))
                     continue
                 raise
         if not native:
@@ -893,7 +929,26 @@ class Agent:
                     self.ui.tool_finished(self, call, result)
                     return result
             call.status = "running"
-            result = await tool.run(ctx, call.args, prepared)
+            # A hung tool must not hang the whole turn: with
+            # ``tool_timeout_seconds`` set, the wait ends with a plain error
+            # result the model can read (and the tool's own cancellation
+            # cleans up). 0 keeps the old behaviour — no timeout.
+            tool_timeout = 0.0
+            try:
+                tool_timeout = float(runtime.settings.get("tool_timeout_seconds") or 0)
+            except (TypeError, ValueError):
+                tool_timeout = 0.0
+            if tool_timeout > 0:
+                try:
+                    result = await asyncio.wait_for(tool.run(ctx, call.args, prepared), tool_timeout)
+                except asyncio.TimeoutError:
+                    result = ToolResult.fail(
+                        tr(f"Инструмент {tool.name} не завершился за {tool_timeout:g} с — остановлен по таймауту. "
+                           "Попробуйте меньший объём работы или другую команду.",
+                           f"Tool {tool.name} did not finish within {tool_timeout:g}s and was stopped by timeout. "
+                           "Try a smaller piece of work or a different command."))
+            else:
+                result = await tool.run(ctx, call.args, prepared)
             if outcome.context:
                 result.output = (result.output if isinstance(result.output, str)
                                  else json.dumps(result.output, ensure_ascii=False)) + "\n" + "\n".join(outcome.context)

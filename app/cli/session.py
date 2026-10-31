@@ -55,6 +55,7 @@ class Session:
         self.lines_added = 0
         self.lines_removed = 0
         self.files_changed: Set[str] = set()
+        self.compaction_checkpoint: Optional[Dict[str, Any]] = None
         self._lock = threading.Lock()
         self._index_dirty = False
         self.loaded = False
@@ -161,6 +162,8 @@ class Session:
                     message["elided"] = True
         elif kind == "todos":
             self.todos = list(event.get("todos") or [])
+        elif kind == "compact_checkpoint":
+            self.compaction_checkpoint = dict(event.get("checkpoint") or {}) or None
         elif kind == "imgnote":
             if event.get("key") and event.get("text"):
                 self.image_notes[str(event["key"])] = {"text": str(event["text"]), "model": str(event.get("model") or "")}
@@ -215,6 +218,18 @@ class Session:
         self.meta.update(values)
         self.meta["updated"] = _now()
         self._append({"t": "meta", **values})
+
+    def set_compaction_checkpoint(self, checkpoint: Optional[Dict[str, Any]]) -> None:
+        """Remember a compaction that started but has no summary yet.
+
+        The checkpoint is one more line in the append-only transcript, so a
+        crash or a failed model call between «started» and «summary appended»
+        does not lose where the cut was: the next :func:`compact` call can
+        resume from it instead of re-deriving (and re-paying for) the same
+        cut, and never appends a second summary for the same range.
+        ``None`` clears it. Old transcripts simply have no such line."""
+        self.compaction_checkpoint = dict(checkpoint) if checkpoint else None
+        self._append({"t": "compact_checkpoint", "checkpoint": self.compaction_checkpoint})
 
     def save_todos(self) -> None:
         self._append({"t": "todos", "todos": self.todos})

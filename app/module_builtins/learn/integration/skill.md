@@ -3,3 +3,5 @@ with FSRS spaced repetition, Anki import/export and an AI examiner.
 - "что повторить сегодня?", "сколько карточек?" → learn.due (cards due today per course and the minutes it takes).
 - "начни повторение", "повтори карточки" → learn.review (opens MemuLearn on the review session).
 To create a course, generate cards or take an exam the user opens MemuLearn itself — say so and offer learn.review.
+
+Model selector: course creation (#c-model, dropdown preset) and the settings model select (#st-model, compact preset) use the shared MemuModelSelector (app/pgstatic/model-selector.js) via mountSelect; options are grouped by provider with real catalogue names via providerName(), never a raw "custom" provider.

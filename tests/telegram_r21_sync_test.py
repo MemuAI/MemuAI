@@ -298,6 +298,7 @@ class VerifyTest(unittest.TestCase):
             states, published = [], []
             with mock.patch.object(tg_webapp, "VERIFY_EVERY", 0.01), \
                     mock.patch.object(tg_webapp, "notify_bot", published.append), \
+                    mock.patch.object(tg_webapp, "remember_working_url", lambda url: None), \
                     mock.patch.object(manager, "write_status", lambda: states.append((manager.state, manager.public_url()))):
                 manager._set_state("verifying", "")
                 manager._start_verify(publish=True)
@@ -311,14 +312,18 @@ class VerifyTest(unittest.TestCase):
         self.assertTrue(manager.verified)
         self.assertEqual([url for url in published if url], ["https://fresh-host-name.trycloudflare.com/tgapp/"])
 
-    def test_dns_never_appears_requests_a_new_host(self):
+    def test_dns_result_publishes_the_address_and_keeps_the_tunnel(self):
+        # Round 73: a DNS probe result must never kill the tunnel (the old
+        # kill-on-dns loop restarted the same wait forever). The address is
+        # published unverified; only an explicit user retry restarts it.
         async def scenario():
             manager = tg_webapp.Manager()
             manager.probe = lambda base: ("dns", "нет")
             manager.url = "https://never.trycloudflare.com"
             terminated = []
             manager.tunnel = mock.MagicMock(named=False, retry_at=0.0, failures=0,
-                                            effective_protocol=lambda: "", _terminate=lambda: terminated.append(1))
+                                            effective_protocol=lambda: "",
+                                            _terminate=lambda: terminated.append(1))
             with mock.patch.object(tg_webapp, "VERIFY_EVERY", 0.01), mock.patch.object(tg_webapp, "VERIFY_TIMEOUT", 0.1), \
                     mock.patch.object(tg_webapp, "notify_bot", lambda url: None), \
                     mock.patch.object(manager, "write_status", lambda: None):
@@ -327,11 +332,11 @@ class VerifyTest(unittest.TestCase):
             return manager, terminated
 
         manager, terminated = asyncio.run(scenario())
-        self.assertEqual(manager.state, "error")
-        self.assertEqual(terminated, [1])
-        self.assertIsNone(manager.public_url())
+        self.assertEqual(manager.state, "online")
+        self.assertEqual(terminated, [])
+        self.assertEqual(manager.public_url(), "https://never.trycloudflare.com/tgapp/")
 
-    def test_doh_and_health_check(self):
+    def test_system_resolver_and_health_check(self):
         nonce = tg_webapp.instance_nonce()
 
         def handler(request):
@@ -346,12 +351,30 @@ class VerifyTest(unittest.TestCase):
                 return httpx.Response(200, json={"Status": 3})
             return httpx.Response(200, json={})
 
-        async def run(handler_):
-            async with httpx.AsyncClient(transport=httpx.MockTransport(handler_)) as client:
-                return await tg_webapp.check_public_url("https://fresh.trycloudflare.com", client)
+        async def run(handler_, resolved):
+            async def fake_resolve(host):
+                return resolved
 
-        self.assertEqual(asyncio.run(run(handler)), ("ok", ""))
-        self.assertEqual(asyncio.run(run(nxdomain))[0], "dns")
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler_)) as client:
+                with mock.patch.object(tg_webapp, "resolve_host", fake_resolve):
+                    return await tg_webapp.check_public_url("https://fresh.trycloudflare.com", client)
+
+        # The system resolver says the host exists: DoH is never consulted.
+        self.assertEqual(asyncio.run(run(handler, True)), ("ok", ""))
+        # The system resolver says NXDOMAIN: "dns", whatever DoH would say.
+        self.assertEqual(asyncio.run(run(nxdomain, False))[0], "dns")
+        # The system resolver is inconclusive and DoH is unreachable too:
+        # the health check fails, but the result is "unreachable", never "dns".
+        async def unreachable(request):
+            raise httpx.ConnectError("blocked", request=request)
+
+        async def run_unreachable():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(unreachable)) as client:
+                with mock.patch.object(tg_webapp, "resolve_host", lambda host: asyncio.sleep(0, result=None)), \
+                        mock.patch.object(tg_webapp, "doh_resolve", lambda host, client: asyncio.sleep(0, result=None)):
+                    return await tg_webapp.check_public_url("https://fresh.trycloudflare.com", client)
+
+        self.assertEqual(asyncio.run(run_unreachable())[0], "unreachable")
 
 class MenuButtonTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

@@ -1,0 +1,35 @@
+# MemuAI Server (server mode) — systemd unit for Linux.
+#
+# Install:
+#   sudo cp packaging/server/memuai-server.service /etc/systemd/system/
+#   sudo systemctl edit memuai-server   # fix paths/user if they differ
+#   sudo systemctl enable --now memuai-server
+#
+# The server binds loopback only; expose it via the nginx reverse proxy
+# in nginx.conf.example (HTTPS).  Do not set --allow-remote + a public
+# bind without that proxy in front.
+[Unit]
+Description=MemuAI Server (server mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=memuai
+Group=memuai
+WorkingDirectory=/opt/memuai
+Environment=MEMUAI_SERVER_HOST=127.0.0.1
+Environment=MEMUAI_SERVER_PORT=8327
+Environment=MEMUAI_SERVER_DATA_DIR=/var/lib/memuai-server
+Environment=PYTHONUTF8=1
+ExecStart=/opt/memuai/.venv/bin/python /opt/memuai/memuai_server.py --host 127.0.0.1 --port 8327
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/memuai-server
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

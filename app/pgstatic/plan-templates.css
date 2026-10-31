@@ -1,11 +1,11 @@
 .pln-picker.ptg-ov { position: fixed; border-radius: 0; z-index: 1200; }
-.ptg-box { width: 760px; gap: 12px; max-height: calc(100vh - 120px); }
+.ptg-box { width: 760px; max-width: 100%; gap: 12px; max-height: calc(100vh - 120px); }
 .ptg-lead { margin: -4px 0 0; font-size: 12.5px; color: var(--muted); }
 .ptg-cats { display: flex; flex-wrap: wrap; gap: 4px; padding: 3px; border-radius: 10px; background: var(--panel-2); align-self: flex-start; }
 .ptg-cats button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 8px; cursor: pointer; }
 .ptg-cats button:hover { color: var(--text); }
 .ptg-cats button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
-.ptg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; overflow-y: auto; min-height: 0; padding: 2px; }
+.ptg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 8px; overflow-y: auto; min-height: 0; padding: 2px; }
 .ptg-card { display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 12px; border-radius: 12px; border: 1px solid var(--border);
   background: var(--panel-2); color: var(--text); cursor: pointer; font: inherit; transition: border-color .12s, transform .12s; }
 .ptg-card:hover, .ptg-card:focus-visible { border-color: var(--accent); outline: none; }
@@ -20,3 +20,6 @@
 .ptg-chips em { font-style: normal; font-size: 10.5px; padding: 3px 7px; border-radius: 999px; color: var(--muted);
   background: color-mix(in srgb, var(--text) 6%, transparent); max-width: 100%; overflow-wrap: anywhere; line-height: 1.25; }
 @media (prefers-reduced-motion: reduce) { .ptg-card { transition: none; } }
+/* Round 42: gallery cards match the Planning timeline refresh. */
+.ptg-card { border-radius: 14px; text-align: left; }
+.ptg-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }

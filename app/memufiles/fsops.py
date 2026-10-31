@@ -548,6 +548,55 @@ def file_hash(path: str, algo: str = "sha256", cancel=None) -> str:
             digest.update(block)
     return digest.hexdigest()
 
+def hash_head(path: str, size: int = 65536, algo: str = "sha256", cancel=None) -> str:
+    """SHA of the first ``size`` bytes only — the cheap pre-filter for duplicates."""
+    if algo not in ("md5", "sha1", "sha256"):
+        raise FsError("bad_algo", algo)
+    if cancel is not None and cancel.is_set():
+        raise FsError("cancelled")
+    with open(path, "rb") as handle:
+        return hashlib.new(algo, handle.read(size)).hexdigest()
+
+def hash_file_both(path: str, cancel=None, prefix_size: int = 65536) -> tuple[str, str]:
+    """``(full SHA-256, prefix SHA-256)`` from a single streaming read.
+
+    The file is opened once and never rewound: the prefix digest is fed
+    from the same chunks as the full digest. If the file changes while it
+    is being read (size or mtime moves), the hash is retried once; when it
+    keeps changing, the second result is returned and the caller drops it
+    from the cache because its post-read stat no longer matches.
+    """
+    for attempt in range(2):
+        before = _hash_stat(path)
+        full = hashlib.sha256()
+        prefix = hashlib.sha256()
+        left = prefix_size
+        with open(path, "rb") as handle:
+            while True:
+                if cancel is not None and cancel.is_set():
+                    raise FsError("cancelled")
+                block = handle.read(1024 * 1024)
+                if not block:
+                    break
+                full.update(block)
+                if left:
+                    take = min(left, len(block))
+                    prefix.update(block[:take])
+                    left -= take
+        after = _hash_stat(path)
+        if before is not None and after == before:
+            return full.hexdigest(), prefix.hexdigest()
+        if attempt == 1:
+            return full.hexdigest(), prefix.hexdigest()
+    raise FsError("hash_changed", path)
+
+def _hash_stat(path: str):
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns, st.st_dev, st.st_ino)
+
 def make_folder(parent: str, name: str) -> str:
     error = valid_name(name)
     if error:

@@ -227,9 +227,9 @@ kbd { font: 600 10.5px/1 var(--sans); display: inline-flex; align-items: center;
 .qa-chats-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 10px; color: var(--muted); font-size: 13px; }
 .qa-chats-empty svg { width: 24px; height: 24px; opacity: .55; }
 .qa-answer { position: relative; flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 22px 10px var(--qa-pad);
-  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; animation: qa-view-in .24s var(--qa-ease-out) both; }
+  scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--muted) 30%, transparent)) transparent; animation: qa-view-in .24s var(--qa-ease-out) both; }
 .qa-answer::-webkit-scrollbar { width: 8px; }
-.qa-answer::-webkit-scrollbar-thumb { border-radius: 8px; background: color-mix(in srgb, var(--muted) 28%, transparent); border: 2px solid transparent; background-clip: content-box; }
+.qa-answer::-webkit-scrollbar-thumb { border-radius: 8px; background: var(--scroll-thumb, color-mix(in srgb, var(--muted) 28%, transparent)); border: 2px solid transparent; background-clip: content-box; }
 .qa-turn { padding-top: 12px; }
 .qa-turn + .qa-turn { margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--qa-line); }
 .qa-q { display: flex; gap: 8px; align-items: baseline; margin: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 500; }

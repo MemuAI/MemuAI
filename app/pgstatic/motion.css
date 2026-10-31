@@ -75,7 +75,7 @@
 :is(.context-menu, .app-menu-pop, .profile-menu-pop, .plus-menu .plus-list, .plus-menu) > :nth-child(5) { --m-i: 4; }
 :is(.context-menu, .app-menu-pop, .profile-menu-pop, .plus-menu .plus-list, .plus-menu) > :nth-child(6) { --m-i: 5; }
 :is(.context-menu, .app-menu-pop, .profile-menu-pop, .plus-menu .plus-list, .plus-menu) > :nth-child(n+7) { --m-i: 6; }
-:root:not([data-motion="off"]) body:not(.reduce-motion) :is(.dd-btn .chev, .pretty-select-button i, .folder-chevron, .meme-chevron, .cx-chevron, .step-chevron) {
+:root:not([data-motion="off"]) body:not(.reduce-motion) :is(.folder-chevron, .meme-chevron, .cx-chevron, .step-chevron) {
   transition: transform var(--m-dur-4) var(--m-spring), color var(--m-dur-2) ease;
 }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .panel-back.visible {

@@ -65,6 +65,123 @@
           ]
         }
       }
+    ],
+    "planning": [
+      {
+        "id": "backup-growth",
+        "title": "База выросла — резервная копия",
+        "title_en": "Database grew — back it up",
+        "description": "Напомнить сделать резервную копию, когда база заметно вырастет.",
+        "description_en": "Remind to back up the database once it grows noticeably.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "bytes",
+          "threshold": 52428800,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "База MemuDB заметно выросла — сделайте её резервную копию: экспортируйте базу в файл.",
+          "text_en": "memudb"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Размер базы, байт",
+            "label_en": "Database size, bytes",
+            "default": 52428800,
+            "min": 1048576,
+            "max": 1073741824
+          }
+        ]
+      },
+      {
+        "id": "backup-weekly",
+        "title": "Еженедельная копия базы",
+        "title_en": "Weekly database backup",
+        "description": "Раз в неделю напомнить сделать резервную копию базы.",
+        "description_en": "Remind once a week to back up the database.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Сделайте резервную копию MemuDB: экспортируйте базу в файл и сохраните его в надёжном месте.",
+          "text_en": "memudb"
+        }
+      },
+      {
+        "id": "records-hundred",
+        "title": "Сто записей в базе",
+        "title_en": "One hundred records in the database",
+        "description": "Сообщить, когда в базе накопится сто записей.",
+        "description_en": "Notify when the database holds one hundred records.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 100,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "В базе уже сто записей — проверьте таблицы и наведите порядок в самых быстрорастущих из них.",
+          "text_en": "The database already has one hundred records — check the tables and tidy up the fastest-growing ones."
+        }
+      },
+      {
+        "id": "records-thousand",
+        "title": "Тысяча записей в базе",
+        "title_en": "One thousand records in the database",
+        "description": "Попросить модель предложить, как упорядочить базу из тысячи записей.",
+        "description_en": "Ask the model to suggest how to organise a database of one thousand records.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 1000,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Предложи, как упорядочить базу из тысячи записей: какие таблицы проверить первыми, что архивировать и где искать дубликаты. Коротко, списком.",
+          "prompt_en": "Suggest how to organise a database of one thousand records: which tables to check first, what to archive, and where to look for duplicates. Briefly, as a list."
+        }
+      },
+      {
+        "id": "database-500mb",
+        "title": "База приблизилась к 500 МБ",
+        "title_en": "Database approaching 500 MB",
+        "description": "Сообщить, когда размер базы приблизится к 500 МБ.",
+        "description_en": "Notify when the database size approaches 500 MB.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "bytes",
+          "threshold": 524288000,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Размер базы приблизился к 500 МБ — сделайте резервную копию и проверьте, нет ли таблиц, которые можно почистить.",
+          "text_en": "The database is approaching 500 MB — make a backup and check whether any tables can be cleaned up."
+        }
+      },
+      {
+        "id": "db-two-day-check",
+        "title": "Проверка базы каждые два дня",
+        "title_en": "Database check every two days",
+        "description": "Каждые два дня напомнить проверить новые записи и актуальность копии.",
+        "description_en": "Every two days, remind to check the new records and that the backup is up to date.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 2880
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Загляните в MemuDB: проверьте новые записи, размер базы и то, что резервная копия актуальна.",
+          "text_en": "Open MemuDB: check the new records, the database size, and that the backup is up to date."
+        }
+      }
     ]
   }
 }

@@ -24,6 +24,41 @@ from .player import hub
 
 _ID = re.compile(r"^[a-f0-9]{12}$")
 
+def _arg_int(value: Any, default: int) -> int:
+    """Args arrive as JSON from the module iframe / Mini App: ``"3"`` is fine, ``"abc"`` is the default."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            try:
+                return int(float(value.strip()))
+            except ValueError:
+                return default
+    return default
+
+def _arg_float(value: Any, default: float) -> float:
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return default
+    return default
+
+def _synced_line(sec: Any, line: str) -> str:
+    try:
+        seconds = float(sec)
+    except (TypeError, ValueError):
+        return ""
+    return f"[{int(seconds // 60):02d}:{seconds % 60:05.2f}]{line}"
+
 def _base_from(request) -> str:
     if request is None:
         return ""
@@ -101,17 +136,22 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang
     if op == "lyrics.get":
         return lyrics.fetch(lib, str(args.get("id", "")), force=bool(args.get("force")))
     if op == "lyrics.choose":
-        return lyrics.choose(lib, str(args.get("id", "")), None if args.get("index") is None else int(args["index"]),
+        return lyrics.choose(lib, str(args.get("id", "")), None if args.get("index") is None else _arg_int(args["index"], 0),
                              1 if args.get("next") else 0)
     if op == "lyrics.romanize":
         return lyrics.romanize(lib, str(args.get("id", "")), str(args.get("language") or "auto"))
     if op == "lyrics.offset":
-        return lyrics.set_offset(lib, str(args.get("id", "")), float(args.get("offset") or 0))
+        return lyrics.set_offset(lib, str(args.get("id", "")), _arg_float(args.get("offset"), 0.0))
     if op == "lyrics.set":
         text = args.get("text")
         if text is None and isinstance(args.get("synced"), list):
-            text = "\n".join(f"[{int(float(sec) // 60):02d}:{float(sec) % 60:05.2f}]{line}"
-                              for sec, line in args["synced"] if isinstance(line, str))
+            lines = []
+            for item in args["synced"]:
+                if isinstance(item, (list, tuple)) and len(item) == 2 and isinstance(item[1], str):
+                    line = _synced_line(item[0], item[1])
+                    if line:
+                        lines.append(line)
+            text = "\n".join(lines)
         return lyrics.set_manual(lib, str(args.get("id", "")), str(text if text is not None else args.get("plain") or ""))
     if op == "settings.get":
         return {**lib.settings(), "library_dir": str(lib.root), "default_download_dir": str(lib.tracks_dir)}
@@ -161,8 +201,8 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang
     if op == "player.command":
         return player.command(str(args.get("cmd", "")), args, sender)
     if op == "player.wait":
-        return player.wait(int(args.get("since", 0) or 0), int(args.get("since_cmd", -1) if args.get("since_cmd") is not None else -1),
-                           float(args.get("timeout", 25) or 25))
+        return player.wait(_arg_int(args.get("since"), 0), _arg_int(args.get("since_cmd"), -1),
+                           _arg_float(args.get("timeout"), 25.0))
     raise ValueError(f"Неизвестная операция MemuMusic: {op} / Unknown MemuMusic operation: {op}")
 
 _NO_OP = object()
@@ -291,7 +331,7 @@ def _online_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
     if op == "online.related":
         return [thumbs(x) for x in online.related(lib, str(args.get("url", "")), args.get("limit", 20))]
     if op == "online.lyrics":
-        return online.lyrics_lookup(lib, str(args.get("title", "")), str(args.get("artist", "")), float(args.get("duration") or 0))
+        return online.lyrics_lookup(lib, str(args.get("title", "")), str(args.get("artist", "")), _arg_float(args.get("duration"), 0.0))
     return _NO_OP
 
 OPS = ("library.list", "library.get", "library.update", "library.delete", "library.like", "library.played",
@@ -313,8 +353,8 @@ async def call_async(op: str, args: Optional[Dict[str, Any]] = None, **kwargs: A
     if op == "player.wait":
         a = args if isinstance(args, dict) else {}
         root = (await asyncio.to_thread(get_library)).root
-        return await hub(root).wait_async(int(a.get("since", 0) or 0), int(a.get("since_cmd", -1) if a.get("since_cmd") is not None else -1),
-                                          float(a.get("timeout", 25) or 25))
+        return await hub(root).wait_async(_arg_int(a.get("since"), 0), _arg_int(a.get("since_cmd"), -1),
+                                          _arg_float(a.get("timeout"), 25.0))
     return await asyncio.to_thread(call, op, args, **kwargs)
 
 def error_payload(exc: Exception) -> tuple:

@@ -156,7 +156,10 @@
 .prd-icon-btn:disabled { opacity: .35; cursor: default; }
 .prd-icon-btn:focus-visible, .prd-sheet a:focus-visible, .prd-sheet button:focus-visible, .prd-gallery:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; }
-.prd-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px 20px; overscroll-behavior: contain; scrollbar-width: thin; }
+.prd-sheet-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px 20px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent; }
+.prd-sheet-scroll::-webkit-scrollbar { width: 8px; }
+.prd-sheet-scroll::-webkit-scrollbar-track { margin: 8px 0; background: transparent; }
+.prd-sheet-scroll::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 
 .prd-gallery { position: relative; border-radius: var(--r-lg, 16px); overflow: hidden; background: #fff;
   border: 1px solid var(--d-line-soft, transparent); touch-action: pan-y; user-select: none; }

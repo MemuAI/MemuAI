@@ -4,7 +4,7 @@
   "use strict";
   const PHONE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
   const COPY = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
-  const state = { data: null, timer: 0, saving: false, error: "", adv: false };
+  const state = { data: null, timer: 0, saving: false, error: "", adv: false, loading: false };
 
   const en = () => {
     try { if (window.S && S.preferences && S.preferences.language) return S.preferences.language === "en"; } catch (e) {  }
@@ -50,6 +50,10 @@ body.reduce-motion .tga-pill i { animation: none !important; }
 .tga-progress { height: 4px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 8px; }
 .tga-progress i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
 .tga-error { color: var(--danger); font-size: 12.5px; margin-top: 6px; }
+.tga-diag { margin-top: 10px; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; background: var(--panel-2); display: grid; gap: 6px; }
+.tga-diag .tl { font-size: 13px; font-weight: 700; }
+.tga-diag code { font-family: var(--mono, monospace); font-size: 12px; word-break: break-all; }
+.tga-diag .tga-actions { padding-top: 4px; border-top: 0; }
 .tga-custom { display: grid; gap: 8px; padding: 2px 0 10px; }
 .tga-custom .pinput { margin: 0; }
 .sx-shell #tgapp-settings .tga-custom { padding: 0 18px 12px; }
@@ -66,11 +70,24 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     document.head.appendChild(style);
   }
 
-  async function call(method, path, body) {
-    const response = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
-    return data;
+  // Hard timeout: a settings request that never answers (dead Proxy,
+  // stalled network) used to leave the card on "Loading..." forever,
+  // with a new overlapping request piling up every 3 s. An aborted
+  // request is reported as the local listener not answering, never
+  // as a DNS failure: this fetch never touches external DNS.
+  const CALL_TIMEOUT_MS = 10000;
+  async function call(method, path, body, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs || CALL_TIMEOUT_MS);
+    try {
+      const response = await fetch(path, { method, signal: controller.signal, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || ("HTTP " + response.status));
+      return data;
+    } catch (error) {
+      if (error && error.name === "AbortError") throw new Error(tr("Настройки Mini App не отвечают — проверьте, что MemuAI запущен", "The Mini App settings are not answering — check that MemuAI is running"));
+      throw error;
+    } finally { clearTimeout(timer); }
   }
 
   function statusView(data) {
@@ -92,6 +109,42 @@ body.reduce-motion .tga-pill i { animation: none !important; }
       case "blocked": return { tone: "warn", text: tr("Ждёт настройки", "Needs setup") };
       default: return { tone: "busy", text: tr("Запускается…", "Starting…") };
     }
+  }
+
+  function diagHtml(data) {
+    const status = (data && data.status) || {};
+    const diag = (data && data.diagnostics) || status.diagnostics || {};
+    const localMode = !!(diag.local_fallback || (data && data.config && data.config.local_fallback));
+    const show = ((diag.host || diag.error || diag.local_url) && ["dns_pending", "verifying", "error", "failed", "proxy_offline"].includes(status.state)) || localMode;
+    if (!show) return "";
+    const checked = diag.checked_at ? new Date(diag.checked_at * 1000).toLocaleString(en() ? "en-US" : "ru-RU") : "";
+    const lastAt = diag.last_working_at ? new Date(diag.last_working_at * 1000).toLocaleString(en() ? "en-US" : "ru-RU") : "";
+    return `<div class="tga-diag" role="status">
+      <div class="tl">${tr("Диагностика адреса", "Address diagnostics")}</div>
+      ${diag.host ? `<div class="td">${tr("Хост", "Host")}: <code>${esc(diag.host)}</code></div>` : ""}
+      ${diag.error ? `<div class="td">${tr("Ошибка", "Error")}: ${esc(diag.error)}</div>` : ""}
+      ${checked ? `<div class="td">${tr("Проверено", "Checked")}: ${esc(checked)} · ${tr("резолвер: системный", "resolver: system")}</div>` : `<div class="td">${tr("Проверка ещё не выполнялась · резолвер: системный", "No check has run yet · resolver: system")}</div>`}
+      ${diag.local_url ? `<div class="td">${tr("Локальный адрес", "Local address")}: <code>${esc(diag.local_url)}</code></div>` : ""}
+      ${diag.last_working_url ? `<div class="td">${tr("Последний рабочий адрес", "Last working address")}: <code>${esc(diag.last_working_url)}</code>${lastAt ? ` · ${esc(lastAt)}` : ""}</div>` : ""}
+      ${localMode ? `<div class="td">${tr("Локальный режим включён: публичная проверка отключена, работает локальный адрес.", "Local mode is on: the public check is off, the local address works.")}</div>` : ""}
+      <div class="tga-actions">
+        <button type="button" class="pbtn ghost small" id="tga-check">${tr("Проверить соединение", "Check the connection")}</button>
+        ${localMode
+          ? `<button type="button" class="pbtn ghost small" id="tga-local-off">${tr("Вернуть проверку адреса", "Turn the address check back on")}</button>`
+          : `<button type="button" class="pbtn ghost small" id="tga-local">${tr("Использовать локально", "Use locally")}</button>`}
+      </div></div>`;
+  }
+
+  // A tunnel error is cloudflared's own report about its own connection
+  // attempt, not an established diagnosis: label its source so the
+  // misleading "cannot find Cloudflare's servers" wording is never
+  // presented as a verified fact. The real fix (host-scoped message,
+  // no stale hints) lives in the tunnel code; see the round report.
+  const DNS_HINT_RE = /не может найти серверы Cloudflare|cannot find Cloudflare's servers/i;
+  function tunnelErrorText(status) {
+    const text = statusText(status, "error");
+    if (DNS_HINT_RE.test(text)) return tr("Сообщение cloudflared: ", "cloudflared reports: ") + text;
+    return text;
   }
 
   function render(root) {
@@ -122,8 +175,9 @@ body.reduce-motion .tga-pill i { animation: none !important; }
         ${url ? `<div class="tga-url"><code title="${esc(url)}">${esc(url)}</code><button type="button" class="pbtn ghost small" id="tga-copy">${COPY}${tr("Копировать", "Copy")}</button></div>
           <ol class="tga-steps"><li>${tr("Откройте своего бота в Telegram.", "Open your bot in Telegram.")}</li><li>${tr("Нажмите кнопку меню <b>MemuAI</b> слева от поля ввода (или «Открыть MemuAI» в сообщении бота).", "Tap the <b>MemuAI</b> menu button left of the input field (or “Open MemuAI” in a bot message).")}</li><li>${(config.web_login !== false ? tr("В обычном браузере адрес попросит подтвердить вход из Telegram (QR-код или /web).", "In a regular browser the address asks you to confirm the sign-in from Telegram (QR code or /web).") : tr("Не открывайте адрес в обычном браузере: вход возможен только из Telegram.", "Do not open the address in a regular browser: sign-in only works from Telegram."))}</li></ol>` :
           `<div class="td">${esc(problemText(data))}</div>`}
-        ${(status.state === "error" || status.state === "failed") && status.error ? `<div class="tga-error">${esc(statusText(status, "error"))}</div>` : ""}
+        ${(status.state === "error" || status.state === "failed") && status.error ? `<div class="tga-error">${esc(tunnelErrorText(status))}</div>` : ""}
         ${status.detail && status.state !== "failed" ? `<div class="tga-note">${esc(statusText(status, "detail"))}</div>` : ""}
+        ${diagHtml(data)}
         ${status.state === "error" && status.retry_at ? `<div class="tga-note">${tr("Следующая попытка через", "Next attempt in")} ${Math.max(0, Math.round(status.retry_at - Date.now() / 1000))} ${tr("с", "s")}${status.protocol && status.protocol !== "auto" ? " · " + esc(status.protocol.toUpperCase()) : ""}</div>` : ""}
         ${["error", "failed", "dns_pending", "verifying", "starting", "connecting"].includes(status.state) && config.mode !== "custom" ? `<div class="tga-url" style="margin-top:8px"><button type="button" class="pbtn ghost small" id="tga-retry">${tr("Повторить сейчас (новый адрес)", "Retry now (new address)")}</button></div>` : ""}</div>` : ""}
       ${config.mode !== "custom" ? `<details class="tga-row" id="tga-adv" style="display:block" ${state.adv ? "open" : ""}><summary class="tl" style="cursor:pointer">${tr("Если не открывается (VPN, блокировки)", "If it does not open (VPN, blocking)")}</summary>
@@ -138,6 +192,7 @@ body.reduce-motion .tga-pill i { animation: none !important; }
         <div class="tga-ctl"><select class="pinput compact" id="tga-age">${[1, 6, 24, 72, 168].map((h) => `<option value="${h}" ${+config.max_age_hours === h ? "selected" : ""}>${h < 24 ? h + tr(" ч", " h") : (h / 24) + tr(" дн.", " d")}</option>`).join("")}</select></div></div>
       <div class="tga-actions"><button type="button" class="pbtn ghost small" id="tga-reset">${tr("Сбросить сессии", "Reset sessions")}</button>
         <span class="tga-note" style="align-self:center">${tr("Новый секрет — все открытые на телефонах окна потребуют повторного входа.", "A new secret — every Mini App window open on a phone has to sign in again.")}</span></div>
+      ${!config.enabled && state.error ? diagHtml(data) : ""}
       ${state.error ? `<div class="tga-error">${esc(state.error)}</div>` : ""}
     </section>`;
     bind(root);
@@ -185,6 +240,12 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     if (adv) adv.ontoggle = () => { state.adv = adv.open; };
     const retry = root.querySelector("#tga-retry");
     if (retry) retry.onclick = () => save({ retry: true }, root);
+    const check = root.querySelector("#tga-check");
+    if (check) check.onclick = () => save({ retry: true }, root);
+    const local = root.querySelector("#tga-local");
+    if (local) local.onclick = () => save({ local_fallback: true }, root);
+    const localOff = root.querySelector("#tga-local-off");
+    if (localOff) localOff.onclick = () => save({ local_fallback: false }, root);
     const code = root.querySelector("#tga-code");
     if (code) code.onchange = () => save({ code_control: code.checked }, root);
     const web = root.querySelector("#tga-web");
@@ -212,8 +273,16 @@ body.reduce-motion .tga-pill i { animation: none !important; }
   }
 
   async function refresh(root) {
+    if (state.loading) return; // one in-flight poll at a time: never pile up stalled requests
+    state.loading = true;
     try { state.data = await call("GET", "/api/pg/tgapp"); state.error = ""; }
-    catch (error) { state.error = error.message; }
+    catch (error) {
+      state.error = error.message;
+      // One failed request must not leave the whole card blank: render the
+      // card with the error as diagnostics, so the local fallback stays usable.
+      if (!state.data) state.data = { config: { enabled: false }, status: { state: "proxy_offline", port: 8641 }, problems: [],
+        diagnostics: { host: "", error: error.message, resolver: "system", local_url: "http://127.0.0.1:8641/tgapp/" } };
+    } finally { state.loading = false; }
     const focused = document.activeElement;
     if (focused && root.contains(focused) && (focused.tagName === "SELECT" || (focused.tagName === "INPUT" && focused.type !== "checkbox"))) return;
 

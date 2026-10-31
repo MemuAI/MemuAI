@@ -67,6 +67,13 @@
         chips: [T("результат прошлого запуска", "previous result"), T("НЕ выходной", "NOT a weekend")],
         task: { name: T("Догоняющая проверка", "Catch-up check"), prompt: T("Проверь, работает ли мой сайт, и коротко ответь «ок» или опиши проблему. Прошлый ответ: {{last_result}}", "Check whether my site works and answer “ok” or describe the problem. Last answer: {{last_result}}"),
           rule: { when: [{ type: "interval", every: 60, days: [] }], only_if: [{ type: "last_result", status: "fail" }, { type: "calendar", mode: "weekend", not: true }] } } },
+      { cat: "classic", icon: "terminal", title: T("Файл-заметка по сценарию", "A note file, by scenario"),
+        desc: T("Каждый день сценарий без модели создаёт файл из переменной", "Every day a model-free scenario creates a file from a variable"),
+        chips: [T("сценарий", "scenario"), T("переменные", "variables"), T("файл", "file")],
+        task: { name: T("Ежедневная заметка", "Daily note"), kind: "scenario", confirmed: true,
+          scenario: [{ type: "set", name: "title", op: "set", value: T("Ежедневная заметка", "Daily note") },
+            { type: "file_create", path: "scenario-notes/note.txt", content: "${title}\n", overwrite: true, require_confirm: true }],
+          rule: { when: [{ type: "daily", times: ["09:00"], days: [] }] } } },
     ];
   }
 
