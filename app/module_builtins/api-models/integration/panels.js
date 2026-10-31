@@ -48,7 +48,8 @@
     root.innerHTML = headHtml + '<ul class="mk-list">' + models.map(function (m) {
       var labels = { text: t("текст", "text"), image: t("изображения", "images"), audio: t("аудио", "audio"), video: t("видео", "video"), embeddings: t("эмбеддинги", "embeddings") };
       var output = Array.isArray(m.outputs) ? m.outputs.map(function (value) { return labels[value] || value; }).join(", ") : "";
-      var meta = [lab(m), output, ctx(m.context) && ctx(m.context) + t(" контекст", " context"), ago(m.at)].filter(Boolean).join(" · ");
+      var released = m.released ? new Date((+m.released < 1e12 ? +m.released * 1000 : +m.released)).toLocaleDateString(en() ? "en-US" : "ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "";
+      var meta = [lab(m), output, ctx(m.context) && ctx(m.context) + t(" контекст", " context"), released ? t("вышла ", "released ") + released : ago(m.at)].filter(Boolean).join(" · ");
       return '<li><button type="button" class="mk-row" data-key="' + esc(m.key) + '"><span class="mk-mono" style="--h:' + hue(lab(m)) + '" aria-hidden="true">' + esc(lab(m).charAt(0)) + "</span>" +
         '<span class="mk-main"><b title="' + esc(m.key) + '">' + esc(m.name) + (m.seen ? "" : ' <span class="am-dot" aria-label="' + esc(t("новая", "new")) + '"></span>') + "</b><small>" + esc(meta) + "</small></span>" +
         '<span class="mk-side">' + price(m) + "</span></button></li>";

@@ -1,1 +1,3 @@
 «Бенчмарки» хранит рейтинги ИИ-моделей: LMArena (текст, WebDev), Artificial Analysis (индекс интеллекта), LiveBench, SimpleBench, EQ-Bench. На «кто лидирует в бенчмарке Y», «какая модель лучшая в кодинге», «топ арены» вызови benchmarks.leaders с board: Y (arena, code, aa, livebench, simple, eq). На «что изменилось в рейтингах» — benchmarks.changes. Называй источник рейтинга и дату; цифры бери только из результата.
+
+Model selector: the own-benchmark judge uses the shared MemuModelSelector (dropdown preset via mountSelect on #own-judge) and the model list uses renderList (table preset, multi-select) in app/pgstatic/model-selector.js; provider names come from the catalogue via providerName(), never a raw "custom" provider. Selection is saved with saveOwn().

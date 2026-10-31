@@ -749,7 +749,14 @@ const MemuProducts = (() => {
     return `<product_cards>\n${text}\n<product_cards_runtime locale="${ru ? "ru" : "en"}" region="${ru ? "Russia" : "USA"}" currency="${ru ? "RUB" : "USD"}" product_lookup="${tool}"/>\n</product_cards>`;
   }
 
-  return Object.freeze({ placeholder, pending, maskPending, stripForText, systemBlock, openSheet, closeSheet,
+  function triggerBlock({ lang = "ru", lookup = false, builtinSearch = false } = {}) {
+    if (!promptText()) return "";
+    const ru = lang !== "en";
+    const tool = lookup ? "available" : builtinSearch ? "unavailable (use your built-in web search for real data)" : "unavailable (web search is off)";
+    return `<product_cards_trigger locale="${ru ? "ru" : "en"}" region="${ru ? "Russia" : "USA"}" currency="${ru ? "RUB" : "USD"}" product_lookup="${tool}">Interactive product cards are not loaded for this turn. Answer in prose and do not emit a memuai-products block.</product_cards_trigger>`;
+  }
+
+  return Object.freeze({ placeholder, pending, maskPending, stripForText, systemBlock, triggerBlock, openSheet, closeSheet,
     intent, holdStream, progress, cardText, nameText, offerLink,
     _normalizeLocal: localNormalize, _cache: cache, _keyOf: keyOf, _money: money, _stageOf: stageOf });
 })();

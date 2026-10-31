@@ -10,19 +10,25 @@ Everything that shows or embeds a version reads it from here:
 * MemuCode CLI (``app.cli.VERSION``, the banner, ``memucode version``, the MCP
   handshake) reads it from here too — there is no second version to forget;
 * MemuAI shows it in Settings → About through ``GET /api/pg/version``;
+  the release date shown there comes from the GitHub release when it is
+  known (see ``app/release_date.py``), and ``RELEASE_DATE`` below is only
+  the offline fallback;
 * MemuAI Proxy reports it in ``/health`` and on the Home tab;
 * the runtime discovery files (``memuai.json``, ``proxy.json``) carry it, so
   MemuAI can tell when it talks to a Proxy of another version.
 
-To release: change ``APP_VERSION`` and ``RELEASE_DATE`` here, then run
-``python build.py version`` (or a full build). ``tests/round15_test.py`` (OneVersion)
+To release: change ``APP_VERSION`` here, then run
+``python build.py version`` (or a full build). ``RELEASE_DATE`` stays as
+the offline fallback for the release date until the GitHub release of the
+new version is published; the live date is resolved separately.
+``tests/round15_test.py`` (OneVersion)
 fails when any copy disagrees with this file.
 """
 from __future__ import annotations
 
 from typing import Dict, Tuple
 
-APP_VERSION = "4.1"
+APP_VERSION = "4.5"
 RELEASE_DATE = "2026-10-28"
 
 def version_tuple(version: str = APP_VERSION) -> Tuple[int, int, int, int]:

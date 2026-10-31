@@ -38,6 +38,7 @@ let ambient = null;
 function savePrefs() { try { Memu.save({ prefs: S.prefs }); } catch (e) {  } }
 
 /* @memu-part:art.js */
+/* @memu-part:custom-themes.js */
 /* @memu-part:theme.js */
 /* @memu-part:api.js */
 /* @memu-part:mock.js */
@@ -127,11 +128,20 @@ $("#side-playlists").addEventListener("click", (e) => {
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go); });
 $("#side-new-playlist").addEventListener("click", () => createPlaylistDialog());
 
+function blend(a, b, k) {
+  const A = hexToRgb(a) || [0, 0, 0], B = hexToRgb(b) || [0, 0, 0];
+  return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, "0")).join("");
+}
 function applyPalette(track) {
-  const fromCover = Theme.coverAccent() && track;
-  const colors = fromCover ? paletteFor(track) : Theme.accents();
+  const cover = track ? paletteFor(track) : null;
+  const fromCover = Theme.coverAccent() && !!cover;
+  const colors = fromCover ? cover : Theme.accents();
+  if (!track) Theme.resetTint();
   const bg = Theme.paint(colors);
-  if (ambient) ambient.setColors(colors, bg);
+  if (ambient) {
+    const soft = !fromCover && cover && Theme.coverSoft();
+    ambient.setColors(soft ? colors.map((c, i) => blend(c, cover[i], .35)) : colors, bg);
+  }
   NP.setColors(colors);
   Theme.coverBg(track);
   if (track && track.cover && !track.accent) extractPalette(track.cover).then((c) => {
@@ -281,7 +291,13 @@ Player.on("track", (tr) => {
 Player.on("mode", updateModes);
 Player.on("volume", updateModes);
 Player.on("queue", () => { renderQueue(); });
-Player.on("error", () => toast(t("error.play")));
+Player.on("error", (err) => {
+  const code = err && err.code, name = err && err.name;
+  if (code === 4 || name === "NotSupportedError") toast(t("error.play_decode"));
+  else if (name === "NotAllowedError") toast(t("error.play_blocked"));
+  else if (code === 2 || code === 3 || name === "NetworkError") toast(t("error.play_network"));
+  else toast(t("error.play"));
+});
 Player.on("sleep", () => NP.onSleep());
 
 function bindSeek(el) {

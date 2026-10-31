@@ -88,8 +88,8 @@
 .json-tree .jt-root { padding-left: 4px; }
 .jt-tools { display: flex; gap: 4px; margin-bottom: 6px; font-family: var(--font, sans-serif); }
 .jt-branch > .jt-toggle { display: inline-block; width: 14px; cursor: pointer; color: var(--muted); }
-.jt-branch > .jt-toggle::before { content: "▾"; }
-.jt-branch.closed > .jt-toggle::before { content: "▸"; }
+.jt-branch > .jt-toggle::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 3px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(45deg); }
+.jt-branch.closed > .jt-toggle::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 3px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); }
 .jt-branch.closed > ul { display: none; }
 .jt-leaf { padding-left: 14px; }
 .jt-key { color: var(--tok-prop, var(--accent)); cursor: pointer; }

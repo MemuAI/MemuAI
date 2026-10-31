@@ -152,6 +152,36 @@ def sort_sql(sort: str = "added", direction: str = "") -> str:
     way = "ASC" if way == "asc" else "DESC"
     return f"{col} {way}{_SORT_TAIL.get(field, '')}, added_at DESC"
 
+def _to_int(value: Any, default: int) -> int:
+    """Tolerant integer for values from args / settings / metadata: ``"12"`` and ``12.7`` work,
+    anything else (``"abc"``, lists, ``None``) falls back to *default* instead of raising."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            try:
+                return int(float(value.strip()))
+            except ValueError:
+                return default
+    return default
+
+def _to_float(value: Any, default: float) -> float:
+    """Same idea for floats: ``"3:30"`` or a list is not a duration, it is the default."""
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return default
+    return default
+
 def save_cover(data: bytes, dest: Path) -> Optional[Path]:
     """Store cover bytes as a square JPEG (YouTube 16:9 thumbnails are centre-cropped)."""
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -271,7 +301,10 @@ class Library:
             if key == "cookies_from_browser" and value not in ("", "edge", "chrome", "firefox", "brave", "opera", "vivaldi", "chromium", "safari"):
                 raise ValueError("cookies_from_browser: edge | chrome | firefox | brave | opera | vivaldi")
             if key == "volume":
-                value = max(0.0, min(1.0, float(value)))
+                try:
+                    value = max(0.0, min(1.0, float(value)))
+                except (TypeError, ValueError):
+                    raise ValueError("volume: 0..1")
             if key == "parallel_downloads":
                 try:
                     value = max(1, min(4, int(value)))
@@ -379,13 +412,13 @@ class Library:
             "id": track_id, "title": str(fields.get("title") or file_path.stem)[:300],
             "artist": str(fields.get("artist") or "")[:300], "album": str(fields.get("album") or "")[:300],
             "album_artist": str(fields.get("album_artist") or "")[:300],
-            "duration": float(fields.get("duration") or 0), "source": str(fields.get("source") or "local"),
+            "duration": _to_float(fields.get("duration"), 0.0), "source": str(fields.get("source") or "local"),
             "source_url": str(fields.get("source_url") or ""), "source_key": str(fields.get("source_key") or ""),
             "file": str(stored), "file_ext": file_path.suffix.lower().lstrip("."), "size": size,
-            "bitrate": int(fields.get("bitrate") or 0), "cover": "", "accent": "",
-            "year": str(fields.get("year") or "")[:10], "track_no": int(fields.get("track_no") or 0),
+            "bitrate": _to_int(fields.get("bitrate"), 0), "cover": "", "accent": "",
+            "year": str(fields.get("year") or "")[:10], "track_no": _to_int(fields.get("track_no"), 0),
             "genre": str(fields.get("genre") or "")[:80], "liked": 0, "liked_at": 0,
-            "added_at": float(fields.get("added_at") or time.time()), "plays": 0, "last_played": 0,
+            "added_at": _to_float(fields.get("added_at"), time.time()), "plays": 0, "last_played": 0,
         }
         cols = ",".join(row)
         self._x(f"INSERT INTO tracks ({cols}) VALUES ({','.join('?' * len(row))})", row.values())
@@ -484,7 +517,7 @@ class Library:
         row = self.row(track_id)
         if not row:
             raise KeyError("Трек не найден / Track not found")
-        seconds = max(0.0, min(float(seconds or 0), 24 * 3600))
+        seconds = max(0.0, min(_to_float(seconds, 0.0), 24 * 3600))
         counted = seconds >= 30 or (row["duration"] and seconds >= row["duration"] * 0.5)
         now = time.time()
         try:
@@ -532,8 +565,8 @@ class Library:
         order = sort_sql(sort, dir)
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         total = self._q(f"SELECT COUNT(*) AS n FROM tracks{clause}", params)[0]["n"]
-        limit = max(1, min(5000, int(limit or 200)))
-        rows = self._q(f"SELECT * FROM tracks{clause} ORDER BY {order} LIMIT ? OFFSET ?", [*params, limit, max(0, int(offset or 0))])
+        limit = max(1, min(5000, _to_int(limit, 200)))
+        rows = self._q(f"SELECT * FROM tracks{clause} ORDER BY {order} LIMIT ? OFFSET ?", [*params, limit, max(0, _to_int(offset, 0))])
         return {"tracks": [self._public(r, base) for r in rows], "total": total}
 
     def _by_ids(self, ids: List[str], base: str = "") -> List[Dict[str, Any]]:
@@ -566,7 +599,7 @@ class Library:
     def aggregates(self, days: int = 30) -> Dict[str, Any]:
         """Chart data (local time): ``by_day`` — every day of the last ``days`` (zeros included, oldest first),
         ``by_hour`` — 24 buckets and ``by_weekday`` — 7 buckets (0 = Monday) over the same window."""
-        days = max(1, min(366, int(days or 30)))
+        days = max(1, min(366, _to_int(days, 30)))
         today = time.localtime()
         start_local = time.mktime((today.tm_year, today.tm_mon, today.tm_mday - (days - 1), 0, 0, 0, 0, 0, -1))
         keys = [time.strftime("%Y-%m-%d", time.localtime(time.mktime(
@@ -610,7 +643,7 @@ class Library:
                 params.append(stamp / 1000.0 if stamp > 1e11 else stamp)
         clause = (" WHERE " + " AND ".join(where)) if where else ""
         rows = self._q(f"SELECT track_id, at, seconds, device FROM plays{clause} ORDER BY at DESC LIMIT ?",
-                       (*params, max(1, min(5000, int(limit or 100)))))
+                       (*params, max(1, min(5000, _to_int(limit, 100)))))
         tracks = {t["id"]: t for t in self._by_ids(list({r["track_id"] for r in rows}), base)}
         return [{"at": r["at"], "seconds": r["seconds"], "device": r["device"] or "pc", "track": tracks[r["track_id"]]}
                 for r in rows if r["track_id"] in tracks]
@@ -663,9 +696,9 @@ class Library:
 
     def _smart_ids(self, pid: str) -> List[str]:
         cfg = self.settings()
-        limit = int(cfg.get("smart_limit") or 50)
+        limit = _to_int(cfg.get("smart_limit"), 50)
         if pid == "smart:recent":
-            days = int(cfg.get("recent_days") or 0)
+            days = _to_int(cfg.get("recent_days"), 0)
             since = time.time() - days * 86400 if days else 0
             return [r["id"] for r in self._q("SELECT id FROM tracks WHERE added_at>=? ORDER BY added_at DESC LIMIT ?", (since, limit))]
         if pid == "smart:top":

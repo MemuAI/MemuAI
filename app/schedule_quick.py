@@ -27,7 +27,8 @@ _DRAFTS: Dict[str, Dict[str, Any]] = {}
 
 _KIND_TEXT = {"chat": ("Ответ модели", "Model answer"), "notify": ("Напоминание", "Reminder"),
               "dfy": ("Do For You", "Do For You"), "command": ("Команда быстрого доступа", "Quick Access command"),
-              "memucode": ("MemuCode", "MemuCode"), "integration": ("Интеграция", "Integration")}
+              "memucode": ("MemuCode", "MemuCode"), "integration": ("Интеграция", "Integration"),
+              "scenario": ("Сценарий", "Scenario")}
 
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru

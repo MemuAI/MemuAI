@@ -27,6 +27,8 @@ Keep custom fragments under 12 KB where possible, responsive and keyboard access
 Copy/export of native blocks retains their meaningful text, labels and values. All visual features are user configurable.
 </visualizations>`;
 
+  const PROMPT_BRIEF = "Use a native memuai-visual JSON block only when it genuinely clarifies the answer: process or branch diagrams, sortable rankings, comparisons, entity cards, charts, timelines, tables, tabs, accordions, metrics or calculators. Keep ordinary prose around it, never invent facts, values, image URLs or sources, and call the visual_schema tool for the exact shapes and controls.";
+
   function themeVars() {
     const style = getComputedStyle(document.documentElement);
     const read = (name, fallback) => (style.getPropertyValue(name) || "").trim() || fallback;
@@ -198,5 +200,5 @@ window.addEventListener("load",function(){post();if(window.ResizeObserver)new Re
     }
   });
 
-  return Object.freeze({ PROMPT, placeholder, pending, maskPending, stripForText, hydrate, refresh, stash });
+  return Object.freeze({ PROMPT, PROMPT_BRIEF, placeholder, pending, maskPending, stripForText, hydrate, refresh, stash });
 })();

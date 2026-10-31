@@ -43,54 +43,17 @@
   assistantPanel.insertBefore(thread, requestLabel);
   for (const id of ["ai-conversation", "ai-answer", "ai-use"]) thread.append($("#" + id));
   $(".db-ai-head").append($("#ai-clear"));
-  const modelSelect = $("#model"), modelPicker = document.createElement("details");
-  modelPicker.className = "db-model-picker";
-  modelPicker.innerHTML = '<summary></summary><div class="db-model-pop"><input type="search"><div class="db-model-results"></div></div>';
-  modelSelect.hidden = true;
-  modelSelect.before(modelPicker);
-  const modelSearch = modelPicker.querySelector("input"), modelResults = modelPicker.querySelector(".db-model-results");
-  function drawModelPicker() {
-    modelPicker.querySelector("summary").textContent = modelSelect.selectedOptions[0]?.textContent || t("choose_model");
-    modelSearch.placeholder = t("find_model");
-    modelSearch.setAttribute("aria-label", t("find_model"));
-    const query = modelSearch.value.toLowerCase();
-    const options = [...modelSelect.options].filter(o => o.value && (o.textContent + " " + o.value).toLowerCase().includes(query)).slice(0, 100);
-    modelResults.innerHTML = options.map(o => `<button type="button" data-db-model="${esc(o.value)}" aria-pressed="${o.selected}"><strong>${esc(o.textContent)}</strong><small>${esc(o.value)}</small></button>`).join("") || `<p>${esc(t("no_models_found"))}</p>`;
+  /* The AI model is picked with the shared MemuModelSelector
+   * (dropdown preset): search, favourites, recent and provider
+   * sections from the catalogue, with the hidden <select> kept as the
+   * source of truth — save() still reads $("#model").value. */
+  const modelSelect = $("#model");
+  let modelSelectorHandle = null;
+  function providerNameOf(row) {
+    try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(row); } catch (e) {}
+    return row.provider_label || row.account || row.provider || "";
   }
-  modelSearch.oninput = drawModelPicker;
-  modelPicker.addEventListener("toggle", () => {
-    if (modelPicker.open) {
-      modelSearch.value = "";
-      drawModelPicker();
-      modelSearch.focus();
-    }
-  });
-  modelResults.onclick = e => {
-    const b = e.target.closest("[data-db-model]");
-    if (!b) return;
-    modelSelect.value = b.dataset.dbModel;
-    modelSelect.dispatchEvent(new Event("change"));
-    modelPicker.open = false;
-    drawModelPicker();
-    modelPicker.querySelector("summary").focus();
-  };
-  modelPicker.onkeydown = e => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      modelPicker.open = false;
-      modelPicker.querySelector("summary").focus();
-    } else if (["ArrowDown", "ArrowUp"].includes(e.key)) {
-      e.preventDefault();
-      const buttons = [...modelResults.querySelectorAll("button")];
-      if (!buttons.length) return;
-      const i = buttons.indexOf(document.activeElement);
-      buttons[(i + (e.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length]?.focus();
-    }
-  };
-  document.addEventListener("pointerdown", e => {
-    if (!modelPicker.contains(e.target)) modelPicker.open = false;
-  });
+  function drawModelPicker() { if (modelSelectorHandle) modelSelectorHandle.sync(); }
 
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const state = { connection: null, connections: [], schema: [], table: "", result: null, page: 0, sort: "", descending: false, preview: null, tab: "data", busy: false, operation: "", job: null, aiSQL: "", generation: 0 };
@@ -625,9 +588,22 @@
   };
   Memu.models().then(rows => {
     const chat = (Array.isArray(rows) ? rows : []).filter(row => (!row.kind || ["chat", "text"].includes(row.kind)) && !row.image && !row.video && !row.music);
-    $("#model").innerHTML = `<option value="">${esc(t("choose_model"))}</option>` + chat.map(row => `<option value="${esc(row.id)}">${esc(row.name || row.id)}</option>`).join("");
+    const groups = {};
+    chat.forEach(row => { const g = providerNameOf(row); (groups[g] = groups[g] || []).push(row); });
+    $("#model").innerHTML = `<option value="">${esc(t("choose_model"))}</option>` + Object.keys(groups).sort().map(g => {
+      const opts = groups[g].map(row => `<option value="${esc(row.id)}" data-provider="${esc(g)}">${esc(row.name || row.id)}</option>`).join("");
+      return g ? `<optgroup label="${esc(g)}">${opts}</optgroup>` : opts;
+    }).join("");
     const wanted = Memu.saved?.model || chat.find(r => r.default)?.id;
     if (chat.some(r => r.id === wanted)) $("#model").value = wanted;
+    try {
+      if (window.MemuModelSelector) {
+        modelSelectorHandle = window.MemuModelSelector.mountSelect($("#model"), {
+          preset: "dropdown", allowEmpty: true, emptyLabel: t("choose_model"),
+          onChange: () => { try { save(); } catch (e) {} }
+        });
+      }
+    } catch (e) {}
     drawModelPicker();
   }).catch(error);
   Memu.on("navigate", data => {

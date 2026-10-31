@@ -495,6 +495,16 @@ class Agent:
         self.max_output = int(max_output)
         self.jobs: Dict[str, subprocess.Popen] = {}
         self._lock = threading.Lock()
+        # Idempotent writes: key → the result of the write that already
+        # happened. A retried step (a resumed DFY run, a flaky connection)
+        # with the same key returns the recorded result instead of writing
+        # again — an append is never doubled. Bounded, oldest first out.
+        self._write_keys: Dict[str, Dict[str, Any]] = {}
+
+    def _remember_write(self, key: str, result: Dict[str, Any]) -> None:
+        self._write_keys[key] = dict(result)
+        while len(self._write_keys) > 64:
+            self._write_keys.pop(next(iter(self._write_keys)))
 
     def ping(self, _params: Dict[str, Any]) -> Dict[str, Any]:
         return {"agent": AGENT_NAME, "version": AGENT_VERSION, "protocol": PROTOCOL,
@@ -726,7 +736,8 @@ class Agent:
         except OSError as exc:
             raise Refused(f"Не удалось прочитать каталог: {exc}", f"Could not read the directory: {exc}") from None
         limit = max(1, min(MAX_LIST, int(params.get("limit") or MAX_LIST)))
-        for item in entries[:limit]:
+        offset = max(0, int(params.get("offset") or 0))
+        for item in entries[offset:offset + limit]:
             row: Dict[str, Any] = {"name": item.name, "type": "dir" if item.is_dir() else "file"}
             if item.is_symlink():
                 row["symlink"] = True
@@ -739,7 +750,8 @@ class Agent:
             except OSError:
                 row["unreadable"] = True
             rows.append(row)
-        return {"path": str(path), "entries": rows, "total": len(entries), "shown": len(rows)}
+        return {"path": str(path), "entries": rows, "total": len(entries), "shown": len(rows),
+                "offset": offset, "next_offset": offset + len(rows) if offset + len(rows) < len(entries) else None}
 
     def fs_stat(self, params: Dict[str, Any]) -> Dict[str, Any]:
         path = self.guard.check_read(params.get("path") or ".")
@@ -780,6 +792,13 @@ class Agent:
             data = base64.b64decode(str(params.get("content_b64") or ""))
         else:
             data = str(params.get("text") or "").encode("utf-8")
+        key = str(params.get("idempotency_key") or "").strip()[:120]
+        if key:
+            fingerprint = hashlib.sha256(str(path).encode() + b"\x00" + (b"a" if append else b"w") +
+                                         b"\x00" + data).hexdigest()[:16]
+            cached = self._write_keys.get(key)
+            if cached is not None and cached.get("fingerprint") == fingerprint:
+                return {k: v for k, v in cached.items() if k != "fingerprint"} | {"replayed": True}
         existed = path.exists()
         if existed and path.is_dir():
             raise Refused(f"Это каталог: {path}", f"This is a directory: {path}")
@@ -787,10 +806,32 @@ class Agent:
             raise NeedsConfirm(f"Файл «{path}» уже существует и будет перезаписан",
                                f"The file “{path}” already exists and would be overwritten")
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("ab" if append else "wb") as handle:
-            handle.write(data)
-        return {"path": str(path), "bytes": len(data), "appended": append, "created": not existed,
-                "size": path.stat().st_size}
+        if append:
+            with path.open("ab") as handle:
+                handle.write(data)
+        else:
+            # A crash mid-write used to leave a half-written file behind;
+            # write beside it and rename, so the old content survives until
+            # the new one is complete. Writing the identical content again
+            # is a no-op, so a retry after the rename never churns the file.
+            if existed and path.stat().st_size == len(data) and path.read_bytes() == data:
+                result: Dict[str, Any] = {"path": str(path), "bytes": len(data), "appended": False,
+                                         "created": False, "size": len(data), "unchanged": True}
+                if key:
+                    self._remember_write(key, {**result, "fingerprint": fingerprint})
+                return result
+            temporary = path.with_name(f".{path.name}.{secrets.token_hex(6)}.tmp")
+            try:
+                with temporary.open("wb") as handle:
+                    handle.write(data)
+                os.replace(temporary, path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        result = {"path": str(path), "bytes": len(data), "appended": append, "created": not existed,
+                  "size": path.stat().st_size}
+        if key:
+            self._remember_write(key, {**result, "fingerprint": fingerprint})
+        return result
 
     def fs_mkdir(self, params: Dict[str, Any]) -> Dict[str, Any]:
         path = self.guard.check_write(params.get("path") or "", what="создать")

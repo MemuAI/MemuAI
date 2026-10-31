@@ -22,8 +22,9 @@
     query: String(Memu.saved?.query || ""),
     familyCounts: new Map(), familyNames: new Map(), familiesLoaded: false, familiesBusy: false, familiesError: "", familyQueries: new Map(),
     expanded: new Set(["openrouter"]),
+    catalogAt: 0, catalogCount: 0, catalogError: "", catalogStale: false,
 
-    tab: "", seen: 0, unreadFrom: -1, period: "all", sourceFilter: "all", onlyUnread: false,
+    tab: "", seen: 0, unreadFrom: -1, period: "all", sourceFilter: "all", onlyUnread: false, connected: [], connectedId: "",
     specs: new Map(), specsByTail: new Map(),
   };
   let queryTimer = 0;
@@ -34,6 +35,24 @@
     if (!value) return tr("Ещё не проверялось", "Not checked yet");
     const stamp = +value < 1e12 ? +value * 1000 : +value;
     return new Date(stamp).toLocaleString(Memu.lang === "en" ? "en-US" : "ru-RU");
+  }
+  function createdSeconds(value) {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return 0;
+      const numeric = Number(trimmed);
+      if (Number.isFinite(numeric)) return createdSeconds(numeric);
+      const parsed = Date.parse(trimmed);
+      return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+    }
+    const stamp = Number(value);
+    if (!Number.isFinite(stamp) || stamp <= 0) return 0;
+    if (stamp >= 1e12) {
+      const seconds = Math.floor(stamp / 1000);
+      return seconds > 4102444800 ? 0 : seconds;
+    }
+    return stamp > 4102444800 ? 0 : Math.floor(stamp);
   }
   function makeSource(spec, selected = true) {
     const runtime = clone(spec);
@@ -80,6 +99,7 @@
           const arch = row.architecture || {}, pricing = row.pricing || {};
           const spec = { context: +row.context_length || +row.top_provider?.context_length || 0, input: perMillion(pricing.prompt), output: perMillion(pricing.completion),
             inputs: (Array.isArray(arch.input_modalities) ? arch.input_modalities : []).filter((x) => typeof x === "string"), outputs: (Array.isArray(arch.output_modalities) ? arch.output_modalities : []).filter((x) => typeof x === "string") };
+          const created = createdSeconds(row.created); if (created) spec.created = created;
           specs.set(row.id.toLowerCase(), spec);
           const tail = norm(row.id);
           if (tail) tails.set(tail, tails.has(tail) ? null : spec);
@@ -92,8 +112,9 @@
       }
       if (!counts.size) throw new Error(tr("Не удалось определить семейства", "Could not identify model families"));
       state.familyCounts = counts; state.familyNames = names; state.familiesLoaded = true;
+      state.catalogAt = Date.now(); state.catalogCount = specs.size; state.catalogError = ""; state.catalogStale = false;
       state.specs = specs; state.specsByTail = tails; renderFeed();
-    } catch (error) { state.familiesError = String(error?.message || error); }
+    } catch (error) { state.familiesError = String(error?.message || error); state.catalogError = state.familiesError; state.catalogStale = true; renderFeed(); }
     finally { state.familiesBusy = false; updateFamilyLists(); }
   }
   function updateFamilyLists() {
@@ -133,7 +154,7 @@
         <label class="am-field"><span>${tr("Найти семейство", "Find a family")}</span><input type="search" data-family-query="${index}" value="${esc(state.familyQueries.get(source.id) || "")}" placeholder="${esc(tr("DeepSeek, Qwen, Meta, Mistral…", "DeepSeek, Qwen, Meta, Mistral…"))}"></label>
         <div class="am-families" data-family-list="${index}">${familyChoices(source,index)}</div>
         ${source.id === "openrouter" ? `<div class="am-family-footer"><small data-family-notice></small><button type="button" data-refresh-families>${tr("Обновить семейства", "Refresh families")}</button></div>` : ""}
-        <small>${tr("«Все» автоматически включает будущие семейства. При выборе отдельных семейств уведомления фильтруются по ним.", "All automatically includes future families. Selecting individual families filters notifications to them.")}</small></details>` : ""}
+        <small>${tr("«Все» автоматически включает будущие семейства. При выборе отдельных семейств уведомления фильтруются по ним.", "All automatically includes future families. Selecting individual families filters notifications to them.")}</small>${all ? "" : `<small class="am-warn">${tr("Модели невыбранных семейств не попадут в ленту сейчас, но появятся как новые, если позже выбрать «Все» или это семейство.", "Models from unselected families will not reach the feed now, but will appear as new if All or that family is chosen later.")}</small>`}</details>` : ""}
       ${custom ? `<details><summary>${tr("Формат ответа API", "API response schema")}</summary>
         <label>${tr("Схема JSON", "JSON schema")}<select data-schema="${index}"><option value="openai">OpenAI: data → id / name</option><option value="google">Google: models → name / displayName</option><option value="root">${tr("Массив в корне JSON", "Array at JSON root")}</option><option value="custom" selected>${tr("Свои поля", "Custom fields")}</option></select></label>
         <label>${tr("Путь к массиву (точками; пусто — корень)", "Array path (dots; empty for root)")}<input data-source-field="items_path" data-source-index="${index}" value="${esc(source.items_path || "")}" placeholder="data"></label>
@@ -173,6 +194,10 @@
     const live = state.specs.get(key) || (!key.replace(/^models\//, "").includes("/") && (state.specsByTail.get(norm(key)) || state.specsByTail.get(norm(model.name))));
     return model.spec && typeof model.spec === "object" ? { ...live, ...model.spec } : live || null;
   }
+  function releaseDate(value) {
+    const stamp = createdSeconds(value) * 1000;
+    return new Date(stamp).toLocaleDateString(Memu.lang === "en" ? "en-US" : "ru-RU", { day: "numeric", month: "short", year: "numeric" });
+  }
   function compact(n) { n = +n || 0; return n >= 1e6 ? `${+(n / 1e6).toFixed(n % 1e6 ? 1 : 0)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n); }
   function money(value) {
     if (value === null || value === undefined || !Number.isFinite(value)) return "";
@@ -210,12 +235,49 @@
       }
       if (item.other.length && !state.onlyUnread && (!needle || item.other.join(" ").toLocaleLowerCase().includes(needle))) notes.push(item);
     }
+    models.sort((a, b) => (createdSeconds(specFor(b)?.created) - createdSeconds(specFor(a)?.created)) || (+b.event - +a.event) || String(a.key).localeCompare(String(b.key)));
     return { models, notes, sources: [...new Set(parsed.map((item) => item.source).filter(Boolean))] };
+  }
+  /* Real source titles (preset/custom source names) instead of raw
+   * source ids, and the shared model selector for the connected-models
+   * strip: picking a MemuAI-connected model filters the feed to it. */
+  function sourceTitle(id) {
+    const found = (state.sources || []).find((s) => s.id === id) || PRESETS.find((s) => s.id === id);
+    if (found && found.title) return found.title;
+    try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName({ provider: String(id || "") }); } catch (e) {}
+    return String(id || "");
+  }
+  async function loadConnected() {
+    try { state.connected = (await Memu.models()) || []; } catch (e) { state.connected = []; }
+    renderConnectedStrip();
+  }
+  function applyConnectedFilter(id) {
+    state.connectedId = id || "";
+    const row = state.connected.find((m) => m.id === state.connectedId);
+    state.query = row ? String(row.name || row.id) : "";
+    const input = $("#am-query"); if (input) input.value = state.query;
+    renderFeed();
+  }
+  function renderConnectedStrip() {
+    const host = $("#am-connected-strip"); if (!host) return;
+    const rows = state.connected;
+    try {
+      if (window.MemuModelSelector && rows.length) {
+        window.MemuModelSelector.renderList(host, rows, {
+          preset: "inline-list", selected: state.connectedId ? [state.connectedId] : [],
+          onToggle: (id, selected) => applyConnectedFilter(selected[0] || "")
+        });
+        return;
+      }
+    } catch (e) {}
+    host.innerHTML = rows.map((row) => `<button type="button" class="am-chip ${row.id === state.connectedId ? "on" : ""}" data-connected="${esc(row.id)}">${esc(row.name || row.id)}</button>`).join("");
+    for (const btn of host.querySelectorAll("[data-connected]")) btn.onclick = () => applyConnectedFilter(btn.dataset.connected === state.connectedId ? "" : btn.dataset.connected);
   }
   function modelHtml(model) {
     const spec = specFor(model), fam = familyOf(model.key), label = fam ? familyLabel(fam) : model.source;
     const specs = [];
     if (spec?.context) specs.push(`<span class="am-spec"><i>${tr("контекст", "context")}</i>${compact(spec.context)}</span>`);
+    if (spec?.created) specs.push(`<span class="am-spec"><i>${tr("вышла", "released")}</i>${esc(releaseDate(spec.created))}</span>`);
     if (spec && (Number.isFinite(spec.input) || Number.isFinite(spec.output))) {
       specs.push(`<span class="am-spec"><i>${tr("цена 1M", "price 1M")}</i>${esc(money(spec.input) || "—")} → ${esc(money(spec.output) || "—")}</span>`);
     }
@@ -256,16 +318,38 @@
     const { models, notes, sources } = feedEntries();
     const unreadCount = state.events.reduce((sum, event) => sum + (+event.id > state.seen ? parseEvent(event).models.length : 0), 0);
     const badge = $("#am-unread-badge"); if (badge) { badge.textContent = unreadCount; badge.hidden = !unreadCount; }
+    renderConnectedStrip();
     const chips = $("#am-source-chips");
     if (chips) chips.innerHTML = ["all", ...sources].map((name) => `<button type="button" class="am-chip ${state.sourceFilter === name ? "on" : ""}" data-feed-source="${esc(name)}" aria-pressed="${state.sourceFilter === name}">${esc(name === "all" ? tr("Все источники", "All sources") : name)}</button>`).join("");
     const mark = $("#am-mark-seen"); if (mark) mark.disabled = !unreadCount;
+    const catalogStatus = $("#am-catalog-status");
+    if (catalogStatus) {
+      const selected = state.sources.filter((source) => source.selected);
+      const last = Math.max(0, ...selected.map((source) => +source.runtime?.last_success || 0));
+      const total = selected.reduce((sum, source) => sum + (+source.runtime?.count || 0), 0);
+      const failed = selected.filter((source) => source.runtime?.error);
+      const scanText = failed.length
+        ? `${tr("Ошибка каталога: ", "Catalog error: ")}${failed.map((source) => `${source.title}: ${source.runtime.error}`).join("; ")}`
+        : last
+          ? `${tr("Каталог обновлён: ", "Catalog updated: ")}${date(last)}${total ? ` · ${total} ${tr("мод.", "models")}` : ""}`
+          : tr("Каталог ещё не обновлялся", "The catalog has not been updated yet");
+      const datesText = state.catalogAt
+        ? `${tr("Даты выхода обновлены: ", "Release dates updated: ")}${date(state.catalogAt)}${state.catalogCount ? ` · ${state.catalogCount} ${tr("мод.", "models")}` : ""}${state.catalogStale ? ` (${tr("устарели", "stale")}${state.catalogError ? `: ${state.catalogError}` : ""})` : ""}`
+        : state.catalogError
+          ? `${tr("Даты выхода не загружены: ", "Release dates not loaded: ")}${state.catalogError}`
+          : tr("Даты выхода ещё не загружены — порядок по времени обнаружения", "Release dates not loaded yet — ordered by detection time");
+      catalogStatus.textContent = `${scanText} — ${datesText}`;
+      catalogStatus.classList.toggle("error", !!failed.length || !!state.catalogError);
+      catalogStatus.dataset.catalogUpdated = state.catalogAt ? String(state.catalogAt) : "";
+      catalogStatus.dataset.catalogStale = String(state.catalogStale || !!state.catalogError);
+    }
     if (!models.length && !notes.length) { list.innerHTML = emptyHtml(); bindFeed(); return; }
 
     const days = new Map();
     for (const model of models) {
       const dayKey = new Date(model.at).toDateString();
       if (!days.has(dayKey)) days.set(dayKey, { at: model.at, groups: new Map() });
-      const fam = familyOf(model.key), group = fam ? familyLabel(fam) : model.source || "—";
+      const fam = familyOf(model.key), group = fam ? familyLabel(fam) : sourceTitle(model.source) || "—";
       const groups = days.get(dayKey).groups;
       if (!groups.has(group)) groups.set(group, { label: group, source: model.source, at: model.at, rows: [] });
       groups.get(group).rows.push(model);
@@ -352,7 +436,9 @@
           <button type="button" class="am-icon" id="am-history-refresh" title="${esc(tr("Обновить ленту", "Refresh the feed"))}" aria-label="${esc(tr("Обновить ленту", "Refresh the feed"))}">${ICON.refresh}</button>
         </div>
         <div class="am-chips" id="am-source-chips"></div>
+        <div class="am-connected" id="am-connected-strip"></div>
         <p class="am-feed-notice" id="am-feed-notice" role="status" hidden></p>
+        <p class="am-catalog-status" id="am-catalog-status" role="status"></p>
         <div class="am-feed" id="am-feed" aria-live="polite"></div>
       </section>
       <section class="am-pane" id="am-settings-pane" role="tabpanel" hidden>
@@ -435,7 +521,9 @@
       if (action === "save" || action === "scan") await saveDraft();
       if (action === "scan") {
         const data = await Memu.monitor({action:"scan"}); applyStatus(data,true);
-        state.notice = tr("Проверка завершена. Статус каждого источника — ниже.", "Check completed. Each source's status is shown below.");
+        const failed = state.sources.filter((source) => source.selected && source.runtime?.error);
+        if (failed.length) state.error = failed.map((source) => `${source.title}: ${source.runtime.error}`).join("; ");
+        else state.notice = tr("Проверка завершена. Статус каждого источника — ниже.", "Check completed. Each source's status is shown below.");
       } else if (action === "refresh") { applyStatus(await Memu.monitor({action:"status"}),!state.dirty);state.notice = tr("Статус обновлён", "Status refreshed"); }
       else state.notice = tr("Настройки сохранены", "Settings saved");
       render(); await history();
@@ -528,7 +616,7 @@
       applyStatus(status,true);
 
       state.tab = (status?.sources || []).length ? "feed" : "settings";
-      render();await history();
+      render();loadConnected();await history();
     }
     catch(error){state.loaded=true;state.tab="settings";state.sources=PRESETS.map((source,index)=>makeSource(source,index===0));state.error=String(error?.message || error);render();}
     Memu.ready();

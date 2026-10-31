@@ -567,12 +567,12 @@ class ModuleHostContracts(unittest.TestCase):
         root = self._root()
         self._custom(root, "notes")
         rows = reorder_modules(root, ["notes", "design", "ghost", "notes"])
-        self.assertEqual([row["id"] for row in rows], ["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb"])
+        self.assertEqual([row["id"] for row in rows], ["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet"])
         self.assertEqual([row["launcher"]["order"] for row in rows], list(range(len(rows))))
         again = reorder_modules(root, ["studio"])
         self.assertEqual([row["id"] for row in again][0], "studio")
         self.assertEqual(sorted(row["id"] for row in again),
-                         sorted(["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb"]))
+                         sorted(["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet"]))
         self.assertEqual([row["id"] for row in reorder_modules(root, [])],
                          [row["id"] for row in again])
 

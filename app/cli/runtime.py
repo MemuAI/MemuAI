@@ -175,6 +175,15 @@ class BackgroundJobs:
             result = await agent.run_turn(prompt, kind="prompt" if first else "command")
             job["turns"] += 1
             job["tokens"] += int(result.usage.input + result.usage.output)
+            # Checkpoint: what this run achieved, in the job itself, so a
+            # follow-up (or a look at /tasks) sees progress even if the next
+            # run is cancelled — the agent's own session already holds the
+            # transcript, this only summarises it.
+            checkpoint = {"turns": job["turns"], "tokens": job["tokens"],
+                          "tools": getattr(agent.ui, "tools_used", job["tools"]),
+                          "at": time.time(), "stopped": result.stopped or ""}
+            job["last_checkpoint"] = checkpoint
+            job.setdefault("checkpoints", []).append(checkpoint)
             job["status"] = {"done": "done", "interrupted": "cancelled"}.get(result.stopped, result.stopped)
             job["result"] = result.text or result.error
             job["tools"] = getattr(agent.ui, "tools_used", job["tools"])
@@ -279,6 +288,8 @@ class BackgroundJobs:
             row["model"] = job["model"]
         if job.get("tokens"):
             row["tokens"] = job["tokens"]
+        if job.get("last_checkpoint"):
+            row["last_checkpoint"] = job["last_checkpoint"]
         if job["status"] == "running":
             row["doing"] = job.get("last") or ""
             if job.get("inbox"):

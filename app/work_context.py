@@ -146,9 +146,9 @@ def build_work_context(root: str | Path, query: str, *, active_paths: list[str] 
         selected = candidates[:min(4, max_files)]
 
     files_out: list[dict[str, Any]] = []
-    remaining = max(2_000, int(max_chars))
+    remaining = max(200, int(max_chars))
     for score, rel, path, size in selected:
-        if remaining < 500:
+        if remaining < 200:
             break
         excerpt, truncated = _safe_read(path, query_tokens, min(24_000, remaining))
         if not excerpt.strip():
@@ -164,4 +164,11 @@ def build_work_context(root: str | Path, query: str, *, active_paths: list[str] 
         "index_truncated": len(index) > 800 or len(index) >= max_entries,
         "files": files_out,
         "chars": sum(len(item["text"]) for item in files_out),
+        # What the budget did, in the open: how many relevant candidates the
+        # cap left out, and how much of the char budget was used. Callers
+        # (and tests) can tell «nothing was cut» from «the project was cut».
+        "budget": {"max_chars": int(max_chars), "used_chars": sum(len(item["text"]) for item in files_out),
+                   "candidates": len(candidates), "selected": len(files_out),
+                   "dropped": max(0, len(candidates) - len(files_out)),
+                   "scanned": len(index)},
     }

@@ -494,7 +494,14 @@ answers arrive as the tool result and you continue the same answer from them. If
 decide yourself, name the assumption in one short clause and finish the task. One form per turn is normal;
 a second only if the answers opened a genuinely new question.
 </ask_user>`;
-  function promptBlock() { return PROMPT; }
+  const PROMPT_BRIEF = `<ask_user>
+When a request is genuinely ambiguous and a wrong guess would change the result, ask with one small ask_user form 
+(field types: choice, multi, text, date, number, bool) instead of writing a paragraph of questions. 
+Ask only what changes the result. At most 3 fields, short labels, 2–6 options with the likely one as default. 
+Write nothing else in that reply: the answers arrive as the tool result and you continue the same answer from them. 
+If the user skipped the form, decide yourself, name the assumption in one short clause and finish the task.
+</ask_user>`;
+  function promptBlock() { return PROMPT_BRIEF; }
 
   window.MemuAskUser = { ask, html: chatHtml, interceptSend, hasPending, promptBlock, resultFrom, _waiters: waiters };
 })();

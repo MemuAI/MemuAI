@@ -8,7 +8,10 @@
 .ptx-cats button.on { background: var(--accent-soft, color-mix(in srgb, var(--accent) 14%, transparent)); color: var(--text); font-weight: 600; }
 .ptx-cats button.on .ui-icon { color: var(--accent); }
 .ptx-cats button:focus-visible, .ptx-src:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.ptx-srcs { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 420px; min-width: 0; }
+.ptx-srcs { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 420px; min-width: 0; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent; overscroll-behavior: contain; }
+.ptx-srcs::-webkit-scrollbar { width: 8px; }
+.ptx-srcs::-webkit-scrollbar-track { margin: 8px 0; background: transparent; }
+.ptx-srcs::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .ptx-src { display: flex; align-items: flex-start; gap: 11px; padding: 10px 11px; border: 1px solid var(--border); border-radius: var(--r-md, 12px);
   background: var(--panel); color: var(--text); text-align: left; cursor: pointer; transition: background var(--m-dur-1, 120ms) ease, border-color var(--m-dur-1, 120ms) ease; }
 .ptx-src:hover { background: var(--panel-2); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
@@ -77,3 +80,6 @@
   .ptx-cats { flex-direction: row; flex-wrap: wrap; border-right: 0; padding-right: 0; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
   .ptx-cats button span { white-space: nowrap; }
 }
+/* Round 42: shared Planning refresh — rounder cards, calmer chips. */
+.pln-row, .ptg-card { border-radius: 13px; }
+.pln-chipbtn, .pln-pop-list button { border-radius: 10px; }

@@ -1,6 +1,21 @@
 
 
 const t = (key, vars) => Memu.t(key, vars);
+/* Shared model picker: provider names from the catalogue via
+ * MemuModelSelector (never a raw "custom" provider). */
+function providerNameOf(item) {
+  try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(item); } catch (e) {}
+  return item.provider_label || item.account || item.provider || "";
+}
+function mountModelSelector(select, opts) {
+  try {
+    if (window.MemuModelSelector && window.MemuModelSelector.mountSelect) {
+      return window.MemuModelSelector.mountSelect(select, opts);
+    }
+  } catch (e) {}
+  return null;
+}
+
 const saved = Memu.saved || {};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -424,7 +439,7 @@ const isChatModel = (item) => (item.kind || "chat") === "chat" && !item.image &&
 function modelOptions(list, match, current, emptyFirst) {
   const top = list.filter(match);
   const rest = list.filter((item) => !match(item));
-  const option = (item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`;
+  const option = (item) => `<option value="${esc(item.id)}" data-provider="${esc(providerNameOf(item))}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`;
   let html = emptyFirst || "";
   if (top.length && rest.length) {
     html += `<optgroup label="${esc(t("models.fit"))}">${top.map(option).join("")}</optgroup>`
@@ -460,6 +475,9 @@ Memu.models().then((rows) => {
   chatModel = (chat.find((item) => item.default) || chat[0])?.id || "";
   drawModels(true);
   drawMusicProducerModels(true);
+  mountModelSelector(el.imageModel, { preset: "cards", kind: "image" });
+  mountModelSelector(el.videoModel, { preset: "dropdown", kind: "video" });
+  mountModelSelector(musicEl["producer-model"], { preset: "compact", kind: "chat" });
   if (!modelList.length) setStatus(t("model.connect"), "error");
   renderRefs();
 }).catch((error) => {
@@ -1286,7 +1304,7 @@ function drawMusicProducerModels(first = false) {
   const select = musicEl["producer-model"];
   const current = first ? (saved.music_producer_model || chatModel) : select.value;
   const rows = (modelList || []).filter(isChatModel);
-  select.innerHTML = rows.map((item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("")
+  select.innerHTML = rows.map((item) => `<option value="${esc(item.id)}" data-provider="${esc(providerNameOf(item))}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("")
     || `<option value="">${esc(mt("need_model"))}</option>`;
   select.value = rows.some((item) => item.id === current) ? current : (rows[0]?.id || "");
 }
@@ -1313,7 +1331,7 @@ musicEl.preset.onchange = () => {
 
 function drawMusicModels() {
   const current = musicEl.model.value || saved.music_model;
-  musicEl.model.innerHTML = musicModels.map((item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}${item.provider ? " · " + esc(item.provider) : ""}</option>`).join("")
+  musicEl.model.innerHTML = musicModels.map((item) => `<option value="${esc(item.id)}" data-provider="${esc(providerNameOf(item))}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("")
     || `<option value="">${esc(mt(musicModelsLoaded ? "no_music" : "loading_models"))}</option>`;
   musicEl.model.value = musicModels.some((item) => item.id === current) ? current : musicModels[0]?.id || "";
   musicEl.go.disabled = !musicModels.length && !busy.music;
@@ -1327,6 +1345,7 @@ function updateMusicCapabilities() {
   musicEl.lyrics.maxLength = caps.lyrics_limit || 12000;
 }
 musicEl.model.onchange = () => { updateMusicCapabilities(); remember(true); };
+mountModelSelector(musicEl.model, { preset: "chips", kind: "music" });;
 async function refreshMusicModels() {
   musicEl.refresh.disabled = true;
   try {

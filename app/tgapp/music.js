@@ -26,6 +26,10 @@
       chevDown: P('<path d="M6 9l6 6 6-6"/>', 'stroke-width="2.4"'),
       cloudOff: P('<path d="M2 2l20 20M7 7a6 6 0 0 0-1 11h11M22 17a4.5 4.5 0 0 0-5.5-6.7A6 6 0 0 0 10 6.3"/>'),
       saved: P('<circle cx="12" cy="12" r="9"/><path d="M12 7v8M8.5 11.5L12 15l3.5-3.5"/>'),
+      moon: P('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+      volumeOff: P('<path d="M11 5L6 9H2v6h4l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/>'),
+      arrowUp: P('<path d="M12 19V5M5 12l7-7 7 7"/>', 'stroke-width="2.4"'),
+      arrowDown: P('<path d="M12 5v14M19 12l-7 7-7-7"/>', 'stroke-width="2.4"'),
     });
 
     const M = {
@@ -33,6 +37,7 @@
       queue: [], index: -1, shuffle: false, repeat: "off", mode: "phone",
       pc: null, audio: null, lyrics: null, lyricsFor: "", full: null, offline: {}, pending: { likes: [], plays: [], playlist_adds: [] },
       playStart: 0, playedFor: "", downloading: {}, jobs: [], light: false, libView: "tracks", pcId: "", stable: null,
+      menuHandle: null, roman: false, wordSync: true, tapSync: false, speed: 1, sleepTimer: 0, sleepUntil: 0, sleepEnd: false, libGenre: "", libAll: [],
     };
     const LS = { state: "memu_music_state", offline: "memu_music_offline", pending: "memu_music_pending" };
     const CACHE = "memu-music-v1";
@@ -42,6 +47,12 @@
     M.offline = load(LS.offline, {});
     M.pending = Object.assign({ likes: [], plays: [], playlist_adds: [] }, load(LS.pending, {}));
     M.light = !!load("memu_music_light", false);
+    M.speed = [0.75, 1, 1.25, 1.5, 2].includes(+load("memu_music_speed", 1)) ? +load("memu_music_speed", 1) : 1;
+    M.wordSync = load("memu_music_wordsync", true) !== false;
+    M.lyOffsets = load("memu_music_lyric_offsets", {});
+    M.lyManual = load("memu_music_lyric_manual", {});
+    M.history = Array.isArray(load("memu_music_history", [])) ? load("memu_music_history", []) : [];
+    M.volume = +load("memu_music_volume", 1); if (!(M.volume > 0 && M.volume <= 1)) M.volume = 1;
     M.pcId = load("memu_music_pc", "");
 
     const fmt = (sec) => { const s = Math.max(0, Math.floor(+sec || 0)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -53,6 +64,103 @@
     const remember = (rows) => { (rows || []).forEach((t) => { if (t && t.id) byId.set(t.id, Object.assign(byId.get(t.id) || {}, t)); }); return rows || []; };
     const hue = (text) => { let h = 0; for (const c of String(text || "")) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
     const accentOf = (t) => (t && /^#[0-9a-f]{6}$/i.test(t.accent || "") ? t.accent : `hsl(${hue((t && (t.album || t.artist || t.title)) || "")} 55% 52%)`);
+    // Lyrics helpers: the desktop romanizer (kakasi / korean_romanizer) is not
+    // exposed to the Mini App, so kana and hangul are romanized locally.
+    // Kanji has no reading table here and is left as-is on purpose.
+    const KANA_TABLE = {};
+    "あa いi うu えe おo かka きki くku けke こko さsa しshi すsu せse そso たta ちchi つtsu てte とto なna にni ぬnu ねne のno はha ひhi ふfu へhe ほho まma みmi むmu めme もmo やya ゆyu よyo らra りri るru れre ろro わwa をwo んn ぁa ぃi ぅu ぇe ぉo ゃya ゅyu ょyo がga ぎgi ぐgu げge ごgo ざza じji ずzu ぜze ぞzo だda ぢji づzu でde どdo ばba びbi ぶbu べbe ぼbo ぱpa ぴpi ぷpu ぺpe ぽpo ゔvu".split(" ").forEach((pair) => { KANA_TABLE[pair[0]] = pair.slice(1); });
+    function kanaBase(ch) {
+      const code = ch.charCodeAt(0);
+      if (code >= 0x30a1 && code <= 0x30f6) return String.fromCharCode(code - 0x60);
+      return ch;
+    }
+    function kanaRoma(ch) {
+      const base = kanaBase(ch);
+      if (base === "っ") return "*";
+      if (base === "ー" || ch === "ｰ") return "-";
+      return Object.prototype.hasOwnProperty.call(KANA_TABLE, base) ? KANA_TABLE[base] : null;
+    }
+    function nextKanaRoma(s, i) { return i < s.length ? kanaRoma(s[i]) : null; }
+    function hasRomanizable(text) { return /[\u3040-\u30ff\uac00-\ud7a3]/.test(String(text || "")); }
+    function romanizeText(text) {
+      const s = String(text || "");
+      let out = "";
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i], code = ch.charCodeAt(0);
+        if (code >= 0xac00 && code <= 0xd7a3) {
+          const idx = code - 0xac00, cho = Math.floor(idx / 588), jung = Math.floor((idx % 588) / 28), jong = idx % 28;
+          const CHO = ["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"];
+          const JUNG = ["a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "ui"];
+          const JONG = ["", "k", "k", "k", "n", "n", "n", "t", "l", "l", "m", "l", "l", "l", "l", "l", "m", "p", "p", "t", "t", "ng", "t", "t", "k", "t", "p", "h"];
+          const SPLIT = { 3: ["k", "s"], 5: ["n", "j"], 6: ["n", "h"], 9: ["l", "k"], 11: ["l", "b"], 12: ["l", "s"], 13: ["l", "t"], 14: ["l", "p"], 15: ["l", "h"], 18: ["p", "s"] };
+          let onset = CHO[cho], vowel = JUNG[jung], tail = JONG[jong], move = "";
+          const nx = s[i + 1];
+          if (jong && nx) {
+            const nc = nx.charCodeAt(0);
+            if (nc >= 0xac00 && nc <= 0xd7a3 && Math.floor((nc - 0xac00) / 588) === 11) {
+              if (jong === 21) { tail = "ng"; }
+              else if (SPLIT[jong]) { tail = SPLIT[jong][0]; move = SPLIT[jong][1]; }
+              else { tail = ""; move = CHO[["g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"].indexOf(JONG[jong])] || JONG[jong]; const map = { k: "g", t: "d", p: "b", l: "r" }; move = map[move] || move; }
+              out += onset + vowel + tail + move;
+              continue;
+            }
+          }
+          out += onset + vowel + tail;
+          continue;
+        }
+        const roma = kanaRoma(ch);
+        if (roma == null) { out += ch; continue; }
+        if (roma === "*") {
+          const nx = nextKanaRoma(s, i + 1);
+          if (nx && nx !== "*" && nx !== "-") out += nx.startsWith("ch") ? "t" : nx.startsWith("sh") ? "s" : /^[aeiou]/.test(nx) ? "'" : nx[0];
+          continue;
+        }
+        if (roma === "-") { const m = out.match(/[aeiou]$/); if (m) out += m[0]; continue; }
+        const small = s[i + 1];
+        if (small && "ゃゅょャュョ".includes(small) && roma.endsWith("i")) {
+          const stem = roma.slice(0, -1);
+          const v = { "ゃ": "a", "ゅ": "u", "ょ": "o", "ャ": "a", "ュ": "u", "ョ": "o" }[small];
+          out += (roma === "shi" || roma === "chi" || roma === "ji") ? stem + v : stem + "y" + v;
+          i++;
+          continue;
+        }
+        if (ch === "ん" || ch === "ン") {
+          const nx = nextKanaRoma(s, i + 1);
+          if (nx && /^[bmp]/.test(nx)) out += "m";
+          else if (nx && /^[aeiouy]/.test(nx)) out += "n'";
+          else out += "n";
+          continue;
+        }
+        out += roma;
+      }
+      return out;
+    }
+    function parseLrc(text) {
+      const timed = [], plain = [];
+      String(text || "").split(/\n/).forEach((line) => {
+        const m = line.match(/^\s*\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]\s*(.*)$/);
+        if (m) { timed.push([+m[1] * 60 + +m[2] + (+m[3] || 0) / (m[3] && m[3].length === 3 ? 1000 : 100), m[4]]); return; }
+        if (/^\s*\[(ti|ar|al|by|offset|length|re|ve)\b/i.test(line)) return;
+        const s = line.trim(); if (s) plain.push([null, s]);
+      });
+      timed.sort((a, b) => a[0] - b[0]);
+      const rows = timed.concat(plain);
+      return rows.length ? rows : null;
+    }
+    const effOffset = () => (+(M.lyrics && M.lyrics.offset || 0)) + (+(M.lyrics && M.lyrics.general_offset || 0)) + (+(M.lyOffsets[M.lyricsFor] || 0));
+    const localOffset = (id) => +(M.lyOffsets[id] || 0);
+    function setLocalOffset(id, value) {
+      const v = Math.round(Math.max(-30, Math.min(30, +value || 0)) * 10) / 10;
+      if (v) M.lyOffsets[id] = v; else delete M.lyOffsets[id];
+      save("memu_music_lyric_offsets", M.lyOffsets);
+      return v;
+    }
+    function recordHistory(t) {
+      if (!t || !t.id) return;
+      M.history = [slim(t)].concat(M.history.filter((h) => h.id !== t.id)).slice(0, 30);
+      save("memu_music_history", M.history);
+    }
+
 
     const LOOK_ACCENTS = { cover: ["#7c5cff", "#ff5c8a"], midnight: ["#7c5cff", "#ff5c8a"], aurora: ["#22d39b", "#4f8cff"], sunset: ["#ff7a45", "#ff3d77"],
       ocean: ["#1fb2ff", "#3a6bff"], neon: ["#ff2bd6", "#00d9ff"], sakura: ["#ff7aa8", "#b77bff"], moss: ["#7fb54a", "#d0b44c"], sand: ["#c27a34", "#9f4f2c"],
@@ -251,11 +359,12 @@
     function audio() {
       if (M.audio) return M.audio;
       const a = new Audio(); a.preload = "auto"; a.crossOrigin = "anonymous";
+      try { a.volume = M.volume; a.playbackRate = M.speed; a.preservesPitch = true; } catch (e) {  }
       a.addEventListener("timeupdate", onTime);
       a.addEventListener("play", () => { paintPlaying(); mediaSession(); report(true); });
       a.addEventListener("pause", () => { paintPlaying(); persist(); report(true); });
       a.addEventListener("seeked", () => report(true));
-      a.addEventListener("ended", () => { countPlay(true); if (M.repeat === "one") { a.currentTime = 0; a.play(); } else next(true); });
+      a.addEventListener("ended", () => { countPlay(true); if (M.sleepEnd) { M.sleepEnd = false; clearSleep(); drawFullTrack(); return; } if (M.repeat === "one") { a.currentTime = 0; a.play(); } else next(true); });
       a.addEventListener("loadedmetadata", () => { paintTime(); mediaPosition(); });
       a.addEventListener("waiting", () => document.documentElement.classList.add("mm-buffering"));
       a.addEventListener("playing", () => document.documentElement.classList.remove("mm-buffering"));
@@ -306,7 +415,7 @@
     }
     async function loadCurrent(position = 0, autoplay = true) {
       const t = current(); if (!t) return;
-      const a = audio(); M.playedFor = ""; M.lyrics = null;
+      const a = audio(); M.playedFor = ""; M.lyrics = null; recordHistory(t);
       const off = M.offline[t.id] ? await offlineBlobUrl(t.id) : "";
       if (a._blob) { URL.revokeObjectURL(a._blob); a._blob = ""; }
       if (off) a._blob = off;
@@ -492,6 +601,23 @@
       el.ontouchend = (e) => { if (y0 != null && y0 - e.changedTouches[0].clientY > 40) openFull(); y0 = null; };
     }
 
+    function clearSleep() { clearTimeout(M.sleepTimer); M.sleepTimer = 0; M.sleepUntil = 0; }
+    function setSleep(minutes, endOfTrack) {
+      clearSleep(); M.sleepEnd = false;
+      if (endOfTrack) { M.sleepEnd = true; toast(tr("Остановлюсь в конце трека", "Stops at the end of the track"), "ok"); }
+      else if (minutes) { M.sleepUntil = Date.now() + minutes * 60000; M.sleepTimer = setTimeout(() => { clearSleep(); const a = audio(); a.pause(); toast(tr("Таймер сна: остановлено", "Sleep timer: stopped"), "ok"); drawFullTrack(); }, minutes * 60000); toast(tr(`Таймер сна: ${minutes} мин`, `Sleep timer: ${minutes} min`), "ok"); }
+      else toast(tr("Таймер сна выключен", "Sleep timer off"), "ok");
+      haptic("select"); drawFullTrack();
+    }
+    function sleepSheet() {
+      actionSheet(tr("Таймер сна", "Sleep timer"), [
+        { icon: "moon", label: tr("15 минут", "15 minutes"), run: () => setSleep(15, false) },
+        { icon: "moon", label: tr("30 минут", "30 minutes"), run: () => setSleep(30, false) },
+        { icon: "moon", label: tr("60 минут", "60 minutes"), run: () => setSleep(60, false) },
+        { icon: "mmPlay", label: tr("До конца трека", "Until the end of the track"), checked: M.sleepEnd, run: () => setSleep(0, true) },
+        { icon: "close", label: tr("Выключить", "Off"), run: () => setSleep(0, false) },
+      ]);
+    }
     function openFull() {
       if (M.full || !nowTrack()) return;
       haptic("medium");
@@ -502,7 +628,7 @@
           <header class="mm-fh"><button class="mm-ib mm-close" aria-label="${esc(tr("Свернуть", "Collapse"))}">${icon("chevDown")}</button>
             <div class="mm-fh-title"><small></small><b></b></div>
             <button class="mm-ib mm-more" aria-label="${esc(tr("Ещё", "More"))}">${icon("more")}</button></header>
-          <div class="mm-stage"><div class="mm-cover-wrap"></div><div class="mm-lyrics" hidden></div><div class="mm-queue" hidden></div></div>
+          <div class="mm-stage"><div class="mm-cover-wrap"></div><div class="mm-ly-bar-host" hidden></div><div class="mm-lyrics" hidden></div><div class="mm-queue" hidden></div></div>
           <div class="mm-meta"><div class="mm-meta-text"><h2></h2><p></p></div><button class="mm-ib mm-like" aria-label="${esc(tr("Нравится", "Like"))}"></button></div>
           <div class="mm-scrub" role="slider" aria-label="${esc(tr("Позиция", "Position"))}"><div class="mm-scrub-track"><i></i></div><div class="mm-times"><span class="mm-t-pos">0:00</span><span class="mm-t-left">−0:00</span></div></div>
           <div class="mm-ctrls">
@@ -511,9 +637,11 @@
             <button class="mm-ib mm-play mm-toggle" aria-label="">${icon("mmPlay")}</button>
             <button class="mm-ib mm-big mm-next" aria-label="${esc(tr("Следующий", "Next"))}">${icon("mmNext")}</button>
             <button class="mm-ib mm-repeat" aria-label="${esc(tr("Повтор", "Repeat"))}">${icon("repeat")}</button></div>
-          <div class="mm-vol" hidden>${icon("volume")}<input type="range" min="0" max="100" step="1" aria-label="${esc(tr("Громкость компьютера", "Computer volume"))}"></div>
+          <div class="mm-vol"><button class="mm-ib mm-mute" aria-label="${esc(tr("Без звука", "Mute"))}">${icon("volume")}</button><input type="range" min="0" max="100" step="1" aria-label="${esc(tr("Громкость", "Volume"))}"></div>
           <footer class="mm-ff"><button class="mm-ib mm-tab-lyrics" aria-label="${esc(tr("Текст", "Lyrics"))}">${icon("lyrics")}</button>
+            <button class="mm-ib mm-speed" aria-label="${esc(tr("Скорость", "Speed"))}"><span>1×</span></button>
             <button class="mm-dev mm-dev-btn">${icon("devices")}<span></span></button>
+            <button class="mm-ib mm-sleep" aria-label="${esc(tr("Таймер сна", "Sleep timer"))}">${icon("moon")}</button>
             <button class="mm-ib mm-tab-queue" aria-label="${esc(tr("Очередь", "Queue"))}">${icon("queue")}</button></footer>
         </div>`;
       document.body.appendChild(f);
@@ -531,13 +659,21 @@
         if (M.mode === "pc") pcCommand("repeat", { value: nextMode }); else { M.repeat = nextMode; haptic("select"); drawFullTrack(); }
       };
       $(".mm-like", f).onclick = () => { const t = nowTrack(); if (t) setLike(byId.get(t.id) || t, !t.liked).then(drawFullTrack); };
-      $(".mm-more", f).onclick = () => { const t = nowTrack(); if (t) trackMenu(t); };
+      $(".mm-more", f).onclick = () => { if (M.menuHandle) return; const t = nowTrack(); if (t) M.menuHandle = trackMenu(t, { fromFull: true }); };
       $(".mm-meta p", f).onclick = () => { const t = nowTrack(); if (t && t.artist) { closeFull(); openArtist(t.artist); } };
       $(".mm-dev", f).onclick = devicesSheet;
       $(".mm-tab-lyrics", f).onclick = () => stagePane("lyrics");
       $(".mm-tab-queue", f).onclick = () => stagePane("queue");
       const vol = $(".mm-vol input", f);
-      vol.oninput = () => { clearTimeout(vol._t); vol._t = setTimeout(() => pcCommand("volume", { value: +vol.value / 100 }), 120); };
+      vol.oninput = () => {
+        if (M.mode === "pc") { clearTimeout(vol._t); vol._t = setTimeout(() => pcCommand("volume", { value: +vol.value / 100 }), 120); return; }
+        const a = audio(); a.volume = +vol.value / 100; M.volume = a.volume; save("memu_music_volume", M.volume); drawFullTrack();
+      };
+      const muteBtn = $(".mm-mute", f);
+      muteBtn.onclick = () => { if (M.mode === "pc") { pcCommand("volume", { value: 0 }); return; } const a = audio(); a.muted = !a.muted; haptic("select"); drawFullTrack(); };
+      const speedBtn = $(".mm-speed", f);
+      speedBtn.onclick = () => { const speeds = [1, 1.25, 1.5, 2, 0.75]; M.speed = speeds[(speeds.indexOf(M.speed) + 1) % speeds.length]; const a = audio(); try { a.playbackRate = M.speed; a.preservesPitch = true; } catch (e) {  } save("memu_music_speed", M.speed); haptic("select"); drawFullTrack(); toast(tr(`Скорость: ${M.speed}×`, `Speed: ${M.speed}×`), "ok"); };
+      $(".mm-sleep", f).onclick = sleepSheet;
       bindScrub($(".mm-scrub", f));
       bindGestures(f);
       drawFullTrack(); paintPlaying(); paintTime();
@@ -545,6 +681,7 @@
     }
     function closeFull() {
       const f = M.full; if (!f) return;
+      if (M.menuHandle) { const h = M.menuHandle; M.menuHandle = null; try { h.close(false); } catch (e) {  } }
       M.full = null; kit.popBack(f._handle);
       document.documentElement.classList.remove("mm-full-open");
       f.classList.remove("open"); f.classList.add("leave");
@@ -557,6 +694,7 @@
       pane.hidden = !show;
       f.classList.toggle("pane", show);
       $(".mm-tab-lyrics", f).classList.toggle("on", show && which === "lyrics");
+      const barHost = $(".mm-ly-bar-host", f); if (barHost) barHost.hidden = !(show && which === "lyrics");
       $(".mm-tab-queue", f).classList.toggle("on", show && which === "queue");
       haptic("select");
       if (show && which === "lyrics") loadLyrics();
@@ -584,8 +722,12 @@
       const rb = $(".mm-repeat", f); rb.classList.toggle("on", repeat !== "off"); rb.innerHTML = icon(repeat === "one" ? "repeatOne" : "repeat");
       $(".mm-dev span", f).textContent = pc ? tr("Компьютер", "Computer") : tr("Телефон", "Phone");
       $(".mm-dev", f).classList.toggle("pc", pc);
-      const vol = $(".mm-vol", f); vol.hidden = !pc;
-      if (pc && M.pc && document.activeElement !== $("input", vol)) $("input", vol).value = Math.round((+M.pc.volume || 0) * 100);
+      const vol = $(".mm-vol", f); vol.hidden = false;
+      const volVal = pc ? (M.pc ? (+M.pc.volume || 0) : null) : (M.audio ? M.audio.volume : M.volume);
+      if (volVal != null && document.activeElement !== $("input", vol)) $("input", vol).value = Math.round(volVal * 100);
+      const muteBtn = $(".mm-mute", f); if (muteBtn) { muteBtn.style.display = pc ? "none" : ""; muteBtn.innerHTML = icon(M.audio && M.audio.muted ? "volumeOff" : "volume"); muteBtn.classList.toggle("off", !!(M.audio && M.audio.muted)); }
+      const speedBtn = $(".mm-speed", f); if (speedBtn) { speedBtn.style.display = pc ? "none" : ""; const sp = $("span", speedBtn); if (sp) sp.textContent = `${M.speed}×`; speedBtn.classList.toggle("on", M.speed !== 1); }
+      const sleepBtn = $(".mm-sleep", f); if (sleepBtn) { sleepBtn.style.display = pc ? "none" : ""; sleepBtn.classList.toggle("on", !!(M.sleepTimer || M.sleepEnd)); }
       if (M.lyricsFor !== t.id && !$(".mm-lyrics", f).hidden) loadLyrics();
       if (!$(".mm-queue", f).hidden) drawQueue();
     }
@@ -593,7 +735,7 @@
       const track = $(".mm-scrub-track", el);
       const at = (x) => { const r = track.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)); };
       let p = 0;
-      const move = (x) => { p = at(x); const [, dur] = nowTime(); M.full.style.setProperty("--p", p); $(".mm-t-pos", M.full).textContent = fmt(p * dur); $(".mm-t-left", M.full).textContent = "−" + fmt(dur - p * dur); };
+      const move = (x) => { if (!M.full) return; p = at(x); const [, dur] = nowTime(); M.full.style.setProperty("--p", p); $(".mm-t-pos", M.full).textContent = fmt(p * dur); $(".mm-t-left", M.full).textContent = "−" + fmt(dur - p * dur); };
       el.addEventListener("pointerdown", (e) => { scrubbing = true; el.classList.add("drag"); el.setPointerCapture(e.pointerId); move(e.clientX); haptic("select"); });
       el.addEventListener("pointermove", (e) => { if (scrubbing) move(e.clientX); });
       const end = () => { if (!scrubbing) return; scrubbing = false; el.classList.remove("drag"); const [, dur] = nowTime(); seek(p * dur); haptic("light"); };
@@ -604,7 +746,7 @@
       const inner = $(".mm-full-in", f); const stage = $(".mm-stage", f);
       let x0 = null, y0 = null, axis = "", fromStage = false;
       inner.addEventListener("touchstart", (e) => {
-        if (e.target.closest(".mm-scrub, .mm-vol, .mm-lyrics, .mm-queue")) { x0 = null; return; }
+        if (e.target.closest(".mm-scrub, .mm-vol, .mm-lyrics, .mm-queue, .mm-ly-bar-host")) { x0 = null; return; }
         x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; axis = ""; fromStage = !!e.target.closest(".mm-stage");
       }, { passive: true });
       inner.addEventListener("touchmove", (e) => {
@@ -646,23 +788,98 @@
       });
     }
 
-    async function loadLyrics() {
+    function fmtLrc(sec) { const m = Math.floor(sec / 60), s = sec - m * 60; return `${String(m).padStart(2, "0")}:${s.toFixed(2).padStart(5, "0")}`; }
+    async function editLyrics() {
+      const t = nowTrack(); if (!t) return;
+      const cur = M.lyManual[t.id];
+      const existing = cur ? (cur.synced ? cur.synced.map((r) => `[${fmtLrc(r[0])}] ${r[1]}`).join("\n") : (cur.plain || "")) : "";
+      const value = await promptSheet(tr("Свой текст", "Own lyrics"), { value: existing, multiline: true, max: 20000, placeholder: "[00:12.34] Строка", ok: tr("Сохранить", "Save") });
+      if (value == null) return;
+      const text = String(value).trim();
+      if (!text) return;
+      const synced = parseLrc(text);
+      M.lyManual[t.id] = synced ? { synced, plain: synced.map((r) => r[1]).join("\n") } : { synced: null, plain: text };
+      save("memu_music_lyric_manual", M.lyManual);
+      M.lyrics = null; M.lyricsFor = ""; loadLyrics(true);
+      haptic("success"); toast(tr("Текст сохранён на телефоне", "Lyrics saved on the phone"), "ok");
+    }
+    async function loadLyrics(force) {
       const f = M.full; const t = nowTrack(); if (!f || !t) return;
       const box = $(".mm-lyrics", f);
-      if (M.lyricsFor === t.id && M.lyrics) return;
-      M.lyricsFor = t.id; M.lyrics = null;
+      if (!force && M.lyricsFor === t.id && M.lyrics) { if (box.dataset.lyricsFor !== t.id) renderLyrics(); return; }
+      M.lyricsFor = t.id; M.lyrics = null; lyricIndex = -1;
+      const barHost0 = $(".mm-ly-bar-host", f); if (barHost0) barHost0.hidden = true;
       box.innerHTML = `<p class="mm-ly-note">${esc(tr("Ищу текст…", "Looking for the lyrics…"))}</p>`;
+      const manual = M.lyManual[t.id];
+      if (manual) {
+        M.lyrics = { synced: manual.synced || null, plain: manual.plain || "", source: "manual", source_name: tr("Мой текст", "My lyrics"), offset: 0, general_offset: 0, alts: [], choice: 0 };
+        renderLyrics(); return;
+      }
       let data = null;
       try { data = await api("music.lyrics", { id: t.id }); } catch (e) { data = null; }
-      if (M.lyricsFor !== t.id) return;
+      if (M.lyricsFor !== t.id || !M.full) return;
       M.lyrics = data || {};
-      if (data && Array.isArray(data.synced) && data.synced.length) {
-        box.innerHTML = data.synced.map(([sec, line], i) => `<p class="mm-ly" data-i="${i}" data-t="${+sec}">${esc(line || "♪")}</p>`).join("") + `<p class="mm-ly-src">${esc(data.source_name || data.source || "")}</p>`;
-        $$(".mm-ly", box).forEach((p) => p.onclick = () => { seek(+p.dataset.t + (+data.offset || 0) + (+data.general_offset || 0)); haptic("select"); });
-        lyricTick(true); lyricLoop();
-      } else if (data && data.plain) {
-        box.innerHTML = `<div class="mm-ly-plain">${esc(data.plain).replace(/\n/g, "<br>")}</div><p class="mm-ly-src">${esc(data.source_name || data.source || "")}</p>`;
-      } else box.innerHTML = `<p class="mm-ly-note">${esc(tr("Текста для этого трека нет", "No lyrics for this track"))}</p>`;
+      renderLyrics();
+    }
+    function lyricLineText(row) { const text = String(row[1] || ""); return M.roman && hasRomanizable(text) ? romanizeText(text) : (text || "♪"); }
+    function renderLyrics() {
+      const f = M.full; const t = nowTrack(); if (!f || !t) return;
+      const box = $(".mm-lyrics", f); const ly = M.lyrics || {};
+      box.dataset.lyricsFor = t.id;
+      const off = localOffset(t.id);
+      const offLabel = (off > 0 ? "+" : "") + off.toFixed(1);
+      const romanizable = hasRomanizable((ly.synced || []).map((r) => r[1]).join("\n") + "\n" + (ly.plain || ""));
+      const hasWords = Array.isArray(ly.synced) && ly.synced.some((r) => Array.isArray(r[2]) && r[2].length);
+      const variants = Array.isArray(ly.alts) && ly.alts.length > 1 ? tr(` · вариантов: ${ly.alts.length}`, ` · ${ly.alts.length} versions`) : "";
+      const srcName = ly.source === "manual" ? tr("Мой текст", "My lyrics") : (ly.source_name || ly.source || "");
+      const synced = Array.isArray(ly.synced) && ly.synced.length;
+      const bar = `<div class="mm-ly-bar"><span class="mm-ly-bar-src">${esc(srcName)}${esc(variants)}</span>
+        ${romanizable ? `<button type="button" class="mm-ly-chip ${M.roman ? "on" : ""}" data-ly="roman" aria-pressed="${M.roman}">Aa</button>` : ""}
+        ${synced ? `<span class="mm-ly-off"><button type="button" data-ly="off-" aria-label="${esc(tr("Текст раньше", "Lyrics earlier"))}">−</button><button type="button" data-ly="off-reset" aria-label="${esc(tr("Сбросить сдвиг", "Reset the offset"))}">${esc(offLabel)} ${esc(tr("с", "s"))}</button><button type="button" data-ly="off+" aria-label="${esc(tr("Текст позже", "Lyrics later"))}">+</button></span>
+        <button type="button" class="mm-ly-chip ${M.tapSync ? "on" : ""}" data-ly="tap" aria-pressed="${M.tapSync}">${esc(tr("Тап-синхр.", "Tap-sync"))}</button>` : ""}
+        ${hasWords ? `<button type="button" class="mm-ly-chip ${M.wordSync ? "on" : ""}" data-ly="words" aria-pressed="${M.wordSync}">${esc(tr("Слова", "Words"))}</button>` : ""}
+        ${ly.source === "manual" ? `<button type="button" class="mm-ly-chip" data-ly="manual-reset">${esc(tr("Сбросить мой текст", "Drop my lyrics"))}</button>` : ""}
+        <button type="button" class="mm-ly-chip" data-ly="edit">${icon("edit")}<span>${esc(tr("Свой текст", "Own lyrics"))}</span></button></div>`;
+      let body = "";
+      if (synced) {
+        body = `<div class="mm-ly-lines">${ly.synced.map((row, i) => {
+          const words = Array.isArray(row[2]) && row[2].length && M.wordSync && !M.roman ? row[2].map((w, j) => {
+            const start = +w[0] || 0; const end = +(w[2] || 0) || (j + 1 < row[2].length ? +row[2][j + 1][0] : start + 2);
+            return `<span class="mm-ly-w" data-t="${start}" data-e="${end}">${esc(String(w[1] || ""))}</span>`;
+          }).join(" ") : null;
+          return `<p class="mm-ly" data-i="${i}" data-t="${row[0] == null ? "" : +row[0]}">${words || esc(lyricLineText(row))}</p>`;
+        }).join("")}</div><p class="mm-ly-src">${esc(srcName)}</p>`;
+      } else if (ly.plain) {
+        const plain = M.roman && hasRomanizable(ly.plain) ? romanizeText(ly.plain) : ly.plain;
+        body = `<div class="mm-ly-plain">${esc(plain).replace(/\n/g, "<br>")}</div><p class="mm-ly-src">${esc(srcName)}</p>`;
+      } else {
+        body = `<p class="mm-ly-note">${esc(tr("Текста для этого трека нет", "No lyrics for this track"))}</p>`;
+      }
+      box.innerHTML = bar + body;
+      const barHost = $(".mm-ly-bar-host", f); const barEl0 = $(".mm-ly-bar", box);
+      if (barHost && barEl0) { barHost.appendChild(barEl0); barHost.hidden = box.hidden; }
+      const barEl = $(".mm-ly-bar", f);
+      const bind = (sel, fn) => { const b = $(sel, barEl); if (b) b.onclick = fn; };
+      bind('[data-ly="roman"]', () => { M.roman = !M.roman; haptic("select"); renderLyrics(); });
+      bind('[data-ly="off-"]', () => { setLocalOffset(t.id, off - 0.1); haptic("select"); renderLyrics(); });
+      bind('[data-ly="off+"]', () => { setLocalOffset(t.id, off + 0.1); haptic("select"); renderLyrics(); });
+      bind('[data-ly="off-reset"]', () => { setLocalOffset(t.id, 0); haptic("select"); renderLyrics(); });
+      bind('[data-ly="tap"]', () => { M.tapSync = !M.tapSync; haptic("select"); renderLyrics(); });
+      bind('[data-ly="words"]', () => { M.wordSync = !M.wordSync; save("memu_music_wordsync", M.wordSync); haptic("select"); renderLyrics(); });
+      bind('[data-ly="manual-reset"]', () => { delete M.lyManual[t.id]; save("memu_music_lyric_manual", M.lyManual); M.lyrics = null; M.lyricsFor = ""; loadLyrics(true); });
+      bind('[data-ly="edit"]', editLyrics);
+      $$(".mm-ly", box).forEach((p) => p.onclick = () => {
+        if (p.dataset.t === "") return;
+        const lineT = +p.dataset.t;
+        if (M.tapSync) {
+          const [pos] = nowTime();
+          const v = setLocalOffset(t.id, pos - lineT - (+(ly.offset || 0)) - (+(ly.general_offset || 0)));
+          toast(tr(`Сдвиг: ${v > 0 ? "+" : ""}${v.toFixed(1)} с`, `Offset: ${v > 0 ? "+" : ""}${v.toFixed(1)} s`), "ok");
+          haptic("select"); renderLyrics(); return;
+        }
+        seek(lineT + effOffset()); haptic("select");
+      });
+      lyricTick(true); lyricLoop();
     }
     let lyricIndex = -1, lyricRaf = 0;
 
@@ -673,51 +890,87 @@
       lyricTick();
       lyricRaf = requestAnimationFrame(lyricLoop);
     }
+    function wordTick(at, cur) {
+      const f = M.full; if (!f) return;
+      const box = $(".mm-lyrics", f); if (box) $$(".mm-ly-w", box).forEach((w) => w.classList.remove("on", "past"));
+      if (!cur || !M.wordSync || M.roman) return;
+      $$(".mm-ly-w", cur).forEach((w) => { const s = +w.dataset.t, e = +w.dataset.e; if (at >= e) w.classList.add("past"); else if (at >= s) w.classList.add("on"); });
+    }
     function lyricTick(force) {
       const f = M.full; const ly = M.lyrics;
       if (!f || !ly || !Array.isArray(ly.synced) || $(".mm-lyrics", f).hidden) return;
       const [pos] = nowTime(); let i = -1;
-      const at = pos - (+ly.offset || 0) - (+ly.general_offset || 0);
-      for (let k = 0; k < ly.synced.length; k++) { if (ly.synced[k][0] <= at) i = k; else break; }
-      if (i === lyricIndex && !force) return;
-      lyricIndex = i;
+      const at = pos - effOffset();
+      for (let k = 0; k < ly.synced.length; k++) { const rt = ly.synced[k][0]; if (rt == null) continue; if (rt <= at) i = k; else break; }
       const box = $(".mm-lyrics", f);
+      if (i === lyricIndex && !force) { wordTick(at, $(`.mm-ly[data-i="${i}"]`, box)); return; }
+      lyricIndex = i;
       $$(".mm-ly.on, .mm-ly.past", box).forEach((p) => p.classList.remove("on", "past"));
       $$(".mm-ly", box).forEach((p) => { if (+p.dataset.i < i) p.classList.add("past"); });
       const cur = $(`.mm-ly[data-i="${i}"]`, box);
       if (cur) { cur.classList.add("on"); box.scrollTo({ top: cur.offsetTop - box.clientHeight * 0.36, behavior: reduced() ? "auto" : "smooth" }); }
+      wordTick(at, cur);
     }
 
     function drawQueue() {
       const f = M.full; if (!f) return;
       const box = $(".mm-queue", f);
-      const list = M.mode === "pc" ? (M.pc && M.pc.queue) || [] : M.queue;
+      const raw = M.mode === "pc" ? (M.pc && M.pc.queue) || [] : M.queue;
+      const list = raw.map((t) => typeof t === "string" ? byId.get(t) : t).filter(Boolean);
       const at = M.mode === "pc" ? +((M.pc && M.pc.index) || 0) : M.index;
-      box.innerHTML = `<h4>${esc(tr("Далее", "Up next"))}</h4>` + (list.length ? list.slice(Math.max(0, at), at + 60).map((t, k) =>
-        `<button class="mm-q ${k === 0 ? "now" : ""}" data-qi="${at + k}">${art(t, "mm-q-art")}<span><b>${esc(t.title)}</b><small>${esc(t.artist || "")}</small></span><em>${fmt(t.duration)}</em></button>`).join("")
+      const shown = list.slice(Math.max(0, at), at + 60);
+      const clearBtn = M.mode === "phone" && list.length > at + 1 ? `<button class="mm-q-clear" data-clear>${esc(tr("Очистить", "Clear"))}</button>` : "";
+      box.innerHTML = `<div class="mm-queue-head"><h4>${esc(tr("Далее", "Up next"))}</h4>${clearBtn}</div>` + (shown.length ? shown.map((t, k) =>
+        `<button class="mm-q ${k === 0 ? "now" : ""}" data-qi="${at + k}">${art(t, "mm-q-art")}<span><b>${esc(t.title)}</b><small>${esc(t.artist || "")}</small></span><em>${fmt(t.duration)}</em>${k > 0 && M.mode === "phone" ? `<span class="mm-q-x" data-qx="${at + k}" role="button" aria-label="${esc(tr("Убрать из очереди", "Remove from the queue"))}">×</span>` : ""}</button>`).join("")
         : `<p class="mm-ly-note">${esc(tr("Очередь пуста", "The queue is empty"))}</p>`);
-      $$(".mm-q", box).forEach((b) => b.onclick = () => {
+      const clear = $("[data-clear]", box); if (clear) clear.onclick = () => { M.queue = M.queue.slice(0, M.index + 1); persist(); haptic("light"); drawQueue(); drawFullTrack(); };
+      $$(".mm-q-x", box).forEach((x) => x.onclick = (e) => { e.stopPropagation(); const i = +x.dataset.qx; if (i > M.index) { M.queue.splice(i, 1); persist(); haptic("light"); drawQueue(); drawFullTrack(); } });
+      $$(".mm-q", box).forEach((b) => b.onclick = (e) => {
+        if (e.target.closest(".mm-q-x")) return;
         const i = +b.dataset.qi; haptic("select");
         if (M.mode === "pc") pcCommand("play_track", { track_id: list[i].id, queue: list.map((x) => x.id) });
         else { M.index = i; loadCurrent(0, true); }
       });
     }
 
-    function trackMenu(t, { playlist } = {}) {
+    function trackMenu(t, { playlist, fromFull } = {}) {
       const full = byId.get(t.id) || t;
       const items = [
         { icon: "play", label: tr("Сыграть следующим", "Play next"), run: () => playNext(full) },
         { icon: "list", label: tr("Добавить в очередь", "Add to the queue"), run: () => addToQueue(full) },
         { icon: full.liked ? "heartFill" : "heart", label: full.liked ? tr("Убрать из любимых", "Remove from liked") : tr("В любимые", "Like"), run: () => setLike(full, !full.liked) },
         { icon: "plus", label: tr("В плейлист…", "Add to a playlist…"), run: () => addToPlaylistSheet([full]) },
+        { icon: "info", label: tr("О треке", "About the track"), run: () => trackDetails(full) },
+        { icon: "copy", label: tr("Скопировать название", "Copy the title"), run: async () => { try { await kit.copyText(`${full.title || ""}${full.artist ? " — " + full.artist : ""}`); toast(tr("Скопировано", "Copied"), "ok"); } catch (e) { toast(e.message, "err"); } } },
         M.offline[t.id] ? { icon: "trash", label: tr("Удалить с телефона", "Remove from the phone"), run: async () => { await dropOffline(t.id); paintRow(t.id); toast(tr("Удалено с телефона", "Removed from the phone")); if (M.sub === "device") drawSub(); } }
           : { icon: "download", label: tr("Скачать на телефон", "Save to the phone"), sub: full.size ? bytes(full.size) : "", run: () => downloadMany([full]) },
         full.artist ? { icon: "user", label: tr("К исполнителю", "Go to the artist"), sub: full.artist, run: () => { closeFull(); openArtist(full.artist); } } : null,
         full.album_key ? { icon: "music", label: tr("К альбому", "Go to the album"), sub: full.album || "", run: () => { closeFull(); openAlbum(full.album_key); } } : null,
         { icon: "monitor", label: tr("Включить на компьютере", "Play on the computer"), run: () => api("music.remote", { cmd: "play_track", track_id: t.id }).then(() => toast(tr("Играет на компьютере", "Playing on the computer"), "ok")).catch((e) => toast(e.message, "err")) },
       ];
-      if (playlist && !playlist.smart) items.push({ icon: "trash", danger: true, label: tr("Убрать из плейлиста", "Remove from the playlist"), run: () => api("music.playlist", { action: "update", id: playlist.id, remove: [t.id] }).then(() => { toast(tr("Убрано", "Removed")); if (playlist._reload) playlist._reload(); }).catch((e) => toast(e.message, "err")) });
-      actionSheet(t.title || "", items.filter(Boolean));
+      if (playlist && !playlist.smart) {
+        const order = (playlist.tracks || []).map((x) => (x && x.id) || x).filter(Boolean);
+        const pos = order.indexOf(t.id);
+        if (pos > 0) items.push({ icon: "arrowUp", label: tr("Выше в плейлисте", "Move up in the playlist"), run: () => moveInPlaylist(playlist, order, pos, pos - 1) });
+        if (pos >= 0 && pos < order.length - 1) items.push({ icon: "arrowDown", label: tr("Ниже в плейлисте", "Move down in the playlist"), run: () => moveInPlaylist(playlist, order, pos, pos + 1) });
+        items.push({ icon: "trash", danger: true, label: tr("Убрать из плейлиста", "Remove from the playlist"), run: () => api("music.playlist", { action: "update", id: playlist.id, remove: [t.id] }).then(() => { toast(tr("Убрано", "Removed")); if (playlist._reload) playlist._reload(); }).catch((e) => toast(e.message, "err")) });
+      }
+      const handle = actionSheet(t.title || "", items.filter(Boolean), fromFull ? { onClose: () => { if (M.menuHandle === handle) M.menuHandle = null; } } : {});
+      return handle;
+    }
+    async function moveInPlaylist(playlist, order, from, to) {
+      const ids = order.slice(); const [moved] = ids.splice(from, 1); ids.splice(to, 0, moved);
+      try { await api("music.playlist", { action: "update", id: playlist.id, order: ids }); if (playlist._reload) playlist._reload(); }
+      catch (e) { toast(e.message, "err"); }
+    }
+    function trackDetails(full) {
+      const rows = [
+        [tr("Название", "Title"), full.title], [tr("Исполнитель", "Artist"), full.artist], [tr("Альбом", "Album"), full.album],
+        [tr("Год", "Year"), full.year], [tr("Жанр", "Genre"), full.genre], [tr("Длительность", "Duration"), full.duration ? fmt(full.duration) : ""],
+        [tr("Прослушиваний", "Plays"), full.plays ? String(full.plays) : ""], [tr("Размер", "Size"), full.size ? bytes(full.size) : ""],
+        [tr("Источник", "Source"), full.source ? sourceName(full.source) : ""],
+      ].filter(([, v]) => v !== "" && v != null);
+      openSheet({ title: full.title || "", body: `<div class="group">${rows.map(([k, v]) => `<div class="cell"><div class="cell-body"><div class="cell-title">${esc(String(v))}</div><div class="cell-sub">${esc(k)}</div></div></div>`).join("") || `<p class="mm-ly-note">${esc(tr("Нет данных", "No data"))}</p>`}</div>` });
     }
     async function addToPlaylistSheet(list) {
       if (!M.playlists.length) try { M.playlists = (await api("music.playlists")).playlists || []; } catch (e) {  }
@@ -874,8 +1127,9 @@
         ${shelf(tr("Плейлисты", "Playlists"), (h.playlists || []).slice(0, 16), "pl")}
         ${shelf(tr("Новое в библиотеке", "New in the library"), (h.added || []).slice(0, 16))}
         ${shelf(tr("Любимые", "Liked"), (h.liked || []).slice(0, 16))}
+        ${shelf(tr("История в Mini App", "Played here"), M.history.map((hh) => byId.get(hh.id) || hh).slice(0, 16))}
         ${!st.tracks && !(h.added || []).length ? emptyBlock("music", tr("Здесь будет ваша музыка", "Your music will be here"), tr("Вставьте ссылку на трек или плейлист — компьютер скачает его, и он появится здесь.", "Paste a link to a track or a playlist — the computer downloads it and it shows up here."), `<button class="btn" id="mm-empty-link">${esc(tr("Скачать по ссылке", "Download a link"))}</button>`) : ""}`;
-      const shelves = { [tr("Недавно слушали", "Recently played")]: recent, [tr("Новое в библиотеке", "New in the library")]: h.added || [], [tr("Любимые", "Liked")]: h.liked || [] };
+      const shelves = { [tr("Недавно слушали", "Recently played")]: recent, [tr("Новое в библиотеке", "New in the library")]: h.added || [], [tr("Любимые", "Liked")]: h.liked || [], [tr("История в Mini App", "Played here")]: M.history.map((hh) => byId.get(hh.id) || hh) };
       $$("[data-shelf]", box).forEach((b) => { b.onclick = () => { haptic("light"); playQueue(shelves[b.dataset.shelf], +b.dataset.i); }; kit.longPress(b, () => trackMenu(shelves[b.dataset.shelf][+b.dataset.i])); });
       $$("[data-pl]", box).forEach((b) => b.onclick = () => openPlaylist((h.playlists || []).find((p) => String(p.id) === b.dataset.pl)));
       const c = $("#mm-continue", box);
@@ -933,6 +1187,7 @@
       const filters = [["", "Все", "All"], ["liked", "Любимые", "Liked"], ["phone", "На телефоне", "On phone"]];
       box.innerHTML = views + `<div class="search mm-search">${icon("search")}<input id="mm-q" type="search" placeholder="${esc(tr("Треки, исполнители, альбомы", "Tracks, artists, albums"))}" value="${esc(M.libQ)}" autocomplete="off" enterkeyhint="search"></div>
         <div class="mm-chips">${filters.map(([id, ru, en]) => `<button class="mm-chip ${M.libFilter === id ? "on" : ""}" data-f="${id}">${esc(tr(ru, en))}</button>`).join("")}<span class="mm-chip-sep"></span>${sorts.map(([id, ru, en]) => `<button class="mm-chip ghost ${M.libSort === id ? "on" : ""}" data-s="${id}">${esc(tr(ru, en))}</button>`).join("")}</div>
+        <div class="mm-chips mm-genres" id="mm-genres"></div>
         <div class="mm-lib-head" id="mm-lib-head"></div><div id="mm-lib" class="mm-list"></div><div id="mm-online"></div>`;
       bindViews();
       $("#mm-q", box).oninput = (e) => { M.libQ = e.target.value; clearTimeout(libTimer); libTimer = setTimeout(() => loadLibrary(box), 220); };
@@ -955,13 +1210,20 @@
           rows = remember(data.tracks || []); total = data.total || rows.length;
         } catch (e) { list.innerHTML = emptyBlock("cloudOff", tr("Нет связи с компьютером", "No connection to the computer"), e.message); return; }
       }
-      M.lib = rows;
+      M.libAll = rows;
+      M.lib = M.libGenre ? rows.filter((t) => (t.genre || "").split(/[/;,]/).map((g) => g.trim()).includes(M.libGenre)) : rows;
       if (!$("#mm-lib", box)) return;
-      $("#mm-lib-head", box).innerHTML = rows.length ? `<span>${esc(tracksWord(total))}</span><span class="mm-lib-acts"><button class="mm-chip-btn" id="mm-lib-shuffle">${icon("shuffle")}${esc(tr("Перемешать", "Shuffle"))}</button><button class="mm-chip-btn accent" id="mm-lib-play">${icon("mmPlay")}${esc(tr("Слушать", "Play"))}</button></span>` : "";
-      list.innerHTML = rows.length ? rows.map(rowHtml).join("") : emptyBlock("search", M.libQ ? tr("Ничего не нашлось", "Nothing found") : tr("Пусто", "Empty"), M.libQ ? tr("Можно поискать в интернете и скачать на компьютер.", "You can search online and download it on the computer.") : "");
-      bindRows(list, rows);
-      const sh = $("#mm-lib-shuffle", box); if (sh) sh.onclick = () => playQueue(rows, Math.floor(Math.random() * rows.length), { shuffle: true });
-      const pl = $("#mm-lib-play", box); if (pl) pl.onclick = () => playQueue(rows, 0, { shuffle: false });
+      const genresBox = $("#mm-genres", box);
+      if (genresBox) {
+        const genres = [...new Set(M.libAll.flatMap((t) => (t.genre || "").split(/[/;,]/).map((g) => g.trim()).filter(Boolean)))].slice(0, 8);
+        genresBox.innerHTML = genres.length ? `<button class="mm-chip ${!M.libGenre ? "on" : ""}" data-g="">${esc(tr("Все жанры", "All genres"))}</button>` + genres.map((g) => `<button class="mm-chip ${M.libGenre === g ? "on" : ""}" data-g="${esc(g)}">${esc(g)}</button>`).join("") : "";
+        $$("[data-g]", genresBox).forEach((b) => b.onclick = () => { M.libGenre = b.dataset.g; haptic("select"); loadLibrary(box); });
+      }
+      $("#mm-lib-head", box).innerHTML = M.lib.length ? `<span>${esc(tracksWord(M.libGenre ? M.lib.length : total))}</span><span class="mm-lib-acts"><button class="mm-chip-btn" id="mm-lib-shuffle">${icon("shuffle")}${esc(tr("Перемешать", "Shuffle"))}</button><button class="mm-chip-btn accent" id="mm-lib-play">${icon("mmPlay")}${esc(tr("Слушать", "Play"))}</button></span>` : "";
+      list.innerHTML = M.lib.length ? M.lib.map(rowHtml).join("") : emptyBlock("search", M.libQ ? tr("Ничего не нашлось", "Nothing found") : tr("Пусто", "Empty"), M.libQ ? tr("Можно поискать в интернете и скачать на компьютер.", "You can search online and download it on the computer.") : "");
+      bindRows(list, M.lib);
+      const sh = $("#mm-lib-shuffle", box); if (sh) sh.onclick = () => playQueue(M.lib, Math.floor(Math.random() * M.lib.length), { shuffle: true });
+      const pl = $("#mm-lib-play", box); if (pl) pl.onclick = () => playQueue(M.lib, 0, { shuffle: false });
       drawOnline(box);
     }
     async function drawOnline(box) {
@@ -1110,12 +1372,12 @@
       box.innerHTML = (S.mmOffline ? `<div class="mm-offline-bar">${icon("cloudOff")}<span>${esc(tr("Без связи с компьютером — играет то, что на телефоне", "No connection to the computer — playing what is on the phone"))}</span></div>` : "") + `<div class="mm-store"><div class="mm-store-top"><span class="mm-store-ico">${icon("phone")}</span><span><b>${esc(bytes(info.used))}</b><small>${esc(tracksWord(info.count))}${info.quota ? ` · ${esc(tr("доступно", "available"))} ${esc(bytes(Math.max(0, info.quota - info.used)))}` : ""}</small></span>
           ${rows.length ? `<button class="mm-chip-btn danger" id="mm-clear">${icon("trash")}${esc(tr("Очистить", "Clear"))}</button>` : ""}</div>
           <div class="mm-store-bar"><i style="width:${Math.max(rows.length ? 2 : 0, share * 100).toFixed(2)}%"></i></div>
-          <p>${esc(tr("Треки, сохранённые здесь, играют без связи с компьютером — даже если Mini App открыт без интернета.", "Tracks saved here play without a connection to the computer — even when the Mini App opens with no internet."))}</p></div>
+          <p>${esc(tr("Сохранённые здесь треки играют без связи с компьютером, когда Mini App загружен. Без интернета сам Mini App не загрузится, и сохранённые треки не заиграют.", "Tracks saved here play without a connection to the computer once the Mini App has loaded. Without the internet the Mini App itself will not load, and saved tracks will not play."))}</p></div>
         ${lost.length ? `<div class="mm-restore"><span class="mm-restore-ico">${icon("saved")}</span><div><b>${esc(tr(`Вернуть ${tracksWord(lost.length)}`, `Bring back ${tracksWord(lost.length)}`))}</b>
           <small>${esc(tr("У Mini App новый адрес, и телефон забыл скачанное. Список сохранён — скачаю те же треки снова.", "The Mini App has a new address and the phone lost what was saved. The list is kept — the same tracks download again."))}</small>
           <span class="mm-restore-acts"><button class="mm-chip-btn accent" id="mm-restore">${icon("download")}${esc(tr("Скачать снова", "Download again"))}</button><button class="mm-chip-btn" id="mm-restore-forget">${esc(tr("Забыть", "Forget"))}</button></span></div></div>` : ""}
         ${rows.length ? `<div class="mm-lib-head"><span>${esc(tr("На телефоне", "On the phone"))}</span><span class="mm-lib-acts"><button class="mm-chip-btn accent" id="mm-off-play">${icon("mmPlay")}${esc(tr("Слушать", "Play"))}</button></span></div><div class="mm-list" id="mm-off-list">${rows.map(rowHtml).join("")}</div>`
-          : lost.length ? "" : emptyBlock("download", tr("На телефоне пока ничего нет", "Nothing on the phone yet"), tr("Откройте трек или плейлист и нажмите «Скачать на телефон» — он будет играть даже без интернета.", "Open a track or a playlist and tap “Save to the phone” — it plays even without the internet."))}`;
+          : lost.length ? "" : emptyBlock("download", tr("На телефоне пока ничего нет", "Nothing on the phone yet"), tr("Откройте трек или плейлист и нажмите «Скачать на телефон» — он будет играть без связи с компьютером, когда Mini App загружен. Без интернета Mini App не загружается.", "Open a track or a playlist and tap “Save to the phone” — it plays without a connection to the computer once the Mini App has loaded. Without the internet the Mini App does not load."))}`;
       const clear = $("#mm-clear", box);
       if (clear) clear.onclick = async () => {
         if (!(await confirmDialog(tr("Удалить с телефона все сохранённые треки? В библиотеке на компьютере они останутся.", "Remove every saved track from the phone? They stay in the library on the computer."), { danger: true, ok: tr("Очистить", "Clear") }))) return;
@@ -1157,7 +1419,7 @@
 
       window.addEventListener("pagehide", () => {
         const a = M.audio; if (!a || a.paused || !current() || M.mode !== "phone" || !S.token || S.mmOffline) return;
-        try { fetch("api/music.report", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token }, body: JSON.stringify(reportBody(false)) }); } catch (e) {  }
+        try { fetch(window.MemuTgApiUrl ? window.MemuTgApiUrl("api/music.report") : "api/music.report", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token }, body: JSON.stringify(reportBody(false)) }); } catch (e) {  }
       });
 
       try { if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {}); } catch (e) {  }
@@ -1181,6 +1443,6 @@
       html: () => `<div class="section-title">${esc(tr("Музыка", "Music"))}</div><div class="group flat"><label class="cell flat"><div class="cell-body"><div class="cell-title">${esc(tr("Облегчённые эффекты плеера", "Light player effects"))}</div><div class="cell-sub">${esc(tr("Без живого фона и размытия — меньше нагрузка на телефон", "No live background or blur — less load on the phone"))}</div></div><span class="switch"><input type="checkbox" id="mm-light" ${M.light ? "checked" : ""}><span></span></span></label></div>`,
       bind: (view) => { const box = $("#mm-light", view); if (box) box.onchange = () => { M.light = box.checked; save("memu_music_light", M.light); document.documentElement.classList.toggle("mm-light", M.light); haptic("select"); }; },
     });
-    window.MemuMusicTg = { state: M, playQueue, openFull, closeFull, linkSheet, setMode, takeFromPc, sendToPc, saveOffline, dropOffline, storageInfo };
+    window.MemuMusicTg = { state: M, playQueue, openFull, closeFull, linkSheet, setMode, takeFromPc, sendToPc, saveOffline, dropOffline, storageInfo, romanizeText, parseLrc, hasRomanizable };
   });
 })();

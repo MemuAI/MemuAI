@@ -20,6 +20,41 @@
 
   function tr(ru, en) { return S.lang === "en" ? en : ru; }
 
+  // API URLs are resolved against this script's own URL, never a
+  // hardcoded host and never document-relative: the page may be
+  // opened as /tgapp, /tgapp/ or under a proxy prefix, where a
+  // document-relative "api/..." would resolve to the wrong place.
+  // Other Mini App scripts reuse this through window.MemuTgApiUrl.
+  const SCRIPT_URL = (() => {
+    try {
+      const current = document.currentScript && document.currentScript.src;
+      if (current) return current;
+      const found = document.querySelector('script[src*="app.js"]');
+      if (found) return found.src;
+    } catch (e) { }
+    return "";
+  })();
+  const apiUrl = (name) => {
+    if (SCRIPT_URL) { try { return new URL(name, SCRIPT_URL).href; } catch (e) { } }
+    return name;
+  };
+  window.MemuTgApiUrl = apiUrl;
+  // One hard timeout for every API fetch that has no caller-owned
+  // signal. A caller-supplied signal (job streams, user cancel)
+  // keeps full control and is never wrapped: wrapping it would turn
+  // a timeout into a silent stream cancel. A timeout here is an
+  // offline error, never an AbortError the caller mistakes for cancel.
+  async function fetchTimed(url, options, ms) {
+    if (options && options.signal) return fetch(url, options);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try { return await fetch(url, Object.assign({}, options, { signal: controller.signal })); }
+    catch (error) {
+      if (error && error.name === "AbortError") throw new ApiError(tr("Нет связи с компьютером", "No connection to the computer"), 0, "offline");
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
+
   const P = (d, extra = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
   const ICONS = {
     chat: P('<path d="M21 12a8.5 8.5 0 0 1-12.4 7.5L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/>'),
@@ -141,8 +176,8 @@
       if (window.MemuTgWeb) window.MemuTgWeb.expired();
       throw new ApiError(tr("Сессия в браузере закончилась — войдите снова", "The browser session has ended — sign in again"), 401, "unauthorized");
     }
-    const response = await fetch("api/auth", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ init_data: S.initData }) });
+    const response = await fetchTimed(apiUrl("api/auth"), { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ init_data: S.initData }) }, 15000);
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new ApiError(data.error || ("HTTP " + response.status), response.status, data.code || "");
     S.token = data.token; S.tokenExp = data.expires; S.user = data.user; S.lang = data.lang || S.lang;
@@ -155,8 +190,8 @@
     if (S.profileId && payload.profile_id === undefined) payload.profile_id = S.profileId;
     let response;
     try {
-      response = await fetch("api/" + name, { method: "POST", signal,
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token }, body: JSON.stringify(payload) });
+      response = await fetchTimed(apiUrl("api/" + name), { method: "POST", signal,
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token }, body: JSON.stringify(payload) }, 60000);
     } catch (error) {
       if (error.name === "AbortError") throw error;
       throw new ApiError(tr("Нет связи с компьютером", "No connection to the computer"), 0, "offline");
@@ -455,11 +490,11 @@
     if (onMount) onMount(sheet, handle);
     return handle;
   }
-  function actionSheet(title, items) {
+  function actionSheet(title, items, opts = {}) {
     const body = `<div class="group action-list">${items.map((item, i) => item.sep ? "" :
       `<button class="cell ${item.danger ? "danger" : ""}" data-item="${i}"><div class="cell-icon">${icon(item.icon || "chev")}</div><div class="cell-body"><div class="cell-title">${esc(item.label)}</div>${item.sub ? `<div class="cell-sub">${esc(item.sub)}</div>` : ""}</div>${item.checked ? `<span class="check">${icon("check")}</span>` : ""}</button>`).join("")}</div>`;
-    const sheet = openSheet({ title, body, onMount: (el, handle) => {
-      $$("[data-item]", el).forEach((button) => button.onclick = () => { handle.close(true); haptic("select"); setTimeout(() => items[+button.dataset.item].run(), 60); });
+    const sheet = openSheet({ title, body, onClose: opts.onClose || null, onMount: (el, handle) => {
+      $$("[data-item]", el).forEach((button) => button.onclick = () => { handle.close(true); if (opts.onClose) opts.onClose(); haptic("select"); setTimeout(() => items[+button.dataset.item].run(), 60); });
     } });
     return sheet;
   }

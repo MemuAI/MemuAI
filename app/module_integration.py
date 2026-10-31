@@ -11,7 +11,22 @@ A module declares ``contributes`` in its manifest::
                     "run": {"handler": "music.play"} | {"open": true}}],
       "skill":    "integration/skill.md" | {"text": "...", "text_en": "..."},
       "widgets":  [{"id", "slot": "quick.ring|quick.card|chat.composer|main.dock|chat.cards", "kind": "equalizer|nowplaying|miniplayer|dock|cards",
-                    "source": "music.player", "title", "title_en", "settings": [...]}]
+                    "source": "music.player", "title", "title_en", "settings": [...]}],
+      "planning": [{"id", "title", "title_en", "description", "description_en",
+                    "trigger": {"kind": "threshold|periodic", "metric": "messages|tokens|items|due|changes|bytes",
+                                "threshold": 30, "scope": "any|per_chat", "every_minutes": 1440},
+                    "action": {"kind": "notify|chat|scenario", "text": "...", "prompt": "...", "open_module": "characters",
+                               "steps": [...]},
+                    "require_confirm": false,
+                    "settings": [{"key": "threshold", "type": "number|bool|text", "label", "label_en",
+                                 "default": 30, "min": 1, "max": 1000000}]}]
+
+Planning actions are templates, never live rules: they are OFF until the user
+explicitly enables one in Planning (``enabled`` is always False here, a manifest
+cannot turn it on), and a destructive scenario step additionally needs the
+user's confirmation at rule creation. The thresholds live in ``settings``
+defaults, so the user edits numbers in Planning instead of the manifest.
+
     }
 
 Everything here works only for ENABLED modules. Panels run in the same sandbox iframe as the module window
@@ -37,7 +52,7 @@ WIDGET_SLOTS = ("quick.ring", "quick.card", "chat.composer", "main.dock", "chat.
 WIDGET_KINDS = ("equalizer", "nowplaying", "miniplayer", "dock", "cards")
 WIDGET_SOURCES = ("music.player",)
 SETTING_TYPES = ("bool", "choice", "text", "color")
-LIMITS = {"panels": 8, "commands": 24, "widgets": 6, "settings": 12, "phrases": 8}
+LIMITS = {"panels": 8, "commands": 28, "widgets": 6, "settings": 12, "phrases": 8, "planning": 6, "planning_settings": 4}
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
 _FILE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]{0,120}\.(?:html|js|css|md)$")
 _LOCK = threading.RLock()
@@ -101,6 +116,123 @@ def _schema(raw: Any, errors: List[str], where: str) -> Dict[str, Any]:
         props[str(key)] = row
     required = [str(k) for k in (raw.get("required") or []) if str(k) in props]
     return {"type": "object", "properties": props, "required": required}
+
+PLANNING_METRICS = ("messages", "tokens", "items", "due", "changes", "bytes")
+PLANNING_ACTION_KINDS = ("notify", "chat", "scenario")
+
+
+def _planning_settings(raw: Any, errors: List[str], where: str) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    seen = set()
+    for item in (raw if isinstance(raw, list) else [])[:LIMITS["planning_settings"]]:
+        if not isinstance(item, dict) or not _ID_RE.match(str(item.get("key") or "")) or item.get("key") in seen:
+            errors.append(f"{where}: настройка планирования без ключа или с повтором / a planning setting without a key or duplicated")
+            continue
+        seen.add(str(item["key"]))
+        kind = str(item.get("type") or "number")
+        if kind not in ("number", "bool", "text"):
+            errors.append(f"{where}.{item['key']}: тип {kind!r} неизвестен / unknown type")
+            continue
+        row: Dict[str, Any] = {"key": str(item["key"]), "type": kind,
+                               "label": _text(item.get("label") or item["key"], 80),
+                               "label_en": _text(item.get("label_en") or item.get("label") or item["key"], 80)}
+        if kind == "number":
+            lo = int(item.get("min") or 1) if str(item.get("min") or "").lstrip("-").isdigit() else 1
+            hi = int(item.get("max") or 1_000_000) if str(item.get("max") or "").isdigit() else 1_000_000
+            default = item.get("default")
+            try:
+                default = float(default)
+            except (TypeError, ValueError):
+                default = float(lo)
+            row.update(default=max(lo, min(hi, int(round(default)))), min=max(1, lo), max=max(lo, hi))
+        elif kind == "bool":
+            row["default"] = item.get("default", False) is not False
+        else:
+            row["default"] = _text(item.get("default"), 200)
+        out.append(row)
+    return out
+
+
+def _planning(raw: Any, errors: List[str]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    seen = set()
+    for item in (raw if isinstance(raw, list) else [])[:LIMITS["planning"]]:
+        pid = str((item or {}).get("id") or "") if isinstance(item, dict) else ""
+        if not _ID_RE.match(pid) or pid in seen:
+            errors.append(f"planning: id {pid!r} некорректен или повторяется / bad or duplicate id")
+            continue
+        if not isinstance(item, dict):
+            continue
+        trigger = item.get("trigger") if isinstance(item.get("trigger"), dict) else {}
+        kind = str(trigger.get("kind") or "threshold").lower()
+        if kind == "periodic":
+            clean_trigger: Dict[str, Any] = {"kind": "periodic",
+                                             "every_minutes": max(5, min(10_080, int(float(trigger.get("every_minutes") or 1440))))}
+        else:
+            metric = str(trigger.get("metric") or "items")
+            if metric not in PLANNING_METRICS:
+                errors.append(f"planning.{pid}: метрика {metric!r} неизвестна / unknown metric")
+                continue
+            try:
+                threshold = int(float(trigger.get("threshold") or 0))
+            except (TypeError, ValueError):
+                threshold = 0
+            if threshold < 1:
+                errors.append(f"planning.{pid}: нужен порог больше нуля / a threshold above zero is required")
+                continue
+            clean_trigger = {"kind": "threshold", "metric": metric, "threshold": threshold,
+                             "scope": "per_chat" if str(trigger.get("scope")) == "per_chat" else "any"}
+        action = item.get("action") if isinstance(item.get("action"), dict) else {}
+        action_kind = str(action.get("kind") or "notify").lower()
+        if action_kind not in PLANNING_ACTION_KINDS:
+            errors.append(f"planning.{pid}: действие {action_kind!r} неизвестно / unknown action")
+            continue
+        clean_action: Dict[str, Any] = {"kind": action_kind}
+        if action_kind == "notify":
+            text = _text(action.get("text"), 2000)
+            if not text:
+                errors.append(f"planning.{pid}: действию notify нужен текст / a notify action needs its text")
+                continue
+            clean_action["text"] = text
+            text_en = _text(action.get("text_en"), 2000)
+            if text_en:
+                clean_action["text_en"] = text_en
+        elif action_kind == "chat":
+            prompt = _text(action.get("prompt"), 20000)
+            if not prompt:
+                errors.append(f"planning.{pid}: действию chat нужен prompt / a chat action needs a prompt")
+                continue
+            clean_action["prompt"] = prompt
+            prompt_en = _text(action.get("prompt_en"), 20000)
+            if prompt_en:
+                clean_action["prompt_en"] = prompt_en
+            if _text(action.get("model"), 300):
+                clean_action["model"] = _text(action.get("model"), 300)
+        else:
+            try:
+                from .plan_scenarios import normalize_scenario
+                clean_action["steps"] = normalize_scenario(action.get("steps"))["steps"]
+            except Exception as exc:  # noqa: BLE001 - сценарий модуля проверяется движком сценариев
+                errors.append(f"planning.{pid}: шаги сценария некорректны: {exc}")
+                continue
+        open_module = _text(action.get("open_module"), 60)
+        if open_module and _ID_RE.match(open_module):
+            clean_action["open_module"] = open_module
+        require_confirm = bool(action.get("require_confirm") or item.get("require_confirm"))
+        if action_kind == "scenario":
+            from .plan_scenarios import is_destructive
+            if any(is_destructive(s) for s in clean_action["steps"]):
+                require_confirm = True
+        seen.add(pid)
+        out.append({"id": pid, "title": _text(item.get("title") or pid, 60),
+                    "title_en": _text(item.get("title_en") or item.get("title") or pid, 60),
+                    "description": _text(item.get("description"), 300),
+                    "description_en": _text(item.get("description_en") or item.get("description"), 300),
+                    "trigger": clean_trigger, "action": clean_action,
+                    "require_confirm": require_confirm, "enabled": False,
+                    "settings": _planning_settings(item.get("settings"), errors, f"planning.{pid}")})
+    return out
+
 
 def normalize_contributes(raw: Any, *, builtin: bool = False, errors: Optional[List[str]] = None) -> Dict[str, Any]:
     """Clean ``manifest.contributes``. Problems are appended to ``errors`` (the item is dropped)."""
@@ -189,6 +321,9 @@ def normalize_contributes(raw: Any, *, builtin: bool = False, errors: Optional[L
                         "settings": _settings(item.get("settings"), errors, f"widgets.{wid}")})
     if widgets:
         out["widgets"] = widgets
+    planning = _planning(raw.get("planning"), errors)
+    if planning:
+        out["planning"] = planning
     return out
 
 def validate_contributes(raw: Any, *, builtin: bool = False, folder: Optional[Path] = None) -> List[str]:
@@ -280,11 +415,43 @@ def contributions(root: Optional[Path] = None, *, include_disabled: bool = False
                     "icon": row.get("icon") or "", "accent": row.get("accent") or "", "enabled": bool(row.get("enabled")),
                     "builtin": bool(row.get("builtin")), "permissions": list(row.get("permissions") or []),
                     "panels": clean.get("panels", []), "commands": clean.get("commands", []),
-                    "widgets": clean.get("widgets", []), "skill": clean.get("skill") or {}, "folder": str(folder)})
+                    "widgets": clean.get("widgets", []), "planning": clean.get("planning", []),
+                    "skill": clean.get("skill") or {}, "folder": str(folder)})
     return out
 
 def find(module_id: str, *, root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     return next((row for row in contributions(root) if row["module"] == module_id), None)
+
+
+def planning_actions(root: Optional[Path] = None, *, include_disabled: bool = True) -> List[Dict[str, Any]]:
+    """Declared planning actions of all modules, enabled or not.
+
+    Actions are templates: always off and consent-gated, so a disabled
+    module must not hide them -- otherwise Planning shows no module
+    actions at all in the default state (builtins start disabled) and
+    the user never learns they exist. ``enabled`` on each row still
+    reports the module's own state for the UI."""
+    rows = []
+    for row in contributions(root, include_disabled=include_disabled):
+        if not row.get("planning"):
+            continue
+        rows.append({"module": row["module"], "title": row["title"], "title_en": row["title_en"],
+                     "icon": row["icon"], "accent": row["accent"], "enabled": row["enabled"],
+                     "actions": [dict(action, enabled=False, requires_consent=True)
+                                 for action in row["planning"]]})
+    return rows
+
+
+def planning_action(module_id: str, action_id: str, *, root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """``{module, title, ..., action}`` of one declared planning action, or None."""
+    row = next((r for r in contributions(root, include_disabled=True) if r["module"] == str(module_id or "")), None)
+    if row is None:
+        return None
+    action = next((a for a in row.get("planning", []) if a["id"] == str(action_id or "")), None)
+    if action is None:
+        return None
+    return {"module": row["module"], "title": row["title"], "title_en": row["title_en"],
+            "icon": row["icon"], "accent": row["accent"], "action": action}
 
 def _settings_file(root: Path) -> Path:
     return root / "integration.json"
@@ -350,6 +517,7 @@ def public(root: Optional[Path] = None, lang: str = "ru") -> Dict[str, Any]:
                         "accent": row["accent"], "permissions": row["permissions"],
                         "panels": [{k: p[k] for k in ("id", "title", "title_en", "summary", "summary_en", "icon", "size", "height", "settings")}
                                    for p in row["panels"]],
+                        "planning": row.get("planning", []),
                         "commands": [{k: c[k] for k in ("id", "title", "title_en", "description", "description_en", "args",
                                                         "phrases", "phrases_en", "danger")} for c in row["commands"]],
                         "widgets": widgets})

@@ -44,6 +44,7 @@ def _inbox_hook(name: str, *args: Any) -> None:
         pass
 FINAL = ("done", "failed", "cancelled")
 CONFIRM_MODES = ("irreversible", "every_step")
+NEXT_ACTION_TIMEOUT = 300.0
 DEFAULTS: Dict[str, Any] = {
     "dfy_enabled": True,
     "dfy_model": "",
@@ -193,6 +194,7 @@ class DFYTask:
         self.ephemeral_ids: List[str] = []
         self.history: List[str] = []
         self.answers: List[str] = []
+        self.completed_keys: Dict[str, Any] = {}
         self.browser_steps = 0
         self.stuck: Any = None
 
@@ -550,6 +552,29 @@ class DFYManager:
             task.status = "cancelled"
             task.question = None
             await self._touch(task)
+        return task
+
+    async def resume(self, task_id: str) -> Optional[DFYTask]:
+        """Restart a failed or cancelled run from where it stopped.
+
+        Steps, history and the step counters stay on the task, so the loop
+        re-observes the current page/machine state and continues instead of
+        redoing the whole goal; idempotent machine steps are replayed from
+        their checkpoint rather than executed again (see
+        ``app/dfy_machine.py``). A running task, or one that already
+        finished, is returned unchanged."""
+        task = self.get(task_id)
+        if task is None:
+            return None
+        if task.status not in ("failed", "cancelled"):
+            return task
+        task.cancel_requested = False
+        task.error = ""
+        task.status = "queued"
+        task.question = None
+        task.job = asyncio.create_task(
+            self._run(task, visible=self.settings()["dfy_browser_visible"]))
+        await self._touch(task)
         return task
 
     async def answer(self, task_id: str, payload: Dict[str, Any]) -> DFYTask:
@@ -940,7 +965,14 @@ class DFYManager:
                 *messages, {"role": "assistant", "content": last[:2000]},
                 {"role": "user", "content": "Reply again with exactly one JSON object from the list, nothing else."}]
             try:
-                raw = await self.completion(task.model, asked)
+                # A model call with no deadline can hang the whole run (and
+                # the browser) forever. 300 seconds is generous for a vision
+                # model; past it the run fails cleanly and can be resumed.
+                raw = await asyncio.wait_for(self.completion(task.model, asked), NEXT_ACTION_TIMEOUT)
+            except asyncio.TimeoutError:
+                raise RuntimeError("Модель DFY не ответила вовремя — прогон остановлен, его можно возобновить"
+                                   if self._lang() != "en" else
+                                   "The DFY model did not answer in time — the run stopped and can be resumed") from None
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -948,7 +980,12 @@ class DFYManager:
                 if attempt:
                     raise
                 await asyncio.sleep(2)
-                raw = await self.completion(task.model, asked)
+                try:
+                    raw = await asyncio.wait_for(self.completion(task.model, asked), NEXT_ACTION_TIMEOUT)
+                except asyncio.TimeoutError:
+                    raise RuntimeError("Модель DFY не ответила вовремя — прогон остановлен, его можно возобновить"
+                                       if self._lang() != "en" else
+                                       "The DFY model did not answer in time — the run stopped and can be resumed") from None
             try:
                 return _json_object(raw)
             except ValueError:

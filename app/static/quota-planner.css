@@ -132,9 +132,10 @@
 .qp-budget-form > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 22px 24px 18px; border-bottom: 1px solid var(--border); flex: none; }
 .qp-budget-form h3 { margin: 0; font-size: 20px; font-weight: 620; letter-spacing: -.015em; }
 .qp-budget-form header p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
-.qp-budget-form-body { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 22px 24px; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
-.qp-budget-form-body::-webkit-scrollbar { width: 5px; }
-.qp-budget-form-body::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.qp-budget-form-body { min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 22px 24px; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, var(--border-strong)) transparent; }
+.qp-budget-form-body::-webkit-scrollbar { width: 11px; }
+.qp-budget-form-body::-webkit-scrollbar-thumb { background: var(--scroll-thumb, var(--border-strong)); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; min-height: 36px; }
+.qp-budget-form-body::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover, var(--border-strong)); background-clip: padding-box; }
 .qp-budget-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .qp-budget-form-grid > label:first-child { grid-column: 1 / -1; }
 .qp-budget-form-grid label, .qp-price-fields label { display: grid; gap: 7px; align-content: start; font-size: 12.5px; font-weight: 550; }
@@ -155,8 +156,8 @@
 .qp-price-model summary { display: flex; align-items: center; gap: 12px; justify-content: space-between; cursor: pointer; padding: 14px 8px; border-radius: 6px; list-style: none; }
 .qp-price-model summary::-webkit-details-marker { display: none; }
 .qp-price-model summary:hover { background: var(--card-2); }
-.qp-price-model summary::before { content: "›"; color: var(--muted); font-size: 18px; width: 10px; flex: none; }
-.qp-price-model[open] summary::before { transform: rotate(90deg); }
+.qp-price-model summary::before { content: ""; color: var(--muted); width: 7px; height: 7px; flex: none; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: none; }
+.qp-price-model[open] summary::before { transform: rotate(45deg); }
 .qp-price-model summary > span:first-of-type { flex: 1; min-width: 0; }
 .qp-price-model summary strong { display: block; font-size: 13px; font-weight: 570; overflow-wrap: anywhere; }
 .qp-price-model summary small { display: block; font-size: 11.5px; font-weight: 400; color: var(--muted); margin-top: 3px; overflow-wrap: anywhere; }

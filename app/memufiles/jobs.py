@@ -12,12 +12,23 @@ import threading
 import time
 import uuid
 from collections import defaultdict
-from typing import Any, Callable, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from .fsops import FsError, file_hash
+from .cache import HashCache, cache_path, stat_key
+from .fsops import FsError, file_hash, hash_file_both, hash_head
 
 log = logging.getLogger("memufiles.jobs")
 SKIP_DIRS = {"$Recycle.Bin", "System Volume Information"}
+# Duplicate search only: build caches, VCS checkouts and the like are never
+# worth comparing, and scanning them is what made the old search crawl.
+# _walk_size/_usage keep using SKIP_DIRS so their totals do not change.
+DUPES_SKIP_DIRS = SKIP_DIRS | {
+    "node_modules", ".git", ".hg", ".svn", ".venv", "venv", ".tox",
+    "__pycache__", ".cache", ".idea", ".vscode", "dist", "build", "target",
+}
+_DUPES_SKIP_LOWER = {name.lower() for name in DUPES_SKIP_DIRS}
 
 class Job:
     def __init__(self, kind: str, args: Dict[str, Any]) -> None:
@@ -168,11 +179,89 @@ class Jobs:
         return {"path": root, "size": total, "children": children[:500], "disk": disk,
                 "loose": {"size": loose_size, "count": loose_count}}
 
+    @staticmethod
+    def _dupes_workers(job: Job) -> int:
+        """Hashing threads: enough to overlap disk reads, never a swarm."""
+        try:
+            wanted = int(job.args.get("workers") or 0)
+        except (TypeError, ValueError):
+            wanted = 0
+        if wanted:
+            return max(1, min(16, wanted))
+        return min(8, max(4, os.cpu_count() or 4))
+
+    @staticmethod
+    def _dupes_cache(job: Job):
+        """The persistent hash cache, or None when it is disabled/broken."""
+        if "cache_path" in job.args:
+            path = job.args.get("cache_path")
+            return HashCache(path) if path else None
+        try:
+            return HashCache(cache_path())
+        except Exception:  # noqa: BLE001 - a cache must never break the search
+            return None
+
+    def _run_parallel(self, job: Job, paths: List[str], func: Callable[[str], Any],
+                      phase: str, total: int, done_offset: int = 0) -> Dict[str, Any]:
+        """Run ``func`` over ``paths`` in a thread pool, results keyed by path.
+
+        Order of completion does not matter: callers sort before grouping,
+        so the result is deterministic. ``OSError`` (a file that vanished
+        mid-run) drops that path, as the old single-threaded code did.
+        """
+        results: Dict[str, Any] = {}
+        if not paths:
+            return results
+        if self._dupes_workers(job) <= 1:
+            for index, path in enumerate(paths):
+                if job.cancel.is_set():
+                    raise FsError("cancelled")
+                try:
+                    results[path] = func(path)
+                except OSError:
+                    pass
+                job.progress.update(phase=phase, done=done_offset + index + 1,
+                                    total=total, current=path)
+            return results
+        pool = ThreadPoolExecutor(max_workers=self._dupes_workers(job),
+                                  thread_name_prefix="memufiles-dupes")
+        futures = {}
+        try:
+            futures = {pool.submit(func, path): path for path in paths}
+            done = 0
+            for future in as_completed(futures):
+                path = futures[future]
+                if job.cancel.is_set():
+                    raise FsError("cancelled")
+                try:
+                    results[path] = future.result()
+                except OSError:
+                    pass
+                done += 1
+                job.progress.update(phase=phase, done=done_offset + done,
+                                    total=total, current=path)
+        except BaseException:
+            for future in futures:
+                future.cancel()
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        pool.shutdown(wait=True)
+        return results
+
     def _dupes(self, job: Job) -> Dict[str, Any]:
-        """Duplicate files under ``args["path"]``: group by size → first 64 KB hash → full SHA-256."""
+        """Duplicate files under ``args["path"]``: group by size → first 64 KB hash → full SHA-256.
+
+        The full hash is computed in one streaming pass together with the
+        prefix hash, in parallel, and cached on disk keyed by size/mtime/
+        inode — a repeat run over unchanged files barely touches the disk.
+        Hard links share an inode, so they are hashed once and never form a
+        group on their own. Result shape is unchanged from before.
+        """
         root = job.args.get("path") or ""
         min_size = int(job.args.get("min_size") or 1)
         by_size: Dict[int, List[str]] = defaultdict(list)
+        aliases: Dict[str, List[str]] = defaultdict(list)
+        first_by_inode: Dict[Tuple[int, int], str] = {}
         stack = [root]
         scanned = 0
         while stack:
@@ -184,61 +273,107 @@ class Jobs:
                     for entry in handle:
                         try:
                             if entry.is_dir(follow_symlinks=False):
-                                if entry.name not in SKIP_DIRS and not entry.name.startswith("."):
+                                if entry.name.lower() not in _DUPES_SKIP_LOWER \
+                                        and not entry.name.startswith("."):
                                     stack.append(entry.path)
                             elif entry.is_file(follow_symlinks=False):
-                                size = entry.stat(follow_symlinks=False).st_size
-                                if size >= min_size:
-                                    by_size[size].append(entry.path)
+                                st = entry.stat(follow_symlinks=False)
                                 scanned += 1
+                                inode = (st.st_dev, st.st_ino) if st.st_ino else None
+                                if inode is not None and inode in first_by_inode:
+                                    aliases[first_by_inode[inode]].append(entry.path)
+                                    continue
+                                if inode is not None:
+                                    first_by_inode[inode] = entry.path
+                                if st.st_size >= min_size:
+                                    by_size[st.st_size].append(entry.path)
                         except OSError:
                             continue
             except OSError:
                 continue
             job.progress.update(files=scanned, current=folder, phase="scan")
-        candidates = {size: paths for size, paths in by_size.items() if len(paths) > 1}
+        candidates = {size: sorted(paths) for size, paths in by_size.items() if len(paths) > 1}
+        ordered = [path for size in sorted(candidates, key=lambda s: -s) for path in candidates[size]]
+        total = len(ordered)
 
-        def partial(path: str) -> str:
-            with open(path, "rb") as handle:
-                return hashlib.sha256(handle.read(65536)).hexdigest()
-        groups: List[Dict[str, Any]] = []
-        done = 0
-        total = sum(len(p) for p in candidates.values())
-        for size, paths in sorted(candidates.items(), key=lambda kv: -kv[0]):
-            by_partial: Dict[str, List[str]] = defaultdict(list)
-            for path in paths:
-                if job.cancel.is_set():
-                    raise FsError("cancelled")
+        cache = self._dupes_cache(job)
+        try:
+            keys = {path: stat_key(path) for path in ordered}
+            keys = {path: key for path, key in keys.items() if key is not None}
+            cached: Dict[str, Tuple[str, str]] = {}
+            if cache is not None and keys:
                 try:
-                    by_partial[partial(path)].append(path)
-                except OSError:
-                    pass
-                done += 1
-                job.progress.update(phase="hash", done=done, total=total, current=path)
-            for same in by_partial.values():
+                    cached = cache.lookup(list(keys.values()))
+                except Exception:  # noqa: BLE001 - fall through to hashing
+                    cached = {}
+            prefixes: Dict[str, str] = {}
+            fulls: Dict[str, str] = {}
+            for path, key in keys.items():
+                hit = cached.get(key[0])
+                if hit is not None:
+                    fulls[path], prefixes[path] = hit
+            job.progress.update(phase="hash", done=len(prefixes), total=total, current="")
+            need_head = [path for path in ordered if path in keys and path not in prefixes]
+            heads = self._run_parallel(job, need_head, partial(hash_head, cancel=job.cancel),
+                                       "hash", total, done_offset=len(prefixes))
+            prefixes.update(heads)
+
+            by_partial: Dict[int, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
+            for size, paths in candidates.items():
+                for path in paths:
+                    if path in prefixes:
+                        by_partial[size][prefixes[path]].append(path)
+            need_full = [path for size, groups in by_partial.items() if size > 65536
+                         for same in groups.values() if len(same) > 1 for path in same
+                         if path not in fulls]
+            if need_full:
+                both = self._run_parallel(job, need_full, partial(hash_file_both, cancel=job.cancel),
+                                          "hash", total + len(need_full), done_offset=total)
+                fresh = []
+                for path, (full, prefix) in both.items():
+                    # The file must still be the one we started with, or the
+                    # hash is a mix of two versions: drop it, do not cache it.
+                    if stat_key(path) != keys.get(path):
+                        continue
+                    fulls[path] = full
+                    prefixes[path] = prefix
+                    fresh.append((keys[path], full, prefix))
+                if cache is not None and fresh:
+                    try:
+                        cache.store(fresh)
+                    except Exception:  # noqa: BLE001 - caching is best-effort
+                        pass
+        finally:
+            if cache is not None:
+                cache.close()
+
+        groups: List[Dict[str, Any]] = []
+        for size in sorted(by_partial, key=lambda s: -s):
+            for same in by_partial[size].values():
                 if len(same) < 2:
                     continue
                 if size > 65536:
                     by_full: Dict[str, List[str]] = defaultdict(list)
                     for path in same:
-                        try:
-                            by_full[file_hash(path, "sha256", job.cancel)].append(path)
-                        except OSError:
-                            pass
+                        if path in fulls:
+                            by_full[fulls[path]].append(path)
                     sets = [v for v in by_full.values() if len(v) > 1]
                 else:
                     sets = [same]
                 for paths_set in sets:
                     rows = []
                     for path in paths_set:
-                        try:
-                            mtime = int(os.stat(path).st_mtime * 1000)
-                        except OSError:
-                            mtime = 0
-                        rows.append({"path": path, "mtime": mtime})
-                    rows.sort(key=lambda r: r["mtime"])
-                    groups.append({"size": size, "files": rows, "wasted": size * (len(rows) - 1)})
+                        for shown in [path, *aliases.get(path, [])]:
+                            try:
+                                mtime = int(os.stat(shown).st_mtime * 1000)
+                            except OSError:
+                                mtime = 0
+                            rows.append({"path": shown, "mtime": mtime})
+                    rows.sort(key=lambda r: (r["mtime"], r["path"]))
+                    groups.append({"size": size, "files": rows,
+                                   "wasted": size * (len(paths_set) - 1)})
         groups.sort(key=lambda g: -g["wasted"])
+        job.progress.update(phase="group", done=len(groups), total=len(groups), current="")
         return {"path": root, "groups": groups[:2000], "scanned": scanned,
                 "wasted": sum(g["wasted"] for g in groups)}
 

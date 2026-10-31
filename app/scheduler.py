@@ -304,6 +304,35 @@ async def _run_task(task: Dict[str, Any]) -> None:
         from .flow_engine import run_task_flow
         await run_task_flow({k: v for k, v in task.items() if k != "_run_meta"}, meta)
         return
+    if str(task.get("kind") or "") == "scenario":
+        # Программный сценарий (app/plan_scenarios.py): файлы, переменные,
+        # запуск из белого списка и интеграции — без модели, с журналом шагов.
+        from .pgdata import MEMU_DIR
+        from .plan_scenarios import ScenarioError, execute as _scenario_execute
+        try:
+            from .schedule_runtime import _lang as _plan_lang
+            lang = _plan_lang()
+        except Exception:  # noqa: BLE001
+            lang = "ru"
+        base = str(task.get("scenario_base") or "") or str(MEMU_DIR)
+        try:
+            result = await _scenario_execute(
+                task.get("scenario"), base_dir=base, allowlist=task.get("run_allowlist") or [],
+                confirmed=bool(task.get("confirmed")), variables=task.get("scenario_variables") or {},
+                lang=lang)
+            ok, text = bool(result["ok"]), str(result["text"] or "")
+            extra = {"kind": "scenario", "scenario_log": result["log"],
+                     "scenario_variables": result["variables"]}
+        except ScenarioError as exc:
+            ok, text = False, exc.text(lang)
+            extra = {"kind": "scenario", "scenario_log": []}
+        except Exception as exc:  # noqa: BLE001
+            ok, text = False, f"{type(exc).__name__}: {exc}"[:600]
+            extra = {"kind": "scenario", "scenario_log": []}
+        await asyncio.to_thread(_record_result, str(task.get("id") or ""), ok, text, extra, meta=meta)
+        if not extra.get("notified"):
+            await _rule_notify(task, ok, text)
+        return
     if str(task.get("kind") or "") in RUNTIME_KINDS:
 
         ok, text, extra = await run_action(task)
@@ -495,6 +524,8 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
         log.warning("scheduler: condition sample failed: %s", exc)
         rule_ctx = None
 
+    _module_stats_cache: Dict[str, Any] = {"stats": None}
+
     def claim(tasks: list[Dict[str, Any]]) -> bool:
         changed = False
         seen_ids: set[str] = set()
@@ -534,6 +565,16 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
                 decision = schedule_runtime.decide_task(task, timestamp, rule_ctx, tasks=tasks,
                                                         running=task_id in _RUNNING_TASK_IDS)
                 changed = changed or decision["changed"]
+                if decision["run"] and not decision.get("test") and isinstance(task.get("module_trigger"), dict):
+                    # Действие модуля: слот настал, но порог модуля ещё не
+                    # достигнут — слот пропускается, водяной знак сохраняется.
+                    from .schedule_rules import check_module_trigger, module_stats_snapshot
+                    if _module_stats_cache.get("stats") is None:
+                        _module_stats_cache["stats"] = module_stats_snapshot()
+                    fire, trig_changed = check_module_trigger(task, _module_stats_cache["stats"], timestamp)
+                    changed = changed or trig_changed
+                    if not fire:
+                        continue
                 if decision["run"]:
                     run_meta = {"test": decision["test"], "late": decision["late"], "trigger": decision["trigger"]}
                     if decision.get("payload"):

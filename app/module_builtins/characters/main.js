@@ -1998,7 +1998,12 @@ function safeFileName(name, ext) {
 function defaultAvatar(name, seed) {
   var hue = (E.hashString(seed || name || "x") % 360);
   var letter = String(name || "?").trim().charAt(0).toUpperCase() || "?";
-  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300" viewBox="0 0 200 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(' + hue + ',62%,58%)"/><stop offset="1" stop-color="hsl(' + ((hue + 48) % 360) + ',58%,36%)"/></linearGradient></defs><rect width="200" height="300" fill="url(#g)"/><text x="100" y="132" font-family="Segoe UI,system-ui,sans-serif" font-size="92" font-weight="600" fill="rgba(255,255,255,.92)" text-anchor="middle">' + esc(letter) + "</text></svg>";
+  // Square canvas, letter on the central baseline: every container crops
+  // this image around its centre (circle, 2:3 card, square), so the glyph
+  // stays whole and centred whatever the fallback font's metrics are.
+  // (A 200x300 canvas with a fixed baseline put the ink above the centre,
+  // and the centre-cropped persona circle cut the top of every letter.)
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(' + hue + ',62%,58%)"/><stop offset="1" stop-color="hsl(' + ((hue + 48) % 360) + ',58%,36%)"/></linearGradient></defs><rect width="200" height="200" fill="url(#g)"/><text x="100" y="100" font-family="Segoe UI,system-ui,sans-serif" font-size="100" font-weight="600" fill="rgba(255,255,255,.92)" text-anchor="middle" dominant-baseline="central" alignment-baseline="central">' + esc(letter) + "</text></svg>";
   return "data:image/svg+xml;base64," + E.bytesToBase64(E.utf8Encode(svg));
 }
 
@@ -2357,6 +2362,9 @@ function buildFor(type, messages, opts) {
     regexPrompt: function (text, kind, depth) { return E.runRegexScripts(text, S.settings.regex, kind === "user" ? 1 : 2, { isPrompt: true, depth: depth }); }
   });
   if (!opts.dryRun) saveSettings();
+  // Per-chat web search (chat.meta.webSearch, default off): the shared
+  // completion endpoint reads params.web_search; see build_completion.
+  result.params = Object.assign({}, result.params, { web_search: chatWebSearch() });
   return result;
 }
 
@@ -2499,7 +2507,12 @@ function generate(type, opts) {
     raw = raw.slice(0, at); leaked = true;
     return true;
   }
+  var searchUsed = null;
   var job = Memu.complete({ model: S.settings.model, messages: wire, params: built.params }, {
+    onWebSearch: function (data) {
+      searchUsed = normalizeSearchUsed(data);
+      if (searchUsed && target) { target.searchUsed = searchUsed; updateMessageNode(target); }
+    },
     onDelta: function (chunk) {
       if (leaked) return;
       raw += chunk;
@@ -2511,6 +2524,8 @@ function generate(type, opts) {
   });
   S.job = job;
   return job.then(function (result) {
+    var doneSearch = result && normalizeSearchUsed(result.searchUsed || result.web_search);
+    if (doneSearch) { searchUsed = doneSearch; if (target) target.searchUsed = doneSearch; }
     if (!leaked && result && typeof result.text === "string" && result.text.length >= raw.length) { raw = result.text; cutLeak(); }
     if (result && result.reasoning && !reasoningRaw) reasoningRaw = result.reasoning;
     finishOk(result || {});
@@ -2535,6 +2550,7 @@ function generate(type, opts) {
       else if (swipeIndex >= 0) { target.swipes.splice(swipeIndex, 1); target.swipe_info.splice(swipeIndex, 1); setSwipe(target, target.swipes.length - 1); }
     } else {
       target.model = S.settings.model;
+      if (searchUsed) target.searchUsed = searchUsed;
       target.date = target.date || Date.now();
       storeSwipe(target);
       var info = target.swipe_info[target.swipe_id];
@@ -2586,34 +2602,162 @@ function showError(message) {
   scrollToBottom(true);
 }
 
+var SLASH_HELP_GROUPS = [
+  { titleKey: "slash_group_messages", commands: [
+    { name: "/char", aliases: ["/sendas"], argsKey: "slash_args_text", descKey: "slash_cmd_sendas" },
+    { name: "/send", aliases: [], argsKey: "slash_args_text", descKey: "slash_cmd_send" },
+    { name: "/del", aliases: [], argsKey: "slash_args_range", descKey: "slash_cmd_del" },
+    { name: "/edit", aliases: [], argsKey: "slash_args_edit", descKey: "slash_cmd_edit" }
+  ] },
+  { titleKey: "slash_group_generation", commands: [
+    { name: "/continue", aliases: ["/cont"], argsKey: null, descKey: "slash_cmd_continue" },
+    { name: "/regen", aliases: ["/regenerate"], argsKey: null, descKey: "slash_cmd_regen" },
+    { name: "/swipe", aliases: [], argsKey: null, descKey: "slash_cmd_swipe" },
+    { name: "/imp", aliases: ["/impersonate"], argsKey: null, descKey: "slash_cmd_imp" },
+    { name: "/stop", aliases: [], argsKey: null, descKey: "slash_cmd_stop" }
+  ] },
+  { titleKey: "slash_group_visibility", commands: [
+    { name: "/hide", aliases: [], argsKey: "slash_args_range", descKey: "slash_cmd_hide" },
+    { name: "/unhide", aliases: [], argsKey: "slash_args_range", descKey: "slash_cmd_unhide" }
+  ] },
+  { titleKey: "slash_group_chat", commands: [
+    { name: "/newchat", aliases: [], argsKey: null, descKey: "slash_cmd_newchat" },
+    { name: "/note", aliases: [], argsKey: "slash_args_text", descKey: "slash_cmd_note" },
+    { name: "/setvar", aliases: [], argsKey: "slash_args_setvar", descKey: "slash_cmd_setvar" },
+    { name: "/getvar", aliases: [], argsKey: "slash_args_varname", descKey: "slash_cmd_getvar" },
+    { name: "/help", aliases: [], argsKey: null, descKey: "slash_cmd_help" }
+  ] }
+];
+function slashHelpContent() {
+  var wrap = h("div", { class: "ch-slash-help" });
+  SLASH_HELP_GROUPS.forEach(function (group) {
+    wrap.appendChild(h("div", { class: "ch-slash-group", text: t(group.titleKey) }));
+    group.commands.forEach(function (cmd) {
+      var row = h("div", { class: "ch-slash-row" });
+      row.appendChild(h("code", { class: "ch-slash-name", text: cmd.name }));
+      cmd.aliases.forEach(function (alias) { row.appendChild(h("code", { class: "ch-slash-alias", text: alias })); });
+      if (cmd.argsKey) row.appendChild(h("span", { class: "ch-slash-args", text: t(cmd.argsKey) }));
+      row.appendChild(h("span", { class: "ch-slash-desc", text: t(cmd.descKey) }));
+      wrap.appendChild(row);
+    });
+  });
+  wrap.appendChild(h("div", { class: "ch-slash-note", text: t("slash_help_note") }));
+  return wrap;
+}
+function slashCompleteList() {
+  var list = [];
+  SLASH_HELP_GROUPS.forEach(function (group) {
+    group.commands.forEach(function (cmd) {
+      list.push({ name: cmd.name.slice(1), descKey: cmd.descKey });
+      cmd.aliases.forEach(function (alias) { list.push({ name: alias.slice(1), descKey: cmd.descKey }); });
+    });
+  });
+  return list;
+}
+function slashNoChat() { if (!S.chat || !S.char || !S.chat.messages) { toast(t("slash_no_chat"), "error"); return true; } return false; }
+function slashRangeSpec(arg) {
+  var m = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(String(arg || "").trim());
+  if (!m) return null;
+  var lo = parseInt(m[1], 10), hi = m[2] === undefined ? lo : parseInt(m[2], 10);
+  if (lo > hi) { var swap = lo; lo = hi; hi = swap; }
+  return { lo: lo, hi: hi };
+}
+function insertCharacterMessage(text) {
+  if (slashNoChat()) return false;
+  if (!String(text || "").trim()) { toast(t("slash_empty_text"), "error"); return false; }
+  S.chat.messages.push({ id: E.uid("m"), role: "assistant", name: S.char.data.name, mes: text, swipes: [text], swipe_id: 0, swipe_info: [{}], date: Date.now() });
+  renderMessages(); saveChatNow(); return true;
+}
+function promptCharacterMessage() {
+  promptBox(t("char_message_title"), "", { icon: "chat", multiline: true, hint: t("char_message_hint") }).then(function (text) {
+    if (text === null) return;
+    insertCharacterMessage(text);
+  });
+}
 function runSlash(text) {
   var m = /^\/(\w+)\s*([\s\S]*)$/.exec(text);
   if (!m) return false;
   var cmd = m[1].toLowerCase(), arg = m[2];
   switch (cmd) {
     case "sys": case "narrator":
-      S.chat.messages.push({ id: E.uid("m"), role: "system", name: t("narrator"), mes: arg, date: Date.now() }); renderMessages(); saveChatNow(); return true;
+      toast(t("slash_narrator_removed"), "error"); return true;
     case "send":
+      if (slashNoChat()) return true;
+      if (!String(arg || "").trim()) { toast(t("slash_empty_text"), "error"); return true; }
       S.chat.messages.push({ id: E.uid("m"), role: "user", name: userName(), mes: arg, date: Date.now() }); renderMessages(); saveChatNow(); return true;
     case "sendas": case "char":
-      S.chat.messages.push({ id: E.uid("m"), role: "assistant", name: S.char.data.name, mes: arg, swipes: [arg], swipe_id: 0, swipe_info: [{}], date: Date.now() }); renderMessages(); saveChatNow(); return true;
+      insertCharacterMessage(arg); return true;
     case "continue": case "cont": generate("continue"); return true;
     case "regen": case "regenerate": generate("regenerate"); return true;
     case "swipe": generate("swipe"); return true;
     case "imp": case "impersonate": generate("impersonate"); return true;
     case "newchat": startNewChat(); return true;
-    case "note": S.chat.meta.note.text = arg; saveChatNow(); toast(t("note_saved"), "ok"); return true;
+    case "note": if (slashNoChat()) return true; S.chat.meta.note.text = arg; saveChatNow(); toast(t("note_saved"), "ok"); return true;
     case "setvar": {
+      if (slashNoChat()) return true;
       var parts = arg.split("::"); if (parts.length > 1) { S.chat.meta.variables[parts[0].trim()] = parts.slice(1).join("::"); saveChatNow(); toast(t("var_set"), "ok"); }
       return true;
     }
     case "hide": case "unhide": {
-      var idx = parseInt(arg, 10); var msg = S.chat.messages[idx];
-      if (msg) { msg.hidden = cmd === "hide"; renderMessages(); saveChatNow(); }
+      var spec = String(arg || "").trim();
+      var range = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(spec);
+      if (!range || !S.chat || !S.chat.messages) { toast(t("slash_hide_invalid"), "error"); return true; }
+      var total = S.chat.messages.length;
+      if (!total) { toast(t("slash_hide_no_messages"), "warn"); return true; }
+      var lo = parseInt(range[1], 10), hi = range[2] === undefined ? lo : parseInt(range[2], 10);
+      if (lo > hi) { var swap = lo; lo = hi; hi = swap; }
+      lo = clamp(lo, 0, total - 1); hi = clamp(hi, 0, total - 1);
+      var hiding = cmd === "hide";
+      for (var i = lo; i <= hi; i++) S.chat.messages[i].hidden = hiding;
+      renderMessages(); saveChatNow();
+      toast(t(hiding ? "slash_hidden_count" : "slash_shown_count", { count: hi - lo + 1 }), "ok");
       return true;
     }
+    case "del": {
+      if (slashNoChat()) return true;
+      var delSpec = slashRangeSpec(arg);
+      var delTotal = S.chat.messages.length;
+      if (!delSpec || !delTotal) { toast(t(delTotal ? "slash_del_invalid" : "slash_hide_no_messages"), "error"); return true; }
+      if (delSpec.lo >= delTotal || delSpec.hi >= delTotal) { toast(t("slash_del_invalid"), "error"); return true; }
+      var delCount = delSpec.hi - delSpec.lo + 1;
+      S.chat.messages.splice(delSpec.lo, delCount);
+      renderMessages(); saveChatNow();
+      toast(t("slash_deleted_count", { count: delCount }), "ok");
+      return true;
+    }
+    case "edit": {
+      if (slashNoChat()) return true;
+      var editTotal = S.chat.messages.length;
+      var editMatch = /^(\d+)\s*([\s\S]*)$/.exec(String(arg || "").trim());
+      if (!editMatch || !editTotal) { toast(t(editTotal ? "slash_edit_invalid" : "slash_hide_no_messages"), "error"); return true; }
+      var editIndex = parseInt(editMatch[1], 10);
+      if (editIndex >= editTotal) { toast(t("slash_edit_invalid"), "error"); return true; }
+      var editMsg = S.chat.messages[editIndex];
+      var editText = editMatch[2];
+      if (!editText.trim()) { startEdit(editMsg); return true; }
+      editMsg.mes = editText;
+      if (editMsg.greeting) editMsg.greeting = false;
+      if (editMsg.swipes) storeSwipe(editMsg);
+      renderMessages(); saveChatNow();
+      toast(t("slash_edited"), "ok");
+      return true;
+    }
+    case "getvar": {
+      if (slashNoChat()) return true;
+      var varName = String(arg || "").trim();
+      if (!varName) { toast(t("slash_getvar_invalid"), "error"); return true; }
+      var chatVars = (S.chat.meta && S.chat.meta.variables) || {};
+      if (!Object.prototype.hasOwnProperty.call(chatVars, varName)) { toast(t("slash_var_not_found", { name: varName }), "error"); return true; }
+      openModal({ title: t("slash_getvar_title", { name: varName }), icon: "list",
+        content: h("div", { class: "ch-var-value", text: String(chatVars[varName]) }) });
+      return true;
+    }
+    case "stop":
+      if (S.busy) { stopGeneration(); toast(t("slash_stopped"), "ok"); }
+      else toast(t("slash_not_generating"), "warn");
+      return true;
     case "help":
-      openModal({ title: t("slash_help_title"), icon: "info", content: h("pre", { class: "ch-pre", text: t("slash_help") }) });
+      openModal({ title: t("slash_help_title"), icon: "info", content: slashHelpContent() });
       return true;
     default: return false;
   }
@@ -2688,6 +2832,8 @@ function messageNode(msg, index, isLast, isLastAssistant) {
     think.appendChild(h("div", { class: "ch-think-body", html: formatText(msg.reasoning || "", { placement: 6 }) }));
     body.appendChild(think);
   }
+  var searchBlock = searchSourcesNode(msg);
+  if (searchBlock) body.appendChild(searchBlock);
   var text = h("div", { class: "ch-text" });
   var shown = msg.greeting ? displaySubst(msg.mes) : msg.mes;
   if (msg.pending && !msg.mes) text.innerHTML = '<span class="ch-typing"><i></i><i></i><i></i></span>';
@@ -2768,6 +2914,28 @@ function shortModel(id) {
   while (parts.length > 1 && /^(latest|rc|deprecated|stable|preview)$/i.test(parts[parts.length - 1])) parts.pop();
   return parts.length ? parts[parts.length - 1] : String(id || "");
 }
+function searchSourcesNode(msg) {
+  var used = msg && msg.searchUsed;
+  var sources = used && used.sources;
+  if (!used || !sources || !sources.length) return null;
+  var label = (used.query ? t("web_search") + " \u00b7 " + used.query : t("web_search_sources")) + " (" + sources.length + ")";
+  var rows = sources.map(function (row, i) {
+    var item = h("button", { class: "ch-src-row", type: "button", title: t("web_search_open") }, [
+      h("span", { class: "ch-src-n", text: String(i + 1) }),
+      h("span", { class: "ch-src-t", text: row.title || row.url }),
+      h("span", { class: "ch-src-u", text: row.url })
+    ]);
+    item.addEventListener("click", function () {
+      if (typeof Memu.open === "function") Memu.open({ url: row.url }).catch(function () { toast(row.url, "warn"); });
+      else toast(row.url, "warn");
+    });
+    return item;
+  });
+  return h("details", { class: "ch-src-block" }, [
+    h("summary", { html: icon("search", 14) + "<span>" + esc(label) + "</span>" }),
+    h("div", { class: "ch-src-body" }, rows)
+  ]);
+}
 function updateMessageNode(msg) {
   var node = document.querySelector('.ch-msg[data-id="' + msg.id + '"]');
   if (!node) { renderMessages(); return; }
@@ -2783,6 +2951,15 @@ function updateMessageNode(msg) {
     var label = think.querySelector("summary span");
     if (label) label.textContent = msg.mes ? t("thoughts") : t("thinking");
     if (msg.mes && msg.pending && !S.settings.ui.reasoningOpen) think.open = false;
+  }
+  if (msg.searchUsed) {
+    var oldSearch = node.querySelector(".ch-src-block");
+    var fresh = searchSourcesNode(msg);
+    if (fresh && oldSearch) oldSearch.replaceWith(fresh);
+    else if (fresh) {
+      var bodyEl = node.querySelector(".ch-body"), textEl = node.querySelector(".ch-text");
+      if (bodyEl && textEl) bodyEl.insertBefore(fresh, textEl);
+    }
   }
   scrollToBottom();
 }
@@ -2938,10 +3115,21 @@ function modelTitle(m, id) {
   return name;
 }
 function providerTitle(m) {
+  /* Real provider names from the catalogue via the shared selector:
+   * a Custom API connection is shown under its own connection name,
+   * never as "custom". The fallback derives the connection prefix
+   * from the id (minus the raw model name) and prettifies it. */
   if (!m) return "";
+  try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(m); } catch (e) {}
   if (m.provider_label) return m.provider_label;
-  if (m.provider === "custom" || !m.provider) return String(m.id || "").split("-")[0] || "custom";
-  return m.provider;
+  if (m.provider && m.provider !== "custom") return m.provider;
+  var id = String(m.id || "");
+  var model = String(m.model || "");
+  var prefix = (model && id.slice(-model.length - 1) === "-" + model)
+    ? id.slice(0, id.length - model.length - 1) : id.split("-")[0];
+  return prefix.split(/[-_]+/).filter(Boolean).map(function (w) {
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join(" ");
 }
 function fmtContext(n) {
   n = Number(n) || 0;
@@ -2964,6 +3152,23 @@ function setChatModel(id, quiet) {
   refreshComposerBar();
   if (S.drawerOpen && S.drawerTab === "connection") renderDrawer();
   if (!quiet) toast(t("model_switched", { model: modelTitle(modelRow(id), id) }), "ok");
+}
+function chatWebSearch() { return !!(S.chat && S.chat.meta && S.chat.meta.webSearch); }
+function setChatWebSearch(on) {
+  if (!S.chat) return;
+  S.chat.meta = S.chat.meta || {};
+  S.chat.meta.webSearch = !!on;
+  saveChat();
+  refreshComposerBar();
+}
+function normalizeSearchUsed(data) {
+  var raw = data && data.web_search ? data.web_search : data;
+  if (!raw || typeof raw !== "object") return null;
+  var sources = (raw.sources || []).map(function (row) {
+    return { title: String((row && row.title) || (row && row.url) || ""), url: String((row && row.url) || "") };
+  }).filter(function (row) { return !!row.url; }).slice(0, 12);
+  if (!sources.length) return null;
+  return { query: String(raw.query || ""), sources: sources };
 }
 function refreshComposerBar() {
   var holder = $("#composer-chips");
@@ -2993,6 +3198,14 @@ function refreshComposerBar() {
     eff.addEventListener("click", function () { effortMenu(eff); });
     holder.appendChild(eff);
   }
+  var searchOn = chatWebSearch();
+  var search = h("button", { class: "ch-cchip ch-search-chip" + (searchOn ? " on" : ""), id: "web-search-chip", type: "button",
+    "aria-pressed": searchOn ? "true" : "false", title: t("web_search_hint"), "aria-label": t("web_search") }, [
+    h("span", { class: "ch-cchip-ic", html: icon("search", 15) }),
+    h("span", { class: "ch-cchip-text", text: t("web_search") })
+  ]);
+  search.addEventListener("click", function () { setChatWebSearch(!chatWebSearch()); });
+  holder.appendChild(search);
 }
 var EFFORTS = ["auto", "off", "min", "low", "medium", "high", "max"];
 
@@ -3122,8 +3335,25 @@ function openModelPicker(anchor, opts) {
     var q = search.value.trim().toLowerCase();
     list.innerHTML = ""; buttons = [];
     var rows = textModels().filter(function (m) { return matches(m, q); });
+    /* Favourites / recent first (shared selector storage, per module),
+     * then provider groups with real catalogue names. */
+    var favIds = [], recIds = [];
+    try {
+      if (window.MemuModelSelector) { favIds = window.MemuModelSelector.getFavorites(); recIds = window.MemuModelSelector.getRecent(); }
+    } catch (e) {}
+    var favRows = [], recRows = [];
+    var rest = rows.filter(function (m) {
+      if (!q && favIds.indexOf(m.id) >= 0) { favRows.push(m); return false; }
+      if (!q && recIds.indexOf(m.id) >= 0) { recRows.push(m); return false; }
+      return true;
+    });
+    favRows.sort(function (a, b) { return favIds.indexOf(a.id) - favIds.indexOf(b.id); });
+    recRows.sort(function (a, b) { return recIds.indexOf(a.id) - recIds.indexOf(b.id); });
     var groups = [], byName = {};
-    rows.forEach(function (m) { var g = providerTitle(m); if (!byName[g]) { byName[g] = []; groups.push(g); } byName[g].push(m); });
+    function addGroup(title, items) { if (items.length) { groups.push(title); byName[title] = items; } }
+    addGroup(t("favorites"), favRows);
+    addGroup(t("sort_recent"), recRows);
+    rest.forEach(function (m) { var g = providerTitle(m); if (!byName[g]) { byName[g] = []; groups.push(g); } byName[g].push(m); });
     groups.forEach(function (g) {
       list.appendChild(h("div", { class: "ch-mp-group", role: "presentation", text: g }));
       byName[g].forEach(function (m) {
@@ -3142,7 +3372,11 @@ function openModelPicker(anchor, opts) {
             m.context ? h("span", { class: "ch-mp-ctx", title: t("mp_context", { count: fmtNum(m.context) }), text: fmtContext(m.context) }) : null
           ])
         ]);
-        b.addEventListener("click", function () { closeMenus(); if (opts.onPick) opts.onPick(m.id); });
+        b.addEventListener("click", function () {
+          closeMenus();
+          try { if (window.MemuModelSelector) window.MemuModelSelector.noteRecent(m.id); } catch (e) {}
+          if (opts.onPick) opts.onPick(m.id);
+        });
         b.addEventListener("mousemove", function () { setActive(buttons.indexOf(b), true); });
         buttons.push(b);
         list.appendChild(b);
@@ -3298,6 +3532,7 @@ function generateVariants(n) {
   var wire = built.messages.map(function (m) { var r = { role: m.role, content: m.content }; if (m.name) r.name = m.name; return r; });
   var gen = S.settings.gen;
   var prefill = built.prefill || "";
+  var variantSearch = null;
   var job = { kind: "variants", target: target, base: base, n: n, slots: [], stopped: false };
   job.cancel = function () { job.slots.forEach(function (sl) { if (sl.job && sl.state !== "done" && sl.state !== "error") { sl.stopped = true; sl.job.cancel(); } }); };
   S.job = job; S.variantJob = job;
@@ -3330,6 +3565,9 @@ function generateVariants(n) {
       var params = Object.assign({}, built.params);
       if (typeof params.seed === "number" && params.seed >= 0) params.seed = params.seed + k;
       sl.job = Memu.complete({ model: model, messages: wire, params: params }, {
+        onWebSearch: function (data) {
+          if (!variantSearch) { variantSearch = normalizeSearchUsed(data); if (variantSearch) target.searchUsed = variantSearch; }
+        },
         onDelta: function (chunk) {
           if (sl.leaked) return;
           sl.raw += chunk; sl.state = "stream";
@@ -3376,6 +3614,7 @@ function generateVariants(n) {
     });
     target.swipes.splice(base, n); target.swipe_info.splice(base, n);
     keep.forEach(function (row) { target.swipes.push(row.text); target.swipe_info.push(row.info); });
+    if (variantSearch) target.searchUsed = variantSearch;
     delete target.pending;
     S.job = null; S.variantJob = null;
     setBusy(false);
@@ -3545,7 +3784,15 @@ function render() {
 
 function hostBar() { return !!(window.Memu && Memu.toolbar && Memu.toolbar.supported && Memu.toolbar.supported()); }
 function svgOf(name) { return '<svg viewBox="0 0 24 24">' + (ICONS[name] || "") + "</svg>"; }
-function toggleSidebar() { S.settings.ui.sidebar = !S.settings.ui.sidebar; saveSettings(); applyAppearance(); syncToolbar(); }
+function syncNarrowSidebar(chat) {
+  var app = $("#app"); if (!app) return;
+  app.classList.toggle("ch-side-hidden", !!chat && window.innerWidth <= 760 && !!S.settings.ui.sidebar);
+}
+function toggleSidebar() {
+  var app = $("#app");
+  if (window.innerWidth <= 760 && S.view === "chat" && app && !app.classList.contains("no-side")) { app.classList.toggle("ch-side-hidden"); syncToolbar(); return; }
+  S.settings.ui.sidebar = !S.settings.ui.sidebar; saveSettings(); applyAppearance(); syncToolbar();
+}
 function chatMenuEntries() {
   return [
     { icon: "mask", label: t("impersonate"), onClick: function () { generate("impersonate"); } },
@@ -3747,6 +3994,7 @@ function charMenu(anchor, row) {
 }
 
 function renderHome() {
+  syncNarrowSidebar(false);
   var main = $("#main");
   main.innerHTML = "";
   main.className = "ch-main home";
@@ -3812,6 +4060,7 @@ function selectEl(options, value, onChange, cls) {
 }
 
 function renderChatView() {
+  syncNarrowSidebar(true);
   var main = $("#main");
   main.innerHTML = "";
   main.className = "ch-main chat";
@@ -3878,10 +4127,83 @@ function composer() {
   });
   var area = h("textarea", { class: "ch-input", id: "composer-text", rows: "1", placeholder: t("composer_placeholder", { name: S.char.data.name }), title: t("composer_hint") });
   if (S.chat.meta && S.chat.meta.draft) area.value = S.chat.meta.draft;
-  area.addEventListener("input", function () { autosize(area); S.chat.meta.draft = area.value; saveChat(); updateDraftTokens(); });
+  var slashPop = h("div", { class: "ch-slash-pop", id: "ch-slash-pop", role: "listbox", hidden: true });
+  var slashItems = [], slashSel = 0, slashKey = "";
+  function slashContext() {
+    var pos = area.selectionStart;
+    if (pos === null || pos === undefined) return null;
+    var before = area.value.slice(0, pos);
+    var lineStart = before.lastIndexOf("\n") + 1;
+    var m = /^([ \t]*)\/(\w*)$/.exec(before.slice(lineStart));
+    if (!m) return null;
+    return { slashPos: lineStart + m[1].length, prefix: m[2] };
+  }
+  function slashClose() {
+    slashItems = []; slashSel = 0; slashKey = "";
+    slashPop.hidden = true; slashPop.innerHTML = "";
+    area.removeAttribute("aria-expanded"); area.removeAttribute("aria-controls");
+  }
+  function slashOpen() { return !slashPop.hidden && slashItems.length > 0; }
+  function slashMark() {
+    Array.prototype.forEach.call(slashPop.children, function (row, i) {
+      row.classList.toggle("on", i === slashSel);
+      row.setAttribute("aria-selected", i === slashSel ? "true" : "false");
+    });
+    var active = slashPop.children[slashSel];
+    if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
+  }
+  function slashRender() {
+    slashPop.innerHTML = "";
+    slashItems.forEach(function (item, i) {
+      var row = h("button", { class: "ch-slash-pop-item" + (i === slashSel ? " on" : ""), type: "button", role: "option", "aria-selected": i === slashSel ? "true" : "false" }, [
+        h("code", { class: "ch-slash-pop-name", text: "/" + item.name }),
+        h("span", { class: "ch-slash-pop-desc", text: t(item.descKey) })
+      ]);
+      row.addEventListener("mousedown", function (e) { e.preventDefault(); slashInsert(item); });
+      row.addEventListener("mouseenter", function () { slashSel = i; slashMark(); });
+      slashPop.appendChild(row);
+    });
+    slashPop.hidden = false;
+    area.setAttribute("aria-expanded", "true");
+    area.setAttribute("aria-controls", "ch-slash-pop");
+  }
+  function slashUpdate() {
+    var ctx = slashContext();
+    if (!ctx) { slashClose(); return; }
+    var prefix = ctx.prefix.toLowerCase();
+    var items = slashCompleteList().filter(function (item) { return item.name.toLowerCase().indexOf(prefix) === 0; });
+    if (!items.length) { slashClose(); return; }
+    var key = items.map(function (item) { return item.name; }).join("|");
+    slashItems = items;
+    if (key !== slashKey) { slashSel = 0; slashKey = key; }
+    if (slashSel >= items.length) slashSel = 0;
+    slashRender();
+  }
+  function slashInsert(item) {
+    var ctx = slashContext();
+    if (!ctx || !item) return;
+    var pos = area.selectionStart;
+    var ins = "/" + item.name + " ";
+    area.value = area.value.slice(0, ctx.slashPos) + ins + area.value.slice(pos);
+    var caret = ctx.slashPos + ins.length;
+    area.selectionStart = caret; area.selectionEnd = caret;
+    slashClose();
+    autosize(area); S.chat.meta.draft = area.value; saveChat(); updateDraftTokens();
+    area.focus();
+  }
+  area.addEventListener("input", function () { autosize(area); S.chat.meta.draft = area.value; saveChat(); updateDraftTokens(); slashUpdate(); });
+  area.addEventListener("click", slashUpdate);
+  area.addEventListener("keyup", function (e) { if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") slashUpdate(); });
+  area.addEventListener("blur", function () { setTimeout(slashClose, 150); });
   area.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && S.settings.ui.enterSends) { e.preventDefault(); sendMessage(); }
-    else if (e.key === "Enter" && e.ctrlKey && !S.settings.ui.enterSends) { e.preventDefault(); sendMessage(); }
+    if (slashOpen()) {
+      if (e.key === "ArrowDown") { e.preventDefault(); slashSel = (slashSel + 1) % slashItems.length; slashMark(); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); slashSel = (slashSel + slashItems.length - 1) % slashItems.length; slashMark(); return; }
+      if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.isComposing) { e.preventDefault(); slashInsert(slashItems[slashSel]); return; }
+      if (e.key === "Escape") { e.preventDefault(); slashClose(); return; }
+    }
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && S.settings.ui.enterSends) { e.preventDefault(); sendMessage(); slashClose(); }
+    else if (e.key === "Enter" && e.ctrlKey && !S.settings.ui.enterSends) { e.preventDefault(); sendMessage(); slashClose(); }
     else if (e.key === "ArrowUp" && !area.value) {
       var last = null;
       for (var i = S.chat.messages.length - 1; i >= 0; i--) if (S.chat.messages[i].role === "user") { last = S.chat.messages[i]; break; }
@@ -3892,10 +4214,15 @@ function composer() {
     var files = Array.prototype.slice.call((e.clipboardData && e.clipboardData.files) || []).filter(function (f) { return /^image\//.test(f.type); });
     if (files.length) { e.preventDefault(); attachFiles(files); }
   });
-  var send = h("button", { class: "ch-send", id: "send", type: "button", title: t("send"), html: icon("send", 18), onclick: sendMessage });
-  var bar = h("div", { class: "ch-cbar", id: "composer-bar" }, [tools, h("span", { class: "ch-cbar-chips", id: "composer-chips" }),
+  var charBtn = h("button", { class: "ch-cchip ch-char-chip", id: "char-message-btn", type: "button", title: t("char_message_title"), "aria-label": t("char_message_title") }, [
+    h("span", { class: "ch-cchip-ic", html: icon("chat", 15) }),
+    h("span", { class: "ch-cchip-text", text: t("char_message_button") })
+  ]);
+  charBtn.addEventListener("click", function () { promptCharacterMessage(); });
+  var send = h("button", { class: "ch-send", id: "send", type: "button", title: t("send"), html: icon("send", 18), onclick: function () { slashClose(); sendMessage(); } });
+  var bar = h("div", { class: "ch-cbar", id: "composer-bar" }, [tools, h("span", { class: "ch-cbar-chips", id: "composer-chips" }), charBtn,
     h("span", { class: "mu-grow" }), h("span", { class: "ch-draft-tk", id: "draft-tokens", "aria-live": "off" }), send]);
-  box.appendChild(area); box.appendChild(bar);
+  box.appendChild(area); box.appendChild(bar); box.appendChild(slashPop);
   wrap.appendChild(box);
   setTimeout(function () { autosize(area); renderAttachments(); setBusy(S.busy); refreshComposerBar(); updateDraftTokens(); }, 0);
   return wrap;
@@ -5415,7 +5742,16 @@ function drawConnectionPanel(body) {
     toggle("g_clamp", gen.clampContext, function (v) { set("clampContext", v); }, "g_clamp_hint"),
     field("g_context_override", textInput(gen.contextOverride || "", function (v) { set("contextOverride", Math.max(0, parseInt(v, 10) || 0)); }, { type: "number", placeholder: t("from_preset") }), "g_context_override_hint")
   ]));
-  body.appendChild(assistSettingsSection());
+  try { if (window.MemuModelSelector) window.MemuModelSelector.mountSelect(modelSel, { preset: "dropdown" }); } catch (e) {}
+  var assistSec = assistSettingsSection();
+  body.appendChild(assistSec);
+  /* The co-writer model uses the shared selector too (compact preset:
+   * it sits in a dense settings drawer). The empty option means "the
+   * chat model", so it is the picker's empty row, not a model. */
+  try {
+    var assistSel = assistSec.querySelector("[data-assist-model]");
+    if (assistSel && window.MemuModelSelector) window.MemuModelSelector.mountSelect(assistSel, { preset: "compact", kind: "chat", allowEmpty: true, emptyLabel: t("as_model_chat") });
+  } catch (e) {}
   body.appendChild(section(t("sec_generation"), "send", [
     toggle("g_streaming", gen.streaming, function (v) { set("streaming", v); }),
     field("g_thinking", selectEl([["auto", t("thinking_auto")], ["on", t("on")], ["off", t("off")]], gen.thinking, function (v) { set("thinking", v); }), "g_thinking_hint"),
@@ -5965,10 +6301,10 @@ Memu.on("navigate", function (data) {
   if (row) openCharacter(row.id);
 });
 
-window.MemuCharacters = { S: S, E: E, generate: generate, swipe: swipe, startEdit: startEdit, exportCharacter: exportCharacter,
+window.MemuCharacters = { S: S, E: E, generate: generate, swipe: swipe, runSlash: runSlash, startEdit: startEdit, exportCharacter: exportCharacter,
   openDrawer: openDrawer, openInspector: openInspector, buildFor: buildFor, openCharacter: openCharacter, importFiles: importFiles, render: render,
   dropStalePending: dropStalePending, shortModel: shortModel, newCharacter: newCharacter, saveCharacter: saveCharacter,
-  syncToolbar: syncToolbar, fitTagBar: fitTagBar, generateVariants: generateVariants, variantMenu: variantMenu, openModelPicker: openModelPicker,
+  syncToolbar: syncToolbar, fitTagBar: fitTagBar, generateVariants: generateVariants, variantMenu: variantMenu, openModelPicker: openModelPicker, chatWebSearch: chatWebSearch, setChatWebSearch: setChatWebSearch, normalizeSearchUsed: normalizeSearchUsed,
   openVariantCompare: openVariantCompare, setChatModel: setChatModel, loadModels: loadModels, openAiCreator: openAiCreator, aiParseJson: aiParseJson,
   aiNormCard: aiNormCard, aiNormBook: aiNormBook, assistDiff: assistDiff, assistClean: assistClean, assistJsonList: assistJsonList, assistLocalChecks: assistLocalChecks,
   assistFieldMessages: assistFieldMessages, openCharacterEditor: openCharacterEditor, openWorldEditor: openWorldEditor, modelEfforts: modelEfforts, clampEffort: clampEffort, effortValue: effortValue, setEffort: setEffort };

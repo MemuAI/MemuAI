@@ -271,11 +271,28 @@ def mark_library(lib, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         it["in_library"] = (found or {}).get("id", "") if found else ""
     return items
 
+def _limit(value: Any, default: int) -> int:
+    """``limit`` comes from JSON args: numeric strings work, anything else is the default."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            try:
+                return int(float(value.strip()))
+            except ValueError:
+                return default
+    return default
+
+
 def search(lib, q: str, limit: int = 12, source: str = "ytmusic", client_factory=None, runner_factory=None) -> Dict[str, Any]:
     """{results, source, via, error}: ``via`` says which method answered (``ytmusic-api`` or ``yt-dlp``)."""
     q = str(q or "").strip()
     source = source if source in SEARCH_SOURCES else "ytmusic"
-    limit = max(1, min(30, int(limit or 12)))
+    limit = max(1, min(30, _limit(limit, 12)))
     if not q:
         return {"results": [], "source": source, "via": "", "error": ""}
 
@@ -440,7 +457,7 @@ def details(lib, url: str, hint: Optional[Dict[str, Any]] = None, client_factory
 def related(lib, url: str, limit: int = 20, client_factory=None, runner_factory=None) -> List[Dict[str, Any]]:
     """«Similar tracks» the source itself suggests."""
     info = sources.detect(url)
-    limit = max(1, min(40, int(limit or 20)))
+    limit = max(1, min(40, _limit(limit, 20)))
 
     def make() -> List[Dict[str, Any]]:
         if info.get("source") in ("youtube", "ytmusic") and info.get("id"):

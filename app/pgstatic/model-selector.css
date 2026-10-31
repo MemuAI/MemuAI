@@ -1,0 +1,190 @@
+/* MemuModelSelector styles. Inlined into every module document by
+ * app/modules_host.py together with model-selector.js. All rules live
+ * under .ms so they cannot leak into module styles; modules restyle a
+ * picker through the --ms-* custom properties (see the JS header).
+ * Provider accents are per-provider hues (--ms-prov-h, set by the JS
+ * from the provider key, so every provider gets its own colour);
+ * kind badges are coloured per kind (data-kind, see below). The hues
+ * are deterministic, not brand colours.
+ * No scrollbar rules here on purpose. */
+.ms {
+  --ms-accent: var(--accent, #c96f4a);
+  --ms-bg: var(--panel, #ffffff);
+  --ms-panel: var(--panel-2, #f4f2ef);
+  --ms-text: var(--text, #22201d);
+  --ms-muted: var(--muted, #7a756e);
+  --ms-border: var(--border, #ddd8d0);
+  --ms-radius: var(--radius, 10px);
+  --ms-font-size: .92em;
+  --ms-gap: 8px;
+  --ms-row-padding: 8px 10px;
+  position: relative;
+  font-size: var(--ms-font-size);
+  color: var(--ms-text);
+  box-sizing: border-box;
+}
+.ms *, .ms *::before, .ms *::after { box-sizing: border-box; }
+.ms-label { display: block; font-weight: 600; margin-bottom: 6px; }
+.ms-search { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--ms-border); border-radius: var(--ms-radius); background: var(--ms-panel); margin-bottom: 8px; }
+.ms-search span { color: var(--ms-muted); }
+.ms-search-input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ms-text); font: inherit; outline: none; }
+.ms-list { display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.ms-sec { display: flex; flex-direction: column; gap: 2px; }
+.ms-sec-body { display: flex; flex-direction: column; gap: 2px; }
+.ms-sec.collapsed .ms-sec-body { display: none; }
+.ms-sec-h { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 8px; border: 0; background: transparent; color: var(--ms-muted); font: inherit; font-size: .82em; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; cursor: pointer; transition: color .15s ease; }
+.ms-sec[data-prov] .ms-sec-h::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: hsl(var(--ms-prov-h, 40) 62% 50%); box-shadow: 0 0 0 3px hsl(var(--ms-prov-h, 40) 62% 50% / .18); }
+.ms-sec-pinned .ms-sec-h { color: #8a6d00; }
+html[data-theme="dark"] .ms-sec-pinned .ms-sec-h { color: #e3b93c; }
+.ms-sec-pinned .ms-sec-h > span:first-child::before { content: "★ "; }
+.ms-sec-h:hover { color: var(--ms-text); }
+.ms-sec-h.static { cursor: default; }
+.ms-sec-h small { margin-left: auto; font-weight: 500; }
+.ms-sec-h .ms-chev { transition: transform .15s; }
+.ms-sec.collapsed .ms-chev { transform: rotate(-90deg); }
+.ms-row { --ms-prov-h: 40; display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; padding: var(--ms-row-padding); border: 1px solid transparent; border-radius: var(--ms-radius); background: transparent; color: var(--ms-text); font: inherit; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.ms-row:hover { background: var(--ms-panel); }
+.ms-row:focus-visible { outline: 2px solid var(--ms-accent); outline-offset: 1px; }
+.ms-row.sel { border-color: var(--ms-accent); background: color-mix(in srgb, var(--ms-accent) 10%, transparent); box-shadow: inset 3px 0 0 hsl(var(--ms-prov-h) 62% 50%); }
+.ms-mono { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; background: hsl(var(--ms-prov-h) 62% 50% / .14); border: 1px solid hsl(var(--ms-prov-h) 62% 50% / .32); color: hsl(var(--ms-prov-h) 62% 34%); font-weight: 700; }
+html[data-theme="dark"] .ms-mono { color: hsl(var(--ms-prov-h) 72% 68%); }
+.ms-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.ms-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+.ms-id { color: var(--ms-muted); font-size: .84em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-ctx { margin-left: auto; color: var(--ms-muted); font-size: .8em; font-weight: 500; }
+.ms-badges { display: inline-flex; gap: 4px; flex: none; }
+.ms-badge { padding: 2px 7px; border-radius: 999px; background: var(--ms-panel); color: var(--ms-muted); font-size: .76em; font-weight: 600; white-space: nowrap; }
+.ms-badge.ms-free { color: #2e7d4f; }
+.ms-badge.ms-default { color: var(--ms-accent); }
+/* Kind badges: one hue per catalogue kind (chat, image, video, music,
+ * audio, stt, tts, embedding, rerank, decisions). Light themes use a
+ * darker text on a tinted chip; dark themes lighten the text. */
+.ms-badge.ms-kind { --k: 217; background: hsl(var(--k) 70% 52% / .13); color: hsl(var(--k) 65% 33%); border: 1px solid hsl(var(--k) 70% 52% / .28); }
+.ms-badge.ms-kind[data-kind="chat"] { --k: 217; }
+.ms-badge.ms-kind[data-kind="image"] { --k: 282; }
+.ms-badge.ms-kind[data-kind="video"] { --k: 348; }
+.ms-badge.ms-kind[data-kind="music"] { --k: 262; }
+.ms-badge.ms-kind[data-kind="audio"] { --k: 24; }
+.ms-badge.ms-kind[data-kind="stt"] { --k: 174; }
+.ms-badge.ms-kind[data-kind="tts"] { --k: 200; }
+.ms-badge.ms-kind[data-kind="embedding"] { --k: 96; }
+.ms-badge.ms-kind[data-kind="rerank"] { --k: 36; }
+.ms-badge.ms-kind[data-kind="decisions"] { --k: 150; }
+html[data-theme="dark"] .ms-badge.ms-kind { color: hsl(var(--k) 78% 70%); }
+.ms-trigger-kind { flex: none; }
+.ms-check { color: var(--ms-accent); font-weight: 700; flex: none; }
+.ms-fav { flex: none; border: 0; background: transparent; color: var(--ms-muted); font-size: 1.05em; cursor: pointer; padding: 2px 4px; line-height: 1; }
+.ms-fav.on { color: #d9a514; }
+.ms-empty { padding: 18px 12px; text-align: center; color: var(--ms-muted); }
+.ms-error { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--ms-border); border-radius: var(--ms-radius); color: var(--ms-muted); margin-top: 8px; }
+.ms-retry { flex: none; border: 1px solid var(--ms-border); border-radius: 8px; background: var(--ms-panel); color: var(--ms-text); font: inherit; padding: 5px 12px; cursor: pointer; }
+.ms-loading { display: flex; align-items: center; gap: 8px; padding: 12px; color: var(--ms-muted); }
+.ms-spinner { width: 15px; height: 15px; flex: none; border: 2px solid var(--ms-border); border-top-color: var(--ms-accent); border-radius: 50%; animation: ms-spin .7s linear infinite; }
+@keyframes ms-spin { to { transform: rotate(360deg); } }
+.ms-native-hidden { position: absolute !important; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* 1. dropdown — a trigger button with a popover list. */
+.ms[data-preset="dropdown"] .ms-trigger, .ms[data-preset="minimal"] .ms-trigger { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 7px 12px; border: 1px solid var(--ms-border); border-radius: var(--ms-radius); background: var(--ms-bg); color: var(--ms-text); font: inherit; cursor: pointer; text-align: left; transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
+.ms[data-preset="dropdown"] .ms-trigger:hover, .ms[data-preset="minimal"] .ms-trigger:hover { border-color: var(--ms-accent); }
+.ms-trigger-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.ms-trigger-provider { flex: none; color: var(--ms-muted); font-size: .84em; }
+.ms-caret { flex: none; color: var(--ms-muted); }
+.ms-pop { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 5px); max-height: 420px; overflow: auto; padding: 10px; border: 1px solid var(--ms-border); border-radius: calc(var(--ms-radius) + 2px); background: var(--ms-bg); box-shadow: 0 14px 36px rgba(0, 0, 0, .22); }
+.ms-pop[hidden] { display: none; }
+
+/* 2. inline-list — one horizontal scrollable strip. */
+.ms[data-preset="inline-list"] .ms-list { flex-direction: row; overflow-x: auto; padding-bottom: 4px; }
+.ms[data-preset="inline-list"] .ms-sec, .ms[data-preset="inline-list"] .ms-sec-body { flex-direction: row; }
+.ms[data-preset="inline-list"] .ms-sec-h { width: auto; flex: none; }
+.ms[data-preset="inline-list"] .ms-row { width: auto; flex: none; border: 1px solid var(--ms-border); background: var(--ms-bg); }
+.ms[data-preset="inline-list"] .ms-row .ms-id { display: none; }
+
+/* 3. grid — compact cards in a responsive grid, grouped by provider. */
+.ms[data-preset="grid"] .ms-sec-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: var(--ms-gap); }
+.ms[data-preset="grid"] .ms-row { flex-direction: column; align-items: flex-start; gap: 6px; border: 1px solid var(--ms-border); background: var(--ms-bg); min-height: 86px; }
+.ms[data-preset="grid"] .ms-row .ms-text { width: 100%; }
+.ms[data-preset="grid"] .ms-row .ms-id { white-space: normal; word-break: break-all; }
+
+/* 4. cards — large cards with room for badges and context. */
+.ms[data-preset="cards"] .ms-sec-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.ms[data-preset="cards"] .ms-row { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px; border: 1px solid var(--ms-border); background: var(--ms-bg); border-radius: 14px; min-height: 118px; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
+.ms[data-preset="cards"] .ms-row:hover { border-color: var(--ms-accent); }
+.ms[data-preset="cards"] .ms-mono { width: 40px; height: 40px; border-radius: 12px; font-size: 1.1em; }
+.ms[data-preset="cards"] .ms-name { font-size: 1.06em; white-space: normal; }
+.ms[data-preset="cards"] .ms-id { white-space: normal; word-break: break-all; }
+
+/* 5. compact — dense rows, no monograms, no grouping headers, no kind
+ * badges (the row is one line; capability glyphs stay). */
+.ms[data-preset="compact"] { --ms-font-size: .86em; --ms-row-padding: 4px 8px; --ms-gap: 2px; }
+.ms[data-preset="compact"] .ms-mono, .ms[data-preset="compact"] .ms-sec-h, .ms[data-preset="compact"] .ms-badge.ms-kind { display: none; }
+.ms[data-preset="compact"] .ms-row .ms-id { display: none; }
+.ms[data-preset="compact"] .ms-list { max-height: 260px; overflow: auto; }
+
+/* 6. full — the whole panel: search, favourites, recent, all groups open. */
+.ms[data-preset="full"] { border: 1px solid var(--ms-border); border-radius: 14px; background: var(--ms-bg); padding: 14px; }
+.ms[data-preset="full"] .ms-list { max-height: 560px; overflow: auto; }
+.ms[data-preset="full"] .ms-row { padding: 10px 12px; }
+.ms[data-preset="full"] .ms-sec-h { font-size: .9em; }
+
+/* 7. circle — models orbit the current selection. */
+.ms[data-preset="circle"] .ms-circle-wrap { position: relative; min-height: 380px; }
+.ms[data-preset="circle"] .ms-circle-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 168px; min-height: 168px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 16px; border: 1px solid var(--ms-border); border-radius: 50%; background: var(--ms-panel); }
+.ms[data-preset="circle"] .ms-circle-center b { line-height: 1.3; word-break: break-word; }
+.ms[data-preset="circle"] .ms-circle-center span { color: var(--ms-muted); font-size: .84em; }
+.ms[data-preset="circle"] .ms-circle { position: absolute; inset: 0; }
+.ms[data-preset="circle"] .ms-circle .ms-sec, .ms[data-preset="circle"] .ms-circle .ms-sec-body { display: contents; }
+.ms[data-preset="circle"] .ms-circle .ms-sec-h { display: none; }
+.ms[data-preset="circle"] .ms-circle .ms-row { position: absolute; left: 50%; top: 50%; width: auto; max-width: 190px; transform: rotate(var(--ms-angle, 0deg)) translate(var(--ms-orbit, 130px)) rotate(calc(var(--ms-angle, 0deg) * -1)); background: var(--ms-bg); border: 1px solid var(--ms-border); box-shadow: 0 2px 8px rgba(0, 0, 0, .1); }
+.ms[data-preset="circle"] .ms-circle.ms-circle-many { position: static; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--ms-gap); }
+.ms[data-preset="circle"] .ms-circle.ms-circle-many .ms-row { position: static; transform: none; max-width: none; }
+.ms[data-preset="circle"] .ms-circle-wrap:has(.ms-circle-many) { min-height: 0; }
+.ms[data-preset="circle"] .ms-circle-wrap:has(.ms-circle-many) .ms-circle-center { position: static; transform: none; width: 100%; min-height: 0; border-radius: 12px; margin-bottom: 10px; }
+
+/* 8. rail — a narrow vertical rail, names truncated to one line. */
+.ms[data-preset="rail"] { max-width: 250px; }
+.ms[data-preset="rail"] .ms-list { max-height: 480px; overflow: auto; }
+.ms[data-preset="rail"] .ms-row { border-left: 3px solid transparent; border-radius: 0 8px 8px 0; }
+.ms[data-preset="rail"] .ms-row.sel { border-left-color: var(--ms-accent); }
+.ms[data-preset="rail"] .ms-mono { width: 24px; height: 24px; border-radius: 7px; font-size: .85em; }
+.ms[data-preset="rail"] .ms-id, .ms[data-preset="rail"] .ms-badges { display: none; }
+
+/* 9. segmented — provider tabs on top, one provider's models below. */
+.ms[data-preset="segmented"] .ms-tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 4px; border: 1px solid var(--ms-border); border-radius: calc(var(--ms-radius) + 2px); background: var(--ms-panel); margin-bottom: 10px; }
+.ms[data-preset="segmented"] .ms-tab { padding: 6px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ms-muted); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ms[data-preset="segmented"] .ms-tab.on { background: var(--ms-bg); color: var(--ms-text); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+.ms[data-preset="segmented"] .ms-tab small { color: var(--ms-muted); font-weight: 500; }
+.ms[data-preset="segmented"] .ms-sec-body { flex-direction: row; flex-wrap: wrap; gap: var(--ms-gap); }
+.ms[data-preset="segmented"] .ms-sec-body .ms-row { width: auto; flex: 1 1 180px; border: 1px solid var(--ms-border); background: var(--ms-bg); }
+
+/* 10. chips — wrapping pills with a provider dot. */
+.ms[data-preset="chips"] .ms-list, .ms[data-preset="chips"] .ms-sec-body { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.ms[data-preset="chips"] .ms-sec-h { width: 100%; }
+.ms[data-preset="chips"] .ms-row { width: auto; padding: 5px 12px; border: 1px solid var(--ms-border); border-radius: 999px; background: var(--ms-bg); }
+.ms[data-preset="chips"] .ms-mono { width: 20px; height: 20px; border-radius: 50%; font-size: .8em; }
+.ms[data-preset="chips"] .ms-id, .ms[data-preset="chips"] .ms-badges, .ms[data-preset="chips"] .ms-check { display: none; }
+.ms[data-preset="chips"] .ms-row { transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.ms[data-preset="chips"] .ms-row.sel { background: var(--ms-accent); border-color: var(--ms-accent); color: #fff; }
+.ms[data-preset="chips"] .ms-row.sel .ms-mono { background: rgba(255, 255, 255, .22); color: #fff; }
+
+/* 11. table — aligned columns: model, provider, context. */
+.ms[data-preset="table"] .ms-table-head { display: grid; grid-template-columns: 1fr 160px 70px; gap: 9px; padding: 6px 10px; color: var(--ms-muted); font-size: .8em; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+.ms[data-preset="table"] .ms-row { display: grid; grid-template-columns: 1fr 160px 70px; gap: 9px; align-items: center; border-bottom: 1px solid var(--ms-border); border-radius: 0; }
+.ms[data-preset="table"] .ms-row .ms-cell.ms-provider { color: var(--ms-muted); font-size: .86em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms[data-preset="table"] .ms-row .ms-id { display: none; }
+.ms[data-preset="table"] .ms-row .ms-text { min-width: 0; }
+
+/* 12. minimal — a bare text trigger; the popover carries everything. */
+.ms[data-preset="minimal"] { --ms-font-size: .88em; }
+.ms[data-preset="minimal"] .ms-trigger { border-color: transparent; background: transparent; padding: 4px 6px; min-height: 28px; }
+.ms[data-preset="minimal"] .ms-trigger:hover { background: var(--ms-panel); }
+.ms[data-preset="minimal"] .ms-pop { box-shadow: 0 8px 24px rgba(0, 0, 0, .18); }
+
+@media (max-width: 560px) {
+  .ms[data-preset="grid"] .ms-sec-body, .ms[data-preset="cards"] .ms-sec-body { grid-template-columns: 1fr; }
+  .ms[data-preset="table"] .ms-table-head, .ms[data-preset="table"] .ms-row { grid-template-columns: 1fr 110px; }
+  .ms[data-preset="table"] .ms-row .ms-ctx { display: none; }
+  .ms[data-preset="circle"] .ms-circle-wrap { min-height: 300px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ms *, .ms *::before, .ms *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

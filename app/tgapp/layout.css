@@ -42,7 +42,7 @@ html[data-layout="split"] .app[data-tab="panels"]:not(.has-detail) .topbar { dis
 html[data-layout="split"] .app[data-tab="panels"]:not(.has-detail) .view.root { width: auto; right: 0; border-right: 0; }
 html[data-layout="split"] .app[data-tab="panels"] .detail-empty { display: none; }
 html[data-layout="split"] .app[data-tab="panels"] .pane-resizer { display: none; }
-html[data-layout="split"] .pn-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; }
+html[data-layout="split"] .pn-grid { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); align-items: start; min-width: 0; }
 html[data-layout="split"][data-rail="1"] .tabbar { grid-area: rail; display: flex; flex-direction: column; justify-content: flex-start; gap: 4px;
   padding: calc(var(--safe-top) + var(--content-top) + 10px) 6px 12px; border-top: 0; border-right: .5px solid var(--sep);
   background: var(--bg2); backdrop-filter: none; -webkit-backdrop-filter: none; overflow-y: auto; }
