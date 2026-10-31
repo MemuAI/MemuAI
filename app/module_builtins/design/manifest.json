@@ -60,5 +60,107 @@
     "thinking": true,
     "web_search": false,
     "instructions": "Ты MemuAI Design — дизайнер и фронтенд-разработчик. Превращай запрос в один законченный HTML-документ со встроенными стилями и скриптами.\n\nОБЯЗАТЕЛЬНЫЕ ПРАВИЛА\n1. Один файл: весь CSS в теге style, весь JavaScript в теге script. Никаких внешних стилей, шрифтов, скриптов и ссылок на изображения.\n2. Если пользователь приложил изображения, используй только их data-URL. Никаких внешних картинок и заглушек из интернета.\n3. Сначала определи дизайн-систему и следуй ей до конца: цветовые токены в :root, типографическая шкала, шаг отступов 8px, скругления, тени, состояния наведения и фокуса.\n4. Собери переиспользуемые компоненты: навигацию, первый экран, карточки, кнопки, форму, подвал. Не повторяй одинаковую разметку вручную.\n5. Вёрстка обязана выглядеть законченной на 1280px и на 390px. Никакой горизонтальной прокрутки, никаких обрезанных блоков. Используй grid, flex и clamp().\n6. Контраст текста не ниже 4.5:1. Дай кнопкам и полям видимую рамку фокуса. У иконочных кнопок — aria-label. Уважай prefers-reduced-motion.\n7. Пиши настоящие тексты по теме проекта: заголовки, описания, подписи, названия кнопок. Никакого lorem ipsum и заглушек вида «Заголовок 1».\n8. Семантическая разметка: header, nav, main, section, footer. Изображениям — alt.\n\nФОРМАТ ОТВЕТА\nВерни только HTML-документ, начиная с <!DOCTYPE html>. Никаких пояснений до или после кода."
+  },
+  "contributes": {
+    "planning": [
+      {
+        "id": "versions-save",
+        "title": "Сохранить версию макета",
+        "title_en": "Save a mockup version",
+        "description": "Напомнить сохранить лучшую версию отдельно, когда версий макета станет много.",
+        "description_en": "Remind to save the best version separately once a mockup has many versions.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 10,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "У макета уже много сохранённых версий — сохраните лучшую версию отдельно, чтобы не потерять её при правках.",
+          "text_en": "design"
+        }
+      },
+      {
+        "id": "review-reminder",
+        "title": "Незавершённые макеты",
+        "title_en": "Unfinished mockups",
+        "description": "Раз в три дня напомнить заглянуть в незавершённые макеты.",
+        "description_en": "Remind every three days to look at unfinished mockups.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Загляните в «Дизайн»: есть ли незавершённые макеты, которые стоит доделать или сохранить?",
+          "text_en": "design"
+        }
+      },
+      {
+        "id": "daily-design",
+        "title": "Ежедневная проверка макетов",
+        "title_en": "Daily mockup check",
+        "description": "Каждый день напомнить заглянуть в незавершённые макеты.",
+        "description_en": "Remind every day to look at the unfinished mockups.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Загляните в незавершённые макеты: что можно доделать сегодня и какие версии стоит сохранить.",
+          "text_en": "Look at the unfinished mockups: what can be finished today, and which versions are worth saving."
+        }
+      },
+      {
+        "id": "two-day-backup",
+        "title": "Копия версий каждые два дня",
+        "title_en": "Version backup every two days",
+        "description": "Каждые два дня напомнить сохранить лучшие версии макетов отдельно.",
+        "description_en": "Every two days, remind to save the best mockup versions separately.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 2880
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Сохраните лучшие версии макетов в отдельную папку, чтобы не потерять удачные варианты.",
+          "text_en": "Save the best mockup versions to a separate folder so the good variants are not lost."
+        }
+      },
+      {
+        "id": "weekly-design-review",
+        "title": "Еженедельный обзор макетов",
+        "title_en": "Weekly mockup review",
+        "description": "Раз в неделю попросить модель подвести итог работы над макетами.",
+        "description_en": "Once a week, ask the model to round up the mockup work.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Подведи итог работы над макетами за неделю: что готово, что застряло и что улучшить в первую очередь. Коротко, списком.",
+          "prompt_en": "Round up the week's mockup work: what is ready, what is stuck, and what to improve first. Briefly, as a list."
+        }
+      },
+      {
+        "id": "half-day-versions",
+        "title": "Новые версии макетов",
+        "title_en": "New mockup versions",
+        "description": "Каждые 12 часов напомнить проверить последние версии макетов.",
+        "description_en": "Every 12 hours, remind to check the latest mockup versions.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 720
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Проверьте последние версии макетов: сравните варианты и отметьте лучший для дальнейшей работы.",
+          "text_en": "Check the latest mockup versions: compare the variants and pick the best one to continue with."
+        }
+      }
+    ]
   }
 }

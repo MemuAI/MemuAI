@@ -1,6 +1,29 @@
 /* @memu-shared:benchmarks */
 
 const t = (key, vars) => Memu.t(key, vars);
+/* Shared model picker: provider names from the catalogue via
+ * MemuModelSelector (never a raw "custom" provider). The judge is a
+ * mounted <select> (dropdown preset); the model list is a table
+ * preset with multi-select, favourites and recent models. */
+function providerNameOf(row) {
+  try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(row); } catch (e) {}
+  return row.provider_label || row.account || row.provider || "";
+}
+function groupedOwnOptions(models, selectedId) {
+  const groups = {};
+  models.forEach((row) => { const g = providerNameOf(row); (groups[g] = groups[g] || []).push(row); });
+  return Object.keys(groups).sort().map((g) => {
+    const opts = groups[g].map((row) => `<option value="${esc(row.id)}" data-provider="${esc(g)}" ${row.id === selectedId ? "selected" : ""}>${esc(row.name || row.id)}</option>`).join("");
+    return g ? `<optgroup label="${esc(g)}">${opts}</optgroup>` : opts;
+  }).join("");
+}
+function mountOwnJudge() {
+  try {
+    const sel = $("#own-judge");
+    if (sel && window.MemuModelSelector) window.MemuModelSelector.mountSelect(sel, { preset: "dropdown", allowEmpty: true });
+  } catch (e) {}
+}
+
 const tt = (key, fallback, vars) => (Memu.i18n.has(key) ? Memu.t(key, vars) : fallback);
 const saved = Memu.saved || {};
 const $ = (selector) => document.querySelector(selector);
@@ -763,10 +786,9 @@ function renderOwn(main) {
   const canRun = own.models.length >= 1 && own.judge && own.tasks.length && !busy;
   const setup = `<section class="bm-own-setup">
       <div class="bm-own-col"><h3>${esc(t("own.models"))} <small>${own.models.length}/${OWN_MAX_MODELS}</small></h3>
-        <div class="bm-own-list">${models.length ? models.map((row) => `<label class="bm-check"><input type="checkbox" data-own-model="${esc(row.id)}" ${own.models.includes(row.id) ? "checked" : ""} ${busy || (!own.models.includes(row.id) && own.models.length >= OWN_MAX_MODELS) ? "disabled" : ""}><span>${esc(row.name || row.id)}</span></label>`).join("")
-          : `<p class="bm-muted">${esc(t("own.nomodels"))}</p>`}</div></div>
+        <div class="bm-own-list" id="own-model-list"></div></div>
       <div class="bm-own-col"><h3>${esc(t("own.judge"))}</h3>
-        <select class="bm-select wide" id="own-judge" ${busy ? "disabled" : ""}><option value="">${esc(t("own.judge.pick"))}</option>${models.map((row) => `<option value="${esc(row.id)}" ${row.id === own.judge ? "selected" : ""}>${esc(row.name || row.id)}</option>`).join("")}</select>
+        <select class="bm-select wide" id="own-judge" ${busy ? "disabled" : ""}><option value="">${esc(t("own.judge.pick"))}</option>${groupedOwnOptions(models, own.judge)}</select>
         ${selfJudge ? `<p class="bm-warn">${esc(t("own.selfjudge"))}</p>` : `<p class="bm-muted">${esc(t("own.judge.hint"))}</p>`}
         <h3>${esc(t("own.tasks"))}</h3>
         <div class="bm-own-tasks">${OWN_TASKS.map((task) => `<label class="bm-check"><input type="checkbox" data-own-task="${task.id}" ${own.tasks.includes(task.id) ? "checked" : ""} ${busy ? "disabled" : ""}><span>${esc(t(`own.task.${task.id}`))}<small>${esc(task.check ? t("own.kind.auto") : t("own.kind.judge"))}</small></span></label>`).join("")}</div>
@@ -793,6 +815,25 @@ function renderOwn(main) {
       <p class="bm-muted small">${esc(t("own.cells"))}</p></section>`;
   }
   main.innerHTML = `<section class="bm-hero"><div><span class="bm-source">MemuAI</span><h1>${esc(t("own.title"))}</h1><p>${esc(t("own.sub"))}</p></div></section>${setup}${results}`;
+  mountOwnJudge();
+  const ownListHost = $("#own-model-list");
+  if (ownListHost) {
+    const fallback = models.length ? models.map((row) => `<label class="bm-check"><input type="checkbox" data-own-model="${esc(row.id)}" ${own.models.includes(row.id) ? "checked" : ""} ${busy || (!own.models.includes(row.id) && own.models.length >= OWN_MAX_MODELS) ? "disabled" : ""}><span>${esc(row.name || row.id)}</span></label>`).join("")
+      : `<p class="bm-muted">${esc(t("own.nomodels"))}</p>`;
+    try {
+      if (window.MemuModelSelector) {
+        window.MemuModelSelector.renderList(ownListHost, models, {
+          preset: "table", multi: true, selected: own.models.slice(),
+          onToggle: (id, selected) => {
+            if (busy) { render(); return; }
+            state.own.models = selected.slice(0, OWN_MAX_MODELS);
+            saveOwn();
+            render();
+          }
+        });
+      } else ownListHost.innerHTML = fallback;
+    } catch (e) { ownListHost.innerHTML = fallback; }
+  }
 }
 
 function openAnswer(taskId, model) {

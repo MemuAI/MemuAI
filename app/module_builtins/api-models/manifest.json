@@ -84,6 +84,121 @@
         ]
       }
     ],
-    "skill": "integration/skill.md"
+    "skill": "integration/skill.md",
+    "planning": [
+      {
+        "id": "new-models",
+        "title": "Новые модели API",
+        "title_en": "New API models",
+        "description": "Сообщить, когда наблюдение модуля найдёт новые модели API.",
+        "description_en": "Notify when the module's monitoring finds new API models.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "changes",
+          "threshold": 1,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Появились новые модели API — откройте модуль «Новые модели API», чтобы посмотреть провайдера, контекст и цену.",
+          "text_en": "api-models"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Новых моделей не меньше",
+            "label_en": "At least this many new models",
+            "default": 1,
+            "min": 1,
+            "max": 50
+          }
+        ]
+      },
+      {
+        "id": "weekly-summary",
+        "title": "Сводка новых моделей за неделю",
+        "title_en": "Weekly new-models summary",
+        "description": "Раз в неделю попросить модель сделать сводку новых моделей API.",
+        "description_en": "Ask the model once a week to summarise the new API models.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Сводка новых моделей API за неделю: провайдер, контекст, цена за 1M токенов. Коротко, списком.",
+          "prompt_en": "A summary of the new API models this week: provider, context, price per 1M tokens. Briefly, as a list."
+        }
+      },
+      {
+        "id": "changes-five",
+        "title": "Пять изменений моделей API",
+        "title_en": "Five API model changes",
+        "description": "Сообщить, когда наблюдение отметит сразу пять изменений моделей API.",
+        "description_en": "Notify when monitoring notes five API model changes at once.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "changes",
+          "threshold": 5,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Наблюдение отметило сразу пять изменений в моделях API — откройте модуль и посмотрите, что изменилось.",
+          "text_en": "Monitoring noted five API model changes at once — open the module and see what changed."
+        }
+      },
+      {
+        "id": "changes-eight",
+        "title": "Восемь изменений моделей API",
+        "title_en": "Eight API model changes",
+        "description": "Попросить модель перечислить изменения, когда их станет восемь.",
+        "description_en": "Ask the model to list the changes once there are eight of them.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "changes",
+          "threshold": 8,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Коротко перечисли изменения в моделях API: новые модели, ушедшие модели и заметные изменения цен и контекста. Списком.",
+          "prompt_en": "Briefly list the API model changes: new models, removed models, and notable price and context changes. As a list."
+        }
+      },
+      {
+        "id": "daily-models-check",
+        "title": "Ежедневная проверка моделей API",
+        "title_en": "Daily API models check",
+        "description": "Каждый день напомнить проверить новые модели API и цены.",
+        "description_en": "Remind every day to check the new API models and prices.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Проверьте новые модели API за день: появились ли интересные модели и изменились ли цены.",
+          "text_en": "Check today's new API models: whether any interesting models appeared and whether prices changed."
+        }
+      },
+      {
+        "id": "three-day-price-review",
+        "title": "Цены моделей за три дня",
+        "title_en": "Model prices over three days",
+        "description": "Раз в три дня попросить модель оценить изменения цен моделей API.",
+        "description_en": "Every three days, ask the model to review the API model price changes.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Какие модели API заметно подешевели или подорожали за последние три дня и на что стоит обратить внимание? Коротко, списком.",
+          "prompt_en": "Which API models got notably cheaper or more expensive over the last three days, and what is worth noticing? Briefly, as a list."
+        }
+      }
+    ]
   }
 }

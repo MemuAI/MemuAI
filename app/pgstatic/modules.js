@@ -37,7 +37,7 @@ const MemuModules = (() => {
   const ACTION_PERMISSION = {
     request: "chat", stream: "chat", chat_history: "chat",
     image: "media", video: "media", speak: "media", transcribe: "media",
-    record: "media", music: "media", monitor: "background", save: "storage", models: "models", extract: "files",
+    record: "media", music: "media", monitor: "background", save: "storage", models: "models", models_pinned: "models", models_pin: "models", extract: "files",
     download: "download", handoff: "download", notify: "notify",
     open: "external", search: "web", fetch: "web",
     clipboard: "clipboard", clipboard_read: "clipboard",
@@ -1935,6 +1935,12 @@ const MemuModules = (() => {
       case "routes": return apiJson("/api/pg/modules/routes").then((value) => reply(value), (error) => reply(null, error.message));
       case "models": return apiJson("/api/pg/modules/models", { method: "POST" })
         .then((value) => reply(value.models || []), (error) => reply(null, error.message));
+      case "models_pinned": return reply({ pinned: previewPinned.slice() });
+      case "models_pin": {
+        const id = String(payload.id || "");
+        previewPinned = id ? (payload.pinned ? [...new Set([id, ...previewPinned])] : previewPinned.filter((x) => x !== id)) : previewPinned;
+        return reply({ pinned: previewPinned.slice() });
+      }
       case "clipboard": return Promise.resolve(typeof copyText === "function"
         ? copyText(String(payload.text || ""), payload.notify !== false) : navigator.clipboard.writeText(String(payload.text || "")))
         .then(() => reply({ ok: true }), (error) => reply(null, error.message));
@@ -2015,8 +2021,60 @@ const MemuModules = (() => {
   const LONG_ACTIONS = new Set(["stream", "complete", "request", "image", "video", "transcribe", "music"]);
   const busyCount = new Map();
 
+  /* Shared pinned models: the single store is MemuAI preferences
+   * (pinned_models). Reads and writes go through /api/pg/preferences,
+   * whose server side is one atomic read-modify-write; writes from
+   * modules are serialised here as well, so two toggles in a row
+   * cannot drop each other. Unpinning also records the model in
+   * auto_pin_suppressed, exactly like the main window's pin toggle,
+   * so automatic primary-model pinning does not resurrect it. After
+   * a write the main window's picker is refreshed and every open
+   * module hears "model-pins" with the new list. */
+  let pinQueue = Promise.resolve();
+  function cleanPinList(list) {
+    return [...new Set((Array.isArray(list) ? list : []).filter(Boolean).map(String))].slice(0, 100);
+  }
+  async function readPinPrefs() {
+    const prefs = await apiJson("/api/pg/preferences");
+    return { pinned: cleanPinList(prefs.pinned_models), suppressed: cleanPinList(prefs.auto_pin_suppressed) };
+  }
+  async function writePinnedModels(id, on) {
+    const job = pinQueue.then(async () => {
+      const current = await readPinPrefs();
+      let pinned = current.pinned;
+      let suppressed = current.suppressed;
+      if (on) {
+        pinned = cleanPinList([id, ...pinned]);
+        suppressed = suppressed.filter((x) => x !== id);
+      } else {
+        pinned = pinned.filter((x) => x !== id);
+        if (!suppressed.includes(id)) suppressed = [...suppressed, id].slice(0, 100);
+      }
+      const saved = await apiJson("/api/pg/preferences", { method: "POST", body: { pinned_models: pinned, auto_pin_suppressed: suppressed } });
+      const next = Array.isArray(saved.pinned_models) ? saved.pinned_models.map(String) : pinned;
+      try {
+        if (typeof S !== "undefined" && S.preferences) {
+          S.preferences.pinned_models = next;
+          S.preferences.auto_pin_suppressed = suppressed;
+        }
+      } catch (error) {}
+      try { if (typeof renderModelDD === "function") renderModelDD(); } catch (error) {}
+      broadcastEvent("model-pins", { pinned: next });
+      return { pinned: next };
+    });
+    pinQueue = job.catch(() => {});
+    return job;
+  }
+
   async function dispatchAction(action, payload, moduleId, row, messageId, frame) {
     switch (action) {
+      case "models_pinned":
+        return { pinned: (await readPinPrefs()).pinned };
+      case "models_pin": {
+        const id = String(payload.id || "").slice(0, 300);
+        if (!id) throw new Error(t("Не указана модель", "No model given"));
+        return writePinnedModels(id, !!payload.pinned);
+      }
       case "save":
         return (await apiJson("/api/pg/modules/persist", { method: "POST",
           body: { id: moduleId, fields: payload } })).saved;
@@ -2182,13 +2240,27 @@ const MemuModules = (() => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
         throw new Error(t("Запись с микрофона недоступна", "Microphone recording is unavailable"));
       }
+      const deviceId = payload && payload.deviceId ? String(payload.deviceId) : "";
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia(
+          deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true });
       } catch (error) {
-        throw new Error(error && error.name === "NotAllowedError"
-          ? t("Нет доступа к микрофону", "Microphone access was denied")
-          : t("Микрофон не найден или занят", "No microphone is available"));
+        // Выбранный микрофон мог исчезнуть: пробуем устройство по умолчанию,
+        // а не падаем сразу, пока выбор ещё сохранён в настройках модуля.
+        if (deviceId && error && (error.name === "OverconstrainedError" || error.name === "NotFoundError")) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          } catch (fallbackError) {
+            throw new Error(fallbackError && fallbackError.name === "NotAllowedError"
+              ? t("Нет доступа к микрофону", "Microphone access was denied")
+              : t("Микрофон не найден или занят", "No microphone is available"));
+          }
+        } else {
+          throw new Error(error && error.name === "NotAllowedError"
+            ? t("Нет доступа к микрофону", "Microphone access was denied")
+            : t("Микрофон не найден или занят", "No microphone is available"));
+        }
       }
       const recorder = new MediaRecorder(stream);
       const chunks = [];
@@ -2319,6 +2391,7 @@ const MemuModules = (() => {
             if (item.event === "delta") send({ event: "delta", delta: item.delta });
             else if (item.event === "reasoning") send({ event: "reasoning", delta: item.delta });
             else if (item.event === "usage") send({ event: "usage", usage: item.usage });
+            else if (item.event === "web_search") send({ event: "web_search", web_search: item.web_search });
             else if (item.event === "error") return finish(item.error || t("Ошибка модели", "Model error"));
             else if (item.event === "done") {
               const result = item.result || {};
@@ -2699,6 +2772,7 @@ const MemuModules = (() => {
   let createStep = 0;
   let draft = null;
   let codeState = null;
+  let previewPinned = [];
   let codeEditorObserver = null;
 
   async function mountSettings(pane) {
@@ -2776,55 +2850,117 @@ const MemuModules = (() => {
       <header class="ms-head"><div><h2>${t('Модули', 'Modules')}</h2><p>${t('Ваши приложения и инструменты в MemuAI', 'Your apps and tools in MemuAI')}</p></div><button type="button" class="ms-button primary" data-modules-tab="create">${icon('plus')}${t('Создать модуль', 'Create module')}</button></header>
       <nav class="ms-nav" aria-label="${t('Разделы модулей', 'Module sections')}"><span aria-current="page">${t('Установленные', 'Installed')}<b>${counts.total}</b></span><button type="button" data-modules-tab="catalog">${t('Каталог', 'Catalogue')}</button><span class="ms-nav-spacer"></span><button type="button" data-modules-tab="import">${icon('attach')}${t('Импорт', 'Import')}</button><button type="button" data-open-docs="modules">${icon('info')}<span>${t('Справка', 'Help')}</span></button></nav>
       ${catalogError ? `<div class="ms-notice" role="status"><span>${esc(catalogError)}</span><button class="ms-button" data-module-retry>${t('Повторить', 'Retry')}</button></div>` : ''}
-      <div class="ms-toolbar"><label class="ms-search">${icon('search')}<input id="modules-filter" type="search" value="${esc(library.query)}" placeholder="${t('Поиск по модулям', 'Search modules')}" aria-label="${t('Поиск по модулям', 'Search modules')}"></label><div class="ms-filters" role="group" aria-label="${t('Фильтр модулей', 'Module filter')}">${[['all', t('Все', 'All')], ['enabled', t('Включённые', 'Enabled')], ['custom', t('Свои', 'Custom')]].map(([id, title]) => `<button type="button" data-ms-filter="${id}" aria-pressed="${library.filter === id}">${title}</button>`).join('')}</div></div>
+      <div class="ms-toolbar"><label class="ms-search">${icon('search')}<input id="modules-filter" type="search" value="${esc(library.query)}" placeholder="${t('Поиск по модулям', 'Search modules')}" aria-label="${t('Поиск по модулям', 'Search modules')}"></label><div class="ms-filters" role="group" aria-label="${t('Фильтр модулей', 'Module filter')}">${[['all', t('Все', 'All')], ['enabled', t('Включённые', 'Enabled')], ['disabled', t('Выключенные', 'Disabled')], ['custom', t('Свои', 'Custom')]].map(([id, title]) => `<button type="button" data-ms-filter="${id}" aria-pressed="${library.filter === id}">${title}</button>`).join('')}</div></div>
       <div class="ms-module-list" id="ms-module-list" aria-label="${t('Установленные модули', 'Installed modules')}"></div>
       <p class="ms-list-meta" id="ms-list-meta" role="status"></p>
       <details class="ms-global"><summary>${icon('settings')}${t('Общие настройки окон и виджетов', 'Window and widget defaults')}</summary><div id="ms-global-settings"></div></details>
       ${removedBuiltins.length ? `<details class="ms-removed"><summary>${t('Удалённые встроенные модули', 'Removed built-in modules')} (${removedBuiltins.length})</summary><p>${t('Восстановится исходный модуль. Его удалённые данные не вернутся.', 'Restore the shipped module. Previously deleted data cannot be restored.')}</p><div>${removedBuiltins.map(row => `<button class="ms-button" data-module-restore="${esc(row.id)}">${esc(titleOf(row))} · ${t('Восстановить', 'Restore')}</button>`).join('')}</div></details>` : ''}
     </section>`;
+    const toggleSelect = (id) => {
+      library.expanded = library.selected === id ? !library.expanded : true;
+      library.selected = id;
+      draw();
+      $$('.ms-module[data-ms-select]', host).find(node => node.dataset.msSelect === id)?.focus({ preventScroll: true });
+    };
+    // The card footer "Settings" button must always OPEN the module settings,
+    // never toggle them shut: when the card was already expanded, a toggle
+    // click looked like nothing happened. It also keeps focus on the button
+    // that was used, so the header button (whose clipped summary feeds the
+    // overflow tooltip) is not focused and the tooltip does not cover the card.
+    const openSelect = (id) => {
+      library.selected = id;
+      library.expanded = true;
+      draw();
+      const row = $$('[data-ms-row]', host).find(node => node.dataset.msRow === id);
+      const target = row?.querySelector('.ms-inspector') || row;
+      if (target && typeof target.scrollIntoView === 'function') {
+        try { target.scrollIntoView({ block: 'nearest' }); } catch (error) { }
+      }
+      $$('[data-ms-toggle]', host).find(node => node.dataset.msToggle === id)?.focus({ preventScroll: true });
+    };
+    const card = (row) => {
+      const selected = library.selected === row.id && library.expanded;
+      const flags = [
+        wins.has(row.id) ? `<span class="ms-flag is-open">${t('Открыт', 'Open')}</span>` : '',
+        row.edited ? `<span class="ms-flag">${t('Изменён', 'Edited')}</span>` : '',
+      ].join('');
+      /* Per-module accent: the icon background's first colour when the
+       * module ships one, else a deterministic hue from the module
+       * id — the card tint, icon and hover border follow it, so each
+       * module is recognisable at a glance instead of grey-on-white. */
+      const iconBg = Array.isArray(row.icon_bg) ? row.icon_bg[0] : '';
+      const modAccent = /^#[0-9a-fA-F]{3,8}$/.test(String(iconBg || '')) ? String(iconBg)
+        : (() => { let h = 0; for (const ch of String(row.id || '')) h = (h * 31 + ch.charCodeAt(0)) % 360; return `hsl(${h} 55% 48%)`; })();
+      const permNames = (row.permissions || []).map((id) => permissionName(id));
+      const permShown = permNames.slice(0, 3);
+      const permExtra = permNames.length > 3 ? ` +${permNames.length - 3}` : '';
+      const slotName = (slotList().find((slot) => slot.id === (row.launcher?.slot || 'sidebar')) || {}).ru;
+      const slotLabel = en() ? ((slotList().find((slot) => slot.id === (row.launcher?.slot || 'sidebar')) || {}).en || '') : (slotName || '');
+      return `<section class="ms-module-row ms-card${selected ? ' is-open' : ''}${row.enabled ? ' is-on' : ' is-disabled'}" data-ms-row="${esc(row.id)}" style="--mod-accent:${esc(modAccent)}">
+        <button type="button" class="ms-module" data-ms-select="${esc(row.id)}" aria-pressed="${selected}" aria-expanded="${selected}"${selected ? ' aria-controls="ms-inspector"' : ''}><span class="ms-module-icon" aria-hidden="true">${moduleIcon(row)}</span><span class="ms-module-copy"><strong>${esc(titleOf(row))}</strong><small>${esc(summaryOf(row)) || t(row.builtin ? 'Встроенный модуль' : 'Пользовательский модуль', row.builtin ? 'Built-in module' : 'Custom module')}</small></span><span class="ms-expand" aria-hidden="true">${icon('chevron-right')}</span></button>
+        <p class="ms-card-meta"><span>v${esc(row.version || '1.0')}</span><span aria-hidden="true">·</span><span>${t(row.builtin ? 'Встроенный' : 'Свой', row.builtin ? 'Built-in' : 'Custom')}</span>${row.author ? `<span aria-hidden="true">·</span><span>${esc(row.author)}</span>` : ''}${slotLabel ? `<span aria-hidden="true">·</span><span>${esc(slotLabel)}</span>` : ''}${flags ? `<span aria-hidden="true">·</span>${flags}` : ''}</p>
+        <p class="ms-card-access"><span class="ms-card-access-label">${t('Доступы', 'Access')}</span><span>${permNames.length ? esc(permShown.join(', ')) + esc(permExtra) : esc(t('Без дополнительных доступов', 'No additional permissions'))}</span><span class="ms-card-access-hint">${esc(t('Подробнее — в настройках ниже', 'Details in the settings below'))}</span></p>
+        <div class="ms-card-foot"><label class="ms-enable"><span class="ms-enable-label">${t(row.enabled ? 'Включён' : 'Выключен', row.enabled ? 'Enabled' : 'Disabled')}</span><span class="module-switch"><input type="checkbox" data-module-enabled="${esc(row.id)}" ${row.enabled ? 'checked' : ''} aria-label="${esc(t('Включить ', 'Enable ') + titleOf(row))}"><i aria-hidden="true"></i></span></label><button type="button" class="ms-button ms-card-settings" data-ms-toggle="${esc(row.id)}" aria-expanded="${selected}">${icon('settings')}<span>${t('Настройки', 'Settings')}</span></button><button type="button" class="ms-button ms-launch" data-module-open="${esc(row.id)}" ${row.enabled ? '' : 'disabled'}>${icon('play')}<span>${t('Открыть', 'Open')}</span></button><button type="button" class="ms-icon-button" data-module-more="${esc(row.id)}" aria-label="${esc(t('Действия: ', 'Actions: ') + titleOf(row))}">${icon('more')}</button></div>
+        ${selected ? `<article class="ms-inspector" id="ms-inspector">${moduleInspector(row)}</article>` : ''}</section>`;
+    };
     const draw = () => {
       const needle = library.query.trim().toLocaleLowerCase();
-      const rows = catalog.filter(row => (!needle || [row.id, row.title, row.title_en, row.summary, row.summary_en].join(' ').toLocaleLowerCase().includes(needle)) && (library.filter !== 'enabled' || row.enabled) && (library.filter !== 'custom' || !row.builtin));
+      const rows = catalog.filter(row => (!needle || [row.id, row.title, row.title_en, row.summary, row.summary_en, row.author].join(' ').toLocaleLowerCase().includes(needle)) && (library.filter !== 'enabled' || row.enabled) && (library.filter !== 'disabled' || !row.enabled) && (library.filter !== 'custom' || !row.builtin));
       if (!rows.some(row => row.id === library.selected)) library.selected = rows[0]?.id || '';
-      $('#ms-module-list', host).innerHTML = rows.map(row => {
-        const selected = library.selected === row.id && library.expanded;
-        return `<section class="ms-module-row${selected ? ' selected' : ''}" data-ms-row="${esc(row.id)}"><div class="ms-module-line">
-          <button type="button" class="ms-module" data-ms-select="${esc(row.id)}" aria-pressed="${selected}" aria-expanded="${selected}"${selected ? ' aria-controls="ms-inspector"' : ''}><span class="ms-module-icon" aria-hidden="true">${moduleIcon(row)}</span><span class="ms-module-copy"><strong>${esc(titleOf(row))}</strong><small>${esc(summaryOf(row)) || t(row.builtin ? 'Встроенный модуль' : 'Пользовательский модуль', row.builtin ? 'Built-in module' : 'Custom module')}</small></span><span class="ms-expand" aria-hidden="true">${icon('chevron-right')}</span></button>
-          <div class="ms-row-controls"><label class="ms-enable"><span class="ms-enable-label">${t(row.enabled ? 'Включён' : 'Выключен', row.enabled ? 'Enabled' : 'Disabled')}</span><span class="module-switch"><input type="checkbox" data-module-enabled="${esc(row.id)}" ${row.enabled ? 'checked' : ''} aria-label="${esc(t('Включить ', 'Enable ') + titleOf(row))}"><i aria-hidden="true"></i></span></label><button type="button" class="ms-button ms-launch" data-module-open="${esc(row.id)}" ${row.enabled ? '' : 'disabled'}>${icon('play')}<span>${t('Открыть', 'Open')}</span></button><button type="button" class="ms-icon-button" data-module-more="${esc(row.id)}" aria-label="${esc(t('Действия: ', 'Actions: ') + titleOf(row))}">${icon('more')}</button></div>
-          </div>${selected ? `<article class="ms-inspector" id="ms-inspector">${moduleInspector(row)}</article>` : ''}</section>`;
-      }).join('') || `<div class="ms-empty">${icon('grid')}<h3>${t('Ничего не найдено', 'No modules found')}</h3><p>${t('Попробуйте другой запрос или найдите приложение в каталоге.', 'Try another search or find an app in the catalogue.')}</p><button class="ms-button" data-modules-tab="catalog">${t('Открыть каталог', 'Open catalogue')}</button></div>`;
-      $('#ms-list-meta', host).textContent = `${rows.length} ${t('показано', 'shown')} · ${counts.enabled} ${t('включено из', 'enabled of')} ${counts.total}`;
       const list = $('#ms-module-list', host);
+      const groups = [
+        { key: 'builtin', title: t('Встроенные модули', 'Built-in modules'), rows: rows.filter(row => row.builtin) },
+        { key: 'custom', title: t('Свои модули', 'Your modules'), rows: rows.filter(row => !row.builtin) },
+      ].filter(group => group.rows.length);
+      const emptyState = () => {
+        if (catalogError) return `<div class="ms-empty" role="status">${icon('grid')}<h3>${t('Не удалось загрузить модули', 'Could not load the modules')}</h3><p>${t('Список не загрузился. Попробуйте ещё раз.', 'The list did not load. Try again.')}</p><div class="ms-empty-actions"><button class="ms-button" data-module-retry>${t('Повторить', 'Retry')}</button></div></div>`;
+        if (needle || library.filter !== 'all') return `<div class="ms-empty">${icon('search')}<h3>${t('Ничего не найдено', 'No modules found')}</h3><p>${t('Попробуйте другой запрос или сбросьте фильтр.', 'Try another search or reset the filter.')}</p><div class="ms-empty-actions"><button class="ms-button" data-ms-reset>${t('Сбросить поиск и фильтр', 'Reset search and filter')}</button><button class="ms-button" data-modules-tab="catalog">${t('Открыть каталог', 'Open catalogue')}</button></div></div>`;
+        return `<div class="ms-empty">${icon('grid')}<h3>${t('Модулей пока нет', 'No modules yet')}</h3><p>${t('Создайте свой модуль или установите готовый из каталога.', 'Create your own module or install one from the catalogue.')}</p><div class="ms-empty-actions"><button class="ms-button primary" data-modules-tab="create">${icon('plus')}${t('Создать модуль', 'Create module')}</button><button class="ms-button" data-modules-tab="catalog">${t('Открыть каталог', 'Open catalogue')}</button></div></div>`;
+      };
+      list.innerHTML = rows.length ? groups.map(group => `<section class="ms-group" aria-labelledby="ms-group-${group.key}"><h3 class="ms-group-heading" id="ms-group-${group.key}">${group.title}<b>${group.rows.length}</b></h3><div class="ms-cards">${group.rows.map(card).join('')}</div></section>`).join('') : emptyState();
+      $('#ms-list-meta', host).textContent = `${rows.length} ${t('показано', 'shown')} · ${counts.enabled} ${t('включено из', 'enabled of')} ${counts.total}`;
       bindList(list);
       bindNavigation();
-      $$('[data-ms-select]', list).forEach(button => button.onclick = () => {
-        const id = button.dataset.msSelect;
-        library.expanded = library.selected === id ? !library.expanded : true;
-        library.selected = id;
+      $$('[data-ms-select]', list).forEach(button => button.onclick = () => toggleSelect(button.dataset.msSelect));
+      $$('[data-ms-toggle]', list).forEach(button => button.onclick = () => openSelect(button.dataset.msToggle));
+      $$('[data-ms-reset]', list).forEach(button => button.onclick = () => {
+        library.query = '';
+        library.filter = 'all';
+        const input = $('#modules-filter', host);
+        if (input) input.value = '';
+        $$('[data-ms-filter]', host).forEach(node => node.setAttribute('aria-pressed', String(node.dataset.msFilter === 'all')));
         draw();
-        $$('[data-ms-select]', host).find(node => node.dataset.msSelect === id)?.focus({ preventScroll: true });
+        input?.focus();
       });
       list.onkeydown = event => {
-        if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-        const buttons = $$('[data-ms-select]', host), index = buttons.indexOf(document.activeElement);
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        const buttons = $$('.ms-module[data-ms-select]', host), index = buttons.indexOf(document.activeElement);
         if (index < 0) return;
         event.preventDefault();
-        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+        const step = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1;
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + step));
         library.selected = buttons[next].dataset.msSelect;
         library.expanded = true;
         draw();
-        $$('[data-ms-select]', host)[next]?.focus({ preventScroll: true });
+        $$('.ms-module[data-ms-select]', host)[next]?.focus({ preventScroll: true });
       };
     };
     const bindNavigation = () => $$('[data-modules-tab]', host).forEach(button => button.onclick = () => mountSettings(button.dataset.modulesTab));
-    $('#modules-filter', host).oninput = event => { library.query = event.target.value; draw(); };
+    const filterInput = $('#modules-filter', host);
+    filterInput.oninput = event => { library.query = event.target.value; draw(); };
+    filterInput.onkeydown = event => {
+      if (event.key !== 'Escape' || !filterInput.value) return;
+      library.query = '';
+      filterInput.value = '';
+      draw();
+    };
     $$('[data-ms-filter]', host).forEach(button => button.onclick = () => {
       library.filter = button.dataset.msFilter;
       $$('[data-ms-filter]', host).forEach(node => node.setAttribute('aria-pressed', String(node === button)));
       draw();
     });
     draw();
-    $('[data-module-retry]', host)?.addEventListener('click', () => { catalogFetched = 0; mountSettings('list'); });
+    $$('[data-module-retry]', host).forEach(button => button.addEventListener('click', () => { catalogFetched = 0; mountSettings('list'); }));
     const settings = $('#ms-global-settings', host);
     if (MA()) MA().renderSettings(settings);
     if (window.MemuModInt?.renderWidgetSettings) MemuModInt.renderWidgetSettings(settings);
@@ -2834,10 +2970,10 @@ const MemuModules = (() => {
       catch (error) { button.disabled = false; note(error.message, 'err'); }
     });
   }
-
   function moduleInspector(row) {
     const place = row.launcher?.slot || 'sidebar';
     return `<header class="ms-detail-heading"><h3>${esc(titleOf(row))}</h3><span>${t(row.builtin ? 'Встроенный' : 'Свой', row.builtin ? 'Built-in' : 'Custom')} · v${esc(row.version || '1.0')}${row.author ? ` · ${esc(row.author)}` : ''}</span><div class="ms-actions"><button type="button" class="ms-button" data-module-code="${esc(row.id)}">${icon('code')}${t('Открыть код', 'Open code')}</button><button type="button" class="ms-button" data-module-more="${esc(row.id)}">${icon('more')}${t('Все действия', 'All actions')}</button></div></header>
+      <p class="ms-inspector-lead">${esc(summaryOf(row))} ${esc(t('Здесь — настройки модуля: кнопка запуска, размер окна и доступы. Сам модуль работает в своём окне — кнопка «Открыть» ниже.', 'This module’s settings live here: the launch shortcut, window size and permissions. The module itself runs in its own window — use “Open” below.'))}</p>
       <div class="ms-detail-grid"><section class="ms-section"><h4>${t('Кнопка модуля', 'Module shortcut')}</h4><label class="ms-field"><span>${t('Расположение', 'Location')}</span><select class="module-slot" data-module-slot="${esc(row.id)}">${slotList().map(slot => `<option value="${slot.id}" ${place === slot.id ? 'selected' : ''}>${t(slot.ru, slot.en)}</option>`).join('')}</select></label><label class="ms-check"><input type="checkbox" data-module-hidden="${esc(row.id)}" ${row.launcher?.hidden ? 'checked' : ''}>${t('Скрыть кнопку', 'Hide shortcut')}</label><label class="ms-check"><input type="checkbox" data-module-resizable="${esc(row.id)}" ${row.resizable === false ? '' : 'checked'}>${t('Разрешить менять размер окна', 'Allow window resizing')}</label></section>
       <section class="ms-section"><h4>${t('Доступы', 'Permissions')}</h4><ul class="ms-permissions">${(row.permissions || []).map(id => `<li>${icon('check')}<span>${esc(permissionName(id))}</span></li>`).join('') || `<li>${t('Без дополнительных доступов', 'No additional permissions')}</li>`}</ul><p class="ms-explainer">${t('Изменить доступы можно в мастерской кода.', 'Change permissions in the code workbench.')}</p><details class="ms-technical"><summary>${t('Техническая информация', 'Technical details')}</summary><dl><dt>ID</dt><dd>${esc(row.id)}</dd><dt>${t('Источник', 'Source')}</dt><dd>${t(row.builtin ? 'Комплект MemuAI' : 'Пользовательский пакет', row.builtin ? 'Shipped with MemuAI' : 'Custom package')}</dd></dl></details></section></div>`;
   }
@@ -2845,11 +2981,14 @@ const MemuModules = (() => {
   function bindList(host) {
     const hub = host.closest(".ms-hub");
     const update = async (control, id, patch) => {
+      const row = control.closest("[data-ms-row]");
+      if (row) { row.classList.add("is-busy"); row.setAttribute("aria-busy", "true"); }
       control.disabled = true;
       try { await configure(id, patch); }
       catch (error) { note(error.message, "err"); }
       finally {
         control.disabled = false;
+        if (row) { row.classList.remove("is-busy"); row.removeAttribute("aria-busy"); }
         if (hub?.isConnected && currentPane === "list") await mountSettings("list");
       }
     };

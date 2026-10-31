@@ -8,8 +8,13 @@ from pathlib import Path
 def configure_edition() -> None:
     os.environ["MEMUAI_PROXY_ONLY"] = "1"
     if not os.environ.get("MEMUAI_DATA_DIR") and not os.environ.get("OMNIHUB_DATA_DIR"):
-        appdata = Path(os.environ.get("APPDATA") or Path.home())
-        os.environ["MEMUAI_DATA_DIR"] = str(appdata / "MemuAIProxy")
+        try:
+            from app.config import default_data_dir
+
+            os.environ["MEMUAI_DATA_DIR"] = default_data_dir("MemuAIProxy")
+        except Exception:
+            appdata = Path(os.environ.get("APPDATA") or Path.home())
+            os.environ["MEMUAI_DATA_DIR"] = str(appdata / "MemuAIProxy")
 
 if __name__ == "__main__":
     configure_edition()

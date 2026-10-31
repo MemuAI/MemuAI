@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+from collections import deque
 import os
 import re
 import time
@@ -37,6 +38,8 @@ KIND_EXT = {
 TEXT_EXT = KIND_EXT["code"] | {".txt", ".md", ".csv", ".log", ".cfg", ".conf", ".env", ".tsv", ".rst", ".tex", ".srt", ".vtt", ".markdown"}
 SKIP_DIRS = {"$Recycle.Bin", "System Volume Information", "node_modules", ".git", "__pycache__", ".venv", "venv",
              "Windows", "WinSxS", "proc", "sys", "dev"}
+# Compared through normcase: on Windows "NODE_MODULES" is skipped too, on Linux the case still matters.
+_SKIP_DIRS_NORM = {os.path.normcase(name) for name in SKIP_DIRS}
 UNITS = {"": 1, "b": 1, "k": 1024, "kb": 1024, "m": 1024 ** 2, "mb": 1024 ** 2, "g": 1024 ** 3, "gb": 1024 ** 3,
          "к": 1024, "кб": 1024, "м": 1024 ** 2, "мб": 1024 ** 2, "г": 1024 ** 3, "гб": 1024 ** 3}
 
@@ -185,11 +188,11 @@ def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int 
     """Breadth-first scandir walk; yields matching rows (stops at *limit*, *deadline* seconds or *cancel*)."""
     started = time.monotonic()
     found = 0
-    queue = [root]
+    queue = deque([root])
     while queue:
         if cancel() or time.monotonic() - started > deadline:
             return
-        folder = queue.pop(0)
+        folder = queue.popleft()
         try:
             handle = os.scandir(folder)
         except OSError:
@@ -209,17 +212,16 @@ def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int 
                         pass
                 if hidden and not show_hidden:
                     continue
-                if is_dir and name not in SKIP_DIRS:
+                if is_dir and os.path.normcase(name) not in _SKIP_DIRS_NORM:
                     queue.append(entry.path)
                 if not query.name_matches(name, is_dir):
                     continue
                 size, mtime = 0, 0.0
-                if True:
-                    try:
-                        st = entry.stat(follow_symlinks=False)
-                        size, mtime = st.st_size, st.st_mtime
-                    except OSError:
-                        pass
+                try:
+                    st = entry.stat(follow_symlinks=False)
+                    size, mtime = st.st_size, st.st_mtime
+                except OSError:
+                    pass
                 if not query.stat_matches(size, mtime, is_dir):
                     continue
                 if query.content:
@@ -334,8 +336,14 @@ def index_search(query: Query, roots: Optional[List[str]], limit: int) -> Option
         is_dir = bool(row.get("is_dir"))
         if roots and not any(_inside(path, r) for r in roots):
             continue
-        size = int(row.get("size") or 0)
-        mtime = float(row.get("mtime") or 0)
+        try:
+            size = int(row.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        try:
+            mtime = float(row.get("mtime") or 0)
+        except (TypeError, ValueError):
+            mtime = 0.0
         if mtime > 1e11:
             mtime /= 1000.0
         if query.content and (is_dir or not content_matches(path, query.content)):

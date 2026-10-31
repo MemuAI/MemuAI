@@ -60,12 +60,20 @@ function renderCreate() {
   if (goBtn) goBtn.onclick = createCourse;
   if (title) title.addEventListener("keydown", (e) => { if (e.key === "Enter" && goBtn) createCourse(); });
   const model = $("#c-model");
-  if (model) model.onchange = () => { S.model = model.value; remember(); };
+  if (model) {
+    model.onchange = () => { S.model = model.value; remember(); };
+    mountLearnModel(model, "dropdown");
+  }
 }
 
 function modelOptions() {
   if (!S.models.length) return `<option value="">${esc(t("model.default"))}</option>`;
-  return S.models.map((m) => `<option value="${esc(m.id)}"${m.id === S.model ? " selected" : ""}>${esc(m.name && m.name !== m.id ? m.name : m.id)}</option>`).join("");
+  const groups = {};
+  S.models.forEach((m) => { const g = providerNameOf(m); (groups[g] = groups[g] || []).push(m); });
+  return Object.keys(groups).sort().map((g) => {
+    const opts = groups[g].map((m) => `<option value="${esc(m.id)}" data-provider="${esc(g)}"${m.id === S.model ? " selected" : ""}>${esc(m.name && m.name !== m.id ? m.name : m.id)}</option>`).join("");
+    return g ? `<optgroup label="${esc(g)}">${opts}</optgroup>` : opts;
+  }).join("");
 }
 
 function wireDrop(el, pick, onFile) {

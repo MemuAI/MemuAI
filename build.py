@@ -675,6 +675,19 @@ def ensure_icon() -> None:
         say(f"Собираю иконку ({script_name})…")
         run([str(VENV_PY), str(script)])
 
+def _add_data_arg(item: str, spec_target: bool) -> str:
+    """``--add-data`` argument with the platform's separator.
+
+    Targets spell data as ``source;dest``; PyInstaller wants ``;`` on
+    Windows and ``:`` on POSIX, and absolute sources for generated
+    specs. Splitting on the first ``;`` keeps a ``;`` inside a file
+    name out of scope — none of the targets has one.
+    """
+    source, sep, destination = item.partition(";")
+    if spec_target:
+        source = str(ROOT / source)
+    return source + (os.pathsep if sep else "") + destination
+
 def pyinstaller_cmd(target: dict, clean: bool) -> list:
     workpath = ROOT / target.get("work", "build/" + target["name"])
     specpath = ROOT / target.get("spec", ".")
@@ -686,16 +699,17 @@ def pyinstaller_cmd(target: dict, clean: bool) -> list:
            "--name", target["name"],
            "--workpath", str(workpath),
            "--specpath", str(specpath),
-           "--distpath", str(distpath),
-           "--version-file", str(ROOT / target["version_file"]),
-           "--icon", str(ROOT / target["icon"])]
+           "--distpath", str(distpath)]
+    if os.name == "nt":
+        # --version-file is a Windows-only PyInstaller option and the
+        # .ico is the Windows executable icon; on Linux/macOS the
+        # desktop entries carry the .png icon instead.
+        cmd += ["--version-file", str(ROOT / target["version_file"]),
+                "--icon", str(ROOT / target["icon"])]
     if clean:
         cmd.append("--clean")
     for item in target["data"]:
-        if "spec" in target:
-            source, destination = item.split(";", 1)
-            item = f"{ROOT / source};{destination}"
-        cmd += ["--add-data", item]
+        cmd += ["--add-data", _add_data_arg(item, "spec" in target)]
     for item in target["hidden"]:
         cmd += ["--hidden-import", item]
     for item in target["collect"]:
@@ -753,7 +767,8 @@ def build_exes(args, version: str) -> None:
             target = TARGETS[key]
             release = target_version(key, version)
             write_version_file(target, release)
-            exe = ROOT / target.get("dist", "dist/" + target["name"]) / (target["name"] + ".exe")
+            exe = ROOT / target.get("dist", "dist/" + target["name"]) / \
+                (target["name"] + (".exe" if os.name == "nt" else ""))
 
             stamp = inputs_hash(key + release, target)
             payload_present = not target.get("external_pkg") or exe.with_suffix(".pkg").is_file()
@@ -816,14 +831,16 @@ def build_exes(args, version: str) -> None:
 
 def place_memu_cli() -> None:
     """Round 35 (protocol): memu.exe ships inside the MemuAI folder (its own _internal, never merged)."""
+    binary = "memu.exe" if os.name == "nt" else "memu"
     source, app_dir = ROOT / "dist" / "memu", ROOT / "dist" / "MemuAI"
-    if not (source / "memu.exe").is_file() or not app_dir.is_dir():
+    if not (source / binary).is_file() or not app_dir.is_dir():
         return
     target = app_dir / "MemuCLI"
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(source, target)
     say("memu.exe → dist/MemuAI/MemuCLI")
+
 
 def build_installer(args, version: str) -> None:
     """MemuAI-Setup-<версия>.exe: собственный установщик (installer/), полный комплект."""
@@ -858,6 +875,7 @@ def main() -> None:
         return
     if args.what == "proxy-installer":
         args.only = "proxy_only"
+
     if not args.skip_exe:
         build_exes(args, version)
     if args.what == "installer":

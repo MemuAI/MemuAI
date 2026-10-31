@@ -364,8 +364,13 @@ class CodeContextEngine:
                 rel, 1, min(180, text.count("\n") + 1), min(12_000, remaining))
             files.append({**summary, "excerpt": "" if excerpt.get("already_read") else excerpt.get("text", "")})
             remaining -= len(excerpt.get("text") or "")
+        used = int(max_chars) - max(0, remaining)
         return {"root": str(self.root), "index": self.tree[:800],
                 "index_truncated": self.tree_truncated, "files": files,
+                "chars": used,
+                "budget": {"max_chars": int(max_chars), "used_chars": used,
+                           "candidates": len(scored), "selected": len(files),
+                           "dropped": max(0, len(scored) - len(files))},
                 **self.stats()}
 
 _SESSIONS: Dict[str, CodeContextEngine] = {}

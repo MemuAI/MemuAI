@@ -831,7 +831,7 @@ const MemuTeams = (() => {
       await refreshIntegrations();
       if (!sourceProfileActive(source)) throw new DOMException("Profile changed", "AbortError");
       const memory = globalThis.MemuMemory?.contextFor ? await MemuMemory.contextFor(source, raw) : null;
-      const managerContext = [buildSystemPrompt(source, { deferRuntime: true, teamManager: true }), memory?.block || profileReferenceContext(source), memory?.protocol || "", runtimeContextBlock()].filter(Boolean).join("\n\n");
+      const managerContext = [buildSystemPrompt(source, { deferRuntime: true, teamManager: true }), memory?.block || (typeof budgetedProfileBlock === "function" ? budgetedProfileBlock(source) : profileReferenceContext(source)), memory?.protocol || "", runtimeContextBlock()].filter(Boolean).join("\n\n");
       let toolsPrompt = buildSystemPrompt({ ...source, profileContext: "", chatSystem: "" }, { deferRuntime: true, teamWorker: true });
       if (isProjectMode(source.mode)) toolsPrompt += "\n\n" + CODE_MODE_PROMPT + (typeof codeSkillsPrompt === "function" ? codeSkillsPrompt() : "");
       toolsPrompt += "\n\n" + (assistant.webAllowed ? WEB_TOOLS_PROMPT : "<web_tools>Web access is disabled by the user. Do not use web_search or web_fetch.</web_tools>") + "\n\n" + integrationsPromptBlock();

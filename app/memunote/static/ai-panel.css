@@ -52,7 +52,8 @@
 .ai-gutter.aip-gutter-off { pointer-events: none; flex-basis: 0 !important; padding: 0 !important; }
 .aip-log { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 16px 14px 10px; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
 .aip-log::-webkit-scrollbar { width: 8px; }
-.aip-log::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 30%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+.aip-log::-webkit-scrollbar-thumb { background: var(--scroll-thumb, color-mix(in srgb, var(--muted) 30%, transparent)); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+.aip-log::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover, color-mix(in srgb, var(--muted) 52%, transparent)); background-clip: content-box; }
 .aip .msg { display: flex; flex-direction: column; gap: 6px; animation: aip-in .22s cubic-bezier(.2,.8,.2,1); min-width: 0; }
 @keyframes aip-in { from { opacity: 0; transform: translateY(6px); } }
 .aip .msg.user { align-items: flex-end; }

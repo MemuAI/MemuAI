@@ -37,7 +37,7 @@ from .config import DATA_DIR
 from .path_safety import is_link
 from .storage import _json_transaction, load_json_with_recovery, mutate_json, save_json
 
-BUILTIN_ORDER: Tuple[str, ...] = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb")
+BUILTIN_ORDER: Tuple[str, ...] = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet")
 
 LAUNCHER_SLOTS: Tuple[str, ...] = ("sidebar", "chat-list", "topbar", "composer")
 
@@ -61,6 +61,7 @@ ACTION_PERMISSION: Dict[str, str] = {
     "record": "media", "music": "media", "monitor": "background",
     "save": "storage",
     "models": "models",
+    "models_pinned": "models", "models_pin": "models",
     "extract": "files",
     "download": "download", "handoff": "download",
     "notify": "notify",
@@ -1796,6 +1797,33 @@ kbd{border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;pad
 
 _MEMU_KEYS_CACHE: Dict[str, str] = {}
 
+_MODEL_SELECTOR_CACHE: Dict[str, str] = {}
+
+
+def _model_selector_js() -> str:
+    """pgstatic/model-selector.js inlined into every module document (CSP
+    allows inline scripts only), the same way _memu_keys_js() inlines the
+    keyboard library: modules get window.MemuModelSelector for free."""
+    if "js" not in _MODEL_SELECTOR_CACHE:
+        try:
+            text = (Path(__file__).resolve().parent / "pgstatic" / "model-selector.js").read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+        _MODEL_SELECTOR_CACHE["js"] = text.replace("</", "<\\/")
+    return _MODEL_SELECTOR_CACHE["js"]
+
+
+def _model_selector_css() -> str:
+    """pgstatic/model-selector.css, inlined next to the component script."""
+    if "css" not in _MODEL_SELECTOR_CACHE:
+        try:
+            text = (Path(__file__).resolve().parent / "pgstatic" / "model-selector.css").read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+        _MODEL_SELECTOR_CACHE["css"] = text.replace("</", "<\\/")
+    return _MODEL_SELECTOR_CACHE["css"]
+
+
 def _memu_keys_js() -> str:
     """Round 33 (#8): pgstatic/memu-keys.js inlined into every module document (CSP allows inline scripts only),
     so module shortcuts (Ctrl+S, Ctrl+Z…) work with the Russian layout too."""
@@ -1823,7 +1851,7 @@ BRIDGE_JS = r"""
   // новому запросу с тем же номером.
   var NONCE = Math.random().toString(36).slice(2, 10);
   var TIMEOUTS = {
-    request: 300000, stream: 0, save: 20000, models: 20000, image: 900000,
+    request: 300000, stream: 0, save: 20000, models: 20000, models_pinned: 20000, models_pin: 20000, image: 900000,
     video: 1800000, speak: 180000, transcribe: 600000, extract: 120000,
     handoff: 60000, download: 180000, notify: 60000, open: 20000, monitor: 180000, music: 700000,
     search: 60000, fetch: 60000, clipboard: 10000, routes: 10000, env: 5000,
@@ -2058,6 +2086,8 @@ BRIDGE_JS = r"""
         delete streams[data.id];
         if (stream.onError) stream.onError(String(data.error || ""));
         stream.reject(new Error(String(data.error || "Ошибка потока")));
+      } else if (data.event === "web_search") {
+        if (stream.onWebSearch) stream.onWebSearch(data.web_search || {}, data);
       } else if (data.event === "tick") {
         if (stream.onStatus) stream.onStatus("working", data);
       }
@@ -2132,7 +2162,7 @@ BRIDGE_JS = r"""
         resolve: resolve, reject: reject,
         onDelta: options.onDelta, onStatus: options.onStatus,
         onReasoning: options.onReasoning, onUsage: options.onUsage,
-        onDone: options.onDone, onError: options.onError
+        onDone: options.onDone, onError: options.onError, onWebSearch: options.onWebSearch
       };
       try {
         parent.postMessage({ type: "memu-module", id: id, from: MODULE_ID,
@@ -2398,6 +2428,15 @@ BRIDGE_JS = r"""
         return Object.assign({}, row, {name: (row.name || row.id) + " · [" + String(row.kind).toUpperCase() + "]"});
       });
     }); },
+    /* Pinned models are shared with MemuAI itself: the single store is
+     * MemuAI preferences (pinned_models, preferences.json), written
+     * by the host through /api/pg/preferences. MemuModelSelector uses
+     * these two calls; Memu.on("model-pins", handler) receives
+     * {pinned: [...]} whenever any module or MemuAI changes the list. */
+    pinnedModels: function () { return call("models_pinned", {}); },
+    setModelPinned: function (id, pinned) {
+      return call("models_pin", { id: String(id || ""), pinned: !!pinned });
+    },
     image: function (body) { return call("image", body); },
     video: function (body) { return call("video", body); },
     speak: function (body) { return call("speak", body); },
@@ -2405,7 +2444,7 @@ BRIDGE_JS = r"""
     // Микрофон доступен только окну MemuAI: страница модуля живёт в песочнице
     // без собственного источника, и браузер отказывает ей в getUserMedia.
     record: {
-      start: function () { return call("record", { action: "start" }); },
+      start: function (args) { return call("record", Object.assign({ action: "start" }, args || {})); },
       stop: function () { return call("record", { action: "stop" }); },
       cancel: function () { return call("record", { action: "cancel" }); }
     },
@@ -2516,6 +2555,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
         "<title>" + str(package.get("title") or "Модуль").replace("<", "&lt;") + "</title>\n"
         "<style>" + token_css(environment) + "</style>\n"
         "<style>" + BASE_CSS + accent_rule + "</style>\n"
+        "<style>" + _model_selector_css() + "</style>\n"
         "<style>" + _embed_style(package.get("css") or "") + "</style>\n"
         "</head>\n<body>\n"
         + (_embed_html(package.get("html") or "") if (package.get("html") or "").strip()
@@ -2523,6 +2563,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
            '<div class="mu-page"><div class="mu-empty"><b>У модуля нет кода</b>'
            '<span>Откройте «Настройки → Модули → Код» и добавьте HTML или JavaScript.</span></div></div>')
         + "\n<script>" + _memu_keys_js() + "</script>"
+        + "\n<script>" + _model_selector_js() + "</script>"
         + "\n<script>" + bridge + "</script>\n"
 
         + '<script>window.__memuModuleMain=function(){\n' + _embed_script(package.get("js") or "") + '\n};</script>\n'

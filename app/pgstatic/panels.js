@@ -3484,7 +3484,7 @@ const MemuPanels = (() => {
       desc_ru: "Создаёт панели и управляет ими: погода, курсы, новости, счёт матчей и что угодно ещё — карточками на главном экране, в боковой или верхней панели.",
       when: "The user asks to put something on the home screen, sidebar or top bar as a panel/widget/tracker, or to change, refresh or remove a panel.",
       when_ru: "Просьба вывести что-то на главный экран, в боковую или верхнюю панель как панель/виджет/трекер, либо изменить, обновить или убрать панель.",
-      inline: true, removable: true, prompt: SKILL_PROMPT,
+      inline: false, removable: true, prompt: SKILL_PROMPT,
     });
   }
   function enabled() {
@@ -3492,12 +3492,8 @@ const MemuPanels = (() => {
   }
 
   function systemBlock(mode = "") {
-    if (mode === "work" || mode === "code" || !enabled()) return "";
-    const skill = getSkills().find((s) => s.id === SKILL_ID);
-    const rows = state.panels.slice(0, 20).map((p) => `${p.id} — ${p.title} (${p.kind}; ${(p.placements || []).join(", ") || "not pinned"}${p.wall ? "; wall " + p.wall.status : ""})`).join("\n");
-    return `<panels_skill>\n${String(skill?.prompt || SKILL_PROMPT).trim()}\n\n<current_panels>\n${rows || "(none)"}\n</current_panels>\n</panels_skill>`;
+    return "";
   }
-
   function mountSettings() {
     const pane = $q("#pane-panels");
     if (!pane) return;

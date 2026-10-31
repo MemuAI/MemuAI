@@ -3,7 +3,20 @@
 (function () {
   "use strict";
   const OFFICIAL = "https://telegram.org/js/telegram-web-app.js?59";
-  const VENDORED = "vendor/telegram-web-app.js";
+  // Resolved against this script's own URL, like the API URLs: a
+  // document-relative "vendor/..." breaks when the page URL has no
+  // trailing slash. window.MemuTgApiUrl is the same rule for the
+  // scripts loaded after this one (app.js overwrites it with its own
+  // identical resolution). The external telegram.org script stays a
+  // fallback only: the vendored copy is tried first, with a 1.8 s
+  // timeout, and the shim below boots without any external host.
+  const SCRIPT_BASE = (() => {
+    try { const src = (document.currentScript && document.currentScript.src) || ""; if (src) return src; } catch (e) { }
+    return "";
+  })();
+  const resolveHere = (name) => { if (SCRIPT_BASE) { try { return new URL(name, SCRIPT_BASE).href; } catch (e) { } } return name; };
+  window.MemuTgApiUrl = resolveHere;
+  const VENDORED = resolveHere("vendor/telegram-web-app.js");
   const WAIT_MS = 1800;
 
   function parseQuery(text) {

@@ -53,7 +53,15 @@ async def _telegram_http(shared: Optional[httpx.AsyncClient]):
     if shared is not None:
         yield shared
         return
-    async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10)) as client:
+    try:
+        client = httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10))
+    except Exception:
+        # A malformed proxy in the environment (e.g. a bracketed IPv6 entry
+        # in NO_PROXY) makes httpx fail while parsing env proxies. The
+        # status probe must not die with a 500 over that: fall back to a
+        # client that ignores the environment entirely.
+        client = httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10), trust_env=False)
+    async with client:
         yield client
 
 _proxy_cache: Dict[str, Any] = {"at": 0.0, "online": False}
@@ -101,6 +109,10 @@ def register_telegram_routes(app: FastAPI, client: httpx.AsyncClient,
                                  "id": str(bot.get("id") or "")}
             except TelegramError as error:
                 result["token_error"] = "bad_token" if error.unauthorized else "network"
+            except Exception:
+                # Client construction, DNS or a broken proxy env: the status
+                # itself must still answer (200, degraded), never a 500.
+                result["token_error"] = "network"
         username = result["bot"].get("username")
         result["bot_link"] = f"https://t.me/{username}" if username else ""
         return result
@@ -124,6 +136,9 @@ def register_telegram_routes(app: FastAPI, client: httpx.AsyncClient,
                 bot = await _bot_info(tg, token, fresh=True)
         except TelegramError as error:
             return _token_error(error, en)
+        except Exception as error:
+            return _err(("Telegram is unreachable: " if en else "Telegram недоступен: ") + str(error)[:200],
+                        502, "network")
         updates: Dict[str, Any] = {}
         if token != prefs.get("telegram_bot_token"):
             updates["telegram_bot_token"] = token

@@ -72,10 +72,13 @@ const MemuSelfDocs = (() => {
   }
 
   function systemBlock() {
+    return "";
+  }
+
+  function systemIndex() {
     if (!enabled() || !state.pages.length) return "";
-    const skill = getSkills().find((item) => item.id === SKILL_ID);
     const index = state.pages.map((page) => `${page.id} — ${page.title}`).join("\n");
-    return "<memuai_guide>\n" + String(skill.prompt || "").trim() + "\n\n<documentation_index>\n" + index + "\n</documentation_index>\n</memuai_guide>";
+    return "<documentation_index>\n" + index + "\n</documentation_index>";
   }
 
   function chips(html) {
@@ -96,7 +99,7 @@ const MemuSelfDocs = (() => {
     MemuDocs.open(chip.dataset.doc, chip.dataset.anchor || "");
   });
 
-  return { load, rows, mentions, mentionContext, systemBlock, chips, known, enabled, SKILL_ID,
+  return { load, rows, mentions, mentionContext, systemBlock, systemIndex, chips, known, enabled, SKILL_ID,
     get pages() { return state.pages; } };
 })();
 

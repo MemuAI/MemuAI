@@ -46,8 +46,9 @@
 .am .error { color:var(--danger); }
 .am-card details { margin:18px 0 0; border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--bg); }
 .am-card summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-weight:600; font-size:.9em; cursor:pointer; list-style:none; }
-.am-card summary:before { content:"›"; font-size:1.3em; color:var(--muted); line-height:1; transition:transform .18s; }
-.am-card details[open]>summary:before { transform:rotate(90deg); }
+.am-card summary::-webkit-details-marker { display:none; }
+.am-card summary:before { content:""; flex:none; width:7px; height:7px; color:var(--muted); border-right:1.6px solid currentColor; border-bottom:1.6px solid currentColor; transform:rotate(-45deg); transition:none; }
+.am-card details[open]>summary:before { transform:rotate(45deg); }
 .am-card summary small { margin-left:auto; font-weight:400; font-size:.8em; }
 .am-count { font-size:.75em; color:var(--accent); background:var(--accent-soft); border-radius:6px; padding:2px 6px; font-variant-numeric:tabular-nums; }
 .am-family-panel>.am-actions { margin-top:14px; }
@@ -121,6 +122,9 @@
 .am .am-chip.on { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); font-weight: 600; }
 .am-feed-notice { margin: 0 0 12px !important; padding: 9px 12px; border-radius: 10px; background: var(--am-soft); color: var(--text) !important; font-size: .84em; }
 .am-feed-notice.error { background: color-mix(in srgb, var(--danger) 13%, transparent); }
+.am-catalog-status { margin: 0 0 12px; font-size: .82em; color: var(--muted); }
+.am-catalog-status.error { color: var(--danger); }
+.am-card .am-warn { display: block; margin-top: 6px; color: var(--danger); }
 .am-day { margin-bottom: 22px; }
 .am-day-head { position: sticky; top: -18px; z-index: 2; display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; padding: 10px 2px 8px;
   font-size: .82em; text-transform: capitalize; letter-spacing: .01em; background: linear-gradient(var(--bg) 70%, transparent); }

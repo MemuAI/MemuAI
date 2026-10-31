@@ -105,6 +105,7 @@ class Job:
     started: float = field(default_factory=time.time)
     finished: float = 0.0
     delivered: bool = False
+    checkpoint_at: float = 0.0
     handle: Optional["asyncio.Task"] = None
     token: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
@@ -129,6 +130,8 @@ class Job:
             "seconds": round((self.finished or time.time()) - self.started, 1),
             "delivered": self.delivered, "can_write": self.access == "full",
         }
+        if self.checkpoint_at:
+            row["checkpoint_at"] = self.checkpoint_at
         if self.error:
             row["error"] = self.error
         if report:
@@ -153,6 +156,20 @@ class AgentPool:
     def running(self, session: str) -> List[Job]:
         return [job for job in self.jobs.get(session, []) if job.status == "running"]
 
+    def _prune(self, session: str, *, keep_finished: int = 8) -> None:
+        """Drop finished jobs the model already saw, keeping the newest few
+        for status questions. Without this, a long chat that spawned many
+        agents hit ``MAX_JOBS`` and could never spawn another one, even
+        though every earlier agent had finished hours ago."""
+        rows = self.jobs.get(session, [])
+        finished = [job for job in rows if job.status != "running"]
+        if len(rows) <= MAX_JOBS and len(finished) <= keep_finished:
+            return
+        drop = {id(job) for job in finished[:-keep_finished]} if len(finished) > keep_finished else set()
+        if len(rows) - len(drop) >= MAX_JOBS:
+            drop |= {id(job) for job in finished if job.delivered}
+        self.jobs[session] = [job for job in rows if id(job) not in drop]
+
     def spawn(self, session: str, *, title: str, task: str, model: str, access: str = "ask", code: bool = False,
               web: bool = False, project_id: str = "", limit: int = MAX_PARALLEL) -> Job:
         task = str(task or "").strip()
@@ -162,6 +179,7 @@ class AgentPool:
         if len(self.running(session)) >= limit:
             raise ValueError(f"{limit} agents are already running in this chat: wait for one of them "
                              "(agent_wait) before starting another.")
+        self._prune(session)
         rows = self.jobs.setdefault(session, [])
         if len(rows) >= MAX_JOBS:
             raise ValueError("Too many agents were started in this chat; finish the work yourself.")
@@ -199,6 +217,7 @@ class AgentPool:
         ]
         for round_number in range(1, MAX_ROUNDS + 1):
             job.rounds = round_number
+            job.checkpoint_at = time.time()
             text = await self.complete(job.model, messages)
             parsed = protocol.parse(text)
             if not parsed.calls:

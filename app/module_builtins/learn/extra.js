@@ -55,6 +55,7 @@ VIEWS.settings = async () => {
   $("#st-max").onchange = (e) => save({ max_reviews: +e.target.value });
   $("#st-fuzz").onchange = (e) => save({ fuzz: e.target.checked });
   $("#st-model").onchange = (e) => { S.model = e.target.value; remember(); toast(t("saved"), "ok"); };
+  mountLearnModel($("#st-model"), "compact");
   $("#st-cards").onchange = (e) => { S.prefs.cards_per_lesson = Math.max(3, Math.min(20, +e.target.value || 8)); remember(); toast(t("saved"), "ok"); };
   $("#st-calm").onchange = (e) => { S.prefs.calm = e.target.checked; applyPrefs(); remember(); };
 };

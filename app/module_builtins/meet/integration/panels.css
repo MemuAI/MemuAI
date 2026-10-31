@@ -1,0 +1,28 @@
+.mt { font: inherit; color: var(--text); padding: 10px 12px; }
+.mt-skel { display: flex; flex-direction: column; gap: 8px; }
+.mt-skel i, .mt-skel b { display: block; border-radius: 8px; background: var(--panel-2); }
+.mt-skel i { height: 34px; }
+.mt-skel b { height: 46px; }
+.mt-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.mt-head h1 { font-size: .95em; margin: 0; flex: 1; }
+.mt-link, .mt-cta {
+  border: 1px solid var(--border); border-radius: 8px; background: transparent;
+  color: var(--accent); font: inherit; font-size: .85em; font-weight: 580; cursor: pointer; padding: 5px 10px;
+}
+.mt-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 8px 6px; border: 0; border-radius: 10px; background: transparent;
+  font: inherit; color: var(--text); cursor: pointer;
+}
+.mt-row:hover { background: var(--panel-2); }
+.mt-ico {
+  width: 34px; height: 34px; flex: none; display: grid; place-items: center;
+  border-radius: 9px; background: var(--accent-soft); color: var(--accent);
+}
+.mt-ico svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.mt-main b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .92em; }
+.mt-main span { color: var(--muted); font-size: .82em; }
+.mt-tag { font-size: .74em; font-weight: 620; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
+.mt-empty { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 8px 2px; }
+.mt-empty span { color: var(--muted); font-size: .88em; line-height: 1.45; }

@@ -235,7 +235,7 @@ def build_completion(body: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("Все сообщения пустые / All messages are empty")
     params = body.get("params") if isinstance(body.get("params"), dict) else {}
     out: Dict[str, Any] = {"model": model, "messages": messages,
-                           "web_search": False, "tools_available": False,
+                           "web_search": bool(params.get("web_search")), "tools_available": False,
                            "prompt_caching": bool(params.get("prompt_caching", True)),
                            "thinking": bool(params.get("thinking"))}
 
@@ -397,6 +397,11 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any]) -> None:
                         err = item["error"]
                         failure = str(err.get("message", err)) if isinstance(err, dict) else str(err)
                         break
+                    if item.get("object") == "memuai.event" and item.get("event") == "web_search":
+                        yield "data: " + json.dumps({"event": "web_search",
+                                                     "web_search": item.get("web_search") or {}},
+                                                    ensure_ascii=False) + "\n\n"
+                        continue
                     if isinstance(item.get("usage"), dict):
                         usage = item["usage"]
                         yield "data: " + json.dumps({"event": "usage", "usage": usage}) + "\n\n"

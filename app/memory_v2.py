@@ -210,6 +210,24 @@ def estimate_tokens(text: str) -> int:
     from .token_estimate import estimate
     return estimate(text) + 4
 
+def _truncate_to_tokens(text: str, budget: int) -> str:
+    """Shorten ``text`` to about ``budget`` tokens, keeping its beginning.
+
+    Only used when the chosen facts already overflow the hard budget: the
+    estimate is re-checked as the text shrinks, so the result really fits,
+    and a short tail marker says the fact was cut."""
+    text = str(text or "")
+    budget = max(0, int(budget))
+    if estimate_tokens(text) <= budget or budget < 12:
+        return text if budget >= 12 else text[:max(0, budget * 2)]
+    chars = max(12, int(len(text) * budget / max(1, estimate_tokens(text))))
+    for _ in range(40):
+        candidate = text[:chars].rstrip() + " …"
+        if estimate_tokens(candidate) <= budget or chars <= 12:
+            return candidate
+        chars = max(12, int(chars * 0.85))
+    return text[:12] + " …"
+
 def _hash_facts(facts: List[str]) -> str:
     return hashlib.sha1(json.dumps(facts, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
 
@@ -906,6 +924,43 @@ def rank(doc: Dict[str, Any], service: str, query: str = "", *, budget_tokens: O
             core_spent += cost
         if limit and len(chosen) >= limit:
             break
+    if spent > budget:
+        # Hard cap. Pinned facts earned their priority, but the total must
+        # still fit the budget: the lowest-priority facts are shortened first
+        # (copies — the stored facts are never rewritten), then, only if
+        # stubs alone still overflow, dropped. Healthy data never reaches
+        # this branch: it fits by construction of the loop above.
+        trimmed: List[Dict[str, Any]] = []
+        overflow = spent - budget
+        for item in reversed(chosen):
+            if overflow <= 0:
+                trimmed.append(item)
+                continue
+            cost = estimate_tokens(item["text"])
+            keep_tokens = max(40, cost - overflow)
+            if keep_tokens >= cost:
+                trimmed.append(item)
+                continue
+            copy = dict(item)
+            copy["text"] = _truncate_to_tokens(item["text"], keep_tokens)
+            copy["truncated"] = True
+            overflow -= cost - estimate_tokens(copy["text"])
+            trimmed.append(copy)
+        chosen = list(reversed(trimmed))
+        spent = sum(estimate_tokens(item["text"]) for item in chosen)
+        while spent > budget and len(chosen) > 1:
+            victim = next((item for item in reversed(chosen) if not item.get("pinned")), None)
+            if victim is None:
+                break
+            chosen.remove(victim)
+            spent -= estimate_tokens(victim["text"])
+        if spent > budget and chosen:
+            last = chosen[-1]
+            others = spent - estimate_tokens(last["text"])
+            copy = dict(last)
+            copy["text"] = _truncate_to_tokens(last["text"], max(12, budget - others))
+            copy["truncated"] = True
+            chosen[-1] = copy
     return chosen
 
 def context_facts(service: str, query: str = "", *, budget_tokens: Optional[int] = None, profile_id: str = "",
@@ -925,7 +980,7 @@ def context_facts(service: str, query: str = "", *, budget_tokens: Optional[int]
         flush_uses(profile_id)
     return [{"id": i["id"], "text": i["text"], "category": i["category"], "scope": i["scope"],
              "confidence": i["confidence"], "pinned": i["pinned"], "tags": i["tags"],
-             "updated_at": i["updated_at"]} for i in rows]
+             "updated_at": i["updated_at"], "truncated": bool(i.get("truncated"))} for i in rows]
 
 def context_diary(query: str = "", *, profile_id: str = "", doc: Optional[Dict[str, Any]] = None,
                   relevant: int = 2, budget_tokens: int = 220) -> List[Dict[str, Any]]:

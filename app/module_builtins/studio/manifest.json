@@ -63,5 +63,107 @@
     "model": "",
     "keep_in_chat": false,
     "instructions": "MemuAI Studio вызывает маршруты изображений, видео, озвучки и расшифровки через мост MemuAI. Никогда не подставляет медиа-заглушку, если провайдер вернул ошибку: показывается настоящий текст ошибки."
+  },
+  "contributes": {
+    "planning": [
+      {
+        "id": "exports-backup",
+        "title": "Копия готовых работ",
+        "title_en": "Back up finished works",
+        "description": "Раз в неделю напомнить сохранить готовые изображения, видео и озвучку в отдельную папку.",
+        "description_en": "Remind once a week to save finished images, videos and voiceovers to a separate folder.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Сохраните готовые работы студии в отдельную папку — это резервная копия на случай очистки кэша.",
+          "text_en": "studio"
+        }
+      },
+      {
+        "id": "library-grown",
+        "title": "Библиотека студии выросла",
+        "title_en": "Studio library grew",
+        "description": "Напомнить разобрать библиотеку, когда работ станет много.",
+        "description_en": "Remind to tidy the library once many works accumulate.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 20,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "В студии накопилось много работ — проверьте библиотеку и удалите неудачные генерации, чтобы освободить место.",
+          "text_en": "studio"
+        }
+      },
+      {
+        "id": "daily-studio",
+        "title": "Ежедневная проверка студии",
+        "title_en": "Daily studio check",
+        "description": "Каждый день напомнить заглянуть в студию и проверить работы.",
+        "description_en": "Remind every day to look into the studio and check the works.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Загляните в студию: незавершённые работы, готовые изображения, видео и озвучка, которые ждут проверки.",
+          "text_en": "Look into the studio: unfinished works, and finished images, videos and voiceovers waiting to be checked."
+        }
+      },
+      {
+        "id": "two-day-cleanup",
+        "title": "Порядок в библиотеке студии",
+        "title_en": "Studio library tidy-up",
+        "description": "Каждые два дня напомнить навести порядок в библиотеке студии.",
+        "description_en": "Every two days, remind to tidy up the studio library.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 2880
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Наведите порядок в библиотеке студии: разберите новые работы и сохраните готовые в отдельную папку.",
+          "text_en": "Tidy up the studio library: sort the new works and save the finished ones to a separate folder."
+        }
+      },
+      {
+        "id": "three-day-exports",
+        "title": "Обзор готовых работ за три дня",
+        "title_en": "Finished works over three days",
+        "description": "Раз в три дня попросить модель подвести итог готовых работ студии.",
+        "description_en": "Every three days, ask the model to sum up the studio's finished works.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Подведи итог готовых работ студии за три дня: что получилось лучше всего и что стоит переделать. Коротко, списком.",
+          "prompt_en": "Sum up the studio's finished works over three days: what turned out best and what is worth redoing. Briefly, as a list."
+        }
+      },
+      {
+        "id": "weekly-studio-digest",
+        "title": "Еженедельная сводка студии",
+        "title_en": "Weekly studio digest",
+        "description": "Раз в неделю попросить модель сделать сводку работ студии.",
+        "description_en": "Once a week, ask the model to make a digest of the studio's works.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Сделай сводку недели в студии: готовые работы, незавершённые проекты и идеи на следующую неделю. Коротко, списком.",
+          "prompt_en": "Make a weekly studio digest: finished works, unfinished projects and ideas for next week. Briefly, as a list."
+        }
+      }
+    ]
   }
 }

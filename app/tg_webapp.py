@@ -124,6 +124,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "named_token": "",
     "named_url": "",
     "retry_at": 0,
+    "local_fallback": False,
+    "last_working_url": "",
+    "last_working_at": 0,
 }
 
 def normalize_custom_url(value: Any) -> str:
@@ -175,6 +178,12 @@ def _normalize_config(raw: Any) -> Dict[str, Any]:
     token = str(out.get("named_token") or "").strip()
     out["named_token"] = token if NAMED_TOKEN_RE.fullmatch(token) else ""
     out["named_url"] = normalize_custom_url(out.get("named_url"))
+    out["local_fallback"] = out.get("local_fallback") is True
+    out["last_working_url"] = normalize_custom_url(out.get("last_working_url"))
+    try:
+        out["last_working_at"] = max(0, int(out.get("last_working_at") or 0))
+    except (TypeError, ValueError):
+        out["last_working_at"] = 0
     try:
         out["retry_at"] = float(out.get("retry_at") or 0)
     except (TypeError, ValueError):
@@ -206,7 +215,7 @@ def save_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     """Accept only the user-editable keys; the secret is changed by ``regenerate_secret``."""
     accepted = {key: updates[key] for key in ("enabled", "mode", "custom_url", "port", "max_age_hours",
                                               "code_control", "web_login", "cf_protocol", "cf_edge_ip", "named_token",
-                                              "named_url")
+                                              "named_url", "local_fallback")
                 if isinstance(updates, dict) and key in updates}
     for key in ("custom_url", "named_url"):
         if key in accepted and str(accepted[key] or "").strip() and not normalize_custom_url(accepted[key]):
@@ -223,6 +232,8 @@ def save_config(updates: Dict[str, Any]) -> Dict[str, Any]:
         accepted["retry_at"] = time.time()
     if "enabled" in accepted:
         accepted["enabled"] = accepted["enabled"] is True or str(accepted["enabled"]).lower() == "true"
+    if "local_fallback" in accepted:
+        accepted["local_fallback"] = accepted["local_fallback"] is True or str(accepted["local_fallback"]).lower() == "true"
     current = load_config()
     with _CONFIG_LOCK:
         current.update(accepted)
@@ -471,6 +482,10 @@ _STATUS_EN: List[Tuple["re.Pattern[str]", str]] = [(re.compile(ru), en) for ru, 
     (r"Cloudflare не выдал адрес туннеля — нет интернета, сервис недоступен или заблокирован",
      "Cloudflare gave no tunnel address — no internet, or the service is down or blocked"),
     (r"Протокол QUIC \(UDP\) не проходит — переключаюсь на HTTP/2", "QUIC (UDP) does not get through — switching to HTTP/2"),
+    (r"Компьютер не может найти серверы Cloudflare \(DNS\): не резолвится (\S+) — проверьте интернет или VPN",
+     r"The computer cannot find the Cloudflare servers (DNS): \1 does not resolve — check your internet connection or VPN"),
+    (r"cloudflared не может подключиться к локальному MemuAI — проверьте, что MemuAI Proxy запущен",
+     "cloudflared cannot connect to the local MemuAI — check that MemuAI Proxy is running"),
     (r"Компьютер не может найти серверы Cloudflare \(DNS\) — проверьте интернет или VPN",
      "The computer cannot find Cloudflare's servers (DNS) — check the internet or VPN"),
     (r"Не удалось установить защищённое соединение с Cloudflare — мешает антивирус, прокси или блокировка",
@@ -496,6 +511,8 @@ _STATUS_EN: List[Tuple["re.Pattern[str]", str]] = [(re.compile(ru), en) for ru, 
     (r" — пробую HTTP/2", " — trying HTTP/2"),
     (r" — возможна блокировка; попробуйте VPN или свой адрес", " — it may be blocked; try a VPN or your own address"),
     (r"Адрес ещё не появился в DNS — жду", "The address is not in DNS yet — waiting"),
+    (r"Локальный режим: публичная проверка отключена — работает локальный адрес",
+     "Local mode: the public check is off — the local address works"),
     (r"Не открывается через интернет: ", "Does not open from the internet: "),
     (r"Адрес отвечает, но не MemuAI \(HTTP (\d+)\)", r"The address answers, but it is not MemuAI (HTTP \1)"),
     (r"Проверка через интернет не прошла \((.*)\) — адрес всё равно отправлен в Telegram",
@@ -528,8 +545,21 @@ def _tunnel_error_hint(line: str) -> str:
         return "Cloudflare не выдал адрес туннеля — нет интернета, сервис недоступен или заблокирован"
     if "quic" in lowered and ("failed to dial" in lowered or "timeout" in lowered or "no recent network activity" in lowered):
         return "Протокол QUIC (UDP) не проходит — переключаюсь на HTTP/2"
-    if "no such host" in lowered or "lookup " in lowered and "dns" in lowered or "server misbehaving" in lowered:
-        return "Компьютер не может найти серверы Cloudflare (DNS) — проверьте интернет или VPN"
+    if "127.0.0.1" in lowered or "localhost" in lowered:
+        if "connection refused" in lowered or "failed to connect" in lowered:
+            return ("cloudflared не может подключиться к локальному MemuAI — "
+                    "проверьте, что MemuAI Proxy запущен")
+    host_match = re.search(r"lookup\s+([a-z0-9._-]+)", lowered)
+    named_host = host_match.group(1) if host_match else ""
+    cloudflare_host = named_host and ("argotunnel.com" in named_host or "trycloudflare.com" in named_host
+                                      or "cloudflare" in named_host)
+    if "no such host" in lowered or "server misbehaving" in lowered:
+        if cloudflare_host:
+            return ("Компьютер не может найти серверы Cloudflare (DNS): не резолвится "
+                    f"{named_host} — проверьте интернет или VPN")
+        if "cloudflare" in lowered or "argotunnel" in lowered:
+            return "Компьютер не может найти серверы Cloudflare (DNS) — проверьте интернет или VPN"
+        return ""
     if "tls handshake timeout" in lowered or "certificate" in lowered:
         return "Не удалось установить защищённое соединение с Cloudflare — мешает антивирус, прокси или блокировка"
     if "i/o timeout" in lowered or "context deadline exceeded" in lowered or "connection refused" in lowered \
@@ -821,6 +851,7 @@ class CloudflaredTunnel:
             self.on_state("connecting", "")
         if (self.url or self.named) and not self.registered and _is_registered_line(line):
             self.registered = True
+            self.last_error = ""
             self.failures = 0
             if self.url:
                 self._set_url(self.url, force=True)
@@ -863,6 +894,7 @@ class CloudflaredTunnel:
 DOH_ENDPOINTS = ("https://1.1.1.1/dns-query", "https://8.8.8.8/resolve")
 VERIFY_TIMEOUT = 150.0
 VERIFY_EVERY = 4.0
+RESOLVE_TIMEOUT = 10.0
 _NONCE = secrets.token_hex(8)
 
 def instance_nonce() -> str:
@@ -870,41 +902,104 @@ def instance_nonce() -> str:
     public URL proves the answer came from *this* listener."""
     return _NONCE
 
+def remember_working_url(url: str) -> None:
+    """Cache the last public address that passed DNS + health check.
+
+    Best effort only: a failed write must never break publishing. The
+    secret and the named-tunnel token are preserved exactly as
+    ``save_config`` preserves them (``_normalize_config`` keeps a valid
+    secret, and the write goes through the same lock)."""
+    base = normalize_custom_url(url)
+    if not base:
+        return
+    try:
+        config = load_config()
+        with _CONFIG_LOCK:
+            config["last_working_url"] = base
+            config["last_working_at"] = int(time.time())
+            config = _normalize_config(config)
+            _write_json(config_path(), config)
+    except OSError:
+        log.warning("tgapp: could not cache the last working address")
+
+async def resolve_host(host: str) -> Optional[bool]:
+    """The system resolver decides: True = resolves, False = NXDOMAIN / no
+    data, None = the resolver itself failed (timeout, temporary failure) and
+    nothing can be concluded. External DoH is never consulted here: a host
+    that the system cannot resolve is not assumed to be missing, and a host
+    the system does resolve is not held back by an unreachable DoH service."""
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(socket.getaddrinfo, host, 443, type=socket.SOCK_STREAM),
+            timeout=RESOLVE_TIMEOUT)
+    except asyncio.TimeoutError:
+        return None
+    except socket.gaierror as exc:
+        if exc.errno in (getattr(socket, "EAI_NONAME", -2), getattr(socket, "EAI_NODATA", -5)):
+            return False
+        return None
+    except OSError:
+        return None
+    return True
+
 async def doh_resolve(host: str, client: Any) -> Optional[bool]:
     """Does ``host`` resolve in public DNS? True/False, None when no DoH
-    resolver could be reached (blocked network) — then the system resolver decides."""
-    answered = False
+    resolver could be reached (blocked network). Only a tiebreaker for the
+    case the system resolver was inconclusive — never a gate on its own."""
     for endpoint in DOH_ENDPOINTS:
         for record in ("A", "AAAA"):
             try:
                 response = await client.get(endpoint, params={"name": host, "type": record},
                                             headers={"accept": "application/dns-json"}, timeout=6)
+                if response.status_code != 200:
+                    continue
                 data = response.json()
             except Exception:
                 continue
-            answered = True
-            if int(data.get("Status", 2)) == 0 and any(int(row.get("type", 0)) in (1, 28)
-                                                       for row in data.get("Answer") or []):
-                return True
-    if answered:
-        return False
-    try:
-        await asyncio.to_thread(socket.getaddrinfo, host, 443)
-        return True
-    except OSError:
-        return None
+            try:
+                status = int(data.get("Status", 2))
+            except (TypeError, ValueError):
+                continue
+            if status == 0:
+                try:
+                    has_answer = any(int(row.get("type", 0)) in (1, 28)
+                                     for row in data.get("Answer") or [])
+                except (TypeError, ValueError):
+                    has_answer = False
+                if has_answer:
+                    return True
+                # NOERROR without records: the name may simply not be
+                # published yet — inconclusive, keep asking other endpoints.
+                continue
+            if status == 3:
+                # NXDOMAIN is the only conclusive negative answer.
+                return False
+            # SERVFAIL / REFUSED / FORMERR and friends say the DNS server
+            # itself failed — never proof the host does not exist.
+            continue
+    return None
 
 async def check_public_url(base: str, client: Any) -> Tuple[str, str]:
-    """One reachability probe of the public address: ("ok"|"dns"|"http", detail)."""
+    """One reachability probe of the public address.
+
+    Returns ``("ok"|"dns"|"unreachable"|"http", detail)``: ``"dns"`` only
+    when the system resolver definitively says the host is not in DNS;
+    ``"unreachable"`` when nothing could be concluded (the resolver failed
+    and DoH was unreachable too, or the health check itself failed) — that
+    must never be treated as a DNS failure, or a blocked DoH service would
+    keep killing a working tunnel forever."""
     host = urllib.parse.urlsplit(base).hostname or ""
-    resolved = await doh_resolve(host, client)
+    resolved = await resolve_host(host)
+    if resolved is None:
+        resolved = await doh_resolve(host, client)
     if resolved is False:
         return "dns", "Адрес ещё не появился в DNS — жду"
     try:
         response = await client.get(base.rstrip("/") + "/tgapp/healthz", timeout=10)
         data = response.json() if response.status_code == 200 else {}
     except Exception as exc:
-        return ("dns" if resolved is None else "http"), f"Не открывается через интернет: {type(exc).__name__}"
+        kind = "unreachable" if resolved is None else "http"
+        return kind, f"Не открывается через интернет: {type(exc).__name__} (хост: {host})"
     if data.get("app") == "memuai-tgapp" and data.get("nonce") == instance_nonce():
         return "ok", ""
     return "http", f"Адрес отвечает, но не MemuAI (HTTP {response.status_code})"
@@ -966,18 +1061,41 @@ class Manager:
         self.verified = False
         self._verify_task: Optional[asyncio.Task] = None
         self._retry_handled: Optional[float] = None
+        self.local_fallback = False
+        self.last_working_url = ""
+        self._last_check: Dict[str, Any] = {}
 
         self.probe: Optional[Callable[[str], Any]] = None
 
+    def _cached_working_url(self) -> str:
+        if self.last_working_url:
+            return self.last_working_url
+        try:
+            return str(_normalize_config(_read_json(config_path())).get("last_working_url") or "")
+        except Exception:
+            return ""
+
+    def _diagnostics(self, local_url: str) -> Dict[str, Any]:
+        check = self._last_check or {}
+        host = check.get("host") or (urllib.parse.urlsplit(self.url or "").hostname or "")
+        return {"host": host, "error": check.get("detail") or self.detail or self.error,
+                "kind": check.get("kind") or "", "resolver": "system",
+                "checked_at": check.get("checked_at") or 0, "local_url": local_url,
+                "last_working_url": self._cached_working_url(),
+                "local_fallback": self.local_fallback}
+
     def snapshot(self) -> Dict[str, Any]:
         tunnel = self.tunnel
+        local_url = f"http://127.0.0.1:{self.port or DEFAULT_PORT}{ENTRY_PATH}"
         return {"pid": os.getpid(), "heartbeat": time.time(), "state": self.state, "error": self.error,
                 "error_en": status_en(self.error), "detail_en": status_en(self.detail),
                 "url": self.public_url(), "base": self.url or "", "port": self.port, "mode": self.mode,
                 "download": dict(self.download), "detail": self.detail, "verified": self.verified,
                 "retry_at": (tunnel.retry_at if tunnel is not None else 0.0) or self.retry_at,
                 "protocol": (tunnel.effective_protocol() or "auto") if tunnel is not None else "",
-                "failures": tunnel.failures if tunnel is not None else 0}
+                "failures": tunnel.failures if tunnel is not None else 0,
+                "local_url": local_url, "last_working_url": self._cached_working_url(),
+                "diagnostics": self._diagnostics(local_url)}
 
     def public_url(self) -> Optional[str]:
         if self.state != "online" or not self.url:
@@ -1034,6 +1152,7 @@ class Manager:
             self._signature = ""
         signature = json.dumps([wanted["run"], config["mode"], config["custom_url"], config["port"],
                                 config["cf_protocol"], config["cf_edge_ip"], config["named_url"],
+                                config["local_fallback"],
                                 hashlib.sha256(config["named_token"].encode()).hexdigest()[:12]])
         if signature == self._signature:
             settled = not wanted["run"] or (
@@ -1051,6 +1170,7 @@ class Manager:
             self._set_state("off" if reason == "disabled" else "blocked", reason)
             return
         self.mode = config["mode"]
+        self.local_fallback = bool(config["local_fallback"])
         if self.server_task is not None and self._preferred_port != config["port"]:
             await self.stop_all()
         await self._ensure_server(config["port"])
@@ -1162,25 +1282,50 @@ class Manager:
             return await check_public_url(base, client)
 
     async def _verify(self, publish: bool) -> None:
-        """Wait until the public address resolves (DoH 1.1.1.1 / 8.8.8.8) and
+        """Wait until the public address resolves (the system resolver) and
         /tgapp/healthz answers with our nonce, then publish it. A brand-new
         trycloudflare host often does not resolve yet on the phone's DNS:
         sending it to Telegram too early is what produced «server IP address
-        could not be found»."""
+        could not be found». In local mode the public check is skipped
+        entirely: the local listener works without any external DNS."""
+        if self.local_fallback:
+            self.verified, self.detail = False, ("Локальный режим: публичная проверка отключена — "
+                                                 "работает локальный адрес")
+            if publish:
+                self._set_state("online", "")
+            else:
+                self.write_status()
+            return
         base = self.url or ""
         deadline = time.monotonic() + VERIFY_TIMEOUT
         kind, detail = "http", ""
         while base and time.monotonic() < deadline:
+            if self.local_fallback:
+                self.verified, self.detail = False, ("Локальный режим: публичная проверка отключена — "
+                                                     "работает локальный адрес")
+                if publish:
+                    self._set_state("online", "")
+                else:
+                    self.write_status()
+                return
             try:
                 kind, detail = await self._probe(base)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
                 kind, detail = "http", type(exc).__name__
+            host = urllib.parse.urlsplit(base).hostname or ""
+            self._last_check = {"host": host, "kind": kind, "detail": detail,
+                                "checked_at": time.time(), "resolver": "system"}
             if self.url != base:
                 return
             if kind == "ok":
                 self.verified, self.detail = True, ""
+                self.last_working_url = base
+                try:
+                    remember_working_url(base)
+                except Exception:
+                    pass
                 if publish:
                     self._set_state("online", "")
                 else:
@@ -1197,13 +1342,14 @@ class Manager:
                 self.detail = "Проверка через интернет не прошла: " + detail
                 self.write_status()
             return
-        if kind == "dns":
-
-            self._set_state("error", "Адрес туннеля так и не появился в DNS — запрашиваю новый")
-            tunnel = self.tunnel
-            if tunnel is not None and not tunnel.named:
-                tunnel._terminate()
-            return
+        # Even "dns": the probe only says the fresh address is not visible
+        # from here yet (or DNS itself failed). Killing the tunnel on that
+        # restarts the same failure forever; the address is published anyway
+        # below and the tunnel is left alone.
+        # "unreachable"/"http"/"dns": nothing could be concluded about DNS, or the
+        # check failed for another network reason. The address is published
+        # anyway below (with the detail kept), and the tunnel is left alone:
+        # killing it on an inconclusive probe only restarts the same failure.
 
         self.verified = False
         self.detail = "Проверка через интернет не прошла (" + detail + ") — адрес всё равно отправлен в Telegram"
@@ -1312,18 +1458,71 @@ def webapp_enabled() -> bool:
     except Exception:
         return False
 
+def _status_diagnostics(status: Dict[str, Any], config: Dict[str, Any],
+                        local_url: str, manager: Optional["Manager"] = None) -> Dict[str, Any]:
+    """What the settings card shows when the public address cannot be
+    verified: which host, which error, and the local fallback. Never raises."""
+    if manager is not None:
+        return manager._diagnostics(local_url)
+    base = str(status.get("base") or status.get("url") or "")
+    host = urllib.parse.urlsplit(base).hostname or ""
+    detail = status.get("diagnostics") if isinstance(status.get("diagnostics"), dict) else {}
+    return {"host": detail.get("host") or host,
+            "error": detail.get("error") or status.get("detail") or status.get("error") or "",
+            "kind": detail.get("kind") or "",
+            "resolver": "system", "checked_at": detail.get("checked_at") or 0,
+            "local_url": local_url,
+            "last_working_url": detail.get("last_working_url") or str(config.get("last_working_url") or ""),
+            "last_working_at": int(config.get("last_working_at") or 0),
+            "local_fallback": bool(config.get("local_fallback"))}
+
 def desktop_status() -> Dict[str, Any]:
-    """Everything the settings card in the desktop window shows."""
-    config = load_config()
-    prefs = _preferences()
-    status = read_status()
+    """Everything the settings card in the desktop window shows.
+
+    One unreachable network must never take the whole card down: every
+    piece is read defensively, and the local address and the diagnostics
+    are always present, even when the Proxy status file is stale."""
+    try:
+        config = load_config()
+    except Exception:
+        config = dict(DEFAULT_CONFIG)
+    try:
+        prefs = _preferences()
+    except Exception:
+        prefs = {}
+    try:
+        status = read_status()
+    except Exception:
+        status = {"state": "proxy_offline", "error": "", "url": None, "port": 0,
+                  "mode": config.get("mode", "cloudflare"), "download": {"done": 0, "total": 0}}
+    if not isinstance(status, dict):
+        status = {"state": "proxy_offline", "error": "", "url": None, "port": 0,
+                  "mode": config.get("mode", "cloudflare"), "download": {"done": 0, "total": 0}}
     problems = []
-    if not bot_token(prefs):
+    try:
+        if not bot_token(prefs):
+            problems.append("no_token")
+        if not authorized_user_ids(prefs):
+            problems.append("no_user")
+    except Exception:
         problems.append("no_token")
-    if not authorized_user_ids(prefs):
-        problems.append("no_user")
-    if not (STATIC_DIR / "index.html").is_file():
+    try:
+        if not (STATIC_DIR / "index.html").is_file():
+            problems.append("no_static")
+    except Exception:
         problems.append("no_static")
-    return {"config": public_config(config), "status": status, "problems": problems,
-            "cloudflared": bool(find_cloudflared()), "windows": os.name == "nt",
-            "local_url": f"http://127.0.0.1:{status.get('port') or config['port']}{ENTRY_PATH}"}
+    try:
+        cloudflared = bool(find_cloudflared())
+    except Exception:
+        cloudflared = False
+    local_url = f"http://127.0.0.1:{status.get('port') or config.get('port') or DEFAULT_PORT}{ENTRY_PATH}"
+    try:
+        public = public_config(config)
+    except Exception:
+        public = {key: value for key, value in config.items() if key not in ("secret", "named_token")}
+    if "diagnostics" not in status or not isinstance(status.get("diagnostics"), dict):
+        status = {**status, "diagnostics": _status_diagnostics(status, config, local_url, _MANAGER)}
+    return {"config": public, "status": status, "problems": problems,
+            "cloudflared": cloudflared, "windows": os.name == "nt",
+            "local_url": local_url,
+            "diagnostics": status["diagnostics"]}

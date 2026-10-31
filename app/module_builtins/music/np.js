@@ -20,7 +20,7 @@ const NP = (() => {
 
   function flip() {
     const from = $("#bar-img"), target = $("#np-art .mm-np-cover");
-    if (!from || !from.getAttribute("src") || Theme.ui.motion !== "full" || Theme.ui.npStyle === "full" || root.hasAttribute("data-calm") || Fx.reduce.matches || !el.animate) return false;
+    if (!from || !from.getAttribute("src") || Theme.ui.motion !== "full" || Theme.ui.npStyle === "full" || Theme.ui.npStyle === "karaoke" || root.hasAttribute("data-calm") || Fx.reduce.matches || !el.animate) return false;
     const a = from.getBoundingClientRect(), b = target.getBoundingClientRect();
     if (a.width < 8 || b.width < 8) return false;
     const ghost = document.createElement("img");
@@ -70,19 +70,20 @@ const NP = (() => {
 
   function restyle() {
     const ui = Theme.ui;
+    if (ui.npStyle === "karaoke" && tab !== "lyrics") setTab("lyrics");
     el.dataset.style = ui.npStyle; el.dataset.bg = ui.bg;
     const light = ui.npTheme === "auto" && Theme.scheme() === "light";
     if (light !== el.hasAttribute("data-light")) { el.toggleAttribute("data-light", light); Theme.appbar(); if (bg) setColors(paletteFor(Player.current() || { id: "memu" }).map((c, i) => getComputedStyle(root).getPropertyValue(["--tint", "--tint-2", "--tint-3"][i]).trim() || c)); }
     $$("#np-style [data-style]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.style === ui.npStyle)));
     if (!bg || !isOpen()) return;
-    ui.bg === "gradient" && ui.npStyle !== "full" ? bg.start() : bg.stop();
+    ui.bg === "gradient" && ui.npStyle !== "full" && ui.npStyle !== "karaoke" ? bg.start() : bg.stop();
     applyCalm();
     setTimeout(() => { if (isOpen() && viz) { viz.resize(); positionLyrics(); } }, 380);
   }
   function applyCalm() {
     if (!viz || !isOpen()) return;
     const mode = Theme.ui.viz, style = Theme.ui.npStyle;
-    const on = mode !== "off" && style !== "minimal" && style !== "full" && !root.hasAttribute("data-calm") && !Fx.reduce.matches;
+    const on = mode !== "off" && style !== "minimal" && style !== "full" && style !== "karaoke" && !root.hasAttribute("data-calm") && !Fx.reduce.matches;
     $("#np-viz-toggle").setAttribute("aria-pressed", String(mode !== "off"));
     viz.setMode(mode);
     on ? viz.start() : viz.stop();
@@ -97,7 +98,12 @@ const NP = (() => {
   function onState() { applyCalm(); lyricLoop(); }
   function onTrack(tr, force) {
     if (!tr || !lyrics || lyrics.id !== tr.id) { editing = false; ++lyricToken; }
-    if (!tr) { $("#np-title").textContent = t("player.idle"); $("#np-artist").textContent = t("player.idle_hint"); return; }
+    if (!tr) {
+      $("#np-title").textContent = t("player.idle"); $("#np-artist").textContent = t("player.idle_hint");
+      [$("#np-img"), $("#np-label"), $("#np-blur"), $("#np-backdrop")].forEach((img) => { if (img) img.removeAttribute("src"); });
+      if (bg) setColors(Theme.accents());
+      return;
+    }
     if (el.hidden && !force) { lyrics = null; lyricIdx = -2; return; }
     const fb = coverArt(tr.id, "", tr.title);
     [$("#np-img"), $("#np-label"), $("#np-blur"), $("#np-backdrop")].forEach((img) => { img.dataset.fb = fb; img.src = tr.cover || fb; });

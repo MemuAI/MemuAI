@@ -247,7 +247,10 @@
 @keyframes msx-pop { from { opacity: 0; transform: translateY(-4px); } }
 .msx-filters-pop { top: 116px; right: 12px; }
 .msx-menu-pop { bottom: 44px; right: 8px; width: min(340px, calc(100% - 24px)); gap: 4px; }
-.msx-more-pop { width: 220px; padding: 6px; gap: 0; max-height: min(360px, calc(100% - 140px)); overflow-y: auto; }
+.msx-more-pop { width: 220px; padding: 6px; gap: 0; max-height: min(360px, calc(100% - 140px)); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent; overscroll-behavior: contain; }
+.msx-more-pop::-webkit-scrollbar { width: 8px; }
+.msx-more-pop::-webkit-scrollbar-track { margin: 10px 0; background: transparent; }
+.msx-more-pop::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .msx-menu-keys { display: grid; gap: 6px; padding: 8px 8px 2px; margin-top: 4px; border-top: 1px solid var(--msx-line-soft); color: var(--muted); font-size: 11.5px; }
 .msx-menu-keys span { white-space: normal; }
 .msx-pop-head { display: flex; align-items: center; justify-content: space-between; }

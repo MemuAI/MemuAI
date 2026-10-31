@@ -243,10 +243,10 @@ class PanelsBrowserTest(unittest.TestCase):
         self.assertNotIn("p_alltypes01", html)
         self.assertEqual(html.count('data-panel-pin="'), 3)
         skill = page.evaluate("MEMUAI_SKILL_LIBRARY.skills.find(s => s.id === 'memuai_panels')")
-        self.assertTrue(skill["inline"])
-        block = page.evaluate("MemuPanels.systemBlock('chat')")
-        self.assertIn("panel_create", block)
-        self.assertIn("p_weather001 — Погода", block)
+        # 4.2: panels are a lazy skill, not an always-on system block. The catalog
+        # entry stays, the full prompt loads only through memuai-skill.
+        self.assertFalse(skill["inline"])
+        self.assertEqual(page.evaluate("MemuPanels.systemBlock('chat')"), "")
         self.assertEqual(page.evaluate("MemuPanels.systemBlock('code')"), "")
         summary = page.evaluate("MemuPanels.summary('panel_create', { panel: { id: 'p_abc123456', title: 'X', status: 'building' } })")
         self.assertRegex(summary, r"#p_abc123456$")

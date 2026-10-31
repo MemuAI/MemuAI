@@ -201,7 +201,7 @@ def _family(identity):
 
 _DATA_IDENTITY = ("url", "format", "items_path", "id_keys", "marker", "require_field",
                   "discover", "pagination", "select", "value_keys")
-_RUNTIME_KEYS = ("baseline", "seen", "last_success", "count", "families_available")
+_RUNTIME_KEYS = ("baseline", "seen", "baseline_families", "last_success", "count", "families_available")
 
 _SEEN_LIMIT = 30000
 
@@ -257,7 +257,7 @@ async def read_source(source):
         else:
             raise ValueError("Неизвестный шаг источника / Unknown source discovery step")
     result = {}
-    for _ in range(30):
+    for page in range(30):
         while True:
             try:
                 raw, _, _ = await public_request(url, headers=_headers(source) if source.get("api_key") else None)
@@ -268,21 +268,60 @@ async def read_source(source):
                     raise
                 url = candidates.pop(0)
         text = raw.decode("utf-8", errors="replace")
-        result.update(extract(text, source))
+        try:
+            result.update(extract(text, source))
+        except ValueError as exc:
+            # A later page that lists nothing ends the walk; the first page
+            # must still fail loudly, as before.
+            if page and result and str(exc) in ("Источник не вернул список / Source returned no records",
+                                                "Не удалось прочитать записи / Could not extract records"):
+                return result
+            raise
+        try:
+            obj = json.loads(text)
+        except ValueError:
+            obj = None
         paging = source.get("pagination")
-        if not paging:
+        if paging and isinstance(obj, dict):
+            token = field(obj, paging.get("token_path"))
+            if paging.get("more_path") and not field(obj, paging["more_path"]):
+                return result
+            if not token:
+                return result
+            parsed = urlsplit(url)
+            query = dict(parse_qsl(parsed.query))
+            query[paging.get("parameter", "pageToken")] = str(token)
+            url = urlunsplit((*parsed[:3], urlencode(query), parsed.fragment))
+            continue
+        # Link-style pagination (OpenRouter ``links.next`` / ``next``):
+        # follow only a same-origin link, and only while the catalogue says
+        # there is more. Without a spec of its own the source used to stop
+        # after the first page and the catalogue froze at that page.
+        next_url = _next_link(obj, url) if isinstance(obj, dict) else ""
+        if not next_url:
             return result
-        obj = json.loads(text)
-        token = field(obj, paging.get("token_path"))
-        if paging.get("more_path") and not field(obj, paging["more_path"]):
-            return result
-        if not token:
-            return result
-        parsed = urlsplit(source["url"])
-        query = dict(parse_qsl(parsed.query))
-        query[paging.get("parameter", "pageToken")] = str(token)
-        url = urlunsplit((*parsed[:3], urlencode(query), parsed.fragment))
+        url = next_url
     raise ValueError("Слишком много страниц API / API pagination limit exceeded")
+
+
+def _next_link(obj: dict, current_url: str) -> str:
+    """The next page of a link-paginated catalogue, or "".
+
+    ``links: {next: <url|null>}`` (OpenRouter, with ``total_count``) or a
+    top-level ``next``. Only a same-origin link is followed: a catalogue
+    must not redirect the monitor to another host mid-walk.
+    """
+    links = obj.get("links")
+    candidate = links.get("next") if isinstance(links, dict) else obj.get("next")
+    if not isinstance(candidate, str) or not candidate.strip():
+        return ""
+    target = urljoin(current_url, candidate.strip())
+    current, wanted = urlsplit(current_url), urlsplit(target)
+    if wanted.scheme != current.scheme or wanted.netloc.lower() != current.netloc.lower():
+        return ""
+    if target == current_url:
+        return ""
+    return target
 
 def _public(job):
     copy = json.loads(json.dumps(job))
@@ -291,6 +330,7 @@ def _public(job):
         source.pop("lease", None)
         source.pop("seen", None)
         source.pop("baseline", None)
+        source.pop("baseline_families", None)
     return copy
 
 def status(module_id):
@@ -433,9 +473,19 @@ async def scan(module_id, *, force=False):
             families = set(source.get("families", []))
             visible = {key: value for key, value in records.items() if not families or value["family"] in families}
             baseline, seen = source.get("baseline"), set(source.get("seen", []))
+            # A model that vanished from one successful read (a partial page, a
+            # source hiccup) and returns in the next must be reported again:
+            # ``seen`` keeps vanished ids on purpose, and the baseline was
+            # already overwritten with the partial set, so the ``seen`` gate
+            # alone would swallow it forever. The baseline check applies
+            # only under the same family filter: narrowing the filter and
+            # widening it again must not re-report models already known.
+            same_filter = source.get("baseline_families") is None or sorted(source.get("baseline_families") or []) == sorted(families)
+            ordered = sorted(visible.items(),
+                             key=lambda item: -((item[1].get("spec") or {}).get("created") or 0))
             if baseline is not None:
-                for key, value in visible.items():
-                    if key not in seen:
+                for key, value in ordered:
+                    if key not in seen or (same_filter and key not in baseline):
                         messages.append("+ " + value["name"] + " · " + key)
                         new_models.append(value)
                     elif job.get("mode") == "changes" and key in baseline and baseline[key] != value["values"]:
@@ -447,7 +497,8 @@ async def scan(module_id, *, force=False):
 
                     messages.extend("− " + key for key in baseline if key not in records)
             updates = {"baseline": {key: value["values"] for key, value in visible.items()},
-                       "seen": _remember_seen(seen, records), "count": len(visible),
+                       "baseline_families": sorted(families),
+                       "seen": _remember_seen(seen, visible), "count": len(visible),
                        "families_available": sorted({value["family"] for value in records.values() if value["family"]}),
                        "last_success": time.time(), "error": ""}
         except asyncio.CancelledError:
@@ -480,8 +531,26 @@ async def scan(module_id, *, force=False):
         _mutate(commit)
         if committed and messages:
             title = row.get("title", module_id) + " · " + source["title"]
-            args = {"models": new_models} if module_id == "api-models" else {}
-            await notify(module_id, title, "\n".join(messages[:50]) + (f"\n+{len(messages)-50}" if len(messages) > 50 else ""), job.get("telegram", True), **args)
+            telegram = job.get("telegram", True)
+            if len(messages) <= 50:
+                args = {"models": new_models} if module_id == "api-models" else {}
+                await notify(module_id, title, "\n".join(messages), telegram, **args)
+            else:
+                # More than one notification worth of news: split into chunks
+                # of 50 so nothing is silently dropped (notify() caps models
+                # at 50 and the old code truncated the text with a "+N" line).
+                # New-model lines start with "+ "; change/removal lines do not.
+                new_lines = [line for line in messages if line.startswith("+ ")]
+                other = [line for line in messages if not line.startswith("+ ")]
+                for start in range(0, max(1, len(new_models)), 50):
+                    chunk_models = new_models[start:start + 50]
+                    chunk_lines = new_lines[start:start + 50]
+                    if start == 0:
+                        chunk_lines = other + chunk_lines
+                    if not chunk_lines and not chunk_models:
+                        continue
+                    args = {"models": chunk_models} if module_id == "api-models" and chunk_models else {}
+                    await notify(module_id, title, "\n".join(chunk_lines), telegram, **args)
     return status(module_id)
 
 def _acknowledged(data):

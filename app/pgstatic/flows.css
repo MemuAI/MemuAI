@@ -99,8 +99,8 @@
 .flw-prob.warn { color: color-mix(in srgb, #b77910 70%, var(--text)); background: color-mix(in srgb, #d9962c 12%, transparent); }
 .flw-adv { border-top: 1px dashed var(--border); padding-top: 8px; }
 .flw-adv > summary { cursor: pointer; font-size: 12px; color: var(--muted); list-style: none; display: inline-flex; gap: 6px; align-items: center; }
-.flw-adv > summary::before { content: "▸"; font-size: 10px; transition: transform .15s; }
-.flw-adv[open] > summary::before { transform: rotate(90deg); }
+.flw-adv > summary::before { content: ""; flex: none; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: none; }
+.flw-adv[open] > summary::before { transform: rotate(45deg); }
 .flw-adv[open] > .flw-inline { margin: 8px 0; }
 .flw-askf { display: flex; flex-direction: column; gap: 6px; }
 .flw-askf-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
@@ -120,7 +120,11 @@
 .flw-branch .flw-add { padding: 6px; font-size: 12px; }
 .flw-add.empty span { opacity: .9; }
 .flw-menu, .flw-ac { position: fixed; z-index: 10050; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 14px;
-  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .35); overflow: auto; }
+  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .35); overflow: auto; max-height: calc(100vh - 24px);
+  scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent; overscroll-behavior: contain; }
+.flw-menu::-webkit-scrollbar, .flw-ac::-webkit-scrollbar { width: 8px; height: 8px; }
+.flw-menu::-webkit-scrollbar-track, .flw-ac::-webkit-scrollbar-track { margin: 12px 0; background: transparent; }
+.flw-menu::-webkit-scrollbar-thumb, .flw-ac::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .flw-menu { padding: 8px; display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 0 8px; align-items: start; animation: flw-in .14s ease; }
 .flw-menu-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .flw-menu-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

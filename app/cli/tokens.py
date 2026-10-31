@@ -136,6 +136,43 @@ def estimate_message(message: Dict[str, Any]) -> int:
 def estimate_messages(messages: Iterable[Dict[str, Any]]) -> int:
     return sum(estimate_message(message) for message in messages)
 
+def fit_messages(messages: Iterable[Dict[str, Any]], budget: int, *,
+                 system_tokens: int = 0, reserve_tokens: int = 0) -> Dict[str, Any]:
+    """Keep a message list inside ``budget`` tokens, by priority, in one pass.
+
+    Priority: ``system`` messages first (never dropped silently), then the
+    newest exchanges verbatim. Messages that do not fit in the middle are
+    dropped and counted in ``dropped`` / ``omitted_tokens``. On healthy data
+    the list comes back unchanged with ``dropped == 0``.
+    """
+    rows = list(messages)
+    available = max(0, int(budget) - max(0, int(system_tokens)) - max(0, int(reserve_tokens)))
+    costs = [estimate_message(message) for message in rows]
+    total = sum(costs)
+    if total <= available:
+        return {"messages": rows, "dropped": 0, "omitted_tokens": 0,
+                "kept_tokens": total, "truncated": False}
+    keep: List[bool] = [False] * len(rows)
+    kept = 0
+    for index, message in enumerate(rows):
+        if message.get("role") == "system":
+            keep[index] = True
+            kept += costs[index]
+    if kept > available:
+        kept_rows = [row for row, flag in zip(rows, keep) if flag]
+        return {"messages": kept_rows, "dropped": len(rows) - len(kept_rows),
+                "omitted_tokens": total - kept, "kept_tokens": kept, "truncated": True}
+    for index in range(len(rows) - 1, -1, -1):
+        if keep[index]:
+            continue
+        if kept + costs[index] <= available:
+            keep[index] = True
+            kept += costs[index]
+    kept_rows = [row for row, flag in zip(rows, keep) if flag]
+    dropped = len(rows) - len(kept_rows)
+    return {"messages": kept_rows, "dropped": dropped, "omitted_tokens": total - kept,
+            "kept_tokens": kept, "truncated": dropped > 0}
+
 def compact_number(value: float) -> str:
     """1234 → 1.2k, 1_500_000 → 1.5M."""
     value = float(value or 0)
