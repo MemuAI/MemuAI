@@ -50,6 +50,15 @@ table unless asked, and never mention "the code block" or "the JSON".
     if (m === "off") return "";
     return PROMPT_CORE.replace("{AUTO}", m === "ask" ? ASK_RULE : AUTO_RULE);
   }
+  function promptBrief(forceMode) {
+    const m = forceMode || mode();
+    if (m === "off") return "";
+    const when = m === "ask"
+      ? "Draw one only after the user agrees; otherwise finish with one short offer."
+      : "Draw one only when the user asks for it, or when real numeric series (about 4+ points, or several series to compare) or a process with many branches reads clearly better as a graphic than as words.";
+    return "Prefer a compact ```memuai-chart JSON block (line, bar, hbar, area, pie, donut, scatter, radar or combo: type, title, labels, series with name and data, optional y title and unit) or a short Mermaid fence (flowchart, sequenceDiagram, mindmap, erDiagram, gantt, timeline, classDiagram, stateDiagram-v2, journey, quadrantChart) over memuai-visual for static charts and schemes. " +
+      when + " At most one per answer, valid syntax with short ASCII node ids and quoted labels, under 40 nodes, no click or init styling. Never invent data to justify a chart; write a short explanation with the key takeaway around the block.";
+  }
 
   function resolveColor(value, fallback) {
     try {
@@ -1253,7 +1262,7 @@ table unless asked, and never mention "the code block" or "the JSON".
 
   window.MemuDiagrams = Object.freeze({
     VERSION, PALETTES: Object.keys(PALETTES), LOOKS: Object.keys(LOOKS), TYPES: TYPES.slice(),
-    prompt, mode, block, placeholder, pending, maskPending, stripForText, hydrate, refresh,
+    prompt, promptBrief, mode, block, placeholder, pending, maskPending, stripForText, hydrate, refresh,
     parseSpec, normalizeSpec, renderChart, renderMermaid, repairMermaid, loadMermaid, toSVG, toPNG, toCSV, exportScene,
     openStudio, openFull, settingsHtml, bindSettings, niceTicks, fmtNum,
   });

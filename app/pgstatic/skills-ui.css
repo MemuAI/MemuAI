@@ -307,7 +307,10 @@
 .sk-table th, .sk-table td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
 .sk-table th { background: var(--panel-2); font-weight: 620; }
 .sk-files { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
-.sk-file-list { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--border); border-radius: 12px; max-height: 460px; overflow-y: auto; }
+.sk-file-list { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--border); border-radius: 12px; max-height: 460px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent; overscroll-behavior: contain; }
+.sk-file-list::-webkit-scrollbar { width: 8px; }
+.sk-file-list::-webkit-scrollbar-track { margin: 10px 0; background: transparent; }
+.sk-file-list::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .sk-panel .sk-file-list button {
   width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent;
   color: var(--text); font: 12.5px/1.2 var(--sans); text-align: left; cursor: pointer;

@@ -42,81 +42,1129 @@
   "bridge": {},
   "contributes": {
     "panels": [
-      {"id": "now-playing", "title": "Сейчас играет", "title_en": "Now playing", "icon": "music", "size": "m", "height": 200,
-       "summary": "Обложка, трек и управление — пауза, назад, дальше", "summary_en": "Cover, track and controls — pause, previous, next",
-       "entry": "integration/panel.html", "scripts": ["integration/panels.js"], "styles": ["integration/panels.css"]},
-      {"id": "playlist", "title": "Плейлист", "title_en": "Playlist", "icon": "music", "size": "m", "height": 262,
-       "summary": "Выберите плейлист — обложки, треки и запуск в один клик", "summary_en": "Pick a playlist — covers, tracks and one-click play",
-       "entry": "integration/panel.html", "scripts": ["integration/panels.js"], "styles": ["integration/panels.css"]},
-      {"id": "stats", "title": "Статистика прослушиваний", "title_en": "Listening stats", "icon": "chart", "size": "m", "height": 230,
-       "summary": "Часы музыки, прослушивания по дням, любимые исполнители", "summary_en": "Hours played, plays by day, top artists",
-       "entry": "integration/panel.html", "scripts": ["integration/panels.js"], "styles": ["integration/panels.css"]}
+      {
+        "id": "now-playing",
+        "title": "Сейчас играет",
+        "title_en": "Now playing",
+        "icon": "music",
+        "size": "m",
+        "height": 200,
+        "summary": "Обложка, трек и управление — пауза, назад, дальше",
+        "summary_en": "Cover, track and controls — pause, previous, next",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      },
+      {
+        "id": "playlist",
+        "title": "Плейлист",
+        "title_en": "Playlist",
+        "icon": "music",
+        "size": "m",
+        "height": 262,
+        "summary": "Выберите плейлист — обложки, треки и запуск в один клик",
+        "summary_en": "Pick a playlist — covers, tracks and one-click play",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      },
+      {
+        "id": "stats",
+        "title": "Статистика прослушиваний",
+        "title_en": "Listening stats",
+        "icon": "chart",
+        "size": "m",
+        "height": 230,
+        "summary": "Часы музыки, прослушивания по дням, любимые исполнители",
+        "summary_en": "Hours played, plays by day, top artists",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      }
     ],
     "commands": [
-      {"id": "play", "title": "Включить трек", "title_en": "Play a track", "run": {"handler": "music.play"},
-       "description": "Найти трек или исполнителя в библиотеке MemuMusic и включить (без запроса — продолжить)",
-       "description_en": "Find a track or artist in the MemuMusic library and play it (no query — resume)",
-       "args": {"type": "object", "properties": {"query": {"type": "string", "description": "track / artist / album"}}},
-       "phrases": ["включи трек {query}", "включи песню {query}", "поставь трек {query}", "поставь песню {query}", "включи музыку {query}"],
-       "phrases_en": ["play the track {query}", "play the song {query}", "play some {query}"]},
-      {"id": "playlist", "title": "Включить плейлист", "title_en": "Play a playlist", "run": {"handler": "music.playlist"},
-       "description": "Включить плейлист MemuMusic по названию; без названия — список плейлистов",
-       "description_en": "Play a MemuMusic playlist by name; without a name — list the playlists",
-       "args": {"type": "object", "properties": {"name": {"type": "string"}, "shuffle": {"type": "boolean"}}},
-       "phrases": ["включи плейлист {name}", "поставь плейлист {name}"], "phrases_en": ["play the playlist {name}", "play playlist {name}"]},
-      {"id": "pause", "title": "Пауза", "title_en": "Pause", "run": {"handler": "music.pause"},
-       "description": "Поставить музыку на паузу", "description_en": "Pause the music",
-       "phrases": ["пауза музыки", "поставь музыку на паузу", "останови музыку"], "phrases_en": ["pause the music", "stop the music"]},
-      {"id": "resume", "title": "Продолжить", "title_en": "Resume", "run": {"handler": "music.resume"},
-       "description": "Продолжить воспроизведение", "description_en": "Resume playback",
-       "phrases": ["продолжи музыку", "включи музыку"], "phrases_en": ["resume the music"]},
-      {"id": "next", "title": "Следующий трек", "title_en": "Next track", "run": {"handler": "music.next"},
-       "description": "Следующий трек", "description_en": "Next track",
-       "phrases": ["следующий трек", "следующая песня", "переключи трек"], "phrases_en": ["next track", "next song", "skip this song"]},
-      {"id": "prev", "title": "Предыдущий трек", "title_en": "Previous track", "run": {"handler": "music.prev"},
-       "description": "Предыдущий трек", "description_en": "Previous track",
-       "phrases": ["предыдущий трек", "предыдущая песня"], "phrases_en": ["previous track", "previous song"]},
-      {"id": "volume", "title": "Громкость музыки", "title_en": "Music volume", "run": {"handler": "music.volume"},
-       "description": "Громкость MemuMusic 0–100", "description_en": "MemuMusic volume 0–100",
-       "args": {"type": "object", "properties": {"level": {"type": "integer", "description": "0-100"}}, "required": ["level"]},
-       "phrases": ["громкость музыки {level}"], "phrases_en": ["music volume {level}"]},
-      {"id": "now", "title": "Что сейчас играет", "title_en": "What is playing", "run": {"handler": "music.now"},
-       "description": "Что сейчас играет в MemuMusic", "description_en": "What MemuMusic is playing now",
-       "phrases": ["что сейчас играет", "что играет", "что за песня"], "phrases_en": ["what is playing", "what song is this"]},
-      {"id": "download", "title": "Скачать по ссылке", "title_en": "Download by link", "run": {"handler": "music.download"},
-       "description": "Скачать трек/альбом/плейлист по ссылке в библиотеку MemuMusic",
-       "description_en": "Download a track/album/playlist by link into the MemuMusic library",
-       "args": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
-       "phrases": ["скачай {url}", "скачай трек {url}", "скачай музыку {url}"], "phrases_en": ["download {url}"]}
+      {
+        "id": "play",
+        "title": "Включить трек",
+        "title_en": "Play a track",
+        "run": {
+          "handler": "music.play"
+        },
+        "description": "Найти трек или исполнителя в библиотеке MemuMusic и включить (без запроса — продолжить)",
+        "description_en": "Find a track or artist in the MemuMusic library and play it (no query — resume)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "track / artist / album"
+            }
+          }
+        },
+        "phrases": [
+          "включи трек {query}",
+          "включи песню {query}",
+          "поставь трек {query}",
+          "поставь песню {query}",
+          "включи музыку {query}"
+        ],
+        "phrases_en": [
+          "play the track {query}",
+          "play the song {query}",
+          "play some {query}"
+        ]
+      },
+      {
+        "id": "playlist",
+        "title": "Включить плейлист",
+        "title_en": "Play a playlist",
+        "run": {
+          "handler": "music.playlist"
+        },
+        "description": "Включить плейлист MemuMusic по названию; без названия — список плейлистов",
+        "description_en": "Play a MemuMusic playlist by name; without a name — list the playlists",
+        "args": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "shuffle": {
+              "type": "boolean"
+            }
+          }
+        },
+        "phrases": [
+          "включи плейлист {name}",
+          "поставь плейлист {name}"
+        ],
+        "phrases_en": [
+          "play the playlist {name}",
+          "play playlist {name}"
+        ]
+      },
+      {
+        "id": "pause",
+        "title": "Пауза",
+        "title_en": "Pause",
+        "run": {
+          "handler": "music.pause"
+        },
+        "description": "Поставить музыку на паузу",
+        "description_en": "Pause the music",
+        "phrases": [
+          "пауза музыки",
+          "поставь музыку на паузу",
+          "останови музыку"
+        ],
+        "phrases_en": [
+          "pause the music",
+          "stop the music"
+        ]
+      },
+      {
+        "id": "resume",
+        "title": "Продолжить",
+        "title_en": "Resume",
+        "run": {
+          "handler": "music.resume"
+        },
+        "description": "Продолжить воспроизведение",
+        "description_en": "Resume playback",
+        "phrases": [
+          "продолжи музыку",
+          "включи музыку"
+        ],
+        "phrases_en": [
+          "resume the music"
+        ]
+      },
+      {
+        "id": "next",
+        "title": "Следующий трек",
+        "title_en": "Next track",
+        "run": {
+          "handler": "music.next"
+        },
+        "description": "Следующий трек",
+        "description_en": "Next track",
+        "phrases": [
+          "следующий трек",
+          "следующая песня",
+          "переключи трек"
+        ],
+        "phrases_en": [
+          "next track",
+          "next song",
+          "skip this song"
+        ]
+      },
+      {
+        "id": "prev",
+        "title": "Предыдущий трек",
+        "title_en": "Previous track",
+        "run": {
+          "handler": "music.prev"
+        },
+        "description": "Предыдущий трек",
+        "description_en": "Previous track",
+        "phrases": [
+          "предыдущий трек",
+          "предыдущая песня"
+        ],
+        "phrases_en": [
+          "previous track",
+          "previous song"
+        ]
+      },
+      {
+        "id": "volume",
+        "title": "Громкость музыки",
+        "title_en": "Music volume",
+        "run": {
+          "handler": "music.volume"
+        },
+        "description": "Громкость MemuMusic 0–100",
+        "description_en": "MemuMusic volume 0–100",
+        "args": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "integer",
+              "description": "0-100"
+            }
+          },
+          "required": [
+            "level"
+          ]
+        },
+        "phrases": [
+          "громкость музыки {level}"
+        ],
+        "phrases_en": [
+          "music volume {level}"
+        ]
+      },
+      {
+        "id": "now",
+        "title": "Что сейчас играет",
+        "title_en": "What is playing",
+        "run": {
+          "handler": "music.now"
+        },
+        "description": "Что сейчас играет в MemuMusic",
+        "description_en": "What MemuMusic is playing now",
+        "phrases": [
+          "что сейчас играет",
+          "что играет",
+          "что за песня"
+        ],
+        "phrases_en": [
+          "what is playing",
+          "what song is this"
+        ]
+      },
+      {
+        "id": "download",
+        "title": "Скачать по ссылке",
+        "title_en": "Download by link",
+        "run": {
+          "handler": "music.download"
+        },
+        "description": "Скачать трек/альбом/плейлист по ссылке в библиотеку MemuMusic",
+        "description_en": "Download a track/album/playlist by link into the MemuMusic library",
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        },
+        "phrases": [
+          "скачай {url}",
+          "скачай трек {url}",
+          "скачай музыку {url}"
+        ],
+        "phrases_en": [
+          "download {url}"
+        ]
+      },
+      {
+        "id": "search",
+        "title": "Найти в библиотеке",
+        "title_en": "Search the library",
+        "run": {
+          "handler": "music.search"
+        },
+        "description": "Найти треки в библиотеке MemuMusic по названию, исполнителю или альбому",
+        "description_en": "Find tracks in the MemuMusic library by title, artist or album",
+        "args": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "track / artist / album"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "1-20"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "phrases": [
+          "найди трек {query}",
+          "найди в музыке {query}",
+          "поищи трек {query}"
+        ],
+        "phrases_en": [
+          "find the track {query}",
+          "search music for {query}"
+        ]
+      },
+      {
+        "id": "radio",
+        "title": "Радио по треку",
+        "title_en": "Radio from a track",
+        "run": {
+          "handler": "music.radio"
+        },
+        "description": "Включить похожие треки из библиотеки, начиная с указанного трека (без трека — с текущего)",
+        "description_en": "Play similar tracks from the library, starting with the given track (no track — the current one)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "track / artist"
+            },
+            "track_id": {
+              "type": "string"
+            }
+          }
+        },
+        "phrases": [
+          "включи радио по треку {query}",
+          "радио {query}",
+          "включи радио"
+        ],
+        "phrases_en": [
+          "play radio based on {query}",
+          "radio {query}",
+          "play radio"
+        ]
+      },
+      {
+        "id": "like",
+        "title": "Лайк треку",
+        "title_en": "Like a track",
+        "run": {
+          "handler": "music.like"
+        },
+        "description": "Поставить или убрать лайк треку (без трека — текущему)",
+        "description_en": "Like or unlike a track (no track — the current one)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "track_id": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "liked": {
+              "type": "boolean"
+            }
+          }
+        },
+        "phrases": [
+          "поставь лайк {query}",
+          "лайкни трек {query}",
+          "поставь лайк"
+        ],
+        "phrases_en": [
+          "like the track {query}",
+          "like this track"
+        ]
+      },
+      {
+        "id": "delete_track",
+        "title": "Удалить трек",
+        "title_en": "Delete a track",
+        "run": {
+          "handler": "music.delete_track"
+        },
+        "danger": true,
+        "description": "Удалить трек из библиотеки по точному id; по названию — только показать кандидатов. Файл удаляется только с явным флагом",
+        "description_en": "Delete a track from the library by exact id; by name — only list candidates. The file is removed only with an explicit flag",
+        "args": {
+          "type": "object",
+          "properties": {
+            "track_id": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "delete_file": {
+              "type": "boolean",
+              "description": "also delete the file"
+            }
+          }
+        },
+        "phrases": [
+          "удали трек {query}",
+          "удали из библиотеки {query}"
+        ],
+        "phrases_en": [
+          "delete the track {query}",
+          "remove the track {query}"
+        ]
+      },
+      {
+        "id": "seek",
+        "title": "Перемотать",
+        "title_en": "Seek",
+        "run": {
+          "handler": "music.seek"
+        },
+        "description": "Перемотать текущий трек на позицию в секундах",
+        "description_en": "Seek the current track to a position in seconds",
+        "args": {
+          "type": "object",
+          "properties": {
+            "position": {
+              "type": "integer",
+              "description": "seconds"
+            }
+          },
+          "required": [
+            "position"
+          ]
+        },
+        "phrases": [
+          "перемотай на {position} секунд",
+          "перемотай к {position} секунде"
+        ],
+        "phrases_en": [
+          "seek to {position} seconds",
+          "skip to {position} seconds"
+        ]
+      },
+      {
+        "id": "shuffle",
+        "title": "Перемешивание",
+        "title_en": "Shuffle",
+        "run": {
+          "handler": "music.shuffle"
+        },
+        "description": "Включить, выключить или переключить перемешивание",
+        "description_en": "Turn shuffle on, off, or toggle it",
+        "args": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          }
+        },
+        "phrases": [
+          "включи перемешивание",
+          "выключи перемешивание",
+          "перемешивание"
+        ],
+        "phrases_en": [
+          "turn shuffle on",
+          "turn shuffle off",
+          "shuffle"
+        ]
+      },
+      {
+        "id": "repeat",
+        "title": "Повтор",
+        "title_en": "Repeat",
+        "run": {
+          "handler": "music.repeat"
+        },
+        "description": "Режим повтора: off — выключен, all — все треки, one — один трек",
+        "description_en": "Repeat mode: off, all tracks, or one track",
+        "args": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "off",
+                "all",
+                "one"
+              ]
+            }
+          },
+          "required": [
+            "mode"
+          ]
+        },
+        "phrases": [
+          "режим повтора {mode}",
+          "повтор {mode}"
+        ],
+        "phrases_en": [
+          "repeat mode {mode}"
+        ]
+      },
+      {
+        "id": "queue",
+        "title": "Очередь",
+        "title_en": "Queue",
+        "run": {
+          "handler": "music.queue"
+        },
+        "description": "Показать очередь или изменить её: добавить, убрать или переставить трек. Без действия: с треком — добавить, без трека — показать",
+        "description_en": "Show the queue or change it: add, remove or move a track. No action: with a track — add, without — show",
+        "args": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "show",
+                "add",
+                "remove",
+                "move"
+              ]
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "position": {
+              "type": "integer",
+              "description": "1-based position"
+            }
+          }
+        },
+        "phrases": [
+          "покажи очередь",
+          "добавь в очередь {query}",
+          "убери из очереди {query}",
+          "переставь в очереди {query} на {position} место"
+        ],
+        "phrases_en": [
+          "show the queue",
+          "add to the queue {query}",
+          "remove from the queue {query}"
+        ]
+      },
+      {
+        "id": "rename_track",
+        "title": "Переименовать трек",
+        "title_en": "Rename a track",
+        "run": {
+          "handler": "music.rename_track"
+        },
+        "description": "Изменить название, исполнителя или альбом трека по точному id (нужно хотя бы одно поле)",
+        "description_en": "Change a track's title, artist or album by exact id (at least one field is required)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "track_id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "artist": {
+              "type": "string"
+            },
+            "album": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "track_id"
+          ]
+        }
+      },
+      {
+        "id": "playlist_create",
+        "title": "Создать плейлист",
+        "title_en": "Create a playlist",
+        "run": {
+          "handler": "music.playlist_create"
+        },
+        "description": "Создать плейлист, при желании — сразу с треками по запросу",
+        "description_en": "Create a playlist, optionally with the tracks matching a query",
+        "args": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        "phrases": [
+          "создай плейлист {name}",
+          "сделай плейлист {name}"
+        ],
+        "phrases_en": [
+          "create the playlist {name}",
+          "make a playlist {name}"
+        ]
+      },
+      {
+        "id": "playlist_delete",
+        "title": "Удалить плейлист",
+        "title_en": "Delete a playlist",
+        "run": {
+          "handler": "music.playlist_delete"
+        },
+        "danger": true,
+        "description": "Удалить плейлист по точному id или точному названию; неточное название — только список кандидатов",
+        "description_en": "Delete a playlist by exact id or exact name; a fuzzy name only lists candidates",
+        "args": {
+          "type": "object",
+          "properties": {
+            "playlist_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
+        },
+        "phrases": [
+          "удали плейлист {name}"
+        ],
+        "phrases_en": [
+          "delete the playlist {name}"
+        ]
+      },
+      {
+        "id": "playlist_add",
+        "title": "Добавить трек в плейлист",
+        "title_en": "Add a track to a playlist",
+        "run": {
+          "handler": "music.playlist_add"
+        },
+        "description": "Добавить трек в плейлист (плейлист — по id или точному названию, трек — по id или названию)",
+        "description_en": "Add a track to a playlist (playlist by id or exact name, track by id or name)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "playlist_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            }
+          }
+        },
+        "phrases": [
+          "добавь трек {query} в плейлист {name}",
+          "добавь {query} в плейлист {name}"
+        ],
+        "phrases_en": [
+          "add the track {query} to the playlist {name}"
+        ]
+      },
+      {
+        "id": "playlist_remove",
+        "title": "Убрать трек из плейлиста",
+        "title_en": "Remove a track from a playlist",
+        "run": {
+          "handler": "music.playlist_remove"
+        },
+        "description": "Убрать трек из плейлиста (плейлист — по id или точному названию, трек — по id или названию)",
+        "description_en": "Remove a track from a playlist (playlist by id or exact name, track by id or name)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "playlist_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            }
+          }
+        },
+        "phrases": [
+          "убери трек {query} из плейлиста {name}",
+          "удали трек {query} из плейлиста {name}"
+        ],
+        "phrases_en": [
+          "remove the track {query} from the playlist {name}"
+        ]
+      },
+      {
+        "id": "playlist_reorder",
+        "title": "Переставить трек в плейлисте",
+        "title_en": "Move a track in a playlist",
+        "run": {
+          "handler": "music.playlist_reorder"
+        },
+        "description": "Переставить один трек в плейлисте на позицию (считая с 1; без позиции — в начало)",
+        "description_en": "Move one track in a playlist to a position (counting from 1; no position — to the top)",
+        "args": {
+          "type": "object",
+          "properties": {
+            "playlist_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "track_id": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "position": {
+              "type": "integer",
+              "description": "1-based position"
+            }
+          }
+        },
+        "phrases": [
+          "переставь трек {query} в плейлисте {name} на {position} место"
+        ],
+        "phrases_en": [
+          "move the track {query} in the playlist {name} to position {position}"
+        ]
+      },
+      {
+        "id": "settings",
+        "title": "Настройки MemuMusic",
+        "title_en": "MemuMusic settings",
+        "run": {
+          "handler": "music.settings"
+        },
+        "description": "Прочитать или изменить безопасную настройку MemuMusic (громкость, нормализация, кроссфейд, тексты и другие из белого списка). Без значения — прочитать",
+        "description_en": "Read or change a safe MemuMusic setting (volume, normalisation, crossfade, lyrics and other whitelisted ones). No value — read it",
+        "args": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "enum": [
+                "volume",
+                "normalize",
+                "normalize_target",
+                "crossfade",
+                "gapless",
+                "auto_radio",
+                "auto_lyrics",
+                "lyrics_sync",
+                "auto_analyze",
+                "resume_long",
+                "seek_step",
+                "play_click",
+                "show_genres",
+                "show_folders",
+                "show_history",
+                "artist_photos"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key"
+          ]
+        },
+        "phrases": [
+          "настройка музыки {key} {value}",
+          "покажи настройку музыки {key}"
+        ],
+        "phrases_en": [
+          "music setting {key} {value}",
+          "show the music setting {key}"
+        ]
+      },
+      {
+        "id": "toggle",
+        "title": "Пауза / продолжить",
+        "title_en": "Pause / resume toggle",
+        "run": {
+          "handler": "music.toggle"
+        },
+        "description": "Переключить воспроизведение: пауза или продолжить",
+        "description_en": "Toggle playback: pause or resume",
+        "phrases": [
+          "переключи музыку",
+          "пауза или играй"
+        ],
+        "phrases_en": [
+          "toggle the music",
+          "pause or play"
+        ]
+      },
+      {
+        "id": "stop",
+        "title": "Остановить",
+        "title_en": "Stop",
+        "run": {
+          "handler": "music.stop"
+        },
+        "description": "Полностью остановить воспроизведение",
+        "description_en": "Stop playback completely",
+        "phrases": [
+          "останови воспроизведение",
+          "стоп музыки"
+        ],
+        "phrases_en": [
+          "stop playback",
+          "stop the music"
+        ]
+      },
+      {
+        "id": "duplicates",
+        "title": "Дубликаты в библиотеке",
+        "title_en": "Duplicates in the library",
+        "run": {
+          "handler": "music.duplicates"
+        },
+        "description": "Показать группы одинаковых треков в библиотеке (по названию, исполнителю и длительности)",
+        "description_en": "Show groups of duplicate tracks in the library (by title, artist and duration)",
+        "phrases": [
+          "покажи дубликаты",
+          "найди дубликаты в музыке"
+        ],
+        "phrases_en": [
+          "show duplicates",
+          "find duplicate tracks"
+        ]
+      },
+      {
+        "id": "stats",
+        "title": "Статистика библиотеки",
+        "title_en": "Library statistics",
+        "run": {
+          "handler": "music.stats"
+        },
+        "description": "Сколько треков и исполнителей в библиотеке",
+        "description_en": "How many tracks and artists are in the library",
+        "phrases": [
+          "статистика музыки",
+          "сколько треков в библиотеке"
+        ],
+        "phrases_en": [
+          "music statistics",
+          "how many tracks in the library"
+        ]
+      }
     ],
     "skill": "integration/skill.md",
     "widgets": [
-      {"id": "dock", "slot": "main.dock", "kind": "dock", "source": "music.player",
-       "title": "Док-плеер в главном окне", "title_en": "Dock player in the main window",
-       "settings": [{"key": "mode", "type": "choice", "label": "Показывать", "label_en": "Show", "default": "always",
-                     "choices": [{"value": "always", "label": "Всегда", "label_en": "Always"},
-                                 {"value": "playing", "label": "Только когда играет", "label_en": "Only while playing"},
-                                 {"value": "off", "label": "Выключен", "label_en": "Off"}]}]},
-      {"id": "eq-ring", "slot": "quick.ring", "kind": "equalizer", "source": "music.player",
-       "title": "Эквалайзер вокруг Быстрого доступа", "title_en": "Equalizer around Quick Access",
-       "settings": [
-         {"key": "enabled", "type": "bool", "label": "Показывать, пока играет музыка", "label_en": "Show while music plays", "default": true},
-         {"key": "style", "type": "choice", "label": "Стиль", "label_en": "Style", "default": "bars",
-          "choices": [{"value": "bars", "label": "Столбики", "label_en": "Bars"}, {"value": "glow", "label": "Свечение", "label_en": "Glow"},
-                      {"value": "wave", "label": "Волна", "label_en": "Wave"}]},
-         {"key": "color", "type": "choice", "label": "Цвет", "label_en": "Colour", "default": "cover",
-          "choices": [{"value": "cover", "label": "Из обложки", "label_en": "From the cover"}, {"value": "accent", "label": "Акцент MemuAI", "label_en": "MemuAI accent"}]}
-       ]},
-      {"id": "quick-card", "slot": "quick.card", "kind": "nowplaying", "source": "music.player",
-       "title": "Карточка «Сейчас играет» в Быстром доступе", "title_en": "“Now playing” card in Quick Access",
-       "settings": [{"key": "enabled", "type": "bool", "label": "Показывать, пока играет музыка", "label_en": "Show while music plays", "default": true}]},
-      {"id": "chat-mini", "slot": "chat.composer", "kind": "miniplayer", "source": "music.player",
-       "title": "Мини-плеер над полем ввода чата", "title_en": "Mini player above the chat box",
-       "settings": [{"key": "enabled", "type": "bool", "label": "Показывать, пока играет музыка", "label_en": "Show while music plays", "default": false},
-                    {"key": "eq", "type": "bool", "label": "Живой эквалайзер", "label_en": "Live equalizer", "default": true}]},
-      {"id": "chat-cards", "slot": "chat.cards", "kind": "cards", "source": "music.player",
-       "title": "Карточки команд в чате", "title_en": "Command cards in the chat",
-       "settings": [{"key": "enabled", "type": "bool", "label": "Показывать карточку под ответом", "label_en": "Show the card under the answer", "default": true}]}
+      {
+        "id": "dock",
+        "slot": "main.dock",
+        "kind": "dock",
+        "source": "music.player",
+        "title": "Док-плеер в главном окне",
+        "title_en": "Dock player in the main window",
+        "settings": [
+          {
+            "key": "mode",
+            "type": "choice",
+            "label": "Показывать",
+            "label_en": "Show",
+            "default": "always",
+            "choices": [
+              {
+                "value": "always",
+                "label": "Всегда",
+                "label_en": "Always"
+              },
+              {
+                "value": "playing",
+                "label": "Только когда играет",
+                "label_en": "Only while playing"
+              },
+              {
+                "value": "off",
+                "label": "Выключен",
+                "label_en": "Off"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "eq-ring",
+        "slot": "quick.ring",
+        "kind": "equalizer",
+        "source": "music.player",
+        "title": "Эквалайзер вокруг Быстрого доступа",
+        "title_en": "Equalizer around Quick Access",
+        "settings": [
+          {
+            "key": "enabled",
+            "type": "bool",
+            "label": "Показывать, пока играет музыка",
+            "label_en": "Show while music plays",
+            "default": true
+          },
+          {
+            "key": "style",
+            "type": "choice",
+            "label": "Стиль",
+            "label_en": "Style",
+            "default": "bars",
+            "choices": [
+              {
+                "value": "bars",
+                "label": "Столбики",
+                "label_en": "Bars"
+              },
+              {
+                "value": "glow",
+                "label": "Свечение",
+                "label_en": "Glow"
+              },
+              {
+                "value": "wave",
+                "label": "Волна",
+                "label_en": "Wave"
+              }
+            ]
+          },
+          {
+            "key": "color",
+            "type": "choice",
+            "label": "Цвет",
+            "label_en": "Colour",
+            "default": "cover",
+            "choices": [
+              {
+                "value": "cover",
+                "label": "Из обложки",
+                "label_en": "From the cover"
+              },
+              {
+                "value": "accent",
+                "label": "Акцент MemuAI",
+                "label_en": "MemuAI accent"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "quick-card",
+        "slot": "quick.card",
+        "kind": "nowplaying",
+        "source": "music.player",
+        "title": "Карточка «Сейчас играет» в Быстром доступе",
+        "title_en": "“Now playing” card in Quick Access",
+        "settings": [
+          {
+            "key": "enabled",
+            "type": "bool",
+            "label": "Показывать, пока играет музыка",
+            "label_en": "Show while music plays",
+            "default": true
+          }
+        ]
+      },
+      {
+        "id": "chat-mini",
+        "slot": "chat.composer",
+        "kind": "miniplayer",
+        "source": "music.player",
+        "title": "Мини-плеер над полем ввода чата",
+        "title_en": "Mini player above the chat box",
+        "settings": [
+          {
+            "key": "enabled",
+            "type": "bool",
+            "label": "Показывать, пока играет музыка",
+            "label_en": "Show while music plays",
+            "default": false
+          },
+          {
+            "key": "eq",
+            "type": "bool",
+            "label": "Живой эквалайзер",
+            "label_en": "Live equalizer",
+            "default": true
+          }
+        ]
+      },
+      {
+        "id": "chat-cards",
+        "slot": "chat.cards",
+        "kind": "cards",
+        "source": "music.player",
+        "title": "Карточки команд в чате",
+        "title_en": "Command cards in the chat",
+        "settings": [
+          {
+            "key": "enabled",
+            "type": "bool",
+            "label": "Показывать карточку под ответом",
+            "label_en": "Show the card under the answer",
+            "default": true
+          }
+        ]
+      }
+    ],
+    "planning": [
+      {
+        "id": "playlist-growth",
+        "title": "Плейлисты выросли",
+        "title_en": "Playlists grew",
+        "description": "Напомнить сохранить копию плейлистов, когда в них добавится много треков.",
+        "description_en": "Remind to back up the playlists once many tracks have been added.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 25,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "В плейлисты добавлено уже много треков — сохраните или экспортируйте копию плейлистов, чтобы не потерять подборку.",
+          "text_en": "music"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Треков добавлено не меньше",
+            "label_en": "At least this many tracks added",
+            "default": 25,
+            "min": 5,
+            "max": 500
+          }
+        ]
+      },
+      {
+        "id": "duplicates-check",
+        "title": "Проверка дубликатов",
+        "title_en": "Duplicate check",
+        "description": "Раз в неделю напомнить проверить дубликаты треков в библиотеке.",
+        "description_en": "Remind once a week to check the library for duplicate tracks.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Проверьте дубликаты в библиотеке MemuMusic: модуль умеет находить одинаковые треки.",
+          "text_en": "music"
+        }
+      },
+      {
+        "id": "playlists-ten",
+        "title": "Десять плейлистов",
+        "title_en": "Ten playlists",
+        "description": "Сообщить, когда в MemuMusic появится десять плейлистов.",
+        "description_en": "Notify when MemuMusic has ten playlists.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 10,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "В MemuMusic уже десять плейлистов — проверьте названия и порядок, чтобы нужное находилось быстро.",
+          "text_en": "MemuMusic already has ten playlists — check the names and order so everything is easy to find."
+        }
+      },
+      {
+        "id": "playlists-fifty",
+        "title": "Пятьдесят плейлистов",
+        "title_en": "Fifty playlists",
+        "description": "Попросить модель предложить, как упорядочить пятьдесят плейлистов.",
+        "description_en": "Ask the model to suggest how to organise fifty playlists.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "items",
+          "threshold": 50,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Предложи, как упорядочить пятьдесят плейлистов: объединить похожие, переименовать и выделить главные. Коротко, списком.",
+          "prompt_en": "Suggest how to organise fifty playlists: merge similar ones, rename them, and highlight the main ones. Briefly, as a list."
+        }
+      },
+      {
+        "id": "daily-music-check",
+        "title": "Ежедневная проверка библиотеки",
+        "title_en": "Daily library check",
+        "description": "Каждый день напомнить заглянуть в библиотеку MemuMusic.",
+        "description_en": "Remind every day to look into the MemuMusic library.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Загляните в библиотеку MemuMusic: новые треки, тексты песен и плейлисты, которые стоит привести в порядок.",
+          "text_en": "Look into the MemuMusic library: new tracks, lyrics, and playlists worth tidying up."
+        }
+      },
+      {
+        "id": "three-day-library",
+        "title": "Обзор библиотеки за три дня",
+        "title_en": "Three-day library review",
+        "description": "Раз в три дня попросить модель подвести итог пополнений библиотеки.",
+        "description_en": "Every three days, ask the model to sum up the library additions.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Подведи итог пополнений библиотеки за три дня и предложи, какие плейлисты обновить или создать. Коротко, списком.",
+          "prompt_en": "Sum up the library additions of the last three days and suggest which playlists to update or create. Briefly, as a list."
+        }
+      }
     ]
   }
 }

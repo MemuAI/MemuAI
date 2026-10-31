@@ -20,26 +20,17 @@ const MemuMedia = (() => {
     if (!image && !video) {
       return "<media_generation>MemuAI has no image or video generation model configured right now. Never claim that you created, "
         + "drew or attached a picture or video. If the user asks for one, say briefly that a generation model can be chosen in "
-        + "Settings → Models (Images, video and decisions) and help with a text answer meanwhile.</media_generation>";
+        + "Settings \u2192 Models (Images, video and decisions) and help with a text answer meanwhile.</media_generation>";
     }
     const kinds = [image ? "images" : "", video ? "video" : ""].filter(Boolean).join(" and ");
     const blocks = [image ? "```memuai-image" : "", video ? "```memuai-video" : ""].filter(Boolean).join(" or ");
-    let text = `<media_generation>MemuAI can generate ${kinds} for this chat. When the user's message genuinely asks for a NEW `
-      + `${image && video ? "picture or video" : image ? "picture" : "video"} (draw, generate, create, show what something looks like`
-      + `${video ? ", animate, make a clip" : ""}), write one short sentence in the user's language about what you are creating `
-      + `and append one hidden ${blocks} block containing JSON {"prompt": "..."}. MemuAI generates it and shows it under your message.\n`
-      + "The prompt: one self-contained paragraph in English that keeps everything the user specified (subject, details, style, "
-      + "mood, format, text to render — quoted, in the user's language) and resolves references to the conversation. "
-      + "Describe what is needed concretely; no generic quality words (8k, masterpiece, ultra detailed).\n"
-      + "Do NOT generate for: tables, charts, graphs, diagrams, schemes or code (answer those as text — MemuAI renders them), "
-      + "questions about how generation works, analysing or describing attached images, finding existing videos. "
-      + "At most one block per answer; never say the result is ready or describe it as already made.";
-    if (!image) text += " Image generation is not configured: if asked for a picture, say it can be enabled in Settings → Models.";
-    if (!video) text += " Video generation is not configured: if asked for a video, say it can be enabled in Settings → Models.";
+    const what = image && video ? "picture or video" : image ? "picture" : "video";
+    let text = `<media_generation>MemuAI can generate ${kinds} for this chat. When the user genuinely asks for a NEW ${what}, write one short sentence about what you are creating and append one hidden ${blocks} block with JSON {"prompt": "..."}: one self-contained English paragraph keeping everything the user specified, with no generic quality words. The media router decides image vs video vs plain text, so generate nothing for tables, charts, diagrams, questions about attached images or finding existing videos, never claim the result is ready, and use at most one block per answer.`;
+    if (!image) text += " Image generation is not configured: if asked for a picture, say it can be enabled in Settings \u2192 Models.";
+    if (!video) text += " Video generation is not configured: if asked for a video, say it can be enabled in Settings \u2192 Models.";
     if (context && (context.mode === "work" || context.mode === "code")) text += " In Work, generate only assets the project really needs.";
     return text + "</media_generation>";
   }
-
   const imageList = () => (S.imageModels || []).slice();
   const videoList = () => (S.videoModels || []).slice();
   const listOf = (kind) => (kind === "video" ? videoList() : imageList());

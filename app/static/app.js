@@ -14,6 +14,164 @@ let settingsCache = {};
 let logsTimer = null;
 let modelsFilter = "";
 let overviewCache = null;
+
+let proxyUpdatesState = null;
+let proxyUpdatesWired = false;
+let proxyUpdatesTimer = 0;
+let proxyUpdatesPoll = 0;
+let proxyUpdatesSyncing = false;
+
+function proxyUpdatesVisible(overview) {
+  const o = overview || overviewCache;
+  return !!(o && o.proxy_only && !o.memuai_present);
+}
+function updErrorText(e) {
+  const code = String((e && e.message) || "");
+  const mapped = t("sg.upd.err." + code);
+  return mapped === "sg.upd.err." + code ? (code || t("sg.upd.error")) : mapped;
+}
+function updateProxyUpdatesBadge(state) {
+  const button = document.querySelector('.nav-item[data-tab="settings"]');
+  if (!button) return;
+  let badge = document.getElementById("upd-nav-badge");
+  const show = !!(state && ((["available", "downloading", "ready", "installing"].includes(state.phase) && state.latest) || state.phase === "error"));
+  if (!show) { if (badge) badge.hidden = true; return; }
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.id = "upd-nav-badge";
+    badge.setAttribute("aria-hidden", "true");
+    badge.style.cssText = "margin-left:auto;font-size:15px;line-height:1;font-weight:700;flex:none";
+    button.appendChild(badge);
+  }
+  const isError = state.phase === "error";
+  badge.hidden = false;
+  badge.textContent = isError ? "!" : "\u2022";
+  badge.style.color = isError ? "var(--err)" : "var(--warn)";
+  badge.title = t(isError ? "sg.upd.error" : "sg.upd.badge");
+}
+function proxyUpdatesDue(state) {
+  return !!(state && state.config && state.config.enabled
+    && (!state.last_checked || Date.now() / 1000 - state.last_checked >= (state.config.interval_hours || 24) * 3600));
+}
+async function refreshProxyUpdatesStatus() {
+  clearTimeout(proxyUpdatesPoll);
+  try {
+    const state = await api("/api/admin/updates/status");
+    renderProxyUpdates(state);
+  } catch (e) {  }
+}
+function renderProxyUpdates(state) {
+  if (state) proxyUpdatesState = state;
+  state = proxyUpdatesState;
+  updateProxyUpdatesBadge(state);
+  const group = $("#sg-updates-group");
+  if (!group || group.hidden || !state) return;
+  const cfg = state.config || {};
+  const enabled = $("#upd-enabled");
+  if (enabled) enabled.checked = !!cfg.enabled;
+  const autodownload = $("#upd-autodownload");
+  if (autodownload) autodownload.checked = !!cfg.auto_download;
+  const interval = $("#upd-interval");
+  if (interval) interval.value = String(cfg.interval_hours || 24);
+  const channel = $("#upd-channel");
+  if (channel) channel.value = cfg.channel || "stable";
+  const phaseKey = { idle: "sg.upd.idle", checking: "sg.upd.checking", available: "sg.upd.available",
+    downloading: "sg.upd.downloading", ready: "sg.upd.ready", installing: "sg.upd.installing",
+    up_to_date: "sg.upd.latest", error: "sg.upd.error" }[state.phase] || "sg.upd.idle";
+  const label = $("#upd-status-label");
+  if (label) label.textContent = t(phaseKey) + (state.latest ? " \u00b7 " + state.latest.version : "");
+  const current = $("#upd-current");
+  if (current) current.textContent = state.current_version || "\u2014";
+  const last = $("#upd-last");
+  if (last) last.textContent = state.last_checked ? fmtDateTime(state.last_checked) : t("sg.upd.never");
+  const errorBox = $("#upd-error");
+  if (errorBox) {
+    errorBox.hidden = !state.error;
+    if (state.error) errorBox.textContent = updErrorText({ message: state.error });
+  }
+  const busy = !!(state.busy || ["checking", "downloading", "installing"].includes(state.phase));
+  const progressRow = $("#upd-progress-row");
+  if (progressRow) progressRow.hidden = state.phase !== "downloading";
+  const bar = $("#upd-progress");
+  if (bar) bar.value = state.total ? Math.round((state.progress || 0) / state.total * 100) : 0;
+  const bytes = $("#upd-bytes");
+  if (bytes) bytes.textContent = state.total ? `${((state.progress || 0) / 1048576).toFixed(1)} / ${(state.total / 1048576).toFixed(1)} MB` : "";
+  const checkBtn = $("#upd-check");
+  if (checkBtn) checkBtn.disabled = busy;
+  const downloadBtn = $("#upd-download");
+  if (downloadBtn) downloadBtn.disabled = busy || !(state.latest && ["available", "error"].includes(state.phase));
+  const installBtn = $("#upd-install");
+  if (installBtn) installBtn.disabled = busy || state.phase !== "ready" || !state.can_install;
+  clearTimeout(proxyUpdatesPoll);
+  if (busy) proxyUpdatesPoll = setTimeout(refreshProxyUpdatesStatus, 1500);
+}
+async function proxyUpdatesAction(path, body) {
+  try {
+    const result = await api("/api/admin/updates/" + path, { method: "POST", body: body || {} });
+    if (result && result.status) renderProxyUpdates(result.status);
+    else if (result && typeof result.phase === "string") renderProxyUpdates(result);
+    if (path === "install") toast(t("sg.upd.installing"));
+    return result;
+  } catch (e) {
+    toast(updErrorText(e), "err");
+    refreshProxyUpdatesStatus();
+    return null;
+  }
+}
+async function proxyUpdatesTick() {
+  if (!proxyUpdatesVisible()) return;
+  try {
+    const state = await api("/api/admin/updates/status");
+    renderProxyUpdates(state);
+    if (proxyUpdatesDue(state)) await proxyUpdatesAction("check");
+  } catch (e) {  }
+}
+function ensureProxyUpdatesTimer() {
+  if (proxyUpdatesTimer) return;
+  proxyUpdatesTimer = setInterval(proxyUpdatesTick, 15 * 60 * 1000);
+}
+async function syncProxyUpdates(overview) {
+  const group = $("#sg-updates-group");
+  if (!group || proxyUpdatesSyncing) return;
+  const visible = proxyUpdatesVisible(overview);
+  group.hidden = !visible;
+  if (!visible) { updateProxyUpdatesBadge(null); return; }
+  proxyUpdatesSyncing = true;
+  try {
+    wireProxyUpdates();
+    ensureProxyUpdatesTimer();
+    const state = await api("/api/admin/updates/status");
+    renderProxyUpdates(state);
+    if (proxyUpdatesDue(state)) await proxyUpdatesAction("check");
+  } catch (e) {  } finally { proxyUpdatesSyncing = false; }
+}
+function wireProxyUpdates() {
+  if (proxyUpdatesWired) return;
+  const group = $("#sg-updates-group");
+  if (!group) return;
+  proxyUpdatesWired = true;
+  const checkBtn = $("#upd-check");
+  if (checkBtn) checkBtn.addEventListener("click", () => proxyUpdatesAction("check"));
+  const downloadBtn = $("#upd-download");
+  if (downloadBtn) downloadBtn.addEventListener("click", () => proxyUpdatesAction("download"));
+  const installBtn = $("#upd-install");
+  if (installBtn) installBtn.addEventListener("click", async () => {
+    const result = await proxyUpdatesAction("install");
+    if (result) renderProxyUpdates(proxyUpdatesState);
+  });
+  group.addEventListener("change", async (event) => {
+    const input = event.target;
+    if (!input.id || !input.id.startsWith("upd-")) return;
+    const key = { "upd-enabled": "enabled", "upd-autodownload": "auto_download",
+      "upd-interval": "interval_hours", "upd-channel": "channel" }[input.id];
+    if (!key) return;
+    const value = input.type === "checkbox" ? input.checked : key === "interval_hours" ? Number(input.value) : input.value;
+    const saved = await proxyUpdatesAction("settings", { [key]: value });
+    if (!saved) { refreshProxyUpdatesStatus(); return; }
+    if (key === "channel") await proxyUpdatesAction("check");
+    else if (value && (key === "enabled" || key === "auto_download") && proxyUpdatesDue(proxyUpdatesState)) await proxyUpdatesAction("check");
+  });
+}
 let modelsCache = [];
 let modelsProviderFilter = "";
 let modelsStateFilter = "";
@@ -690,12 +848,14 @@ function onLangChanged() {
   if (window.MemuModelCaps) MemuModelCaps.relabel();
   renderSearchSettings();
   if (window.MemuSettings) MemuSettings.relabel();
+  renderProxyUpdates();
 }
 
 async function loadHome() {
   try {
     const o = await api("/api/admin/overview");
     overviewCache = o;
+    syncProxyUpdates(o);
 
     if (o.metrics) {
       $("#metrics-body").hidden = false;
@@ -2017,6 +2177,7 @@ async function loadSettings() {
       o.prefixes.map((p) => `<option value="${esc(p)}" ${settingsCache.default_provider === p ? "selected" : ""}>${esc(p)}</option>`).join("");
     if ($("#sg-version")) $("#sg-version").textContent = o.version || "—";
     if (window.MemuSettings) MemuSettings.sync();
+    syncProxyUpdates(o);
   } catch (e) { if (e.message !== "401") toast(e.message, "err"); }
 }
 

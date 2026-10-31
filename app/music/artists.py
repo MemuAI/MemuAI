@@ -210,7 +210,13 @@ def reorder_playlist(lib: Library, pid: str, args: Dict[str, Any], base: str = "
     else:
         moving = [str(t) for t in (args.get("ids") or []) if str(t) in set(current)]
         rest = [t for t in current if t not in set(moving)]
-        to = int(args.get("to", -1))
+        try:
+            to = int(args.get("to", -1))
+        except (TypeError, ValueError):
+            try:
+                to = int(float(args.get("to")))
+            except (TypeError, ValueError):
+                raise ValueError("to: нужен номер позиции / a position number is required")
         to = len(rest) if to < 0 or to > len(rest) else to
         order = rest[:to] + moving + rest[to:]
     lib._write_order(pid, order)

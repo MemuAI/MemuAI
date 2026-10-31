@@ -77,6 +77,13 @@ def preview_payload(task: Dict[str, Any], tasks: List[Dict[str, Any]], lang: str
     if task.get("kind") == "integration":
         from .schedule_integrations import validate
         validate(task.get("tool"), task.get("args", {}))
+    if task.get("kind") == "scenario" and isinstance(task.get("scenario"), list):
+        from .plan_scenarios import ScenarioError, describe_scenario, normalize_scenario
+        try:
+            steps = normalize_scenario(task["scenario"])["steps"]
+        except ScenarioError as exc:
+            raise rules.RuleError(exc.ru, exc.en)
+        flow = {"scenario": steps, "steps_text": describe_scenario({"steps": steps}, lang)}
     if isinstance(task.get("steps"), list) and task["steps"]:
 
         from .flow_engine import FlowError, autolink, describe, normalize_steps, validate_flow
@@ -97,7 +104,9 @@ def _clean_task(raw: Dict[str, Any]) -> Dict[str, Any]:
     """A task coming from the builder: only known user fields."""
     keys = ("id", "name", "prompt", "model", "mode", "kind", "enabled", "notify_telegram", "notify_email",
             "project_id", "access_mode", "command", "command_id", "project_path", "permission_mode", "rule",
-            "run_at", "interval_minutes", "daily_at", "created_by", "lang", "reminder_text", "icon", "steps", "tool", "args", "dfy_browser", "team_id")
+            "run_at", "interval_minutes", "daily_at", "created_by", "lang", "reminder_text", "icon", "steps", "tool", "args", "dfy_browser", "team_id",
+            "scenario", "scenario_variables", "scenario_base", "run_allowlist", "require_confirm", "confirmed",
+            "module_trigger", "module_action", "module_id")
     task = {k: raw.get(k) for k in keys if k in raw}
     if isinstance(task.get("steps"), list) and task["steps"]:
 
@@ -111,6 +120,44 @@ def _clean_task(raw: Dict[str, Any]) -> Dict[str, Any]:
         task["steps"] = []
         if task.get("kind") == "flow":
             task["kind"] = "chat"
+    if isinstance(task.get("module_trigger"), dict) and task.get("module_trigger"):
+        task["module_trigger"] = rules.normalize_module_trigger(task["module_trigger"])
+    if isinstance(task.get("module_action"), dict) and task.get("module_action"):
+        action = task["module_action"]
+        task["module_action"] = {"module": str(action.get("module") or "")[:60],
+                                 "action_id": str(action.get("action_id") or action.get("id") or "")[:60],
+                                 "title": str(action.get("title") or "")[:120]}
+        task["module_id"] = task["module_action"]["module"]
+    if task.get("kind") == "scenario" or isinstance(task.get("scenario"), list):
+        from .plan_scenarios import ScenarioError, normalize_scenario
+        try:
+            clean = normalize_scenario(task.get("scenario"))
+        except ScenarioError as exc:
+            raise rules.RuleError(exc.ru, exc.en)
+        task["scenario"] = clean["steps"]
+        task["scenario_variables"] = {**clean["variables"], **(task.get("scenario_variables") or {})} \
+            if isinstance(task.get("scenario_variables"), dict) else clean["variables"]
+        task["kind"] = "scenario"
+        base = str(task.get("scenario_base") or "").strip()
+        if base:
+            import os as _os
+            if not _os.path.isabs(base) or not _os.path.isdir(base):
+                raise rules.RuleError("Папка сценария не найдена — выберите существующую папку",
+                                      "The scenario folder was not found — choose an existing folder")
+            task["scenario_base"] = base
+        else:
+            task.pop("scenario_base", None)
+        allow = task.get("run_allowlist")
+        if allow is None:
+            task["run_allowlist"] = []
+        elif isinstance(allow, list):
+            task["run_allowlist"] = [str(a).strip()[:200] for a in allow
+                                     if str(a or "").strip() and "\n" not in str(a) and "\r" not in str(a)][:32]
+        else:
+            raise rules.RuleError("Белый список команд — список имён программ",
+                                  "The allowlist is a list of program names")
+        task["require_confirm"] = task.get("require_confirm") is not False
+        task["confirmed"] = task.get("confirmed") is True
     task["id"] = str(task.get("id") or uuid.uuid4().hex[:12])[:120]
     task["name"] = str(task.get("name") or "").strip()[:120]
     task["prompt"] = str(task.get("prompt") or "")[:20000]
@@ -150,6 +197,23 @@ def _validate_action(task: Dict[str, Any], lang: str) -> None:
         from .schedule_integrations import validate
         task.update(validate(task.get("tool"), task.get("args", {})))
         return
+    if kind == "scenario":
+        from .plan_scenarios import ScenarioError, check_run_allowed, is_destructive, normalize_scenario
+        try:
+            steps = normalize_scenario(task.get("scenario"))["steps"]
+        except ScenarioError as exc:
+            raise rules.RuleError(exc.ru, exc.en)
+        if not steps:
+            raise rules.RuleError("Добавьте хотя бы один шаг сценария", "Add at least one scenario step")
+        allowlist = task.get("run_allowlist") or []
+        for step in steps:
+            if step["type"] == "run" and not check_run_allowed(step["argv"], allowlist):
+                raise rules.RuleError(f"Программа «{step['argv'][0][:60]}» не в белом списке — добавьте её в список разрешённых",
+                                      f"The program “{step['argv'][0][:60]}” is not in the allowlist — add it to the allowed list")
+        if any(is_destructive(s) for s in steps) and not task.get("confirmed"):
+            raise rules.RuleError("Сценарий пишет файлы или запускает программы — подтвердите это в редакторе",
+                                  "The scenario writes files or runs programs — confirm it in the editor")
+        return
     if kind in ("chat", "team", "notify", "dfy", "memucode", "reminder") and not task["prompt"].strip():
         raise rules.RuleError({"notify": "Введите текст уведомления", "dfy": "Опишите, что сделать в браузере", "team": "Введите задание для команды"}.get(
             kind, "Введите задание для модели"), {"notify": "Enter the notification text", "dfy": "Describe the browser task", "team": "Enter the task for the team"}.get(
@@ -183,6 +247,13 @@ def save_task(raw: Dict[str, Any], lang: str = "ru") -> str:
         for key in ("run_at", "interval_minutes", "daily_at"):
             task.pop(key, None)
     tasks = _load_tasks()
+    is_new = all(str(t.get("id")) != task["id"] for t in tasks)
+    if is_new and (task.get("module_action") or task.get("module_trigger")) and task.get("enabled") \
+            and not raw.get("consent") and not task.get("confirmed"):
+        # A module default action starts OFF: enabling it is the user's explicit
+        # consent in Planning. The API never silently arms one.
+        task["enabled"] = False
+        task["consent_pending"] = True
     if isinstance(task.get("rule"), dict):
         others = [t for t in tasks if str(t.get("id")) != task["id"]] + [task]
         if task["id"] in rules.chain_cycles(others):
@@ -482,6 +553,22 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
         except Exception:
             out["integrations"] = []
         try:
+            from .module_integration import planning_actions
+            out["module_actions"] = await asyncio.to_thread(planning_actions)
+        except Exception:
+            out["module_actions"] = []
+        try:
+            from .schedule_rules import module_stats_snapshot
+            out["module_stats"] = await asyncio.to_thread(module_stats_snapshot)
+        except Exception:
+            out["module_stats"] = {}
+        try:
+            from .pgdata import MEMU_DIR
+            out["data_dir"] = str(MEMU_DIR)
+        except Exception:
+            out["data_dir"] = ""
+        out["scenario"] = {"max_steps": 100, "max_repeat": 20, "run_timeout_max": 300}
+        try:
             import psutil  # noqa: F401
         except Exception:
             out["can"]["processes"] = False
@@ -604,6 +691,10 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
         def change(row: Dict[str, Any], _rows) -> None:
             was = row.get("enabled", True) not in (False, "false", 0)
             row["enabled"] = enabled
+            if enabled:
+                # Явное включение переключателем — это и есть согласие
+                # пользователя: флаг ожидания согласия снимается.
+                row.pop("consent_pending", None)
             if enabled and not was:
                 if isinstance(row.get("rule"), dict):
                     state = row.get("rule_state") if isinstance(row.get("rule_state"), dict) else {}

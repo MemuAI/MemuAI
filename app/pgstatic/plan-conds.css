@@ -56,3 +56,6 @@
 .pcx-sub:has(> .pln-row-head > .pcx-off.on) > .pln-row-body { opacity: .45; }
 .pln-row:has(> .pln-row-head > .pcx-off.on) > .pln-row-head > b,
 .pcx-sub:has(> .pln-row-head > .pcx-off.on) > .pln-row-head > b { text-decoration: line-through; color: var(--muted); }
+/* Round 42: shared Planning refresh — rounder cards, calmer chips. */
+.pln-row, .ptg-card { border-radius: 13px; }
+.pln-chipbtn, .pln-pop-list button { border-radius: 10px; }

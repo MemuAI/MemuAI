@@ -15,7 +15,7 @@ av>=11,<19
 piper-tts>=1.8,<2
 # Quick Ask wake word (offline; models are downloaded on demand)
 vosk>=0.3.45,<0.4
-pythonnet>=3.0,<4
+pythonnet>=3.0,<4; sys_platform == "win32"  # .NET bridge for WebView2/WinForms helpers, Windows only
 prompt_toolkit>=3.0.48
 rich>=13.9
 anthropic>=0.40

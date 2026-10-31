@@ -13,23 +13,47 @@ const MusicAI = (() => {
     const available = rows || [], configured = String((Memu.manifest && Memu.manifest.bridge || {}).model || "");
     return (available.find(m => m.default) || available.find(m => m.id === configured) || available[0] || {}).id || "";
   }
+  /* Model choice uses the shared MemuModelSelector (chips preset):
+   * provider names come from the catalogue (never a raw "custom"
+   * provider), with search, favourites and recent models. The old
+   * details/summary picker below is only the fallback when the host
+   * did not inline the component. */
+  function providerNameOf(m) {
+    try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(m); } catch (e) {}
+    return m.provider_label || m.account || m.provider || "";
+  }
   function modelPicker(key, title) {
-    return `<div class="mm-ai-picker" data-ai-picker="${key}"><label>${esc(title)}</label><details><summary>${esc(L("Загрузка моделей…", "Loading models…"))}</summary><div class="mm-ai-pop"><input class="mm-input" type="search" placeholder="${esc(L("Поиск модели", "Search models"))}"><div class="mm-ai-options"></div></div></details></div>`;
+    return `<div class="mm-ai-picker" data-ai-picker="${key}"><label>${esc(title)}</label><div class="mm-ai-list" data-ai-list></div></div>`;
   }
   async function bindPickers(host) {
     try { await models(); } catch (e) { rows = []; }
     if (!host.isConnected) return;
     $$("[data-ai-picker]", host).forEach(picker => {
-      const key = picker.dataset.aiPicker, details = $("details", picker), summary = $("summary", picker), input = $("input", picker), options = $(".mm-ai-options", picker);
+      const key = picker.dataset.aiPicker, list = $("[data-ai-list]", picker);
       const draw = () => {
-        const selected = currentModel(key), found = rows.filter(m => (m.name + " " + m.id + " " + (m.provider_label || m.provider || "")).toLowerCase().includes(input.value.trim().toLowerCase()));
-        const chosen = rows.find(m => m.id === selected);
-        summary.textContent = chosen ? (chosen.name || chosen.id) + (!opt()[key] ? " · " + L("основная", "default") : "") : L("Нет доступной текстовой модели", "No text model available");
-        options.innerHTML = `<button type="button" data-model="">${esc(L("Основная модель MemuAI", "Default MemuAI model"))}</button>` + found.map(m => `<button type="button" data-model="${esc(m.id)}"><b>${esc(m.name || m.id)}</b><small>${esc(m.provider_label || m.provider || m.id)}</small></button>`).join("");
+        const selected = currentModel(key);
+        if (window.MemuModelSelector) {
+          window.MemuModelSelector.renderList(list, rows, {
+            preset: "chips", selected: selected ? [selected] : [],
+            onToggle: (id) => { save({ [key]: id }); draw(); }
+          });
+          return;
+        }
+        if (!picker.querySelector("details")) {
+          list.innerHTML = `<details><summary>${esc(L("Загрузка моделей…", "Loading models…"))}</summary><div class="mm-ai-pop"><input class="mm-input" type="search" placeholder="${esc(L("Поиск модели", "Search models"))}"><div class="mm-ai-options"></div></div></details>`;
+          const details = $("details", list), summary = $("summary", list), input = $("input", list), options = $(".mm-ai-options", list);
+          const legacy = () => {
+            const found = rows.filter(m => (m.name + " " + m.id + " " + providerNameOf(m)).toLowerCase().includes(input.value.trim().toLowerCase()));
+            const chosen = rows.find(m => m.id === selected);
+            summary.textContent = chosen ? (chosen.name || chosen.id) + (!opt()[key] ? " · " + L("основная", "default") : "") : L("Нет доступной текстовой модели", "No text model available");
+            options.innerHTML = `<button type="button" data-model="">${esc(L("Основная модель MemuAI", "Default MemuAI model"))}</button>` + found.map(m => `<button type="button" data-model="${esc(m.id)}"><b>${esc(m.name || m.id)}</b><small>${esc(providerNameOf(m))}</small></button>`).join("");
+          };
+          input.oninput = legacy;
+          options.onclick = e => { const b = e.target.closest("[data-model]"); if (!b) return; save({ [key]: b.dataset.model }); details.open = false; draw(); };
+          details.addEventListener("toggle", () => { if (details.open) { input.value = ""; legacy(); input.focus(); } });
+          legacy();
+        }
       };
-      input.oninput = draw;
-      options.onclick = e => { const b = e.target.closest("[data-model]"); if (!b) return; save({ [key]: b.dataset.model }); details.open = false; draw(); };
-      details.addEventListener("toggle", () => { if (details.open) { input.value = ""; draw(); input.focus(); } });
       draw();
     });
   }

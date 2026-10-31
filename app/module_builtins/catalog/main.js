@@ -489,8 +489,10 @@ async function loadMyModels() {
       }
     }
     state.mySet = set;
+    state.myList = (Array.isArray(rows) ? rows : []).filter((row) => row && row.id);
   } catch (error) {
     state.mySet = new Set();
+    state.myList = [];
   }
 }
 
@@ -617,6 +619,7 @@ function renderFilters() {
   for (const slug of f.orgs) if (!counts.has(slug)) orgs.unshift({ slug, name: slug, count: 0 });
   const active = f.inputs.length + f.outputs.length + f.features.length + f.orgs.length + f.sources.length + (f.context ? 1 : 0) + (f.price !== "any" ? 1 : 0) + (f.hideExpiring ? 1 : 0);
   $("#filters").innerHTML = `<div class="mc-filters-head"><b>${esc(t("filters.title"))}</b>${active ? `<button type="button" class="mc-link" data-reset>${esc(t("filters.reset", { count: active }))}</button>` : ""}</div>
+    <fieldset class="mc-group"><legend>${esc(t("mine"))}</legend><small class="mc-muted">${esc(t("mine.title"))}</small><div id="my-models-rail"></div></fieldset>
     ${checkGroup(t("filters.input"), "inputs", INPUTS, f.inputs, (kind) => t(`in.${kind}`))}
     ${checkGroup(t("filters.output"), "outputs", OUTPUTS, f.outputs, (kind) => t(`out.${kind}`))}
     <fieldset class="mc-group"><legend>${esc(t("filters.context"))}</legend>
@@ -629,6 +632,33 @@ function renderFilters() {
     <fieldset class="mc-group"><legend>${esc(t("filters.orgs"))}</legend>
       <input class="mc-input" id="org-search" type="search" value="${esc(state.orgQuery)}" placeholder="${esc(t("filters.orgs.search"))}" aria-label="${esc(t("filters.orgs.search"))}">
       <div class="mc-orgs">${orgs.map((org) => `<label class="mc-check"><input type="checkbox" data-filter="orgs" value="${esc(org.slug)}" ${f.orgs.includes(org.slug) ? "checked" : ""}><span>${esc(org.name)}</span><small>${org.count}</small></label>`).join("")}</div></fieldset>`;
+  renderMyRail();
+}
+
+function pickMine(id) {
+  const rows = Array.isArray(state.myList) ? state.myList : [];
+  const row = rows.find((r) => r.id === id);
+  const cat = row && state.cache ? state.cache.rows.find((r) => canon(r.id) === canon(row.model || row.id)) : null;
+  if (cat) { openCard(cat.id); return; }
+  state.query = row ? (row.name || row.id) : "";
+  render();
+}
+
+/* Connected MemuAI models as a shared-selector rail: real provider
+ * names from the catalogue, search and favourites included. Picking a
+ * model opens its catalogue card (or searches for it). */
+function renderMyRail() {
+  const host = $("#my-models-rail");
+  if (!host) return;
+  const rows = Array.isArray(state.myList) ? state.myList : [];
+  try {
+    if (window.MemuModelSelector) {
+      window.MemuModelSelector.renderList(host, rows, { preset: "rail", onToggle: (id) => pickMine(id) });
+      return;
+    }
+  } catch (e) {}
+  host.innerHTML = rows.map((row) => `<button type="button" class="mc-link" data-mine="${esc(row.id)}">${esc(row.name || row.id)}</button>`).join("");
+  host.querySelectorAll("[data-mine]").forEach((btn) => btn.addEventListener("click", () => pickMine(btn.dataset.mine)));
 }
 
 function renderStatus() {

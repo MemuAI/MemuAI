@@ -101,20 +101,22 @@ def _monitor_status(module_id: str) -> Dict[str, Any]:
         return {}
 
 def api_models_digest(limit: int = 8, *, prices: bool = True) -> Dict[str, Any]:
-    """New models from the «New API models» monitor: ``{models: [{name, key, source, family, at, context, input, output}],
-    enabled, sources, checked}`` — newest first, one row per model."""
+    """New models from the «New API models» monitor: ``{models: [{name, key, source, family, at, released, context, input, output}],
+    enabled, sources, checked}`` — newest first by release date (``released``, Unix seconds, 0 when the
+    catalogue did not say), one row per model. ``at`` stays the time the model was *detected*."""
     data = _monitor("api-models")
     models: List[Dict[str, Any]] = []
     seen = set()
     for event in sorted(data.get("events") or [], key=lambda e: -int(e.get("id") or 0)):
         title = str(event.get("title") or "")
         source = title.split(" · ", 1)[1] if " · " in title else title
-        entries = [(item["name"], item["key"]) for item in event.get("models", [])
+        entries = [(item["name"], item["key"], item.get("spec") if isinstance(item.get("spec"), dict) else {})
+                   for item in event.get("models", [])
                    if isinstance(item, dict) and isinstance(item.get("name"), str) and isinstance(item.get("key"), str)] if isinstance(event.get("models"), list) else []
         if not entries:
-            entries = [(found[1], found[2]) for line in str(event.get("text") or "").splitlines()
+            entries = [(found[1], found[2], {}) for line in str(event.get("text") or "").splitlines()
                        if (found := re.match(r"^\+\s+(.+)\s+·\s+(\S.*)$", line.strip()))]
-        for name, identity in entries:
+        for name, identity, spec in entries:
             if (source, identity) in seen:
                 continue
             seen.add((source, identity))
@@ -123,6 +125,7 @@ def api_models_digest(limit: int = 8, *, prices: bool = True) -> Dict[str, Any]:
             name = name.strip()
             models.append({"name": name.split(": ", 1)[1] if ": " in name else name, "key": key, "source": source,
                            "family": bare.split("/", 1)[0] if "/" in bare else "", "at": float(event.get("at") or 0),
+                           "released": int(spec.get("created") or 0),
                            "_event_id": int(event.get("id") or 0),
                            "seen": int(event.get("id") or 0) <= int(data.get("seen") or 0)})
     snapshots = {}
@@ -130,6 +133,12 @@ def api_models_digest(limit: int = 8, *, prices: bool = True) -> Dict[str, Any]:
         for model in event.get("models", []) if isinstance(event.get("models"), list) else []:
             if isinstance(model, dict) and isinstance(model.get("spec"), dict):
                 snapshots[(int(event.get("id") or 0), model.get("key"))] = model["spec"]
+    for model in models:
+        snapshot = snapshots.get((model["_event_id"], model["key"]), {})
+        if not model["released"] and snapshot.get("created"):
+            model["released"] = int(snapshot["created"])
+    # Release date first; ties keep detection order (stable sort).
+    models.sort(key=lambda model: (-model["released"], -model["_event_id"]))
     models = models[:max(1, min(20, limit))]
     if prices and models:
         specs = catalog()

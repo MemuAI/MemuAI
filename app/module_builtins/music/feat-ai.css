@@ -13,7 +13,8 @@
 .mm-ai-picker { max-width: 500px; padding: 10px 0 4px; }
 .mm-ai-picker details { position: relative; }
 .mm-ai-picker summary { cursor: pointer; padding: 12px 15px; border: 1px solid var(--mm-line); border-radius: 10px; background: var(--mm-panel); list-style: none; }
-.mm-ai-picker summary::after { content: '⌄'; float: right; color: var(--mm-muted); }
+.mm-ai-picker summary::-webkit-details-marker { display: none; }
+.mm-ai-picker summary::after { content: ''; float: right; width: 7px; height: 7px; margin: 7px 2px 0 8px; color: var(--mm-muted); border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(45deg); }
 .mm-ai-pop { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 15; padding: 10px; border: 1px solid var(--mm-line); border-radius: 14px; background: var(--mm-surface); box-shadow: var(--mm-shadow); }
 .mm-ai-pop input { width: 100%; }
 .mm-ai-options { max-height: 240px; overflow: auto; margin-top: 6px; }

@@ -20,8 +20,13 @@ import urllib.request
 def _runtime_file(name: str) -> str:
     data_dir = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if not data_dir:
-        appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
-        data_dir = os.path.join(appdata, "MemuAI")
+        try:
+            from app.config import default_data_dir
+
+            data_dir = default_data_dir()
+        except Exception:
+            appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+            data_dir = os.path.join(appdata, "MemuAI")
     return os.path.join(data_dir, "memuai", name)
 
 def _read_local_runtime(name: str) -> dict:

@@ -22,6 +22,22 @@ from typing import Any, Dict, Iterator, List, Optional
 ROOT = "^"
 MAX_ALTS = 60
 
+def _to_int(value: Any, default: int) -> int:
+    """``sel`` / timestamps come from a JSON file on disk: a damaged value must not crash the branch switch."""
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            try:
+                return int(float(value.strip()))
+            except ValueError:
+                return default
+    return default
+
 def uid(prefix: str) -> str:
     return f"{prefix}{int(time.time() * 1000):x}{secrets.token_hex(3)}"
 
@@ -69,10 +85,11 @@ def begin_version(chat: Dict[str, Any], pos: int) -> str:
         msg_id(row)
     forks = _ensure_store(chat)
     fork = forks.get(key)
-    if not isinstance(fork, dict) or not isinstance(fork.get("alts"), list) or not fork["alts"]:
+    if (not isinstance(fork, dict) or not isinstance(fork.get("alts"), list) or not fork["alts"]
+            or any(not isinstance(a, dict) for a in fork["alts"])):
         at = suffix[0].get("createdAt") if isinstance(suffix[0], dict) else None
-        fork = forks[key] = {"sel": 0, "alts": [{"id": uid("v-"), "at": int(at or time.time() * 1000), "m": None}]}
-    sel = max(0, min(len(fork["alts"]) - 1, int(fork.get("sel") or 0)))
+        fork = forks[key] = {"sel": 0, "alts": [{"id": uid("v-"), "at": _to_int(at, int(time.time() * 1000)), "m": None}]}
+    sel = max(0, min(len(fork["alts"]) - 1, _to_int(fork.get("sel"), 0)))
     fork["alts"][sel]["m"] = suffix
     fork["alts"].append({"id": uid("v-"), "at": int(time.time() * 1000), "m": None})
     fork["sel"] = len(fork["alts"]) - 1
@@ -89,10 +106,14 @@ def switch_to(chat: Dict[str, Any], key: str, j: int) -> bool:
         return False
     messages = active_path(chat)
     p = _pos_of_key(_index_map(messages), key)
-    sel = int(fork.get("sel") or 0)
+    sel = _to_int(fork.get("sel"), 0)
     if p is None or j < 0 or j >= len(fork["alts"]) or j == sel:
         return False
-    nxt = fork["alts"][j].get("m")
+    nxt_alt = fork["alts"][j]
+    cur_alt = fork["alts"][sel]
+    if not isinstance(nxt_alt, dict) or not isinstance(cur_alt, dict):
+        return False
+    nxt = nxt_alt.get("m")
     nxt = nxt if isinstance(nxt, list) else []
     fork["alts"][sel]["m"] = messages[p + 1:]
     fork["alts"][j]["m"] = None
@@ -139,7 +160,7 @@ def info(chat: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
         p = _pos_of_key(index, key)
         if p is None or p + 1 >= len(messages):
             continue
-        out[p + 1] = {"key": key, "n": len(alts), "cur": int(fork.get("sel") or 0)}
+        out[p + 1] = {"key": key, "n": len(alts), "cur": _to_int(fork.get("sel"), 0)}
     return out
 
 def stats(chat: Dict[str, Any]) -> Dict[str, int]:
@@ -186,7 +207,7 @@ def normalize(chat: Dict[str, Any]) -> bool:
                 del forks[key]
                 changed = again = True
                 continue
-            sel = max(0, min(len(fork["alts"]) - 1, int(fork.get("sel") or 0)))
+            sel = max(0, min(len(fork["alts"]) - 1, _to_int(fork.get("sel"), 0)))
             if sel != fork.get("sel"):
                 changed = True
             kept = []
@@ -243,7 +264,7 @@ def fork_off(chat: Dict[str, Any], upto_index: int, new_id: str, title: str) -> 
                         "contextSummaryThrough", "telegram", "_new")}
     out.update({"id": new_id, "title": title, "messages": rows, "parent_id": str(chat.get("id") or ""),
                 "updated": int(time.time() * 1000), "pinned": False})
-    through = int(chat.get("contextSummaryThrough") or 0)
+    through = _to_int(chat.get("contextSummaryThrough"), 0)
     if through and through <= len(rows):
         out["contextSummary"] = chat.get("contextSummary") or ""
         out["contextSummaryThrough"] = through

@@ -5,6 +5,22 @@ const $ = (selector, root) => (root || document).querySelector(selector);
 const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
 const esc = (value) => String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const saved = Memu.saved || {};
+/* Shared model picker: provider names from the catalogue via
+ * MemuModelSelector (never a raw "custom" provider). Views re-render
+ * #main, so each render mounts a fresh picker on its own <select>. */
+function providerNameOf(m) {
+  try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(m); } catch (e) {}
+  return m.provider_label || m.account || m.provider || "";
+}
+function mountLearnModel(select, preset) {
+  try {
+    if (window.MemuModelSelector && window.MemuModelSelector.mountSelect) {
+      return window.MemuModelSelector.mountSelect(select, { preset: preset || "dropdown" });
+    }
+  } catch (e) {}
+  return null;
+}
+
 const num = (value, opts) => Memu.i18n.number(value, opts);
 const plural = (n, key) => t(key, { count: n });
 

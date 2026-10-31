@@ -1,5 +1,5 @@
 .hk-shell { display: flex; flex-direction: column; gap: 14px; }
-.hk-caps { display: inline-flex; align-items: center; gap: 3px; flex-wrap: nowrap; white-space: nowrap; }
+.hk-caps { display: inline-flex; align-items: center; gap: 3px; flex-wrap: nowrap; white-space: nowrap; flex-shrink: 0; }
 .hk-cap {
   display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; padding: 0 7px;
   font: 600 11.5px/1 var(--sx-font, var(--sans, system-ui)); color: var(--text);

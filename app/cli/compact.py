@@ -15,7 +15,8 @@ Neither step deletes anything from the transcript: ``/export`` and
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from collections import deque
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional
 
 from .i18n import tr
 from .session import message_text, new_id
@@ -132,26 +133,52 @@ def _cut_index(messages: List[Dict[str, Any]], keep: int) -> int:
     fitting = [index for index in rounds if len(messages) - index <= tail_budget * 4]
     return fitting[0] if fitting else rounds[-1]
 
-def render_transcript(messages: List[Dict[str, Any]], limit: int = 180_000) -> str:
-    rows: List[str] = []
+def transcript_rows(messages: List[Dict[str, Any]]) -> Iterator[str]:
+    """One rendered row per message, lazily: a thousand-message history is
+    never held as one big list of rows and one big string at the same time."""
     for message in messages:
         role = message.get("role")
         if role == "user":
             label = "SUMMARY OF EARLIER PART" if message.get("kind") == "summary" else "USER"
-            rows.append(f"{label}: {message_text(message)[:12000]}")
+            yield f"{label}: {message_text(message)[:12000]}"
         elif role == "assistant":
             text = str(message.get("content") or "").strip()
             calls = message.get("tool_calls") or []
             call_text = "; ".join(f"{call.get('name')}({_short_args(call.get('args') or {})})" for call in calls)
-            rows.append("ASSISTANT: " + (text[:6000] if text else "") + (f"\n  [tools: {call_text}]" if call_text else ""))
+            yield "ASSISTANT: " + (text[:6000] if text else "") + (f"\n  [tools: {call_text}]" if call_text else "")
         elif role == "tool":
             body = str(message.get("content") or "")
             mark = "ERROR " if message.get("is_error") else ""
-            rows.append(f"TOOL {message.get('name')} {mark}→ {body[:1200]}" + (" …" if len(body) > 1200 else ""))
-    text = "\n\n".join(rows)
-    if len(text) > limit:
-        text = text[:limit // 3] + "\n\n…[middle of the transcript omitted]…\n\n" + text[-(limit * 2 // 3):]
-    return text
+            yield f"TOOL {message.get('name')} {mark}→ {body[:1200]}" + (" …" if len(body) > 1200 else "")
+
+def render_transcript(messages: List[Dict[str, Any]], limit: int = 180_000) -> str:
+    """The transcript, bounded by ``limit`` characters with O(limit) memory.
+
+    The head of the conversation and its tail survive whole; the middle is
+    replaced by one explicit marker naming what happened, instead of the
+    whole history being joined into a string and then cut in the middle of
+    a row. A history that already fits comes back exactly as before."""
+    head_budget = max(0, int(limit) // 3)
+    tail_budget = max(0, int(limit) - head_budget)
+    head: List[str] = []
+    head_chars = 0
+    tail: deque = deque()
+    tail_chars = 0
+    dropped = 0
+    for row in transcript_rows(messages):
+        piece = len(row) + 2
+        if head_chars + piece <= head_budget or (not head and not tail):
+            head.append(row)
+            head_chars += piece
+            continue
+        tail.append(row)
+        tail_chars += piece
+        while tail_chars > tail_budget and tail:
+            dropped += 1
+            tail_chars -= len(tail.popleft()) + 2
+    if not dropped:
+        return "\n\n".join([*head, *tail])
+    return "\n\n".join(head) + "\n\n…[middle of the transcript omitted]…\n\n" + "\n\n".join(tail)
 
 def _short_args(args: Dict[str, Any]) -> str:
     for key in ("file_path", "path", "command", "pattern", "query", "url", "description"):
@@ -161,6 +188,17 @@ def _short_args(args: Dict[str, Any]) -> str:
 
 async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "manual") -> Dict[str, Any]:
     session = runtime.session
+    if getattr(session, "_compact_inflight", False):
+        return {"ok": False, "error": tr("Сжатие уже идёт — дождитесь его окончания.",
+                                         "Compaction is already running — wait for it to finish.")}
+    session._compact_inflight = True
+    try:
+        return await _compact_once(runtime, instructions=instructions, reason=reason)
+    finally:
+        session._compact_inflight = False
+
+async def _compact_once(runtime: "Runtime", *, instructions: str = "", reason: str = "manual") -> Dict[str, Any]:
+    session = runtime.session
     messages = session.api_messages()
     if len(messages) < 4:
         return {"ok": False, "error": tr("Нечего сжимать — разговор ещё короткий.", "Nothing to compact yet.")}
@@ -169,7 +207,21 @@ async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "
     if cut <= 0:
         return {"ok": False, "error": tr("Нечего сжимать — весь разговор ещё нужен дословно.",
                                          "Nothing to compact: the whole conversation is recent.")}
+    checkpoint = getattr(session, "compaction_checkpoint", None) or {}
+    if checkpoint.get("covers_until"):
+        # A previous run reached the model call (or past it) and was
+        # interrupted after appending its summary but before clearing the
+        # checkpoint: the summary is in the raw transcript even though
+        # api_messages() already hides the range it covers. Resuming must
+        # not ask the model again and must not append a second summary.
+        for message in session.messages:
+            if message.get("kind") == "summary" and message.get("covers_until") == checkpoint["covers_until"]:
+                session.set_compaction_checkpoint(None)
+                return {"ok": True, "resumed": True, "summarized": int(checkpoint.get("summarized") or 0),
+                        "before": estimate_messages(messages),
+                        "after": estimate_messages(session.api_messages())}
     older = messages[:cut]
+    covers = older[-1].get("id")
     before_tokens = estimate_messages(messages)
     outcome = await runtime.hooks.run("PreCompact", {"trigger": reason, "custom_instructions": instructions})
     if outcome.decision in ("block", "deny") or outcome.stop:
@@ -188,27 +240,36 @@ async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "
     limit = min(180_000, input_budget * 3)
     suffix = "\n\nThe user asked to focus the summary on: " + focus if focus else ""
 
-    for _ in range(12):
-        user = "<transcript>\n" + render_transcript(older, limit=limit) + "\n</transcript>" + suffix
-        cost = estimate_text(user)
-        if cost <= input_budget or limit <= 256:
-            break
+    # Render once; shrink the transcript a single second time only if the
+    # first render is still over budget. The old loop rendered the whole
+    # history up to twelve times, once per shrink step.
+    user = "<transcript>\n" + render_transcript(older, limit=limit) + "\n</transcript>" + suffix
+    cost = estimate_text(user)
+    if cost > input_budget:
         limit = max(256, int(limit * input_budget / max(cost, 1) * 0.9))
+        user = "<transcript>\n" + render_transcript(older, limit=limit) + "\n</transcript>" + suffix
     if estimate_text(user) > input_budget:
         return {"ok": False, "error": tr("Инструкции для сжатия не помещаются в контекст.",
                                          "The compaction instructions exceed the context budget.")}
     started = time.monotonic()
+    # Checkpoint first: if the model call fails or the process dies here,
+    # the next run resumes from this cut instead of starting over, and the
+    # summary — once it exists — is never appended twice (see above).
+    session.set_compaction_checkpoint({"covers_until": covers, "summarized": len(older),
+                                       "reason": reason, "started": time.time(),
+                                       "before_tokens": before_tokens})
     summary = await runtime.quick_answer(COMPACT_SYSTEM, user, model=runtime.model, max_tokens=output_tokens)
     if not summary or not summary.strip():
-        return {"ok": False, "error": tr("Модель вернула пустое резюме — история сохранена.",
-                                         "The model returned an empty summary; the history was preserved.")}
-    covers = older[-1].get("id")
+        return {"ok": False, "checkpoint": True,
+                "error": tr("Модель вернула пустое резюме — история сохранена.",
+                            "The model returned an empty summary; the history was preserved.")}
     body = ("<conversation_summary>\nThis session continues an earlier conversation that was compacted to save "
             "context. Summary of the earlier part:\n\n" + summary.strip() + "\n</conversation_summary>")
     session.append({"role": "user", "kind": "summary", "content": body, "covers_until": covers,
                     "turn": new_id("turn"), "reason": reason})
     session.context_epoch += 1
     session.read_cache.clear()
+    session.set_compaction_checkpoint(None)
     after_tokens = estimate_messages(session.api_messages())
     runtime.stats.compactions += 1
     runtime.invalidate_prompt()

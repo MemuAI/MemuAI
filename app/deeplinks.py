@@ -482,7 +482,12 @@ def build(route: str, params: Optional[Dict[str, Any]] = None, *, positional: bo
 def _memu_dir() -> Path:
     base = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if not base:
-        base = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "MemuAI")
+        try:
+            from .config import DATA_DIR
+
+            base = str(DATA_DIR)
+        except Exception:
+            base = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "MemuAI")
     path = Path(base) / "memuai"
     path.mkdir(parents=True, exist_ok=True)
     return path

@@ -1,0 +1,279 @@
+<div class="mm" id="app">
+  <div class="mm-bar">
+    <div class="mm-brand">
+      <span class="mm-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>
+      <div class="mm-brand-text">
+        <b data-i18n="app.title"></b>
+        <span data-i18n="app.tagline"></span>
+      </div>
+    </div>
+    <nav class="mm-nav" role="tablist" aria-label="MemuMeet">
+      <button type="button" role="tab" id="tab-meetings" aria-selected="true" aria-controls="view-meetings" data-view="meetings" class="active" data-i18n="nav.meetings"></button>
+      <button type="button" role="tab" id="tab-record" aria-selected="false" aria-controls="view-record" data-view="record" data-i18n="nav.record"></button>
+      <button type="button" role="tab" id="tab-captions" aria-selected="false" aria-controls="view-captions" data-view="captions" data-i18n="nav.captions"></button>
+      <button type="button" role="tab" id="tab-settings" aria-selected="false" aria-controls="view-settings" data-view="settings" data-i18n="nav.settings"></button>
+    </nav>
+  </div>
+
+  <main class="mm-main">
+    <section class="mm-view" id="view-meetings" role="tabpanel" aria-labelledby="tab-meetings">
+      <div class="mm-head">
+        <h1 data-i18n="meetings.title"></h1>
+        <p class="mm-lead" data-i18n="meetings.lead"></p>
+      </div>
+      <div class="mm-toolbar">
+        <input class="mm-input mm-search" id="search" type="search" data-i18n-placeholder="meetings.search_ph">
+        <span class="mm-grow"></span>
+        <button type="button" class="mm-btn ghost" id="import-open" data-i18n="meetings.import"></button>
+        <button type="button" class="mm-btn primary" id="record-open" data-i18n="meetings.new"></button>
+      </div>
+      <div class="mm-status" id="list-status" role="status"></div>
+      <div class="mm-list" id="list"></div>
+      <div class="mm-empty" id="list-empty" hidden>
+        <span class="mm-empty-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>
+        <b data-i18n="meetings.empty"></b>
+        <span data-i18n="meetings.empty_hint"></span>
+        <button type="button" class="mm-btn primary" id="empty-new" data-i18n="meetings.empty_cta"></button>
+      </div>
+    </section>
+
+    <section class="mm-view" id="view-detail" hidden>
+      <div class="mm-row">
+        <button type="button" class="mm-btn ghost" id="back" data-i18n="detail.back"></button>
+        <span class="mm-grow"></span>
+        <button type="button" class="mm-btn ghost" id="export-md" data-i18n="detail.export_md"></button>
+        <button type="button" class="mm-btn ghost" id="export-txt" data-i18n="detail.export_txt"></button>
+        <button type="button" class="mm-btn ghost danger" id="delete-meeting" data-i18n="common.delete"></button>
+      </div>
+      <div class="mm-card mm-detail-head">
+        <h1 id="detail-title"></h1>
+        <p class="mm-meta" id="detail-meta"></p>
+        <audio id="player" controls preload="metadata"></audio>
+        <div id="player-mic-wrap" hidden>
+          <p class="mm-hint" data-i18n="detail.mic_audio"></p>
+          <audio id="player-mic" controls preload="metadata"></audio>
+        </div>
+        <p class="mm-hint" id="audio-missing" hidden data-i18n="detail.audio_missing"></p>
+        <div class="mm-detail-actions">
+          <button type="button" class="mm-btn primary" id="transcribe" data-i18n="detail.transcribe"></button>
+          <button type="button" class="mm-btn primary" id="summarize" data-i18n="detail.summarize"></button>
+          <span class="mm-status inline" id="detail-status" role="status"></span>
+        </div>
+        <p class="mm-hint" data-i18n="detail.summary_hint"></p>
+      </div>
+      <div class="mm-card mm-summary-card" id="summary-card" hidden>
+        <h2 data-i18n="detail.summary"></h2>
+        <div class="mm-prose" id="summary"></div>
+      </div>
+      <div class="mm-card">
+        <h2 data-i18n="detail.transcript"></h2>
+        <p class="mm-hint" data-i18n="detail.speakers_hint"></p>
+        <div class="mm-segments" id="segments"></div>
+        <p class="mm-empty-text" id="no-transcript" data-i18n="detail.no_transcript"></p>
+      </div>
+      <div class="mm-card">
+        <h2 data-i18n="detail.export"></h2>
+        <textarea class="mm-textarea" id="export-text" rows="8" readonly></textarea>
+        <div class="mm-row wrap">
+          <button type="button" class="mm-btn ghost" id="copy-export" data-i18n="detail.copy"></button>
+          <button type="button" class="mm-btn ghost" id="refresh-export" data-i18n="detail.export"></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="mm-view" id="view-record" role="tabpanel" aria-labelledby="tab-record" hidden>
+      <div class="mm-head">
+        <h1 data-i18n="record.title"></h1>
+        <p class="mm-lead" data-i18n="record.lead"></p>
+      </div>
+      <ol class="mm-steps">
+        <li data-step="1" class="current" aria-current="step"><b>1</b><span data-i18n="record.step_sources"></span></li>
+        <li data-step="2"><b>2</b><span data-i18n="record.step_check"></span></li>
+        <li data-step="3"><b>3</b><span data-i18n="record.step_record"></span></li>
+        <li data-step="4"><b>4</b><span data-i18n="record.step_process"></span></li>
+      </ol>
+
+      <div class="mm-card mm-step" data-step="1">
+        <h2 class="mm-step-title" data-i18n="record.step_sources"></h2>
+        <label class="mm-field"><span data-i18n="record.title_label"></span>
+          <input class="mm-input" id="rec-title" data-i18n-placeholder="record.title_ph">
+        </label>
+        <fieldset class="mm-sources">
+          <legend data-i18n="record.source"></legend>
+          <label class="mm-source"><input type="radio" name="source" value="microphone" checked>
+            <span><b data-i18n="record.mic"></b><small data-i18n="record.mic_hint"></small></span>
+            <em class="mm-state" id="state-mic"></em></label>
+          <label class="mm-source"><input type="radio" name="source" value="system">
+            <span><b data-i18n="record.system"></b><small data-i18n="record.system_hint"></small></span>
+            <em class="mm-state" id="state-system"></em></label>
+          <label class="mm-source"><input type="radio" name="source" value="both">
+            <span><b data-i18n="record.both"></b><small data-i18n="record.both_hint"></small></span>
+            <em class="mm-state" id="state-both"></em></label>
+          <label class="mm-source"><input type="radio" name="source" value="import">
+            <span><b data-i18n="record.import"></b><small data-i18n="record.import_hint"></small></span>
+            <em class="mm-state" id="state-import"></em></label>
+        </fieldset>
+        <div class="mm-field" id="mic-row">
+          <span data-i18n="record.mic_device"></span>
+          <div class="mm-row">
+            <select class="mm-select mm-grow" id="mic-device"></select>
+            <button type="button" class="mm-btn ghost" id="mic-refresh" data-i18n="record.mic_refresh"></button>
+          </div>
+          <small data-i18n="record.mic_device_hint"></small>
+          <p class="mm-hint" id="mic-permission" role="status"></p>
+        </div>
+        <p class="mm-hint" id="system-note" hidden data-i18n="record.system_unavailable"></p>
+        <div class="mm-row mm-step-foot">
+          <span class="mm-grow"></span>
+          <button type="button" class="mm-btn primary" id="to-check" data-i18n="record.to_check"></button>
+        </div>
+      </div>
+
+      <div class="mm-card mm-step" data-step="2" hidden>
+        <h2 class="mm-step-title" data-i18n="record.step_check"></h2>
+        <p class="mm-hint mm-step-intro" data-i18n="record.check_hint"></p>
+        <div class="mm-check-block" id="check-system-block">
+          <h3 data-i18n="record.system"></h3>
+          <div class="mm-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="record.level"><i id="level-system"></i></div>
+          <div class="mm-row wrap">
+            <button type="button" class="mm-btn ghost" id="check-system" data-i18n="record.check_system"></button>
+            <button type="button" class="mm-btn ghost" id="check-system-stop" hidden data-i18n="record.check_stop"></button>
+          </div>
+          <p class="mm-hint" id="check-system-hint" data-i18n="record.check_system_hint"></p>
+          <p class="mm-status" id="system-check-status" role="status"></p>
+        </div>
+        <div class="mm-check-block" id="check-mic-block">
+          <h3 data-i18n="record.mic"></h3>
+          <div class="mm-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="record.level_mic"><i id="level-mic"></i></div>
+          <div class="mm-row wrap">
+            <button type="button" class="mm-btn ghost" id="check-mic" data-i18n="record.check_mic"></button>
+            <button type="button" class="mm-btn ghost" id="check-mic-stop" hidden data-i18n="record.check_stop"></button>
+          </div>
+          <audio id="mic-test-player" controls preload="metadata" hidden></audio>
+          <p class="mm-hint" data-i18n="record.check_mic_hint"></p>
+          <p class="mm-status" id="mic-check-status" role="status"></p>
+        </div>
+        <div class="mm-row mm-step-foot">
+          <button type="button" class="mm-btn ghost" id="back-sources" data-i18n="record.back"></button>
+          <span class="mm-grow"></span>
+          <button type="button" class="mm-btn ghost" id="skip-check" data-i18n="record.skip_check"></button>
+          <button type="button" class="mm-btn primary" id="to-record" data-i18n="record.to_record"></button>
+        </div>
+      </div>
+
+      <div class="mm-card mm-step mm-hero" data-step="3" hidden>
+        <div class="mm-rec-stage">
+          <button type="button" class="mm-rec-btn" id="rec-toggle">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+            <span id="rec-toggle-label" data-i18n="record.start"></span>
+          </button>
+          <div class="mm-rec-time" id="rec-time">0:00</div>
+          <div class="mm-rec-dot" id="rec-dot" aria-hidden="true"></div>
+          <p class="mm-hint mm-rec-live" id="rec-live" role="status"></p>
+        </div>
+        <div class="mm-tracks" id="rec-tracks" aria-live="polite">
+          <div class="mm-track"><span class="mm-src-badge" data-i18n="record.you"></span><span id="rec-track-mic-state"></span></div>
+          <div class="mm-track"><span class="mm-src-badge" data-i18n="record.system_short"></span><span id="rec-track-system-state"></span></div>
+        </div>
+        <p class="mm-hint" id="level-live-label"></p>
+        <div class="mm-meter" id="level-live-wrap" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="record.level_system"><i id="level-live"></i></div>
+        <p class="mm-hint" id="rec-note" data-i18n="record.captions_note"></p>
+        <div class="mm-row wrap mm-hero-actions">
+          <button type="button" class="mm-btn ghost" id="rec-cancel" hidden data-i18n="record.cancel"></button>
+          <label class="mm-btn ghost file" for="import-file" data-i18n="meetings.import"></label>
+          <input type="file" id="import-file" accept=".wav,.mp3,.m4a,.ogg,.webm,.flac,.aac,.mp4" hidden>
+        </div>
+        <p class="mm-status" id="rec-status" role="status"></p>
+      </div>
+
+      <div class="mm-card mm-step" data-step="4" hidden id="pending-card">
+        <h2 class="mm-step-title" data-i18n="record.pending"></h2>
+        <p class="mm-meta" id="pending-meta"></p>
+        <div class="mm-tracks" id="pending-tracks"></div>
+        <p class="mm-hint" id="pending-tracks-note" hidden></p>
+        <p class="mm-hint" data-i18n="record.pending_hint"></p>
+        <div class="mm-row wrap">
+          <button type="button" class="mm-btn primary" id="pending-save" data-i18n="record.save"></button>
+          <button type="button" class="mm-btn ghost" id="pending-discard" data-i18n="common.delete"></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="mm-view" id="view-captions" role="tabpanel" aria-labelledby="tab-captions" hidden>
+      <div class="mm-head">
+        <h1 data-i18n="captions.title"></h1>
+        <p class="mm-lead" data-i18n="captions.live_note"></p>
+      </div>
+      <div class="mm-row">
+        <span class="mm-grow"></span>
+        <label class="mm-check"><input type="checkbox" id="captions-large"><span data-i18n="captions.large"></span></label>
+      </div>
+      <p class="mm-hint" data-i18n="captions.chunk_note"></p>
+      <div class="mm-captions" id="captions" aria-live="polite"></div>
+      <div class="mm-empty" id="captions-empty">
+        <b data-i18n="captions.empty"></b>
+        <span data-i18n="captions.empty_hint"></span>
+        <button type="button" class="mm-btn primary" id="captions-go-record" data-i18n="captions.empty_cta"></button>
+      </div>
+    </section>
+
+    <section class="mm-view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="mm-head">
+        <h1 data-i18n="settings.title"></h1>
+      </div>
+      <div class="mm-form">
+        <div class="mm-card mm-section">
+          <h2 data-i18n="settings.section_models"></h2>
+          <label class="mm-field"><span data-i18n="settings.model"></span>
+            <select class="mm-select" id="set-model"></select>
+            <small data-i18n="settings.model_hint"></small>
+          </label>
+          <label class="mm-field"><span data-i18n="settings.summary_lang"></span>
+            <select class="mm-select" id="set-lang">
+              <option value="auto" data-i18n="settings.summary_lang_auto"></option>
+              <option value="ru" data-i18n="settings.summary_lang_ru"></option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <div class="mm-field">
+            <span data-i18n="settings.stt"></span>
+            <div class="mm-stt" id="stt-info"></div>
+            <small data-i18n="settings.stt_hint"></small>
+          </div>
+          <p class="mm-hint" data-i18n="settings.note_keys"></p>
+        </div>
+        <div class="mm-card mm-section">
+          <h2 data-i18n="settings.section_recording"></h2>
+          <label class="mm-check"><input type="checkbox" id="set-speakers"><span data-i18n="settings.speaker_heuristic"></span></label>
+          <small data-i18n="settings.speaker_heuristic_hint"></small>
+          <label class="mm-check"><input type="checkbox" id="set-keep-audio"><span data-i18n="settings.keep_audio"></span></label>
+          <small data-i18n="settings.keep_audio_hint"></small>
+        </div>
+        <div class="mm-card mm-section">
+          <h2 data-i18n="settings.section_captions"></h2>
+          <label class="mm-check"><input type="checkbox" id="set-large"><span data-i18n="settings.captions_large"></span></label>
+          <label class="mm-check"><input type="checkbox" id="set-confirm"><span data-i18n="settings.confirm_summary"></span></label>
+          <small data-i18n="settings.confirm_summary_hint"></small>
+        </div>
+        <div class="mm-card mm-section mm-savebar">
+          <div class="mm-row">
+            <button type="button" class="mm-btn primary" id="set-save" data-i18n="common.save"></button>
+            <span class="mm-status inline" id="set-status" role="status"></span>
+          </div>
+          <p class="mm-hint" data-i18n="settings.autosave_hint"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="mm-modal" id="confirm-modal" hidden>
+    <div class="mm-modal-card" role="dialog" aria-modal="true">
+      <p id="confirm-text"></p>
+      <div class="mm-row">
+        <button type="button" class="mm-btn primary" id="confirm-yes" data-i18n="common.yes"></button>
+        <button type="button" class="mm-btn ghost" id="confirm-no" data-i18n="common.cancel"></button>
+      </div>
+    </div>
+  </div>
+  <div class="mm-toasts" id="toasts" role="status" aria-live="polite"></div>
+</div>

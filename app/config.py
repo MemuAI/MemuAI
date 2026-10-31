@@ -17,8 +17,31 @@ def _default_data_dir() -> str:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
         return env
-    appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
-    return os.path.join(appdata, "MemuAI")
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+        return os.path.join(appdata, "MemuAI")
+    # Linux/macOS: XDG Base Directory, ``~/.local/share`` when XDG_DATA_HOME
+    # is unset or relative (the spec requires an absolute path).
+    xdg = os.environ.get("XDG_DATA_HOME") or ""
+    if not xdg or not os.path.isabs(xdg):
+        xdg = os.path.join(os.path.expanduser("~"), ".local", "share")
+    return os.path.join(xdg, "MemuAI")
+
+def default_data_dir(product: str = "MemuAI") -> str:
+    """Data dir for ``product`` (``"MemuAI"`` or ``"MemuAIProxy"``).
+
+    Same rules as :func:`_default_data_dir`: an explicit
+    ``MEMUAI_DATA_DIR``/``OMNIHUB_DATA_DIR`` wins, otherwise ``%APPDATA%``
+    on Windows and the XDG data dir elsewhere. Entry points that still
+    compute the path by hand (``main.py``, ``proxy_only.py``) should
+    switch to this helper so the suite and the standalone Proxy agree
+    on where their data lives.
+    """
+    if os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR"):
+        return _default_data_dir()
+    if product == "MemuAIProxy":
+        return os.path.join(os.path.dirname(_default_data_dir()), "MemuAIProxy")
+    return _default_data_dir()
 
 DATA_DIR = _default_data_dir()
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
@@ -26,6 +49,8 @@ CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 RETIRED_PROVIDER_IDS = frozenset({"opencode"})
 
 BALANCING_MODES = ("round-robin", "order", "first-available", "least-used")
+UPDATE_INTERVAL_HOURS = (6, 12, 24, 168)
+UPDATE_CHANNELS = ("stable", "preview")
 SEARCH_ENGINES = search_engines.engine_ids()
 CONTEXT_MODES = ("auto", "server", "stateless")
 REASONING_OUTPUTS = ("reasoning_content", "think_tags", "hidden")
@@ -95,6 +120,15 @@ class Settings:
     imported_from: str = ""
 
     companion_model: str = ""
+
+    # Автообновления отдельного Proxy: настройки живут здесь, а не в
+    # state.json обновлений, чтобы их было видно в обычной панели.
+    # Дефолты — как у MemuMusic: проверка и автоскачивание включены,
+    # раз в день, только стабильные версии.
+    updates_enabled: bool = True
+    updates_auto_download: bool = True
+    updates_interval_hours: int = 24
+    updates_channel: str = "stable"
 
 def _as_bool(value: Any, default: bool) -> bool:
     if isinstance(value, str):
@@ -184,6 +218,10 @@ def _normalized_settings(raw: Any) -> Dict[str, Any]:
     result["stream_idle_timeout"] = _bounded_int(source.get("stream_idle_timeout"), defaults["stream_idle_timeout"], 5, 3600)
     result["cookie_check_interval"] = _bounded_int(source.get("cookie_check_interval"), defaults["cookie_check_interval"], 0, 10080)
     result["model_refresh_interval"] = _bounded_int(source.get("model_refresh_interval"), defaults["model_refresh_interval"], 0, 10080)
+    result["updates_interval_hours"] = source.get("updates_interval_hours") \
+        if source.get("updates_interval_hours") in UPDATE_INTERVAL_HOURS else defaults["updates_interval_hours"]
+    result["updates_channel"] = source.get("updates_channel") \
+        if source.get("updates_channel") in UPDATE_CHANNELS else defaults["updates_channel"]
     result["model_seed_version"] = _bounded_int(source.get("model_seed_version"), defaults["model_seed_version"], 0, 1_000_000)
     result["first_byte_timeout"] = _bounded_int(source.get("first_byte_timeout"), defaults["first_byte_timeout"], 5, 3600)
     result["max_retry_passes"] = _bounded_int(source.get("max_retry_passes"), defaults["max_retry_passes"], 1, 10)
@@ -432,6 +470,10 @@ class ConfigStore:
                         "search_results": (1, 10),
                     }
                     if key == "search_engine" and candidate[key] not in SEARCH_ENGINES:
+                        raise ValueError
+                    if key == "updates_interval_hours" and candidate[key] not in UPDATE_INTERVAL_HOURS:
+                        raise ValueError
+                    if key == "updates_channel" and candidate[key] not in UPDATE_CHANNELS:
                         raise ValueError
                     if key in integer_bounds:
                         minimum, maximum = integer_bounds[key]

@@ -169,8 +169,8 @@ kbd { font-size: .92em; padding: 0 5px; }
   display: flex; align-items: center; gap: 8px;
 }
 .ds-details summary::-webkit-details-marker { display: none; }
-.ds-details summary::before { content: "›"; color: var(--muted); font-size: 1.2em; transition: transform .15s; }
-.ds-details[open] summary::before { transform: rotate(90deg); }
+.ds-details summary::before { content: ""; flex: none; width: 7px; height: 7px; color: var(--muted); border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(-45deg); transition: none; }
+.ds-details[open] summary::before { transform: rotate(45deg); }
 .ds-details > :not(summary) { margin: 0 12px 12px; }
 
 .ds-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }

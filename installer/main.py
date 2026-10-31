@@ -118,6 +118,10 @@ def make_platform():
     if os.name == "nt":
         from .winplat import WindowsPlatform
         return WindowsPlatform()
+    if sys.platform.startswith("linux"):
+        raise RuntimeError(
+            "Linux desktop version of MemuAI has been removed: "
+            "run MemuAI on a server with memuai_server.py (see docs/SERVER.md).")
     from .engine import PortablePlatform
     return PortablePlatform()
 

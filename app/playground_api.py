@@ -640,8 +640,12 @@ def create_app() -> FastAPI:
     @app.get("/api/pg/version")
     async def pg_version():
         """Versions of MemuAI and of the Proxy it talks to (Settings → About)."""
+        from app.release_date import resolve_release_date
         from app.version import about
         info = dict(about())
+        # Дата выпуска — из релиза на GitHub, с кэшем и офлайн-фолбэком;
+        # resolve_release_date никогда не ждёт сеть в этом потоке.
+        info["release_date"], info["release_date_source"] = resolve_release_date()
         proxy_version = ""
         try:
             response = await client.get(bridge["proxy"] + "/health", timeout=3)
@@ -5179,6 +5183,12 @@ def create_app() -> FastAPI:
     from . import safe_mode, gdrive_sync_api
     safe_mode.register(app)
     gdrive_sync_api.register(app)
+
+    try:
+        from .server_mode import settings_api as server_mode_api
+        server_mode_api.register(app)
+    except Exception:
+        __import__("logging").getLogger("memuai").exception("server mode settings API is unavailable")
 
     from . import gdrive_picker
     gdrive_picker.register(app)

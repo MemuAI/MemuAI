@@ -47,6 +47,19 @@ def load() -> Dict[str, Any]:
         _cached_stamp = stamp
     return _cached_data
 
+def _num(value: Any, default: float = 0.0) -> float:
+    """Numbers read back from a JSON file or a provider reply: ``"12.5"`` works, garbage is the default."""
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except ValueError:
+            return default
+    return default
+
 def _amount(value: Any, name: str, *, optional: bool = False) -> Optional[float]:
     if optional and value in (None, ""):
         return None
@@ -109,7 +122,7 @@ def save_account(account: Any, body: dict) -> dict:
     until = _amount(body.get("until"), "until", optional=True) if "until" in body else None
     if until and until <= time.time():
         previous = load()["accounts"].get(account.id)
-        if not isinstance(previous, dict) or float(previous.get("until") or 0) != until:
+        if not isinstance(previous, dict) or _num(previous.get("until")) != until:
             raise ValueError("The planning date must be in the future")
     model_changes = body.get("models")
     if model_changes is not None and (not isinstance(model_changes, dict) or len(model_changes) > 2000):
@@ -240,11 +253,11 @@ def price_for(model: str, *, account_id: str = "", raw_model: str = "") -> Optio
 
 def _counts(usage: dict) -> dict:
     details = usage.get("prompt_tokens_details") or usage.get("input_tokens_details") or {}
-    return {"input_tokens": max(0, int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)),
-            "output_tokens": max(0, int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)),
-            "cache_read": max(0, int(details.get("cached_tokens") or 0)) if isinstance(details, dict) else 0,
-            "cache_write": max(0, int((details.get("cache_write_tokens") if isinstance(details, dict) else 0)
-                                      or usage.get("cache_creation_input_tokens") or 0))}
+    details = details if isinstance(details, dict) else {}
+    return {"input_tokens": max(0, int(_num(usage.get("prompt_tokens") or usage.get("input_tokens")))),
+            "output_tokens": max(0, int(_num(usage.get("completion_tokens") or usage.get("output_tokens")))),
+            "cache_read": max(0, int(_num(details.get("cached_tokens")))),
+            "cache_write": max(0, int(_num(details.get("cache_write_tokens") or usage.get("cache_creation_input_tokens"))))}
 
 def apply_usage_price(account: Any, model: str, usage: dict, *, raw_model: str = "") -> None:
     """At the shared chat boundary: CLI, Responses and dashboards get the same price."""
@@ -273,15 +286,15 @@ def record_usage(account: Any, model: str, usage: dict, *, raw_model: str = "") 
         saved = data["accounts"].get(account.id)
         if not saved:
             return False
-        saved["requests"] = int(saved.get("requests") or 0) + 1
-        saved["spent_usd"] = float(saved.get("spent_usd") or 0) + (cost if known else 0)
-        saved["unknown_requests"] = int(saved.get("unknown_requests") or 0) + int(not known)
-        saved["estimated_requests"] = int(saved.get("estimated_requests") or 0) + int(bool(usage.get("estimated")))
+        saved["requests"] = int(_num(saved.get("requests"))) + 1
+        saved["spent_usd"] = _num(saved.get("spent_usd")) + (cost if known else 0)
+        saved["unknown_requests"] = int(_num(saved.get("unknown_requests"))) + int(not known)
+        saved["estimated_requests"] = int(_num(saved.get("estimated_requests"))) + int(bool(usage.get("estimated")))
         row = saved.setdefault("usage_models", {}).setdefault(raw, {"requests": 0, "cost_usd": 0.0})
-        row["requests"] += 1
-        row["cost_usd"] += cost if known else 0
+        row["requests"] = int(_num(row.get("requests"))) + 1
+        row["cost_usd"] = _num(row.get("cost_usd")) + (cost if known else 0)
         for name, value in counts.items():
-            row[name] = int(row.get(name) or 0) + value
+            row[name] = int(_num(row.get(name))) + value
         return True
     _mutate(change)
 
@@ -298,12 +311,12 @@ def view(accounts=None) -> dict:
         if saved is None:
             available.append(safe)
             continue
-        spent = float(saved.get("spent_usd") or 0)
-        balance = float(saved.get("balance_usd") or 0)
+        spent = _num(saved.get("spent_usd"))
+        balance = _num(saved.get("balance_usd"))
         remaining = balance - spent
-        elapsed = max(0.0, now - float(saved.get("started_at") or now))
-        rate = spent / elapsed * 86400 if elapsed >= 3600 and int(saved.get("requests") or 0) >= 3 else None
-        until = float(saved.get("until") or 0)
+        elapsed = max(0.0, now - _num(saved.get("started_at"), now))
+        rate = spent / elapsed * 86400 if elapsed >= 3600 and int(_num(saved.get("requests"))) >= 3 else None
+        until = _num(saved.get("until"))
         rows.append({**safe, **{k: saved.get(k, 0) for k in ("started_at", "balance_usd", "requests", "unknown_requests", "estimated_requests", "until")},
                      "spent_usd": spent, "remaining_usd": remaining,
                      "fraction": max(0.0, min(1.0, remaining / balance)) if balance else 0,

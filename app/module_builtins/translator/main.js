@@ -15,6 +15,32 @@ const OUTPUTS = ["only", "both", "notes"];
 
 const saved = Memu.saved || {};
 const defaults = (Memu.manifest && Memu.manifest.bridge) || {};
+/* Shared model picker: provider names come from the catalogue via
+ * MemuModelSelector (never a raw "custom" provider); options are
+ * grouped by provider with <optgroup> so mountSelect shows the same
+ * sections. Falls back to the plain <select> when the host did not
+ * inline the component. */
+function providerNameOf(item) {
+  try { if (window.MemuModelSelector) return window.MemuModelSelector.providerName(item); } catch (e) {}
+  return item.provider_label || item.account || item.provider || "";
+}
+function groupedModelOptions(items) {
+  const groups = {};
+  items.forEach((item) => { const g = providerNameOf(item); (groups[g] = groups[g] || []).push(item); });
+  return Object.keys(groups).sort().map((g) => {
+    const opts = groups[g].map((item) => `<option value="${esc(item.id)}" data-provider="${esc(g)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("");
+    return g ? `<optgroup label="${esc(g)}">${opts}</optgroup>` : opts;
+  }).join("");
+}
+function mountModelSelector(select, opts) {
+  try {
+    if (window.MemuModelSelector && window.MemuModelSelector.mountSelect) {
+      return window.MemuModelSelector.mountSelect(select, opts);
+    }
+  } catch (e) {}
+  return null;
+}
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
@@ -189,7 +215,7 @@ Memu.models().then((rows) => {
   const chat = list.filter((item) => (item.kind || "chat") === "chat" && !item.image && !item.video && !item.audio);
   const usable = chat;
   modelState = usable.length ? "ready" : "none";
-  if (usable.length) el.model.innerHTML = usable.map((item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("");
+  if (usable.length) el.model.innerHTML = groupedModelOptions(usable);
   else drawEmptyModelOption();
   modelNames = Object.fromEntries(usable.map((item) => [item.id, item.name || item.id]));
 
@@ -197,6 +223,7 @@ Memu.models().then((rows) => {
   if (wanted) el.model.value = wanted;
   if (!usable.length) setStatus(t("model.connect"), "error");
   syncModelLabel();
+  mountModelSelector(el.model, { preset: "dropdown", kind: "chat" });
 }).catch((error) => {
   modelState = "error";
   drawEmptyModelOption();

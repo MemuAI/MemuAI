@@ -501,7 +501,7 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .context-menu { max-width: min(340px, calc(100vw - 16px)); overscroll-behavior: contain; }
 .context-menu button > span:not(.ui-icon) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context-menu::-webkit-scrollbar { width: 8px; }
-.context-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+.context-menu::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
 .list-search-wrap {
   display: flex;
   flex-direction: column;

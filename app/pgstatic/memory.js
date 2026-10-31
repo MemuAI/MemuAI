@@ -40,7 +40,9 @@
   const st = {
     doc: null, tab: "facts", q: "", cat: "", svc: "", sort: "smart", group: false, sel: new Set(),
     editing: "", history: new Set(), composer: false, focusChat: "", busy: false, lastLoad: 0, diaryEditing: "",
+    shown: 50,
   };
+  const PAGE_SIZE = 50;
 
   function legacy(doc) {
     return { enabled: doc.enabled !== false, facts: (doc.facts || []).slice(), version: 2, pending: (doc.stats || {}).pending || 0 };
@@ -413,13 +415,18 @@
   function factsView() {
     const rows = filtered();
     const all = items("active");
+    // Render only the visible window: a thousand facts used to become one
+    // giant string on every keystroke. "Show more" extends the window; the
+    // count stays honest about how many are still hidden.
+    const shownRows = rows.slice(0, st.shown);
+    const rest = rows.length - shownRows.length;
     const chat = st.focusChat ? chatById(st.focusChat) : null;
     const opt = (v, label, cur) => `<option value="${h(v)}" ${cur === v ? "selected" : ""}>${h(label)}</option>`;
     const usedCats = CATS.filter((c) => all.some((i) => i.category === c));
     const selCount = [...st.sel].filter((id) => rows.some((r) => r.id === id)).length;
     const list = st.group
-      ? CATS.map((c) => { const part = rows.filter((r) => r.category === c); return part.length ? `<div class="mem2-group"><div class="mem2-group-head">${ic(CATEGORY[c][2])}<b>${h(catName(c))}</b><span>${part.length}</span></div>${part.map(card).join("")}</div>` : ""; }).join("")
-      : rows.map(card).join("");
+      ? CATS.map((c) => { const part = shownRows.filter((r) => r.category === c); return part.length ? `<div class="mem2-group"><div class="mem2-group-head">${ic(CATEGORY[c][2])}<b>${h(catName(c))}</b><span>${part.length}</span></div>${part.map(card).join("")}</div>` : ""; }).join("")
+      : shownRows.map(card).join("");
     return `
       ${chat || st.focusChat ? `<div class="mem2-banner">${ic("chat")}<span>${L("Факты из чата", "Facts from the chat")} <b>${h(chat?.title || st.focusChat)}</b></span>
         <button type="button" class="mem2-link" data-act="unfocus">${L("Показать все", "Show all")}</button>
@@ -435,6 +442,7 @@
       ${st.composer ? composer() : ""}
       ${selCount ? bulkBar(selCount, rows) : ""}
       <div class="mem2-list" role="list">${list || empty(all.length)}</div>
+      ${rest ? `<div class="mem2-foot"><button type="button" class="pbtn ghost" data-act="show-more">${L("Показать ещё", "Show more")} (${shownRows.length} / ${rows.length})</button></div>` : ""}
       ${rows.length ? `<div class="mem2-foot"><label class="mem2-check-all"><input type="checkbox" id="mem2-all" ${selCount && selCount === rows.length ? "checked" : ""}> ${L("Выбрать все показанные", "Select all shown")} (${rows.length})</label>
         <span>${L("В запрос попадают закреплённые и самые подходящие факты в пределах", "Each request gets the pinned and the most relevant facts within")} ≈${st.doc.settings.budget_tokens} ${L("токенов", "tokens")}</span></div>` : ""}`;
   }
@@ -816,12 +824,12 @@
     const q = $1("#mem2-q");
     if (q) {
       let timer = 0;
-      q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { st.q = q.value; render(); }, 120); };
+      q.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { st.q = q.value; st.shown = PAGE_SIZE; render(); }, 120); };
       q.onkeydown = (e) => { if (e.key === "Escape" && q.value) { e.stopPropagation(); q.value = ""; st.q = ""; render(); } };
     }
-    if ($1("#mem2-cat")) $1("#mem2-cat").onchange = (e) => { st.cat = e.target.value; render(); };
-    if ($1("#mem2-svc")) $1("#mem2-svc").onchange = (e) => { st.svc = e.target.value; render(); };
-    if ($1("#mem2-sort")) $1("#mem2-sort").onchange = (e) => { st.sort = e.target.value; render(); };
+    if ($1("#mem2-cat")) $1("#mem2-cat").onchange = (e) => { st.cat = e.target.value; st.shown = PAGE_SIZE; render(); };
+    if ($1("#mem2-svc")) $1("#mem2-svc").onchange = (e) => { st.svc = e.target.value; st.shown = PAGE_SIZE; render(); };
+    if ($1("#mem2-sort")) $1("#mem2-sort").onchange = (e) => { st.sort = e.target.value; st.shown = PAGE_SIZE; render(); };
     $all("[data-act]").forEach((b) => b.onclick = () => action(b.dataset.act, b));
     $all("[data-sel]").forEach((c) => c.onchange = () => { c.checked ? st.sel.add(c.dataset.sel) : st.sel.delete(c.dataset.sel); render(); });
     if ($1("#mem2-all")) $1("#mem2-all").onchange = (e) => { const rows = filtered(); if (e.target.checked) rows.forEach((r) => st.sel.add(r.id)); else st.sel.clear(); render(); };
@@ -966,6 +974,7 @@
         break;
       }
       case "group": st.group = !st.group; render(); break;
+      case "show-more": st.shown += PAGE_SIZE; render(); break;
       case "clear-sel": st.sel.clear(); render(); break;
       case "unfocus": st.focusChat = ""; render(); break;
       case "forget-focus": await forgetChat(st.focusChat, chatById(st.focusChat)?.title || ""); render(); break;

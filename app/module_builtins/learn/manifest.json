@@ -40,23 +40,180 @@
   "bridge": {},
   "contributes": {
     "panels": [
-      {"id": "today", "title": "Повторить сегодня", "title_en": "Review today", "icon": "brain", "size": "m", "height": 214,
-       "summary": "Сколько карточек ждёт повторения и сколько минут это займёт, серия дней, запуск в один клик",
-       "summary_en": "How many cards are due and how many minutes it takes, the day streak, one-click start",
-       "data": "learn.panel", "entry": "integration/panel.html", "scripts": ["integration/panels.js"], "styles": ["integration/panels.css"]}
+      {
+        "id": "today",
+        "title": "Повторить сегодня",
+        "title_en": "Review today",
+        "icon": "brain",
+        "size": "m",
+        "height": 214,
+        "summary": "Сколько карточек ждёт повторения и сколько минут это займёт, серия дней, запуск в один клик",
+        "summary_en": "How many cards are due and how many minutes it takes, the day streak, one-click start",
+        "data": "learn.panel",
+        "entry": "integration/panel.html",
+        "scripts": [
+          "integration/panels.js"
+        ],
+        "styles": [
+          "integration/panels.css"
+        ]
+      }
     ],
     "commands": [
-      {"id": "due", "title": "Что повторить сегодня", "title_en": "What to review today", "run": {"handler": "learn.due"},
-       "description": "Сколько карточек MemuLearn нужно повторить сегодня (по курсам) и сколько это займёт минут",
-       "description_en": "How many MemuLearn cards are due today (per course) and how many minutes it takes",
-       "phrases": ["что повторить сегодня", "сколько карточек повторить", "повторение карточек"],
-       "phrases_en": ["what to review today", "how many cards are due"]},
-      {"id": "review", "title": "Начать повторение", "title_en": "Start reviewing", "run": {"open": true},
-       "description": "Открыть MemuLearn и начать сессию повторения карточек",
-       "description_en": "Open MemuLearn and start a flashcard review session",
-       "phrases": ["начни повторение", "повторить карточки", "открой тренажёр карточек"],
-       "phrases_en": ["start reviewing", "review my flashcards"]}
+      {
+        "id": "due",
+        "title": "Что повторить сегодня",
+        "title_en": "What to review today",
+        "run": {
+          "handler": "learn.due"
+        },
+        "description": "Сколько карточек MemuLearn нужно повторить сегодня (по курсам) и сколько это займёт минут",
+        "description_en": "How many MemuLearn cards are due today (per course) and how many minutes it takes",
+        "phrases": [
+          "что повторить сегодня",
+          "сколько карточек повторить",
+          "повторение карточек"
+        ],
+        "phrases_en": [
+          "what to review today",
+          "how many cards are due"
+        ]
+      },
+      {
+        "id": "review",
+        "title": "Начать повторение",
+        "title_en": "Start reviewing",
+        "run": {
+          "open": true
+        },
+        "description": "Открыть MemuLearn и начать сессию повторения карточек",
+        "description_en": "Open MemuLearn and start a flashcard review session",
+        "phrases": [
+          "начни повторение",
+          "повторить карточки",
+          "открой тренажёр карточек"
+        ],
+        "phrases_en": [
+          "start reviewing",
+          "review my flashcards"
+        ]
+      }
     ],
-    "skill": "integration/skill.md"
+    "skill": "integration/skill.md",
+    "planning": [
+      {
+        "id": "review-due",
+        "title": "Пора повторить карточки",
+        "title_en": "Cards are due for review",
+        "description": "Напомнить о повторении, когда накопится несколько карточек к повторению.",
+        "description_en": "Remind to review once several cards are due.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "due",
+          "threshold": 5,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Пора повторить карточки: в обучении накопились карточки к повторению — откройте модуль «Обучение».",
+          "text_en": "learn"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Карточек к повторению",
+            "label_en": "Cards due for review",
+            "default": 5,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "daily-review",
+        "title": "Ежедневное повторение",
+        "title_en": "Daily review",
+        "description": "Каждый день напомнить повторить карточки, чтобы не потерять серию.",
+        "description_en": "Remind every day to review the cards and keep the streak.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "notify",
+          "text": "День обучения: повторите карточки сегодня, чтобы не потерять серию.",
+          "text_en": "learn"
+        }
+      },
+      {
+        "id": "due-many",
+        "title": "Двадцать карточек к повторению",
+        "title_en": "Twenty cards due for review",
+        "description": "Сообщить, когда к повторению накопится двадцать карточек.",
+        "description_en": "Notify when twenty cards are due for review.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "due",
+          "threshold": 20,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Накопилось двадцать карточек к повторению — выделите время на короткую сессию, пока долг не вырос ещё больше.",
+          "text_en": "Twenty cards are due for review — set aside time for a short session before the backlog grows further."
+        }
+      },
+      {
+        "id": "due-catchup-plan",
+        "title": "План догоняющего повторения",
+        "title_en": "A catch-up review plan",
+        "description": "Попросить модель составить план, когда просроченных карточек станет очень много.",
+        "description_en": "Ask the model to make a plan when very many cards are overdue.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "due",
+          "threshold": 50,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Помоги составить план догоняющего повторения: разбей накопившиеся карточки на короткие сессии по дням и подскажи, с каких тем начать.",
+          "prompt_en": "Help me plan a catch-up review: split the overdue cards into short daily sessions and suggest which topics to start with."
+        }
+      },
+      {
+        "id": "weekly-learning",
+        "title": "Итоги недели обучения",
+        "title_en": "A week of learning: round-up",
+        "description": "Раз в неделю попросить модель подвести итог обучения и наметить повторение.",
+        "description_en": "Once a week, ask the model to round up the learning and plan the next review.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "chat",
+          "prompt": "Подведи итог недели обучения: что повторено, какие темы даются труднее всего и что повторить на следующей неделе. Коротко, списком.",
+          "prompt_en": "Round up the week of learning: what was reviewed, which topics are hardest, and what to review next week. Briefly, as a list."
+        }
+      },
+      {
+        "id": "streak-three-day",
+        "title": "Серия повторений: проверка",
+        "title_en": "Review streak check",
+        "description": "Раз в три дня напомнить проверить серию повторений и новые колоды.",
+        "description_en": "Every three days, remind to check the review streak and the new decks.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "notify",
+          "text": "Проверьте серию повторений и загляните в новые колоды: три дня — хороший повод не прерывать ритм.",
+          "text_en": "Check your review streak and look at the new decks: three days is a good moment to keep the rhythm going."
+        }
+      }
+    ]
   }
 }

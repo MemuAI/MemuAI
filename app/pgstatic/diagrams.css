@@ -36,11 +36,11 @@
 .md-error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .memu-diagram.md-failed { border-color: color-mix(in srgb, #e5534b 40%, var(--border)); }
 .memu-diagram .md-stage.mdz { position: relative; display: block; padding: 0; overflow: hidden; border-radius: inherit; }
-.mdz-scroll { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent;
+.mdz-scroll { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb, color-mix(in srgb, var(--text) 22%, transparent)) transparent;
   border-radius: inherit; outline: none; }
 .mdz-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.mdz-scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 20%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
-.mdz-scroll::-webkit-scrollbar-track, .mdz-scroll::-webkit-scrollbar-corner { background: transparent; }
+.mdz-scroll::-webkit-scrollbar-thumb { background: var(--scroll-thumb, color-mix(in srgb, var(--text) 20%, transparent)); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+.mdz-scroll::-webkit-scrollbar-track, .mdz-scroll::-webkit-scrollbar-corner { margin: 8px 0; background: transparent; }
 .mdz-scroll:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
 .mdz-canvas { display: grid; place-items: center; box-sizing: border-box; min-width: 100%; min-height: 100%; width: max-content; padding: 8px; }
 .memu-diagram .mdz-canvas svg { display: block; max-width: none; max-height: none; }

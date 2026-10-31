@@ -32,7 +32,13 @@
     try { localStorage.removeItem(KEY); } catch (e) {  }
   }
   async function post(name, body) {
-    const response = await fetch("api/" + name, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const apiUrl = window.MemuTgApiUrl ? window.MemuTgApiUrl("api/" + name) : "api/" + name;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let response;
+    try { response = await fetch(apiUrl, { method: "POST", signal: controller.signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) }); }
+    catch (error) { if (error && error.name === "AbortError") throw new Error(tr("Нет связи с компьютером", "No connection to the computer")); throw error; }
+    finally { clearTimeout(timer); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { const error = new Error(data.error || ("HTTP " + response.status)); error.code = data.code || ""; error.status = response.status; throw error; }
     return data;

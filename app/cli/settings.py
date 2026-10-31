@@ -66,6 +66,7 @@ DEFAULTS: Dict[str, Any] = {
     "auto_compact_threshold": 85,
 
     "context_budget": 40000,
+    "tool_timeout_seconds": 0,
     "context_window": 0,
     "keep_recent_messages": 8,
     "output_style": "default",
@@ -385,6 +386,7 @@ def validate(key: str, value: Any) -> Any:
                   "keep_recent_messages": (2, 60), "context_window": (0, 20_000_000),
                   "context_budget": (0, 20_000_000),
                   "cleanup_period_days": (1, 3650), "notify_after_seconds": (0, 86400),
+                  "tool_timeout_seconds": (0, 3600),
                   "max_output_tokens": (0, 1_000_000), "sandbox.memory_mb": (256, 65536)}.get(key)
         if limits:
             number = max(limits[0], min(limits[1], number))

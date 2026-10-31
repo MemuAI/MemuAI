@@ -218,6 +218,7 @@ def tool_tree(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         raise WorkError(f"«{prefix or '.'}» — не каталог")
     pattern = str(args.get("glob") or "").strip()
     limit = max(1, min(MAX_TREE_ENTRIES, int(args.get("limit") or 1200)))
+    offset = max(0, int(args.get("offset") or 0))
     rows: List[Dict[str, Any]] = []
     truncated = False
     for path in iter_files(base, limit=MAX_TREE_ENTRIES):
@@ -229,13 +230,16 @@ def tool_tree(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         except OSError:
             size = 0
         rows.append({"path": rel, "size": size, "text": _is_text(path)})
-        if len(rows) >= limit:
+        if len(rows) >= offset + limit:
             truncated = True
             break
     rows.sort(key=lambda item: item["path"])
-    return {"root": str(root), "files": rows, "count": len(rows),
+    page = rows[offset:offset + limit]
+    return {"root": str(root), "files": page, "count": len(page),
+            "offset": offset, "scanned": len(rows),
+            "next_offset": offset + limit if truncated else None,
             "truncated": truncated,
-            "entry_points": [row["path"] for row in rows
+            "entry_points": [row["path"] for row in page
                              if Path(row["path"]).name.lower() in ENTRY_NAMES][:12]}
 
 def tool_read(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
@@ -265,6 +269,7 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         raise WorkError("Нужен непустой query")
     pattern = str(args.get("glob") or "").strip()
     limit = max(1, min(MAX_MATCHES, int(args.get("limit") or 60)))
+    offset = max(0, int(args.get("offset") or 0))
     context = max(0, min(6, int(args["context"] if args.get("context") is not None else 1)))
     flags = 0 if args.get("case_sensitive") else re.IGNORECASE
     try:
@@ -278,6 +283,8 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
                         "Nested repeats like (a+)+ can hang; simplify the pattern.")
     matches: List[Dict[str, Any]] = []
     scanned = 0
+    skipped = 0
+    truncated = False
     for path in iter_files(root):
         rel = relative(root, path)
         if pattern and not fnmatch.fnmatch(rel, pattern):
@@ -293,6 +300,9 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         for index, line in enumerate(lines):
             if not needle.search(line):
                 continue
+            if skipped < offset:
+                skipped += 1
+                continue
             low = max(0, index - context)
             high = min(len(lines), index + context + 1)
             matches.append({
@@ -301,9 +311,13 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
                                   for offset, value in enumerate(lines[low:high])),
             })
             if len(matches) >= limit:
-                return {"query": query, "matches": matches, "files_scanned": scanned,
-                        "truncated": True}
-    return {"query": query, "matches": matches, "files_scanned": scanned, "truncated": False}
+                truncated = True
+                break
+        if truncated:
+            break
+    return {"query": query, "matches": matches, "files_scanned": scanned,
+            "offset": offset, "next_offset": offset + len(matches) if truncated else None,
+            "truncated": truncated}
 
 def tool_outline(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Объявления файла без его содержимого — дешёвый способ понять структуру."""

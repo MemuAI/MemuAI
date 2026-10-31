@@ -326,7 +326,12 @@ async def overview(request: Request):
             "accounts": len(accounts), "accounts_usable": usable,
             "models": len(models),
         })
+    from .proxy_updates import edition_info
+    edition = edition_info()
     return {
+        "edition": edition["edition"],
+        "proxy_only": edition["proxy_only"],
+        "memuai_present": edition["memuai_present"],
         "providers": providers,
         "accounts_total": len(state.accounts),
         "accounts_usable": len([a for a in state.accounts.values() if a.usable()]),
@@ -352,7 +357,12 @@ async def get_settings(request: Request):
     deny = _auth(request)
     if deny:
         return deny
-    return {"settings": config_store.public_dict()}
+    from .proxy_updates import edition_info
+    edition = edition_info()
+    return {"settings": config_store.public_dict(),
+            "edition": edition["edition"],
+            "proxy_only": edition["proxy_only"],
+            "memuai_present": edition["memuai_present"]}
 
 @router.post("/settings")
 async def update_settings(request: Request):

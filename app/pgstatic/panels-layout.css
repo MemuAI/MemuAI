@@ -247,6 +247,7 @@ body.mp-resizing, body.mp-resizing * { cursor: ew-resize !important; user-select
 .mp-laypop { position: fixed; z-index: 4050; width: 340px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto; box-sizing: border-box;
   display: grid; gap: 12px; padding: 12px 14px 14px; border-radius: 16px; background: var(--panel); color: var(--text);
   border: 1px solid var(--mp-line-strong); box-shadow: var(--d-pop-shadow, 0 18px 48px -12px rgba(0, 0, 0, .5)); font-family: var(--mp-text); scrollbar-width: none; }
+.mp-laypop::-webkit-scrollbar { display: none; }
 .mp-lp-head { display: flex; align-items: center; gap: 8px; font: 650 13.5px/1.2 var(--mp-text); }
 .mp-lp-head .grow { flex: 1; }
 .mp-lp-head .mp-ico { color: var(--accent); }
