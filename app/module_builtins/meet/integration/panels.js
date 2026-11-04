@@ -19,8 +19,12 @@
     } catch (e) { return ""; }
   };
   var sourceLabel = function (source) {
-    return { microphone: t("Микрофон", "Microphone"), system: t("Системный звук", "System audio"), "import": t("Импорт", "Import") }[source] || source || "";
+    return { microphone: t("Микрофон", "Microphone"), system: t("Системный звук", "System audio"),
+      both: t("Микрофон + системный звук", "Microphone + system audio"), "import": t("Импорт", "Import") }[source] || source || "";
   };
+  function openTasks(row) {
+    return Array.isArray(row && row.tasks) ? row.tasks.filter(function (task) { return task && !task.done && String(task.text || "").trim(); }).length : 0;
+  }
   function empty() {
     root.innerHTML = '<div class="mt-empty"><b>' + esc(t("Пока нет встреч", "No meetings yet")) + "</b><span>" +
       esc(t("Запишите встречу в MemuMeet — она появится здесь", "Record a meeting in MemuMeet — it will show up here")) + "</span>" +
@@ -36,6 +40,7 @@
           '<span class="mt-main"><b>' + esc(row.title || t("Встреча без названия", "Untitled meeting")) + "</b>" +
           "<span>" + esc(fmt(row.created_at)) + " · " + esc(sourceLabel(row.source)) + "</span></span>" +
           ((row.summary || "").trim() ? '<span class="mt-tag">' + esc(t("конспект", "summary")) + "</span>" : "") +
+          (openTasks(row) ? '<span class="mt-tag mt-tasks" title="' + esc(t("Открытые задачи", "Open tasks")) + '">' + openTasks(row) + "</span>" : "") +
           "</button>";
       }).join("");
   }

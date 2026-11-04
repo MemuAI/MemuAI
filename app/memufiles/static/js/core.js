@@ -257,6 +257,8 @@ const P = {
   hash: '<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>', warn: '<path d="M12 4 2.5 20h19z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   invert: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17A8.5 8.5 0 0 0 12 3.5z" fill="currentColor"/>',
   lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  drop: '<path d="M12 3.5c3.6 4.3 6 7.7 6 10.6a6 6 0 0 1-12 0c0-2.9 2.4-6.3 6-10.6z"/>',
+  layout: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M9 9v10.5"/>',
 };
 export function icon(name, cls = "") { return `<span class="ic ${cls}" aria-hidden="true"><svg viewBox="0 0 24 24">${P[name] || P.file}</svg></span>`; }
 
@@ -346,8 +348,10 @@ export function menu(items, x, y, opts = {}) {
     if (item.node) { el.append(item.node); continue; }
     const b = h("button", { class: "mi" + (item.danger ? " danger" : ""), role: "menuitem", disabled: item.disabled ? true : undefined });
     const check = item.checked === undefined ? "" : `<span class="chk">${item.checked ? icon("check", "sm") : ""}</span>`;
+    const sw = Array.isArray(item.swatch) ? item.swatch.filter((c) => /^#[0-9a-f]{3,8}$/i.test(c || "")) : [];
+    const swatch = sw.length ? `<span class="mi-sw${sw.length > 1 ? " pair" : ""}" style="--a:${sw[0]};--b:${sw[1] || sw[0]}" aria-hidden="true"></span>` : "";
     b.innerHTML = check + (item.img ? `<img class="ic app-ic" alt="" src="${esc(item.img)}">` : item.icon ? icon(item.icon) : (item.checked === undefined && !opts.noIconPad ? '<span class="ic"></span>' : "")) +
-      `<span class="lbl">${esc(item.label)}</span>` + (item.kb ? `<span class="kb">${esc(item.kb)}</span>` : "") +
+      `<span class="lbl">${esc(item.label)}</span>` + swatch + (item.kb ? `<span class="kb">${esc(item.kb)}</span>` : "") +
       (item.sub ? `<span class="sub-caret">${icon("right", "sm")}</span>` : "");
     if (item.sub) {
       const openSub = (e) => {
@@ -356,16 +360,17 @@ export function menu(items, x, y, opts = {}) {
         const r = b.getBoundingClientRect();
         const subItems = typeof item.sub === "function" ? item.sub() : item.sub;
         if (subItems && typeof subItems.then === "function") {
-          const child = menu([{ label: t("ctx.loading"), disabled: true }], r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus });
+          const flip = el.dataset.flip === "1";
+          const child = menu([{ label: t("ctx.loading"), disabled: true }], r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus, flip });
           subItems.then((list) => {
             if (!openMenu || !openMenu.includes(child)) return;
             const hadFocus = child.contains(document.activeElement);
             openMenu.splice(openMenu.indexOf(child), 1); child.remove();
-            menu(list, r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus: hadFocus || focus });
+            menu(list, r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus: hadFocus || focus, flip });
           });
           return;
         }
-        menu(subItems, r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus });
+        menu(subItems, r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus, flip: el.dataset.flip === "1" });
       };
       b.addEventListener("mouseenter", openSub);
       b.addEventListener("click", openSub);
@@ -380,7 +385,11 @@ export function menu(items, x, y, opts = {}) {
 
   const r = { width: el.offsetWidth, height: el.offsetHeight };
   let left = x, top = y;
-  if (left + r.width > innerWidth - 6) left = opts.parentRect ? Math.max(6, opts.parentRect.left - r.width + 4) : Math.max(6, innerWidth - r.width - 6);
+  // Submenus keep opening on the side their parent opened to, so a deep chain does not zigzag over itself.
+  const pr = opts.parentRect;
+  if (pr && opts.flip && pr.left - r.width + 4 >= 6) left = pr.left - r.width + 4;
+  else if (left + r.width > innerWidth - 6) left = pr ? Math.max(6, pr.left - r.width + 4) : Math.max(6, innerWidth - r.width - 6);
+  if (pr && left < x) el.dataset.flip = "1";
   if (top + r.height > innerHeight - 6) top = Math.max(6, innerHeight - r.height - 6);
   el.style.left = left + "px"; el.style.top = top + "px";
   if (!openMenu) openMenu = [];

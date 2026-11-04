@@ -144,6 +144,16 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
             rows.append(_row(f"MCP {row['name']}", status, (f"{len(row['tools'])} " + tr("инстр.", "tools")) if row["running"]
                              else (row["error"] or tr("не запущен", "not running"))))
 
+    try:
+        tool_timeout = float(runtime.settings.get("tool_timeout_seconds") or 0)
+    except (TypeError, ValueError):
+        tool_timeout = 0.0
+    rows.append(_row(tr("Таймаут инструментов", "Tool timeout"),
+                     "ok" if tool_timeout > 0 else "info",
+                     tr(f"{tool_timeout:g} с на один вызов", f"{tool_timeout:g}s per call") if tool_timeout > 0
+                     else tr("без ограничения (0)", "no limit (0)"),
+                     "" if tool_timeout > 0 else tr("Зависший инструмент зависнет и сессию — задайте /config tool_timeout_seconds 300",
+                                                    "A hung tool hangs the session — set /config tool_timeout_seconds 300")))
     for warning in runtime.settings.warnings:
         rows.append(_row(tr("Настройки", "Settings"), "warn", warning))
     try:

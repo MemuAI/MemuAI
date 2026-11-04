@@ -51,101 +51,123 @@
     "planning": [
       {
         "id": "new-models",
-        "title": "Новые модели в каталоге",
-        "title_en": "New models in the catalog",
-        "description": "Раз в неделю напомнить проверить каталог: новые модели и цены.",
-        "description_en": "Remind once a week to check the catalog for new models and prices.",
+        "title": "Снимок каталога: что изменилось за неделю",
+        "title_en": "Catalog snapshot: the week's changes",
+        "description": "Раз в неделю сохраняется снимок каталога OpenRouter и сравнивается с прошлым: новые, ушедшие модели, изменения цен.",
+        "description_en": "Once a week an OpenRouter catalog snapshot is saved and compared with the last one: new and removed models, price changes.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Проверьте каталог моделей: за неделю могли появиться новые модели и измениться цены.",
-          "text_en": "catalog"
-        }
-      },
-      {
-        "id": "price-changes",
-        "title": "Изменения цен и характеристик",
-        "title_en": "Price and spec changes",
-        "description": "Сообщить, когда в каталоге изменится несколько цен или характеристик моделей.",
-        "description_en": "Notify when several model prices or specs change in the catalog.",
-        "trigger": {
-          "kind": "threshold",
-          "metric": "changes",
-          "threshold": 3,
-          "scope": "any"
+          "kind": "module",
+          "handler": "catalog.snapshot_diff"
         },
-        "action": {
-          "kind": "notify",
-          "text": "В каталоге моделей изменились цены или характеристики — откройте каталог и проверьте сравнение моделей.",
-          "text_en": "catalog"
-        }
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 30,
+            "min": 1,
+            "max": 100
+          }
+        ]
       },
       {
         "id": "daily-catalog",
-        "title": "Ежедневная проверка каталога",
-        "title_en": "Daily catalog check",
-        "description": "Каждый день напомнить проверить каталог моделей.",
-        "description_en": "Remind every day to check the model catalog.",
+        "title": "Ежедневный снимок каталога",
+        "title_en": "Daily catalog snapshot",
+        "description": "Каждый день — снимок каталога и список изменений с прошлого раза.",
+        "description_en": "Every day — a catalog snapshot and the changes since last time.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 1440
         },
         "action": {
-          "kind": "notify",
-          "text": "Проверьте каталог моделей: за день могли появиться новые модели и измениться цены.",
-          "text_en": "Check the model catalog: new models may have appeared and prices may have changed during the day."
-        }
+          "kind": "module",
+          "handler": "catalog.snapshot_diff"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 30,
+            "min": 1,
+            "max": 100
+          }
+        ]
       },
       {
         "id": "three-day-prices",
         "title": "Цены каталога каждые три дня",
         "title_en": "Catalog prices every three days",
-        "description": "Раз в три дня напомнить проверить цены и характеристики моделей.",
-        "description_en": "Every three days, remind to check model prices and specs.",
+        "description": "Каждые три дня — снимок каталога и изменения цен с прошлого раза.",
+        "description_en": "Every three days — a catalog snapshot and price changes since last time.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 4320
         },
         "action": {
-          "kind": "notify",
-          "text": "Загляните в каталог: проверьте цены и характеристики моделей, которые вы сравниваете.",
-          "text_en": "Open the catalog: check the prices and specs of the models you compare."
-        }
+          "kind": "module",
+          "handler": "catalog.snapshot_diff"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 30,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "half-day-context",
+        "title": "Модели с большим контекстом",
+        "title_en": "Large-context models",
+        "description": "Список моделей с контекстом от порога (по умолчанию 1M токенов), дешёвые сверху.",
+        "description_en": "Models with a context from the threshold (1M tokens by default), cheapest first.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "module",
+          "handler": "catalog.large_context"
+        },
+        "settings": [
+          {
+            "key": "min_context",
+            "type": "number",
+            "label": "Контекст от, токенов",
+            "label_en": "Context from, tokens",
+            "default": 1000000,
+            "min": 8000,
+            "max": 100000000
+          }
+        ]
       },
       {
         "id": "two-day-compare",
-        "title": "Сравнение моделей каждые два дня",
-        "title_en": "Model comparison every two days",
-        "description": "Каждые два дня попросить модель сравнить интересные модели из каталога.",
-        "description_en": "Every two days, ask the model to compare the interesting catalog models.",
+        "title": "Отчёт по моделям из сравнения",
+        "title_en": "Report on the compared models",
+        "description": "Модели, добавленные в сравнение каталога, — актуальные цены и контекст одной таблицей.",
+        "description_en": "The models added to the catalog comparison — current prices and context in one table.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 2880
         },
         "action": {
-          "kind": "chat",
-          "prompt": "Сравни три самые интересные модели из каталога по цене, контексту и возможностям и подскажи, какая подойдёт лучше. Коротко, списком.",
-          "prompt_en": "Compare the three most interesting catalog models by price, context and capabilities, and suggest which fits best. Briefly, as a list."
-        }
-      },
-      {
-        "id": "half-day-context",
-        "title": "Новые модели с большим контекстом",
-        "title_en": "New large-context models",
-        "description": "Каждые 12 часов напомнить проверить каталог на модели с большим контекстом.",
-        "description_en": "Every 12 hours, remind to check the catalog for large-context models.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 720
+          "kind": "module",
+          "handler": "catalog.compare_report"
         },
-        "action": {
-          "kind": "notify",
-          "text": "Проверьте каталог: не появились ли модели с большим контекстным окном или новыми возможностями.",
-          "text_en": "Check the catalog for models with a larger context window or new capabilities."
-        }
+        "settings": []
       }
     ]
   }

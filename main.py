@@ -197,6 +197,16 @@ def main() -> None:
             "Публикация в локальной сети отключена, пока используется стандартный пароль. "
             "Сначала измените пароль администратора в настройках Proxy.",
         )
+    # F13: on first launch the admin password is random, not "admin" — show
+    # it once so the user can log in (it is never stored in plain text).
+    first_run_password = config_store.take_first_run_password()
+    if first_run_password:
+        desktop.message_box(
+            "MemuAI Proxy — первый запуск",
+            "Пароль администратора (показан один раз — сохраните его, "
+            "он больше нигде не отображается):\n" + first_run_password +
+            "\n\nСменить пароль можно в настройках Proxy.",
+        )
     try:
         port = pick_port(preferred_port, host)
     except (OSError, RuntimeError, ValueError) as exc:
@@ -215,7 +225,10 @@ def main() -> None:
     import uvicorn
     proxy_app = create_app()
     server = uvicorn.Server(uvicorn.Config(proxy_app, host=host, port=port,
-                                           log_config=None, access_log=False))
+                                           log_config=None, access_log=False,
+                                           # F16: bound concurrent connections so one
+                                           # abusive client cannot exhaust the server.
+                                           limit_concurrency=200))
     shutdown_token = secrets.token_urlsafe(32)
     shutdown_event = threading.Event()
 

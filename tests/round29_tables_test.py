@@ -175,7 +175,7 @@ class WiringTest(unittest.TestCase):
         index = (STATIC / "index.html").read_text(encoding="utf-8")
         quick = (STATIC / "quick" / "index.html").read_text(encoding="utf-8")
         for page in (index, quick):
-            for tag in ('src="/tables.js?v=1.0-r29"', 'src="/diagrams.js?v=1.2-r36"', 'href="/tables.css?v=1.1-r30"', 'href="/diagrams.css?v=1.1-r30"',
+            for tag in ('src="/tables.js?v=5.0-r79"', 'src="/diagrams.js?v=5.0-r79"', 'href="/tables.css?v=1.1-r30"', 'href="/diagrams.css?v=5.0-r79"',
                         'src="/diagram-zoom.js?v=1.1-r36"'):
                 self.assertIn(tag, page)
         self.assertLess(index.index("/tables.js"), index.index("/app.js"), "loaded before app.js (md() uses it)")

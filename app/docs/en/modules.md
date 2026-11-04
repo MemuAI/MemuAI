@@ -11,7 +11,7 @@ That leads to the main rule: **a module has no network access**. It cannot load 
 
 ## What you can build
 
-**Settings → Modules** shows a searchable, filterable list. Each row lets you enable or open a module. Click its name to expand its shortcut location, visibility, window size and permissions below the row; the row menu has further actions. “Create module” guides you through four steps: template, name and description, window, and permissions. The adjacent catalogue tab lets you inspect and download package source before installing it.
+**Settings → Modules** has two tabs — “Installed” and “Catalogue”. Above the list are search and the “All”, “Enabled”, “Disabled” and “Custom” filters. The switch in a row turns a module on or off at once; **Open** starts it, and **Settings** or a click on its name expands the shortcut location, visibility, window size and permissions below the row. The row menu (three dots) has further actions. **Create module** guides you through four steps: template, name and description, window, and permissions; **Import** installs a module from a JSON package file. In the catalogue you can inspect and download package source before installing it.
 
 Use **Customize sidebar** to show or hide all module shortcuts or choose individual ones. These controls share the shortcut location and visibility settings with the module settings; they do not enable or disable the module itself.
 

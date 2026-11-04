@@ -123,7 +123,7 @@
         }
         if (typeof opts.onChange === "function") { try { opts.onChange(kind); } catch (e) {  } }
       }
-      if (kind) place(); else hint.hidden = true;
+      if (kind) place(); else if (!hint.hidden) hint.hidden = true;
     }
     function defaultNote(k) {
       return k === "video" ? t("сгенерируется по описанию — текстового ответа не будет", "will be generated from the description — no text answer")

@@ -156,6 +156,17 @@ def _extra_documents(docs: List[Any], limit: int) -> Dict[str, Any]:
                "Documents marked excerpt=\"true\" are shortened: change only text you can see.)")
     return {"message": content, "sheet": sheet}
 
+def _skills_block() -> str:
+    """The shared skill library (app/skills_scope.py): the catalogue for MemuNote and how to load a playbook.
+
+    Only the free chat and the agent get it — quick actions and autocomplete have a fixed output."""
+    try:
+        from .. import skills_scope
+        return skills_scope.prompt_block("note")
+    except Exception:  # noqa: BLE001 - a broken library must not break the AI panel
+        return ""
+
+
 def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
                    use_memory: bool) -> Dict[str, Any]:
     """Messages for one request + what the server needs to know (memory write, excerpt, title)."""
@@ -182,6 +193,7 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
     memory_write = False
     memory_facts = 0
     excerpt = ""
+    skills = ""
     if spec is not None:
         if action == "tone":
             param = TONES.get(param, param or "professional")
@@ -220,6 +232,9 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
         if kind != "sheet":
             system.append(_fmt_rule(kind).replace("The text is", "The document is"))
         system.append("Format the prose of your answers in Markdown, short and concrete.")
+        skills = _skills_block()
+        if skills:
+            system.append(skills)
         if extra["message"]:
             messages.append({"role": "user", "content": extra["message"]})
             messages.append({"role": "assistant", "content": "I have these documents too."})
@@ -250,6 +265,9 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
     else:
         system.append("Format answers in Markdown. When you write text meant to go into the file, put it in a "
                       "fenced block or clearly separated so the user can insert it.")
+        skills = _skills_block()
+        if skills:
+            system.append(skills)
         extra = _extra_documents(body.get("docs") if isinstance(body.get("docs"), list) else [], limit)
         if extra["message"]:
             messages.append({"role": "user", "content": extra["message"]})
@@ -281,5 +299,5 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
             messages.insert(1, {"role": "assistant", "content": "OK."})
         memory_facts = memory["facts"]
     return {"messages": [{"role": "system", "content": "\n".join(system)}] + messages,
-            "memory_write": memory_write, "memory_facts": memory_facts, "excerpt": excerpt,
+            "memory_write": memory_write, "memory_facts": memory_facts, "excerpt": excerpt, "skills": bool(skills),
             "title": f"MemuNote: {name}" if name else "MemuNote"}

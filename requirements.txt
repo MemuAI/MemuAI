@@ -23,7 +23,7 @@ anthropic>=0.40
 spylls>=0.1.7
 # MemuMusic (app/music/) — both optional: without yt-dlp MemuAI downloads the official yt-dlp binary
 # into the data folder on first use; without mutagen local tags fall back to «Artist - Title» file names.
-yt-dlp>=2025.1
+yt-dlp[default]>=2026.10.26
 mutagen>=1.47
 pykakasi==2.3.0
 pypinyin==0.55.0
@@ -35,3 +35,18 @@ qrcode>=8,<9
 
 # MemuDB local analytical databases
 duckdb>=1.4,<2
+
+# MemuUtils (app/utils_kit/) — local utilities for the module and AI tools.
+# numpy: audio waveform/normalise/silence tools (also pulled in by faster-whisper);
+# tzdata: time-zone database for the time-zone converter (Windows has no system copy);
+# PyYAML: YAML <-> JSON converters; cryptography: AES-256 PDF passwords (pypdf) and Drive sync encryption.
+numpy>=1.24
+# sounddevice: native system-audio capture for MemuMeet (WASAPI loopback on
+# Windows). The helper uses raw streams only, so numpy is not required by
+# it — but PortAudio (bundled in the wheel) is. Optional at runtime: if
+# the package is missing, MemuMeet falls back to the web capture.
+sounddevice>=0.4,<1
+PyAudioWPatch>=0.2.12.9,<0.3; sys_platform == "win32"
+tzdata>=2024.1
+PyYAML>=6
+cryptography>=42

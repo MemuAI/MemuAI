@@ -7,7 +7,7 @@ summary: Memory shared by every service — sources, confidence, the inbox, rule
 
 ## Memory
 
-MemuAI remembers lasting facts about you: what you do, which language you code in, what you prefer in answers. Memory is shared by every service — the normal chat, Work, MemuCode (in the window and in the [terminal](doc:memucode-cli)), [Quick Access](doc:quick-ask), [Telegram and the Mini App](doc:telegram-miniapp), [Do For You](doc:dfy) and [MemuNote](doc:memunote). Each [profile](doc:profiles) has its own separate memory.
+MemuAI remembers lasting facts about you: what you do, which language you code in, what you prefer in answers. Memory is shared by every service — the normal chat, Work, [MemuCode](doc:memucode), [MemuCode CLI](doc:memucode-cli), [Quick Access](doc:quick-ask), [Telegram and the Mini App](doc:telegram-miniapp), [Do For You](doc:dfy) and [MemuNote](doc:memunote). Each [profile](doc:profiles) has its own separate memory.
 
 A request does not get every fact: it gets the pinned ones and those most relevant to your question, within the "Memory per request" setting. So a large memory does not make each message more expensive.
 

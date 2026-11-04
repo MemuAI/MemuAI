@@ -98,7 +98,7 @@ Every action has a tier:
 ## Reminders and Telegram
 
 - “Remind me in 20 minutes…”, “remind me at 3 pm…”, “remind me tomorrow at 9 am…”, “remind me on Wednesday at 10…” — a notification and sound on this computer.
-- “Remind me **in Telegram** at 3 pm to buy bread” — your MemuAI bot sends the message. The reminder is stored as a one-shot task in **Planning** and delivered by the MemuAI Proxy scheduler without any model call. The bot must be paired (Settings → Telegram) and MemuAI Proxy running at that time (if it was off, the message arrives right after it starts).
+- “Remind me **in Telegram** at 3 pm to buy bread” — your MemuAI bot sends the message. The reminder is stored as a one-shot task in **Planning** and delivered by the MemuAI Proxy scheduler without any model call. The bot must be paired (Settings → Messengers → Telegram) and MemuAI Proxy running at that time (if it was off, the message arrives right after it starts).
 - “Here and in Telegram” — both at once.
 - A Telegram reminder can be edited in **Planning**: the corrected text is what arrives. An open Planning page no longer deletes a reminder you added in Quick Ask while it was open.
 - “My reminders” lists them; cancel with the card button or “cancel reminder …”.

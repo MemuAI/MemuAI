@@ -58,11 +58,14 @@ class BenchmarksTest(unittest.TestCase):
         self.assertEqual((signal["first"], signal["score"], signal["votes"], signal["price"]), ("Claude Opus 5.5 (High)", 0.12, 2000, 4))
         self.assertEqual(signal["url"], "https://arena.ai/leaderboard/agent", "signals come from the same page")
         self.assertEqual(signal["description"], "About Steerability.")
-        self.assertIn("формат", self.out["unknownSignal"])
+        # E10: error.format reworded — "{source} обновил страницу, и
+        # прочитать рейтинг пока не получилось…"
+        self.assertIn("обновил страницу", self.out["unknownSignal"])
 
     def test_regular_arenas_still_load_and_a_changed_page_is_reported(self) -> None:
         self.assertEqual(self.out["text"], {"first": "Alpha 1", "score": 1500})
-        self.assertIn("изменил формат", self.out["broken"])
+        # E10: same rewording as above.
+        self.assertIn("обновил страницу", self.out["broken"])
         self.assertEqual(self.out["nav"], ["text", "agent"], "the pareto view is not an arena")
 
     def test_the_header_tells_the_age_of_what_is_on_screen(self) -> None:
@@ -107,9 +110,13 @@ class SelfKnowledgeTest(unittest.TestCase):
         self.assertIn("docs_read", block)
         self.assertIn("docs_search", block)
         js = (PG / "app.js").read_text(encoding="utf-8")
-        self.assertIn("filter(s => s.enabled && !s.inline)", js, "it is not offered through the load-on-demand catalogue")
+        # E11: the filter gained "&& (typeof skillWorksIn …)"; pin the
+        # stable prefix — inline skills are still excluded from the catalogue.
+        self.assertIn("filter(s => s.enabled && !s.inline", js, "it is not offered through the load-on-demand catalogue")
         self.assertIn("memu_skills_removed", js)
-        self.assertIn("MemuSelfDocs.systemBlock()", js)
+        # E11: the docs block is now wired via systemIndex() (app.js:16243),
+        # not systemBlock() — same guide-skill wiring, different entry point.
+        self.assertIn("MemuSelfDocs.systemIndex()", js)
         self.assertIn("MemuSelfDocs.mentionContext(", js)
         selfdocs = (PG / "selfdocs.js").read_text(encoding="utf-8")
         for needle in ('SKILL_ID = "memuai_guide"', "<memuai_documentation>", "<documentation_index>", "doc-chip", "MemuDocs.open("):

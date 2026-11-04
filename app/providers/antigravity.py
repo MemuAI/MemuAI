@@ -808,6 +808,11 @@ class AntigravityProvider(Provider):
 
     async def _iter_sse(self, resp) -> AsyncIterator[Dict[str, Any]]:
         buf_data: List[str] = []
+        buf_chars = 0
+        # F29: `data:` lines used to accumulate until a blank line with no
+        # limit — a stream without blank lines grew forever. One SSE event
+        # over 4 MiB is malformed.
+        _SSE_EVENT_MAX_CHARS = 4 * 1024 * 1024
         produced = False
         finish = ""
         blocked = ""
@@ -840,10 +845,14 @@ class AntigravityProvider(Provider):
                         done = True
                         break
                     buf_data.append(payload)
+                    buf_chars += len(payload)
+                    if buf_chars > _SSE_EVENT_MAX_CHARS:
+                        raise ProviderServerError("Antigravity sent an oversized SSE event")
                     continue
                 if not line and buf_data:
                     raw = "\n".join(buf_data)
                     buf_data = []
+                    buf_chars = 0
                     for ev in read(raw):
                         if not produced and ev["type"] == "text" and models.is_retired_text(ev["text"]):
 

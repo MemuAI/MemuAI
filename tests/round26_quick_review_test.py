@@ -116,7 +116,7 @@ class TelegramProblem(unittest.TestCase):
                 self.assertIn("Telegram", text)
                 cyr = bool(re.search("[а-яё]", text, re.I))
                 self.assertEqual(cyr, lang == "ru", (lang, text))
-        self.assertIn("Settings → Telegram", assistant_commands.telegram_problem({"reason": "no token"}, "en"))
+        self.assertIn("Settings → Messengers → Telegram", assistant_commands.telegram_problem({"reason": "no token"}, "en"))
         self.assertIn("выключен", assistant_commands.telegram_problem({"reason": "telegram_enabled=false"}, "ru"))
 
 class PluginVersions(unittest.TestCase):

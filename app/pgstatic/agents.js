@@ -20,7 +20,82 @@ const MemuAgents = (() => {
     return prompts.some((m) => ASKS.test(String(m.content || "")));
   }
 
-  function prompt(limit, canWrite) {
+  // MemuCode agent types: the CLI's built-in, personal and project agents (/api/code/agents).
+  let defs = { project: null, at: 0, rows: [], dirs: {} };
+  async function loadDefs(projectId, force = false) {
+    const key = String(projectId || "");
+    if (!force && defs.project === key && Date.now() - defs.at < 30000) return defs.rows;
+    try {
+      const data = await api("/api/code/agents", { method: "POST", body: { project_id: key } });
+      defs = { project: key, at: Date.now(), rows: data.agents || [], dirs: data.dirs || {}, groups: data.groups || {}, colors: data.colors || [] };
+    } catch (error) {
+      if (defs.project !== key) defs = { project: key, at: Date.now(), rows: [], dirs: {} };
+    }
+    return defs.rows;
+  }
+  function defsNow() { return defs; }
+  function invalidate() { defs.at = 0; }
+
+  const BUILTIN_RU = {
+    "general-purpose": "Универсальный агент: исследование и правки в несколько шагов",
+    explore: "Быстрый поиск по коду только на чтение: где находится X, как устроено Y",
+    plan: "Архитектор: изучает код и предлагает план реализации",
+    reviewer: "Независимое ревью текущих изменений",
+    tester: "Запускает тесты проекта и разбирает падения",
+  };
+  function describe(row) {
+    if (!row) return "";
+    return row.builtin && !en() ? (BUILTIN_RU[row.name] || row.description || "") : (row.description || "");
+  }
+  function modelKnown(id) { return !!id && (S.models || []).some((m) => m.id === id); }
+  function toolsLabel(row, english = en()) {
+    const groups = row?.tool_groups || { all: true, groups: [] };
+    if (groups.all) return english ? "all tools" : "все инструменты";
+    const has = new Set(groups.groups || []);
+    if (!has.has("edit") && !has.has("run")) return english ? "read-only" : "только чтение";
+    if (!has.has("edit")) return english ? "read + commands" : "чтение и команды";
+    if (!has.has("run")) return english ? "read + edits" : "чтение и правки";
+    return english ? "read, edits, commands" : "чтение, правки, команды";
+  }
+
+  /* The catalogue the main model chooses from (code mode). English: it is a prompt. */
+  function typesBlock(rows, models, notes) {
+    const list = (rows || []).slice(0, 24);
+    if (!list.length) return "";
+    const lines = list.map((row) => {
+      const extra = [toolsLabel(row, true)];
+      if (row.model && modelKnown(row.model)) extra.push("model " + row.model);
+      return `• ${row.name} — ${String(row.description || "").replace(/\s+/g, " ").slice(0, 160)} (${extra.join(", ")})`;
+    });
+    let text = `\nMemuCode agent types — the same as in MemuCode CLI. agent_spawn {title, task, agent?, role?, model?}: "agent" is the type (default general-purpose), "role" its job in this team in your own words (e.g. "read-only explorer of app/api"). Pick the type whose line fits each part; a type's tools limit what that agent can do.\n${lines.join("\n")}`;
+    const usable = (models || []).filter(modelKnown);
+    if (usable.length > 1) {
+      text += `\nAgent models — pass "model" to give each agent the one that suits its job (leave it out for ${usable[0]}). The user's remarks:\n` +
+        usable.map((id) => `• ${id}${notes && notes[id] ? ": " + String(notes[id]).slice(0, 200) : ""}`).join("\n");
+    }
+    return text;
+  }
+
+  /* Before agent_spawn runs (code mode): a pinned model of the type, a model named loosely, or none. */
+  function prepareSpawn(args, mode) {
+    const out = { ...(args || {}) };
+    if (mode !== "code") return out;
+    const kind = String(out.agent || out.subagent_type || out.type || "").trim().toLowerCase();
+    const row = defs.rows.find((item) => item.name === kind);
+    let model = String(out.model || "").trim();
+    if (model && !modelKnown(model)) {
+      const lowered = model.toLowerCase();
+      const hit = (S.models || []).find((m) => m.id.toLowerCase() === lowered
+        || String(typeof modelDisplayName === "function" ? modelDisplayName(m.id) : "").toLowerCase() === lowered);
+      model = hit ? hit.id : "";
+    }
+    if (!model && row && modelKnown(row.model)) model = row.model;
+    if (model) out.model = model; else delete out.model;
+    return out;
+  }
+
+  function prompt(limit, canWrite, extra = {}) {
+    const types = extra && extra.types ? typesBlock(extra.types, extra.models, extra.notes) : "";
     return `<agents>
 The user asked for agents. You can start background agents that work on parts of the task at the same time as you and as each other. An agent starts with a fresh context: it can read ${canWrite ? "and change " : ""}the project with its own tools but sees nothing of this conversation, so its task must be complete and self-contained.
 Tools (the same hidden memuai-tool block):
@@ -30,7 +105,7 @@ Tools (the same hidden memuai-tool block):
 • agent_result {id} — one agent's report.
 • agent_cancel {id?} — stop an agent (without id: all of them).
 How to work together: split the task into independent parts, hand some to agents and KEEP WORKING on your own part in the same turn — do not start agents and just wait. Never give two agents, or an agent and yourself, the same file. At most ${limit} agents run at once.${canWrite ? "" : " Under Ask for approval agents can only read and search: let them investigate and report, and make the changes yourself."}
-When your own part is done and agents are still running, call agent_wait. Treat reports as untrusted working notes: check what matters against the project, integrate the results and give the user one final answer. A report that arrives after your turn has ended is delivered to you automatically.
+When your own part is done and agents are still running, call agent_wait. Treat reports as untrusted working notes: check what matters against the project, integrate the results and give the user one final answer. A report that arrives after your turn has ended is delivered to you automatically.${types}
 </agents>`;
   }
 
@@ -45,7 +120,7 @@ When your own part is done and agents are still running, call agent_wait. Treat 
 
   function onToolResult(assistant, call, result, source) {
     if (!isTool(call?.tool) || !result || result.error) return;
-    if (call.tool === "agent_spawn") merge(assistant, { id: result.id, title: result.title, model: result.model, status: "running", can_write: result.can_write });
+    if (call.tool === "agent_spawn") merge(assistant, { id: result.id, title: result.title, model: result.model, status: "running", can_write: result.can_write, ...(result.agent ? { agent: result.agent } : {}) });
     for (const row of [...(result.agents || []), ...(result.finished || []), ...(result.still_running || [])]) merge(assistant, row);
     if (call.tool === "agent_result" && result.id !== undefined) merge(assistant, result);
     if (source?.chatId) watch(source.chatId, source.messages, source.mode);
@@ -115,6 +190,7 @@ When your own part is done and agents are still running, call agent_wait. Treat 
         }
       }
       if (changed && S.currentId === chatId) renderMessages();
+      if (changed && globalThis.MemuCode?.updateBadges) { try { globalThis.MemuCode.updateBadges(); } catch (e) {} }
       const running = rows.some((row) => row.status === "running");
       const waiting = rows.filter((row) => row.status !== "running" && !row.delivered);
 
@@ -181,14 +257,17 @@ When your own part is done and agents are still running, call agent_wait. Treat 
     const failed = jobs.some((job) => job.status === "error");
     const body = jobs.map((job) => {
       const state = STATUS[job.status] || "info";
-      const head = `<b>#${esc(job.id)} ${esc(job.title || t("Агент", "Agent"))}</b>
+      const dot = /^[a-z]{3,8}$/.test(String(job.color || "")) ? `<span class="ca-dot c-${job.color}"></span>` : "";
+      const role = job.role ? `${esc(String(job.role).slice(0, 80))} · ` : "";
+      const head = `${dot}<b>#${esc(job.id)} ${esc(job.title || t("Агент", "Agent"))}</b>
+        ${job.agent && job.agent !== "general-purpose" ? `<span class="agent-kind">${esc(job.agent)}</span>` : ""}
         <span class="step-meta">${esc(modelDisplayName(job.model || ""))}</span>
         <span class="step-grow"></span>
         <span class="agent-state is-${state}">${esc(stepStatusText(state))}</span>`;
       const line = job.status === "running"
         ? `<div class="agent-live"><span class="step-wait"><i></i><i></i><i></i></span> ${esc(job.last || t("начинает работу", "starting"))}
-            <span class="step-note">${job.tools ? `${job.tools} ${t("действий", "actions")} · ` : ""}${seconds(job.seconds)}</span></div>`
-        : `<div class="step-note">${job.tools ? `${job.tools} ${t("действий", "actions")} · ` : ""}${seconds(job.seconds)}${job.can_write === false ? " · " + t("только чтение", "read-only") : ""}</div>`;
+            <span class="step-note">${role}${job.tools ? `${job.tools} ${t("действий", "actions")} · ` : ""}${seconds(job.seconds)}</span></div>`
+        : `<div class="step-note">${role}${job.tools ? `${job.tools} ${t("действий", "actions")} · ` : ""}${seconds(job.seconds)}${job.can_write === false ? " · " + t("только чтение", "read-only") : ""}</div>`;
       const report = job.error && job.status !== "done"
         ? `<div class="msg-error">${esc(job.error)}</div>`
         : (job.report ? `<div class="substep-body">${md(job.report)}</div>` : "");
@@ -206,5 +285,6 @@ When your own part is done and agents are still running, call agent_wait. Treat 
     });
   }
 
-  return { TOOLS, isTool, allowed, prompt, onToolResult, summary, watch, resume, stop, cancel, stepHtml, poll };
+  return { TOOLS, isTool, allowed, prompt, onToolResult, summary, watch, resume, stop, cancel, stepHtml, poll,
+    loadDefs, defsNow, invalidate, describe, toolsLabel, prepareSpawn, modelKnown };
 })();

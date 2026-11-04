@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -100,13 +101,40 @@ def preview_payload(task: Dict[str, Any], tasks: List[Dict[str, Any]], lang: str
             "warnings": rules.warnings(probe, [t for t in tasks if str(t.get("id")) != str(task.get("id"))] + [probe],
                                        lang, now=now)}
 
+def _clean_module_handler(task: Dict[str, Any]) -> None:
+    """``kind: module`` — a real module action (app/module_actions.py). The handler of a
+    declared planning action always comes from the module manifest, never from the client;
+    a hand-made task may name any registered handler of its own module."""
+    from . import module_actions
+    from .module_integration import planning_action
+    declared_ref = task.get("module_action") if isinstance(task.get("module_action"), dict) else {}
+    module_id = str(task.get("module_id") or declared_ref.get("module") or "")[:60]
+    handler_name = str(task.get("module_handler") or "")[:80]
+    options: Dict[str, Any] = {}
+    if declared_ref.get("action_id"):
+        declared = planning_action(module_id, str(declared_ref["action_id"]))
+        act = ((declared or {}).get("action") or {}).get("action") or {}
+        if act.get("kind") == "module":
+            handler_name = str(act.get("handler") or "")
+            options.update(act.get("options") or {})
+    if not module_actions.known(handler_name, module_id):
+        raise rules.RuleError("Неизвестное действие модуля — выберите его заново", "Unknown module action — pick it again")
+    raw_options = task.get("module_options") if isinstance(task.get("module_options"), dict) else {}
+    for key, value in list(raw_options.items())[:12]:
+        if re.fullmatch(r"[a-z][a-z0-9_]{0,40}", str(key)) and isinstance(value, (str, int, float, bool)):
+            options[str(key)] = value if not isinstance(value, str) else value[:200]
+    task.update(kind="module", module_id=module_id, module_handler=handler_name, module_options=options)
+    if not str(task.get("prompt") or "").strip():
+        task["prompt"] = module_actions.HANDLERS[handler_name]["title"]
+
+
 def _clean_task(raw: Dict[str, Any]) -> Dict[str, Any]:
     """A task coming from the builder: only known user fields."""
     keys = ("id", "name", "prompt", "model", "mode", "kind", "enabled", "notify_telegram", "notify_email",
             "project_id", "access_mode", "command", "command_id", "project_path", "permission_mode", "rule",
             "run_at", "interval_minutes", "daily_at", "created_by", "lang", "reminder_text", "icon", "steps", "tool", "args", "dfy_browser", "team_id",
             "scenario", "scenario_variables", "scenario_base", "run_allowlist", "require_confirm", "confirmed",
-            "module_trigger", "module_action", "module_id")
+            "module_trigger", "module_action", "module_id", "module_handler", "module_options")
     task = {k: raw.get(k) for k in keys if k in raw}
     if isinstance(task.get("steps"), list) and task["steps"]:
 
@@ -128,6 +156,8 @@ def _clean_task(raw: Dict[str, Any]) -> Dict[str, Any]:
                                  "action_id": str(action.get("action_id") or action.get("id") or "")[:60],
                                  "title": str(action.get("title") or "")[:120]}
         task["module_id"] = task["module_action"]["module"]
+    if task.get("kind") == "module" or task.get("module_handler"):
+        _clean_module_handler(task)
     if task.get("kind") == "scenario" or isinstance(task.get("scenario"), list):
         from .plan_scenarios import ScenarioError, normalize_scenario
         try:
@@ -197,8 +227,13 @@ def _validate_action(task: Dict[str, Any], lang: str) -> None:
         from .schedule_integrations import validate
         task.update(validate(task.get("tool"), task.get("args", {})))
         return
+    if kind == "module":
+        from . import module_actions
+        if not module_actions.known(str(task.get("module_handler") or ""), str(task.get("module_id") or "")):
+            raise rules.RuleError("Неизвестное действие модуля", "Unknown module action")
+        return
     if kind == "scenario":
-        from .plan_scenarios import ScenarioError, check_run_allowed, is_destructive, normalize_scenario
+        from .plan_scenarios import ScenarioError, is_destructive, normalize_scenario
         try:
             steps = normalize_scenario(task.get("scenario"))["steps"]
         except ScenarioError as exc:
@@ -206,11 +241,22 @@ def _validate_action(task: Dict[str, Any], lang: str) -> None:
         if not steps:
             raise rules.RuleError("Добавьте хотя бы один шаг сценария", "Add at least one scenario step")
         allowlist = task.get("run_allowlist") or []
-        for step in steps:
-            if step["type"] == "run" and not check_run_allowed(step["argv"], allowlist):
-                raise rules.RuleError(f"Программа «{step['argv'][0][:60]}» не в белом списке — добавьте её в список разрешённых",
-                                      f"The program “{step['argv'][0][:60]}” is not in the allowlist — add it to the allowed list")
-        if any(is_destructive(s) for s in steps) and not task.get("confirmed"):
+        from .plan_scenarios import disallowed_programs, macro_ids, needs_confirmation
+        missing = disallowed_programs(steps, allowlist)
+        if missing:
+            raise rules.RuleError(f"Программа «{missing[0][:60]}» не в белом списке — добавьте её в список разрешённых",
+                                  f"The program “{missing[0][:60]}” is not in the allowlist — add it to the allowed list")
+        destructive = needs_confirmation(steps)
+        if not destructive:
+            from . import plan_vars as _plan_vars
+            for macro_id in macro_ids(steps):
+                macro = _plan_vars.get_macro(macro_id)
+                if macro is None:
+                    raise rules.RuleError(f"Макрос «{macro_id[:40]}» не найден в библиотеке",
+                                          f"The macro “{macro_id[:40]}” is not in the library")
+                if macro.get("destructive"):
+                    destructive = True
+        if (destructive or any(is_destructive(s) for s in steps)) and not task.get("confirmed"):
             raise rules.RuleError("Сценарий пишет файлы или запускает программы — подтвердите это в редакторе",
                                   "The scenario writes files or runs programs — confirm it in the editor")
         return
@@ -559,15 +605,34 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
             out["module_actions"] = []
         try:
             from .schedule_rules import module_stats_snapshot
-            out["module_stats"] = await asyncio.to_thread(module_stats_snapshot)
+            stats = await asyncio.to_thread(module_stats_snapshot)
+            out["module_stats"] = {mid: {k: (len(v) if k == "chats" else v) for k, v in row.items()}
+                                   for mid, row in stats.items() if isinstance(row, dict)}
         except Exception:
             out["module_stats"] = {}
+        try:
+            from . import module_actions as _module_actions
+            out["module_handlers"] = _module_actions.catalog(lang=_lang({}))
+            out["module_files_dir"] = str(_module_actions.output_root())
+        except Exception:
+            out["module_handlers"] = []
         try:
             from .pgdata import MEMU_DIR
             out["data_dir"] = str(MEMU_DIR)
         except Exception:
             out["data_dir"] = ""
-        out["scenario"] = {"max_steps": 100, "max_repeat": 20, "run_timeout_max": 300}
+        from . import plan_scenarios as _ps
+        out["scenario"] = {"max_steps": _ps.MAX_STEPS, "max_repeat": _ps.MAX_REPEAT, "max_foreach": _ps.MAX_FOREACH,
+                           "max_executed": _ps.MAX_EXECUTED, "run_timeout_max": _ps.RUN_TIMEOUT_MAX,
+                           "max_wait": _ps.MAX_WAIT, "types": list(_ps.STEP_TYPES),
+                           "destructive": list(_ps.DESTRUCTIVE), "system_metrics": list(_ps.SYSTEM_METRICS)}
+        try:
+            from . import plan_vars as _plan_vars
+            out["macros"] = [{"id": m["id"], "name": m.get("name"), "description": m.get("description", ""),
+                              "steps": len(m.get("steps") or []), "destructive": bool(m.get("destructive"))}
+                             for m in await asyncio.to_thread(_plan_vars.macros)]
+        except Exception:
+            out["macros"] = []
         try:
             import psutil  # noqa: F401
         except Exception:
@@ -766,7 +831,146 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
         await asyncio.to_thread(_mutate_schedules, drop)
         if not removed:
             return _missing(lang)
+        try:
+            from . import plan_vars as _plan_vars
+            await asyncio.to_thread(_plan_vars.reset_task, task_id)
+        except Exception as exc:  # noqa: BLE001 - переменные удалённой задачи просто останутся
+            log.debug("plan: could not drop the variables of %s: %s", task_id, exc)
         return {"ok": True}
+
+    # ---------------------------------------------------------------- переменные и макросы сценариев
+    @app.get("/api/plan/variables")
+    async def plan_variables():
+        from . import plan_vars as _plan_vars
+        from .pgdata import load_schedules
+        tasks = await asyncio.to_thread(load_schedules)
+        return await asyncio.to_thread(_plan_vars.overview, tasks)
+
+    @app.post("/api/plan/variables")
+    async def plan_variables_save(request: Request):
+        """``{op: set|delete, scope: global|task, task_id?, name, value?}`` или ``{op: reset, task_id}``."""
+        from . import plan_vars as _plan_vars
+        body = await _json(request)
+        lang = _lang(body)
+        op = str(body.get("op") or "set")
+        scope = "task" if str(body.get("scope") or "global") == "task" else "global"
+        name = str(body.get("name") or "").strip()
+        task_id = str(body.get("task_id") or "")
+        value = body.get("value")
+        if isinstance(value, str):
+            from .plan_scenarios import _coerce
+            value = _coerce(value)
+        try:
+            if op == "reset":
+                await asyncio.to_thread(_plan_vars.reset_task, task_id, name)
+            elif op == "delete":
+                if scope == "global":
+                    await asyncio.to_thread(_plan_vars.delete_global, name)
+                else:
+                    await asyncio.to_thread(_plan_vars.reset_task, task_id, name)
+            else:
+                if scope == "global":
+                    await asyncio.to_thread(_plan_vars.set_global, name, value)
+                else:
+                    if not task_id:
+                        raise ValueError("Не выбрана задача / No task selected")
+                    await asyncio.to_thread(_plan_vars.set_task_var, task_id, name, value)
+        except ValueError as exc:
+            text = str(exc)
+            if " / " in text:
+                ru, en = text.split(" / ", 1)
+                text = en if lang == "en" else ru
+            return JSONResponse({"error": text}, 400)
+        from .pgdata import load_schedules
+        tasks = await asyncio.to_thread(load_schedules)
+        return await asyncio.to_thread(_plan_vars.overview, tasks)
+
+    @app.get("/api/plan/macros")
+    async def plan_macros():
+        from . import plan_vars as _plan_vars
+        return {"macros": await asyncio.to_thread(_plan_vars.macros)}
+
+    @app.post("/api/plan/macros")
+    async def plan_macros_save(request: Request):
+        """``{op: save, macro: {id?, name, description, steps}}`` или ``{op: delete, id}``."""
+        from . import plan_vars as _plan_vars
+        from .plan_scenarios import ScenarioError
+        body = await _json(request)
+        lang = _lang(body)
+        try:
+            if str(body.get("op") or "save") == "delete":
+                removed = await asyncio.to_thread(_plan_vars.delete_macro, str(body.get("id") or ""))
+                if not removed:
+                    return _missing(lang)
+                return {"ok": True, "macros": await asyncio.to_thread(_plan_vars.macros)}
+            item = await asyncio.to_thread(_plan_vars.save_macro, body.get("macro") or {})
+        except ScenarioError as exc:
+            return JSONResponse({"error": exc.text(lang)}, 400)
+        return {"ok": True, "macro": item, "macros": await asyncio.to_thread(_plan_vars.macros)}
+
+    @app.post("/api/plan/scenario/test")
+    async def plan_scenario_test(request: Request):
+        """Пробный прогон из редактора: читающие шаги выполняются, запись файлов, запуск программ,
+        отправка и запросы к модели только описываются; сохранённые переменные не меняются."""
+        from . import plan_vars as _plan_vars
+        from .pgdata import MEMU_DIR
+        from .plan_scenarios import ScenarioError, execute as _scenario_execute
+        body = await _json(request)
+        lang = _lang(body)
+        base = str(body.get("scenario_base") or "").strip() or str(MEMU_DIR)
+        if not os.path.isabs(base) or not os.path.isdir(base):
+            return JSONResponse({"error": "The scenario folder was not found" if lang == "en"
+                                 else "Папка сценария не найдена"}, 400)
+        task_id = str(body.get("task_id") or "")
+        variables = body.get("scenario_variables") if isinstance(body.get("scenario_variables"), dict) else {}
+        try:
+            saved_task = await asyncio.to_thread(_plan_vars.task_vars, task_id) if task_id else {}
+            saved_global = await asyncio.to_thread(_plan_vars.global_vars)
+            result = await asyncio.wait_for(_scenario_execute(
+                body.get("scenario"), base_dir=base, allowlist=body.get("run_allowlist") or [],
+                confirmed=False, variables=variables, lang=lang, dry=True,
+                task={"id": task_id, "name": str(body.get("name") or "")},
+                task_vars=saved_task, global_vars=saved_global), timeout=60)
+        except ScenarioError as exc:
+            return JSONResponse({"error": exc.text(lang)}, 400)
+        except asyncio.TimeoutError:
+            return JSONResponse({"error": "The dry run took longer than 60 s" if lang == "en"
+                                 else "Пробный прогон длился больше 60 с"}, 400)
+        shown = {}
+        for key, value in result["variables"].items():
+            try:
+                encoded = json.dumps(value, ensure_ascii=False)
+            except (TypeError, ValueError):
+                continue
+            shown[key] = value if len(encoded) <= 4000 else encoded[:4000] + "…"
+        return {"ok": result["ok"], "text": result["text"], "log": result["log"][:400], "steps": result["steps"],
+                "variables": shown, "error": result.get("error", "")}
+
+    @app.post("/api/plan/module-action/test")
+    async def plan_module_action_test(request: Request):
+        """«Проверить» у действия модуля: пробный прогон (ничего не пишет и не зовёт модель) —
+        показывает, что действие сделает с данными модуля прямо сейчас."""
+        from . import module_actions as _module_actions
+        body = await _json(request)
+        lang = _lang(body)
+        module_id = str(body.get("module_id") or "")[:60]
+        name = str(body.get("handler") or "")[:80]
+        if not name and body.get("action_id"):
+            from .module_integration import planning_action
+            declared = await asyncio.to_thread(planning_action, module_id, str(body.get("action_id")))
+            act = ((declared or {}).get("action") or {}).get("action") or {}
+            name = str(act.get("handler") or "") if act.get("kind") == "module" else ""
+        if not _module_actions.known(name, module_id):
+            return JSONResponse({"error": "Unknown module action" if lang == "en" else "Неизвестное действие модуля"}, 400)
+        settings = body.get("settings") if isinstance(body.get("settings"), dict) else {}
+        settings = {str(k)[:40]: v for k, v in list(settings.items())[:12] if isinstance(v, (str, int, float, bool))}
+        try:
+            result = await asyncio.wait_for(_module_actions.run_module_action(
+                module_id, name, lang=lang, settings=settings, dry=True), timeout=45)
+        except asyncio.TimeoutError:
+            return JSONResponse({"error": "The check took longer than 45 s" if lang == "en" else "Проверка длилась больше 45 с"}, 400)
+        return {"ok": bool(result.get("ok")), "text": str(result.get("text") or ""), "dry": True,
+                "data": {k: v for k, v in (result.get("data") or {}).items() if isinstance(v, (str, int, float, bool)) or v is None}}
 
     @app.post("/api/plan/pick-folder")
     async def plan_pick_folder(request: Request):

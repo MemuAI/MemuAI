@@ -20,7 +20,7 @@
 
 .ibx-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ibx-search { flex: 1 1 220px; min-width: 180px; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 11px;
-  border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); color: var(--muted); }
+  border: 1px solid var(--field-border); border-radius: 11px; background: var(--field-bg); color: var(--muted); }
 .ibx-search:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
 .ibx-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; }
 .ibx-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--border); flex-wrap: wrap; }

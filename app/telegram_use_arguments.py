@@ -8,7 +8,7 @@ class ArgumentError(ValueError):
     pass
 
 SUMMARY_ARGUMENTS = [
-    {"name": "count", "type": "integer", "required": True, "min": 1, "max": 1000,
+    {"name": "count", "type": "integer", "required": True, "min": 1, "max": 2000,
      "description": "Количество сообщений / Number of messages"},
     {"name": "chat", "type": "chat", "required": False, "default": "",
      "description": "Название, @username или ID чата / Chat title, @username or ID"},

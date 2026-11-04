@@ -25,7 +25,7 @@
 .snip-field { display: grid; grid-template-columns: minmax(72px, 160px) 1fr; align-items: center; gap: 10px; padding: 4px 0; }
 .snip-field > span { color: var(--text); font-size: 13px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .snip-field input {
-  height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: inherit; font-size: 13px; outline: none; min-width: 0;
+  height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--field-border); background: var(--field-bg); color: var(--text); font: inherit; font-size: 13px; outline: none; min-width: 0;
 }
 .snip-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .snip-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }

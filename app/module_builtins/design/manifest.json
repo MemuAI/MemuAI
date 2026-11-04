@@ -65,10 +65,10 @@
     "planning": [
       {
         "id": "versions-save",
-        "title": "Сохранить версию макета",
-        "title_en": "Save a mockup version",
-        "description": "Напомнить сохранить лучшую версию отдельно, когда версий макета станет много.",
-        "description_en": "Remind to save the best version separately once a mockup has many versions.",
+        "title": "Много версий → сохранить в HTML",
+        "title_en": "Many versions → save as HTML",
+        "description": "Когда у макета набралось N версий, каждая сохраняется отдельным .html со страницей-оглавлением.",
+        "description_en": "When a mockup has N versions, each is saved as its own .html with an index page.",
         "trigger": {
           "kind": "threshold",
           "metric": "items",
@@ -76,90 +76,95 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "У макета уже много сохранённых версий — сохраните лучшую версию отдельно, чтобы не потерять её при правках.",
-          "text_en": "design"
-        }
+          "kind": "module",
+          "handler": "design.save_versions"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Версий",
+            "label_en": "Versions",
+            "default": 10,
+            "min": 2,
+            "max": 1000
+          }
+        ]
+      },
+      {
+        "id": "two-day-backup",
+        "title": "Копия версий каждые два дня",
+        "title_en": "Version backup every two days",
+        "description": "Все версии текущего макета — в HTML-файлы.",
+        "description_en": "Every version of the current mockup — into HTML files.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 2880
+        },
+        "action": {
+          "kind": "module",
+          "handler": "design.save_versions"
+        },
+        "settings": []
+      },
+      {
+        "id": "daily-design",
+        "title": "Текущий макет каждый день",
+        "title_en": "The current mockup every day",
+        "description": "Каждый день текущий макет сохраняется отдельным HTML-файлом с датой.",
+        "description_en": "Every day the current mockup is saved as a dated HTML file.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "module",
+          "handler": "design.export_current"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 30,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "weekly-design-review",
+        "title": "ИИ-ревью макета",
+        "title_en": "AI mockup review",
+        "description": "Раз в неделю ИИ проверяет HTML макета: структура, доступность, адаптивность, контраст — и пишет правки.",
+        "description_en": "Once a week the AI checks the mockup HTML: structure, accessibility, responsiveness, contrast — and lists fixes.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "design.review"
+        },
+        "settings": []
       },
       {
         "id": "review-reminder",
         "title": "Незавершённые макеты",
         "title_en": "Unfinished mockups",
-        "description": "Раз в три дня напомнить заглянуть в незавершённые макеты.",
-        "description_en": "Remind every three days to look at unfinished mockups.",
+        "description": "Напоминание вернуться к незавершённым макетам.",
+        "description_en": "A reminder to get back to unfinished mockups.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 4320
         },
         "action": {
           "kind": "notify",
-          "text": "Загляните в «Дизайн»: есть ли незавершённые макеты, которые стоит доделать или сохранить?",
-          "text_en": "design"
-        }
-      },
-      {
-        "id": "daily-design",
-        "title": "Ежедневная проверка макетов",
-        "title_en": "Daily mockup check",
-        "description": "Каждый день напомнить заглянуть в незавершённые макеты.",
-        "description_en": "Remind every day to look at the unfinished mockups.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 1440
+          "text": "Загляните в «Дизайн»: есть незавершённые макеты, которые стоит доделать.",
+          "text_en": "Open Design: there are unfinished mockups worth finishing."
         },
-        "action": {
-          "kind": "notify",
-          "text": "Загляните в незавершённые макеты: что можно доделать сегодня и какие версии стоит сохранить.",
-          "text_en": "Look at the unfinished mockups: what can be finished today, and which versions are worth saving."
-        }
-      },
-      {
-        "id": "two-day-backup",
-        "title": "Копия версий каждые два дня",
-        "title_en": "Version backup every two days",
-        "description": "Каждые два дня напомнить сохранить лучшие версии макетов отдельно.",
-        "description_en": "Every two days, remind to save the best mockup versions separately.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 2880
-        },
-        "action": {
-          "kind": "notify",
-          "text": "Сохраните лучшие версии макетов в отдельную папку, чтобы не потерять удачные варианты.",
-          "text_en": "Save the best mockup versions to a separate folder so the good variants are not lost."
-        }
-      },
-      {
-        "id": "weekly-design-review",
-        "title": "Еженедельный обзор макетов",
-        "title_en": "Weekly mockup review",
-        "description": "Раз в неделю попросить модель подвести итог работы над макетами.",
-        "description_en": "Once a week, ask the model to round up the mockup work.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 10080
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог работы над макетами за неделю: что готово, что застряло и что улучшить в первую очередь. Коротко, списком.",
-          "prompt_en": "Round up the week's mockup work: what is ready, what is stuck, and what to improve first. Briefly, as a list."
-        }
-      },
-      {
-        "id": "half-day-versions",
-        "title": "Новые версии макетов",
-        "title_en": "New mockup versions",
-        "description": "Каждые 12 часов напомнить проверить последние версии макетов.",
-        "description_en": "Every 12 hours, remind to check the latest mockup versions.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 720
-        },
-        "action": {
-          "kind": "notify",
-          "text": "Проверьте последние версии макетов: сравните варианты и отметьте лучший для дальнейшей работы.",
-          "text_en": "Check the latest mockup versions: compare the variants and pick the best one to continue with."
-        }
+        "settings": []
       }
     ]
   }

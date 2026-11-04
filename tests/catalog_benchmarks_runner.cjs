@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('assert');
 const root=path.join(__dirname,'..','app','module_builtins');
 const dict=JSON.parse(fs.readFileSync(path.join(root,'catalog/i18n.json'),'utf8')).en;
-const nodes={},make=()=>({innerHTML:'',textContent:'',hidden:true,dataset:{},classList:{toggle(){}},setAttribute(){},addEventListener(){},querySelector(){return {focus(){},open:false}},focus(){},scrollTop:0});
+const nodes={},make=()=>({innerHTML:'',textContent:'',hidden:true,dataset:{},classList:{toggle(){}},setAttribute(){},addEventListener(){},querySelector(){return {focus(){},open:false}},querySelectorAll:()=>[],focus(){},scrollTop:0});
 const ctx={console,setTimeout,clearTimeout,Date,Math,JSON,Promise,Set,Map,Number,String,Array,Object,Infinity,
   window:{addEventListener(){}},document:{querySelector:s=>nodes[s]||(nodes[s]=make()),addEventListener(){}},
   Memu:{saved:{},lang:'en',t:(key,vars)=>{let value=dict[key]??'??'+key;if(typeof value==='object')value=value.other;for(const[k,v]of Object.entries(vars||{}))value=value.replaceAll('{'+k+'}',v);return value},

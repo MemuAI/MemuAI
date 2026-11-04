@@ -1,5 +1,6 @@
 """Native appearance regressions using fake DWM/WinForms objects only."""
 import ctypes
+import sys
 import types
 import unittest
 import os
@@ -59,6 +60,7 @@ class NativeSurface(unittest.TestCase):
         self.assertTrue(theme.apply_surface(types.SimpleNamespace(),True,color_factory=str))
         self.assertFalse(theme.apply_frame(0,True,setter=Mock()))
 
+    @unittest.skipUnless(sys.platform == "win32", "ctypes.windll exists only on Windows")
     def test_material_none_repaints_surface_after_legacy_original_background_restore(self):
         native=self.form()
         controller=win_backdrop.BackdropController(lambda:HWND,lambda fn:fn(),native,build=22631)

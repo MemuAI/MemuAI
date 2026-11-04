@@ -208,7 +208,7 @@ def test_window_wiring_r40():
     app_js = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
     html = (ROOT / "app/pgstatic/index.html").read_text(encoding="utf-8")
     assert "canvas_(?:create|edit|read|write_file)" in app_js and "canvas_(?:create|edit|read|write_file)" in js
-    assert "/canvas.js?v=3.6-r40" in html and "/canvas.css?v=3.6-r40" in html
+    assert re.search(r"/canvas\.js\?v=(?:3\.6-r40|\d+\.\d+-r(?:4[1-9]|[5-9]\d))\"", html) and "/canvas.css?v=" in html
     assert "canvas-kinds.js" not in html
     assert 'sandbox="allow-scripts"' in js and "allow-same-origin" not in js
     assert "sendPrepared(text" in js and "Исправить с ИИ" in js and "Fix with AI" in js

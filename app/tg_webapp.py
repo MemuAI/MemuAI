@@ -68,6 +68,17 @@ CLOUDFLARED_LATEST_API = "https://api.github.com/repos/cloudflare/cloudflared/re
 CLOUDFLARED_ASSET = "cloudflared-windows-amd64.exe"
 CLOUDFLARED_FALLBACK_URL = ("https://github.com/cloudflare/cloudflared/releases/latest/download/"
                             + CLOUDFLARED_ASSET)
+# Wave #6 (D-07): a pinned release with known sha256 digests (release
+# 2026.10.7). When the GitHub API gives no digest (down, rate-limited),
+# the download falls back to this pinned release instead of saving an
+# unverified binary; an asset with no pinned digest fails.
+CLOUDFLARED_PINNED_TAG = "2026.10.7"
+CLOUDFLARED_PINNED_URL = ("https://github.com/cloudflare/cloudflared/releases/download/"
+                          + CLOUDFLARED_PINNED_TAG + "/")
+CLOUDFLARED_PINNED_SHA256 = {
+    "cloudflared-windows-amd64.exe": "2493dbc168923bb3e59e5e7716f71deced92992eea9acd6e9d74f84ac7751343",
+    "cloudflared-windows-386.exe": "88c6b972b410db0e26745f593510d772c825a13c5a2374819e3f13a05b333082",
+}
 CLOUDFLARED_MIN_BYTES = 8 * 1024 * 1024
 CLOUDFLARED_MAX_BYTES = 200 * 1024 * 1024
 
@@ -170,7 +181,8 @@ def _normalize_config(raw: Any) -> Dict[str, Any]:
         hours = int(out.get("max_age_hours") or 24)
     except (TypeError, ValueError):
         hours = 24
-    out["max_age_hours"] = max(1, min(24 * 7, hours))
+    # D-01: see MemuMusic config.py — cap initData age at 24h, not 7 days.
+    out["max_age_hours"] = max(1, min(24, hours))
     out["code_control"] = out.get("code_control") is not False
     out["web_login"] = out.get("web_login") is not False
     out["cf_protocol"] = out.get("cf_protocol") if out.get("cf_protocol") in PROTOCOLS else "auto"
@@ -421,7 +433,13 @@ def verify_token(token: str, secret: str, *, scope: str = "app",
         return None
     if not isinstance(data, dict) or data.get("s") != scope:
         return None
-    if float(data.get("e") or 0) < (time.time() if now is None else now):
+    # D-C13: keep the expiry check guarded like the MemuMusic reference
+    # copy does -- a non-numeric "e" must be an invalid token, not an
+    # uncaught exception (500) in the auth gate.
+    try:
+        if float(data.get("e") or 0) < (time.time() if now is None else now):
+            return None
+    except (TypeError, ValueError):
         return None
     return data
 
@@ -471,6 +489,167 @@ def _is_registered_line(line: str) -> bool:
     lowered = str(line or "").lower()
     return "registered tunnel connection" in lowered or "connection registered" in lowered
 
+# The hosts cloudflared has to resolve before it can connect: the edge
+# discovery names. When the system resolver cannot see them, the tunnel
+# fetches the same addresses over DoH (or from the on-disk cache) and
+# passes them to cloudflared as TUNNEL_EDGE, so a broken system DNS does
+# not mean a dead tunnel.
+EDGE_HOSTS = ("region1.v2.argotunnel.com", "region2.v2.argotunnel.com")
+DOH_EDGE_SOURCES = (
+    ("1.1.1.1", "https://1.1.1.1/dns-query"),
+    ("8.8.8.8", "https://8.8.8.8/resolve"),
+    ("9.9.9.9", "https://dns.quad9.net/dns-query"),
+    ("dns.google", "https://dns.google/resolve"),
+)
+_EDGE_CACHE_NAME = "cloudflared-edge.json"
+_EDGE_CACHE_TTL = 48 * 3600
+
+# The DNS-failure message: what broke (the system resolver cannot see
+# Cloudflare) and what actually helps (switch the DNS, or use your own
+# tunnel) — "check the internet or VPN" was the wrong advice: the internet
+# works fine, only the resolver is blind for argotunnel.com.
+DNS_HINT = ("Компьютер не может найти серверы Cloudflare (DNS): не резолвится {host} — "
+            "системный DNS не отдаёт адреса Cloudflare. Смените DNS на 1.1.1.1 или 8.8.8.8 "
+            "либо используйте свой туннель")
+DNS_HINT_GENERIC = ("Компьютер не может найти серверы Cloudflare (DNS) — системный DNS "
+                    "не отдаёт адреса Cloudflare. Смените DNS на 1.1.1.1 или 8.8.8.8 "
+                    "либо используйте свой туннель")
+
+# What to do next, per failure kind (see _tunnel_error_kind): the sticky
+# error panel shows one of these next to the error, so the user is never
+# left with a bare "it failed". The "dns" text covers the user's own
+# setup explicitly: a non-Cloudflare DNS + a VPN, which used to work.
+# English twins live in TUNNEL_NEXT_STEPS_EN (by kind, not regex — the
+# texts are long and the regex table in _STATUS_EN is for status lines).
+TUNNEL_NEXT_STEPS = {
+    "dns": ("Что делать: 1) нажмите «Повторить» — обход через DoH подхватывает край Cloudflare "
+            "автоматически; 2) если раньше с этим же DNS и VPN работало, а теперь нет — отключите "
+            "VPN на минуту и нажмите «Повторить» (VPN часто перехватывает DNS и не отдаёт "
+            "SRV-записи argotunnel.com), затем включите VPN обратно; 3) смените DNS на 1.1.1.1 "
+            "или 8.8.8.8 в настройках сети; 4) если не помогло — «Свой туннель» со своим доменом "
+            "или «Свой адрес» (ngrok, VPS)."),
+    "quick_api": ("Что делать: Cloudflare не выдал адрес — запрос к api.trycloudflare.com не "
+                 "проходит (TLS или блокировка). Отключите на минуту VPN/антивирус и нажмите "
+                 "«Повторить»; если не помогло — «Свой туннель» со своим доменом или "
+                 "«Свой адрес»."),
+    "tls": ("Что делать: защищённое соединение с Cloudflare не устанавливается — мешает "
+           "антивирус, прокси или блокировка. Проверьте антивирус/прокси, попробуйте другую "
+           "сеть или VPN; либо используйте «Свой адрес»."),
+    "quic": ("Что делать: ничего — «Авто» сам переходит на HTTP/2 (TCP) после первой неудачи. "
+            "Если не помогает, выберите протокол HTTP/2 вручную."),
+    "local": ("Что делать: запустите MemuAI Proxy — cloudflared не может подключиться к "
+             "локальному MemuAI."),
+    "token": ("Что делать: скопируйте токен заново в панели Cloudflare (Zero Trust → Tunnels) "
+             "и вставьте его в поле токена."),
+    "config": ("Что делать: переименуйте %USERPROFILE%\\.cloudflared\\config.yaml или укажите "
+              "свой адрес."),
+    "timeout": ("Что делать: Cloudflare не отвечает вовремя — сервис недоступен или заблокирован. "
+               "Подождите минуту и нажмите «Повторить»; попробуйте HTTP/2 или «Свой туннель»."),
+    "ratelimit": ("Что делать: подождите минуту — Cloudflare временно ограничил создание быстрых "
+                 "туннелей, повтор будет автоматически."),
+    "unknown": ("Что делать: нажмите «Повторить» и скопируйте ошибку кнопкой ниже — пришлите её "
+               "в поддержку вместе с диагностикой."),
+}
+TUNNEL_NEXT_STEPS_EN = {
+    "dns": ("What to do: 1) press “Retry” — the DoH bypass picks up the Cloudflare edge "
+           "automatically; 2) if it used to work with the same DNS and VPN and stopped — "
+           "turn the VPN off for a minute and press “Retry” (a VPN often intercepts DNS and "
+           "does not return the argotunnel.com SRV records), then turn the VPN back on; "
+           "3) switch DNS to 1.1.1.1 or 8.8.8.8 in the network settings; 4) if that fails — "
+           "“Own tunnel” with your domain or “Own URL” (ngrok, VPS)."),
+    "quick_api": ("What to do: Cloudflare gave no address — the request to api.trycloudflare.com "
+                 "does not go through (TLS or blocking). Turn off the VPN/antivirus for a minute "
+                 "and press “Retry”; if that fails — “Own tunnel” with your domain or “Own URL”."),
+    "tls": ("What to do: the secure connection to Cloudflare cannot be established — an "
+           "antivirus, a proxy or blocking is in the way. Check the antivirus/proxy, try "
+           "another network or VPN; or use “Own URL”."),
+    "quic": ("What to do: nothing — “Auto” switches to HTTP/2 (TCP) on its own after the first "
+            "failure. If that does not help, pick the HTTP/2 protocol by hand."),
+    "local": ("What to do: start MemuAI Proxy — cloudflared cannot connect to the local MemuAI."),
+    "token": ("What to do: copy the token again from the Cloudflare dashboard (Zero Trust → "
+             "Tunnels) and paste it into the token field."),
+    "config": ("What to do: rename %USERPROFILE%\\.cloudflared\\config.yaml or set your own address."),
+    "timeout": ("What to do: Cloudflare does not answer in time — the service is down or blocked. "
+               "Wait a minute and press “Retry”; try HTTP/2 or “Own tunnel”."),
+    "ratelimit": ("What to do: wait a minute — Cloudflare temporarily limited quick tunnels, "
+                 "the retry happens automatically."),
+    "unknown": ("What to do: press “Retry” and copy the error with the button below — send it to "
+               "support together with the diagnostics."),
+}
+
+
+def _tunnel_error_kind(error: str, raw: str) -> str:
+    """Which part of the tunnel setup failed: 'dns' (SRV/region lookup),
+    'quick_api' (api.trycloudflare.com answered nothing), 'tls', 'quic',
+    'local' (127.0.0.1 refused), 'token', 'config', 'timeout', 'ratelimit'
+    or 'unknown'. First match wins; the kind picks the next-step text."""
+    text = f"{error or ''}\n{raw or ''}".lower()
+    if "отклонил токен" in text:
+        return "token"
+    if "config.yaml" in text:
+        return "config"
+    if "не может найти серверы cloudflare (dns)" in text:
+        return "dns"
+    if ("argotunnel.com" in text or "trycloudflare.com" in text) and any(
+            word in text for word in ("lookup", "no such host", "server misbehaving",
+                                      "dns query failed", "could not lookup", "nxdomain")):
+        return "dns"
+    if "временно ограничил создание быстрых туннелей" in text or "too many requests" in text:
+        return "ratelimit"
+    if "не выдал адрес за" in text or "не подключился к cloudflare за" in text:
+        return "timeout"
+    if "защищённое соединение" in text:
+        return "tls"
+    if re.search(r"\bquic\b", text):
+        return "quic"
+    if "не может подключиться к" in text and ("memuai" in text or "memumusic" in text):
+        return "local"
+    if "не выдал адрес туннеля" in text or "failed to request quick tunnel" in text:
+        return "quick_api"
+    return "unknown"
+
+
+def tunnel_error_report(tunnel: Any) -> Dict[str, Any]:
+    """The sticky error panel payload from a tunnel, or {} when the tunnel
+    has none (including a Mock in tests: a Mock's error_report() is not a
+    dict, and must never leak into a snapshot). Never raises."""
+    report = getattr(tunnel, "error_report", None)
+    if not callable(report):
+        return {}
+    try:
+        value = report()
+    except Exception:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+_DNS_FAILURE_WORDS = ("no such host", "server misbehaving", "dns query failed", "i/o timeout",
+                      "could not lookup", "cannot assign requested address",
+                      "network is unreachable", "no address associated with hostname",
+                      "temporary failure in name resolution", "name or service not known")
+
+
+def _cloudflare_dns_host(lowered: str) -> str:
+    """The Cloudflare host a failure line complains about, else ''.
+
+    Only ``argotunnel.com`` / ``trycloudflare.com`` (and the bare domains)
+    count: any other host's DNS failure is not a Cloudflare problem.
+    """
+    # A line can mention "lookup" more than once ("Could not lookup srv
+    # records on _v2-origintunneld...: lookup _v2-origintunneld..."): the
+    # first word after "lookup" may be "srv", not a host. Scan them all.
+    for match in re.finditer(r"lookup\s+([a-z0-9._-]+)", lowered):
+        host = match.group(1).rstrip(".")
+        if host in ("argotunnel.com", "trycloudflare.com", "cloudflare.com") or host.endswith(
+                (".argotunnel.com", ".trycloudflare.com", ".cloudflare.com")):
+            return host
+    return ""
+
+
+class _EdgeAddresses(str):
+    """An edge-address list that remembers which resolver produced it."""
+
+    source: str = ""
+
 _STATUS_EN: List[Tuple["re.Pattern[str]", str]] = [(re.compile(ru), en) for ru, en in (
     (r"Cloudflare отклонил токен именованного туннеля — скопируйте его заново в Zero Trust → Tunnels",
      "Cloudflare rejected the named tunnel token — copy it again from Zero Trust → Tunnels"),
@@ -488,6 +667,10 @@ _STATUS_EN: List[Tuple["re.Pattern[str]", str]] = [(re.compile(ru), en) for ru, 
      "cloudflared cannot connect to the local MemuAI — check that MemuAI Proxy is running"),
     (r"Компьютер не может найти серверы Cloudflare \(DNS\) — проверьте интернет или VPN",
      "The computer cannot find Cloudflare's servers (DNS) — check the internet or VPN"),
+    (r"Компьютер не может найти серверы Cloudflare \(DNS\): не резолвится (\S+) — системный DNS не отдаёт адреса Cloudflare\. Смените DNS на 1\.1\.1\.1 или 8\.8\.8\.8 либо используйте свой туннель",
+     r"The computer cannot find the Cloudflare servers (DNS): \1 does not resolve — the system DNS does not return Cloudflare addresses. Switch DNS to 1.1.1.1 or 8.8.8.8, or use your own tunnel"),
+    (r"Компьютер не может найти серверы Cloudflare \(DNS\) — системный DNS не отдаёт адреса Cloudflare\. Смените DNS на 1\.1\.1\.1 или 8\.8\.8\.8 либо используйте свой туннель",
+     "The computer cannot find Cloudflare's servers (DNS) — the system DNS does not return Cloudflare addresses. Switch DNS to 1.1.1.1 or 8.8.8.8, or use your own tunnel"),
     (r"Не удалось установить защищённое соединение с Cloudflare — мешает антивирус, прокси или блокировка",
      "Could not open a secure connection to Cloudflare — an antivirus, a proxy or blocking is in the way"),
     (r"Нет соединения с Cloudflare — возможна блокировка; попробуйте HTTP/2, VPN или свой адрес",
@@ -534,6 +717,9 @@ def _tunnel_error_hint(line: str) -> str:
     if " err " not in f" {lowered} " and "error" not in lowered and "failed" not in lowered \
             and "config.yaml" not in lowered and "429" not in lowered:
         return ""
+    # Feature discovery is optional and can fail on a healthy connection.
+    if "cfd-features.argotunnel.com" in lowered:
+        return ""
     if "invalid tunnel secret" in lowered or "unauthorized" in lowered and "tunnel" in lowered:
         return "Cloudflare отклонил токен именованного туннеля — скопируйте его заново в Zero Trust → Tunnels"
     if "config.yaml" in lowered or "cannot determine default configuration" in lowered:
@@ -541,6 +727,13 @@ def _tunnel_error_hint(line: str) -> str:
                 "Переименуйте %USERPROFILE%\\.cloudflared\\config.yaml или укажите свой адрес.")
     if "too many requests" in lowered or "429" in lowered:
         return "Cloudflare временно ограничил создание быстрых туннелей — повтор через минуту"
+    # A DNS failure for a Cloudflare host: the resolver is the problem, not
+    # the internet. This runs before the "no tunnel address" branch below:
+    # a failed quick-tunnel request whose cause is a failed lookup of
+    # api.trycloudflare.com is a DNS failure, not "Cloudflare gave nothing".
+    host = _cloudflare_dns_host(lowered)
+    if host and any(part in lowered for part in _DNS_FAILURE_WORDS):
+        return DNS_HINT.format(host=host)
     if "failed to request quick tunnel" in lowered or "failed to unmarshal quick tunnel" in lowered:
         return "Cloudflare не выдал адрес туннеля — нет интернета, сервис недоступен или заблокирован"
     if "quic" in lowered and ("failed to dial" in lowered or "timeout" in lowered or "no recent network activity" in lowered):
@@ -549,23 +742,172 @@ def _tunnel_error_hint(line: str) -> str:
         if "connection refused" in lowered or "failed to connect" in lowered:
             return ("cloudflared не может подключиться к локальному MemuAI — "
                     "проверьте, что MemuAI Proxy запущен")
-    host_match = re.search(r"lookup\s+([a-z0-9._-]+)", lowered)
-    named_host = host_match.group(1) if host_match else ""
-    cloudflare_host = named_host and ("argotunnel.com" in named_host or "trycloudflare.com" in named_host
-                                      or "cloudflare" in named_host)
     if "no such host" in lowered or "server misbehaving" in lowered:
-        if cloudflare_host:
-            return ("Компьютер не может найти серверы Cloudflare (DNS): не резолвится "
-                    f"{named_host} — проверьте интернет или VPN")
         if "cloudflare" in lowered or "argotunnel" in lowered:
-            return "Компьютер не может найти серверы Cloudflare (DNS) — проверьте интернет или VPN"
+            return DNS_HINT_GENERIC
         return ""
-    if "tls handshake timeout" in lowered or "certificate" in lowered:
+    if "tls handshake" in lowered or "certificate" in lowered:
         return "Не удалось установить защищённое соединение с Cloudflare — мешает антивирус, прокси или блокировка"
     if "i/o timeout" in lowered or "context deadline exceeded" in lowered or "connection refused" in lowered \
             or "connection reset" in lowered or "network is unreachable" in lowered:
         return "Нет соединения с Cloudflare — возможна блокировка; попробуйте HTTP/2, VPN или свой адрес"
     return ""
+
+async def _doh_edge_region(client, endpoint, name, record):
+    """One edge host via one DoH endpoint; [] when that source does not answer."""
+    import ipaddress
+    import httpx
+
+    try:
+        response = await client.get(endpoint, params={"name": name, "type": record},
+                                    headers={"Accept": "application/dns-json"})
+        response.raise_for_status()
+        answers = response.json().get("Answer", [])
+    except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError):
+        return []
+    addresses = []
+    for answer in answers[:20]:
+        if answer.get("type") != (1 if record == "A" else 28):
+            continue
+        try:
+            ip = ipaddress.ip_address(answer["data"])
+        except ValueError:
+            continue
+        if ip.is_global:
+            addresses.append(f"[{ip}]:7844" if ip.version == 6 else f"{ip}:7844")
+    return addresses[:3]
+
+
+async def _resolve_edge_addresses(family: str, *, client=None):
+    """(addresses, source): the Cloudflare edge IPs from public DoH.
+
+    Tries 1.1.1.1, then 8.8.8.8, then Quad9: a single blocked DoH provider
+    must not leave the tunnel without an edge. Returns ("", "") when no
+    source answered. The returned string remembers its source in ``.source``
+    (``doh:1.1.1.1`` and so on) for diagnostics.
+    """
+    import httpx
+
+    record = "AAAA" if family == "6" else "A"
+    own_client = client is None
+    try:
+        # The proxy is taken from the environment explicitly instead of
+        # trusting it: httpx raises InvalidURL on some no_proxy entries
+        # (e.g. "[::1]") while building a client that trusts the env, and
+        # a machine whose internet requires the proxy still needs it for
+        # DoH. The no_proxy list is irrelevant here: the DoH endpoints are
+        # public addresses, never local ones. Verification uses the system
+        # certificate store (not certifi): a machine that trusts its
+        # egress proxy — or a corporate MITM CA — validates through it,
+        # and a direct connection validates against the real Cloudflare
+        # certificate from the same store.
+        import ssl
+
+        proxy = (os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+                 or os.environ.get("ALL_PROXY") or os.environ.get("all_proxy") or None)
+        client = client or httpx.AsyncClient(timeout=6.0, trust_env=False, proxy=proxy,
+                                             verify=ssl.create_default_context())
+        for label, endpoint in DOH_EDGE_SOURCES:
+            try:
+                rows = await asyncio.gather(*(
+                    _doh_edge_region(client, endpoint, host, record) for host in EDGE_HOSTS))
+            except Exception:
+                continue
+            addresses = list(dict.fromkeys(addr for batch in rows for addr in batch))[:6]
+            if addresses:
+                out = _EdgeAddresses(",".join(addresses))
+                out.source = f"doh:{label}"
+                return out, out.source
+        return "", ""
+    except Exception:
+        # Any surprise (a broken proxy config, a bad response) means "no
+        # edge from DoH" — never an exception into the tunnel loop.
+        return "", ""
+    finally:
+        if own_client:
+            with contextlib.suppress(Exception):
+                await client.aclose()
+
+
+async def _cloudflare_edge_addresses(family: str, *, client=None) -> str:
+    """Resolve only Cloudflare Tunnel endpoints through authenticated HTTPS."""
+    addresses, _source = await _resolve_edge_addresses(family, client=client)
+    return addresses
+
+
+def _edge_cache_path() -> Path:
+    return bin_dir() / _EDGE_CACHE_NAME
+
+
+def _valid_edge_addresses(value):
+    """A saved edge list, or '' when it is missing, stale or malformed."""
+    import ipaddress
+
+    if not isinstance(value, str) or not value:
+        return ""
+    out = []
+    for part in value.split(","):
+        part = part.strip()
+        host, sep, port = part.rpartition(":")
+        if sep != ":" or port != "7844":
+            return ""
+        host = host.strip("[]")
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return ""
+        if not ip.is_global:
+            return ""
+        out.append(f"[{ip}]:7844" if ip.version == 6 else f"{ip}:7844")
+    return ",".join(out) if out else ""
+
+
+def load_edge_cache(max_age=_EDGE_CACHE_TTL):
+    """(addresses, 'cache') from the last working edge lookup, else ('', '')."""
+    try:
+        data = json.loads(_edge_cache_path().read_text(encoding="utf-8"))
+    except Exception:
+        return "", ""
+    if not isinstance(data, dict):
+        return "", ""
+    try:
+        age = time.time() - float(data.get("at") or 0)
+    except (TypeError, ValueError):
+        return "", ""
+    if age < 0 or age > max_age:
+        return "", ""
+    addresses = _valid_edge_addresses(data.get("addresses") or "")
+    return (addresses, "cache") if addresses else ("", "")
+
+
+def save_edge_cache(addresses, source):
+    """Best effort: remember working edge addresses for the next cold start."""
+    clean = _valid_edge_addresses(addresses)
+    if not clean:
+        return
+    try:
+        path = _edge_cache_path()
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps({"addresses": clean, "source": str(source or ""),
+                                   "at": int(time.time())}, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def _edge_dns_failure(line: str, *, quick: bool) -> bool:
+    lowered = line.lower()
+    if not any(part in lowered for part in _DNS_FAILURE_WORDS):
+        return False
+    if re.search(r"(?<![\w.-])(?:_v2-origintunneld\._tcp|region[12]\.v2)\.argotunnel\.com\.?(?![\w.-])", lowered):
+        return True
+    # A named tunnel may use a regional or federal endpoint, so only the
+    # global discovery names above may replace it. A quick tunnel always
+    # uses the global endpoint: any Cloudflare DNS failure qualifies, and
+    # that includes the SRV shutdown line and a failed lookup of
+    # api.trycloudflare.com — both were invisible before.
+    return bool(quick and _cloudflare_dns_host(lowered))
+
 
 def _quic_trouble(line: str) -> bool:
     lowered = str(line or "").lower()
@@ -618,6 +960,17 @@ async def download_cloudflared(progress: Optional[Callable[[int, int], None]] = 
                 url = found_url or url
         except Exception as exc:
             log.info("tgapp: release metadata unavailable (%s)", type(exc).__name__)
+        if not digest:
+            # Wave #6: no checksum from the API — use the pinned release
+            # instead of downloading "latest" unverified. An asset with
+            # no pinned digest fails closed; nothing is saved.
+            pinned = CLOUDFLARED_PINNED_SHA256.get(CLOUDFLARED_ASSET)
+            if not pinned:
+                raise RuntimeError("Нет контрольной суммы cloudflared для проверки — загрузка отменена. "
+                                   "Установите cloudflared вручную")
+            url, digest = CLOUDFLARED_PINNED_URL + CLOUDFLARED_ASSET, pinned
+            log.info("tgapp: release metadata gave no digest, using pinned cloudflared %s",
+                     CLOUDFLARED_PINNED_TAG)
         hasher = hashlib.sha256()
         total = 0
         async with client.stream("GET", url) as response:
@@ -640,7 +993,8 @@ async def download_cloudflared(progress: Optional[Callable[[int, int], None]] = 
         with partial.open("rb") as handle:
             if handle.read(2) != b"MZ" and os.name == "nt":
                 raise RuntimeError("Скачанный cloudflared — не программа Windows")
-        if digest and hasher.hexdigest() != digest:
+        # A digest is guaranteed here (release metadata or the pin above).
+        if hasher.hexdigest() != digest:
             raise RuntimeError("Контрольная сумма cloudflared не совпала — файл не сохранён")
         os.replace(partial, target)
         if os.name != "nt":
@@ -674,7 +1028,8 @@ class CloudflaredTunnel:
                  popen: Callable[..., Any] = subprocess.Popen,
                  sleep: Callable[[float], Any] = asyncio.sleep,
                  protocol: str = "auto", edge_ip_version: str = "auto", token: str = "",
-                 url_timeout: float = 45.0, register_timeout: float = 75.0, max_failures: int = 6) -> None:
+                 url_timeout: float = 45.0, register_timeout: float = 75.0, max_failures: int = 6,
+                 auto_retry_delay: float = 300.0, max_auto_cycles: int = 3) -> None:
         self.binary = Path(binary)
         self.port = int(port)
         self.on_url = on_url
@@ -688,17 +1043,45 @@ class CloudflaredTunnel:
         self.register_timeout = float(register_timeout)
         self.max_failures = int(max_failures)
         self.use_http2 = self.protocol == "http2"
+        self._edge_dns_failed = False
+        self._attempt_static_edge = False
+        self._edge_addresses = ""
+        # Diagnostics for the UI: where the tunnel is stuck, which resolver
+        # produced the edge addresses, and how many attempts are left.
+        self.phase = "idle"
+        self.edge_source = "system"
+        self.edge_diag = ""
+        self.auto_cycles = 0
+        self.auto_retry_delay = float(auto_retry_delay)
+        self.max_auto_cycles = int(max_auto_cycles)
+        self._preflight_done = False
         self.url: Optional[str] = None
         self.registered = False
         self.process: Any = None
         self.failures = 0
         self.last_error = ""
+        # The last error stays visible
+        # while the tunnel keeps retrying — it stays on screen until the
+        # tunnel comes online or the user dismisses it. _attempt_* is the
+        # error of the attempt currently running (or just finished);
+        # last_error* is the last error ever seen, with its timestamp.
+        self.last_error_at: float = 0.0
+        self.last_error_raw: str = ""
+        self.error_history: Deque[Dict[str, Any]] = deque(maxlen=10)
+        self._attempt_no: int = 0
+        self._attempt_error: str = ""
+        self._attempt_raw: str = ""
+        self._preflight_task: Optional[asyncio.Task] = None
         self.retry_at = 0.0
         self.gave_up = False
         self._task: Optional[asyncio.Task] = None
         self._stopping = False
         self._retry = asyncio.Event()
         self.lines: Deque[str] = deque(maxlen=200)
+
+    @property
+    def attempts_left(self) -> int:
+        return max(0, self.max_failures - self.failures)
 
     @property
     def named(self) -> bool:
@@ -726,9 +1109,17 @@ class CloudflaredTunnel:
             self._task = asyncio.ensure_future(self._run())
 
     def retry(self) -> None:
-        """Manual «Retry» from Settings: forget the failures and start now."""
+        """Manual «Retry» from Settings: forget the failures and start now.
+
+        The edge addresses stay: they were fetched over DoH or from the
+        cache precisely because the system DNS cannot see Cloudflare, and
+        throwing them away would repeat the same doomed attempt. The
+        pre-flight runs again so a fixed system DNS is noticed.
+        """
         self.failures = 0
         self.gave_up = False
+        self.auto_cycles = 0
+        self._preflight_done = False
         self._retry.set()
         self.start()
 
@@ -736,30 +1127,206 @@ class CloudflaredTunnel:
     def backoff(failures: int) -> float:
         return float(min(120, 2 ** max(1, min(failures, 7))))
 
+    def _note_error(self, error: str, raw: str = "") -> None:
+        """Remember the last error (and when it happened) for the sticky UI
+        panel. Called from every place that learns why an attempt failed;
+        never called to clear — clearing happens only on registration."""
+        if not error:
+            return
+        self.last_error = error
+        self.last_error_at = time.time()
+        if raw:
+            self.last_error_raw = raw[:500]
+
+    def error_report(self) -> Dict[str, Any]:
+        """Everything the sticky error panel needs (JSON-safe)."""
+        kind = _tunnel_error_kind(self.last_error, self.last_error_raw)
+        lines = list(self.lines)[-15:]
+        if self.token:
+            lines = [line.replace(self.token, "•••") for line in lines]
+        return {"last_error": self.last_error,
+                "last_error_en": status_en(self.last_error),
+                "last_error_at": self.last_error_at,
+                "last_error_raw": self.last_error_raw,
+                "last_error_kind": kind,
+                "next_step": TUNNEL_NEXT_STEPS.get(kind, TUNNEL_NEXT_STEPS["unknown"]),
+                "next_step_en": TUNNEL_NEXT_STEPS_EN.get(kind, TUNNEL_NEXT_STEPS_EN["unknown"]),
+                "error_history": [dict(entry) for entry in self.error_history],
+                "recent_lines": lines}
+
+    async def _system_resolves_edge(self) -> Optional[bool]:
+        """True = the system resolver sees the edge hosts, False = it does
+        not, None = the check itself was inconclusive (timeout, odd error)."""
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*(resolve_host(host) for host in EDGE_HOSTS)), timeout=5.0)
+        except asyncio.TimeoutError:
+            return None
+        except Exception:  # noqa: BLE001 - the check must never break a start
+            return None
+        if any(result is True for result in results):
+            return True
+        if all(result is False for result in results):
+            return False
+        return None
+
+    def _start_preflight(self) -> None:
+        """Start the edge pre-flight WITHOUT delaying the launch.
+
+        Waiting for the pre-flight before the first start meant that, with a VPN
+        that blocks or slows DoH (1.1.1.1 / 8.8.8.8 / Quad9) the launch
+        stalled silently for up to ~23 s (5 s system check + 3 x 6 s DoH)
+        on every cycle — first launch, auto-cycle, manual retry — while the
+        UI showed nothing new. The launch must never wait for it: the
+        pre-flight runs alongside the first attempt and its addresses apply
+        to the next one (the reactive branch in _run covers the first
+        attempt too). The on-disk cache is instant, so it is still applied
+        synchronously before the first start.
+        """
+        if any(os.environ.get(key) for key in ("TUNNEL_EDGE", "TUNNEL_REGION", "TUNNEL_EDGE_BIND_ADDRESS")):
+            self.edge_diag = "край Cloudflare задан переменной окружения"
+            return
+        cached, _source = load_edge_cache()
+        if cached:
+            self._edge_addresses = cached
+            self.edge_source = "cache"
+            self.edge_diag = "край Cloudflare из кэша (DoH недоступен)"
+            return
+        if self._preflight_task is not None and not self._preflight_task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._preflight_task = loop.create_task(self._preflight())
+
+    async def _preflight(self) -> None:
+        """When the system DNS cannot see the Cloudflare edge hosts, fetch
+        them over DoH (or from the cache) so the next attempt already
+        bypasses the broken resolver instead of wasting a start on it.
+        When the system DNS works, nothing changes. Runs in the background
+        alongside the launch (see _start_preflight)."""
+        if self.phase in ("idle", "failed"):
+            self.phase = "dns_check"
+        if any(os.environ.get(key) for key in ("TUNNEL_EDGE", "TUNNEL_REGION", "TUNNEL_EDGE_BIND_ADDRESS")):
+            self.edge_diag = "край Cloudflare задан переменной окружения"
+            return
+        system_ok = await self._system_resolves_edge()
+        if self._stopping:
+            return
+        if system_ok is True:
+            self.edge_source = "system"
+            self.edge_diag = "системный DNS резолвит argotunnel.com"
+            return
+        if system_ok is False:
+            self.edge_diag = "системный DNS не резолвит argotunnel.com — ищу край через DoH"
+        else:
+            self.edge_diag = "проверка системного DNS не дала ответа — ищу край через DoH"
+        addresses, source = "", ""
+        try:
+            addresses, source = await _resolve_edge_addresses(self.edge_ip_version)
+        except Exception:  # noqa: BLE001 - a broken DoH lookup must not kill the tunnel
+            addresses, source = "", ""
+        if self._stopping:
+            return
+        if addresses:
+            self._edge_addresses = addresses
+            self.edge_source = source
+            self.edge_diag = f"край Cloudflare через {source} (системный DNS не резолвит argotunnel.com)"
+            save_edge_cache(addresses, source)
+            return
+        cached, _source = load_edge_cache()
+        if cached:
+            self._edge_addresses = cached
+            self.edge_source = "cache"
+            self.edge_diag = "край Cloudflare из кэша (DoH недоступен)"
+            return
+        self.edge_source = "none"
+        self.edge_diag = "системный DNS не резолвит argotunnel.com, DoH недоступен — попытка без обхода"
+
     async def _run(self) -> None:
         while not self._stopping:
+            if not self._preflight_done:
+                self._preflight_done = True
+                # The launch never waits for the pre-flight:
+                # _start_preflight applies the cache synchronously and runs
+                # DoH in the background.
+                self._start_preflight()
             started = time.monotonic()
-            self.last_error = ""
+            self._edge_dns_failed = False
             code = await self._run_once()
             if self._stopping:
                 break
             if time.monotonic() - started > 300:
                 self.failures = 0
             self.failures += 1
-            if not self.registered and self.protocol == "auto" and not self.use_http2:
+            if not self.registered:
+                # The attempt is over: record what it failed with. The
+                # sticky last_error is NOT cleared here — it stays on
+                # screen while the next attempt runs.
+                self.error_history.append({
+                    "at": time.time(), "attempt": self._attempt_no,
+                    "error": self._attempt_error or f"cloudflared завершился (код {code})",
+                    "raw": self._attempt_raw})
+            if (not self.registered and self._edge_dns_failed and not self._edge_addresses
+                    and self.failures < self.max_failures
+                    and not any(os.environ.get(key) for key in ("TUNNEL_EDGE", "TUNNEL_REGION", "TUNNEL_EDGE_BIND_ADDRESS"))):
+                try:
+                    # A dead DoH must not hold the retry loop in silence
+                    # for ~18 s (3 sources x 6 s): 10 s total is enough to
+                    # say "no edge from DoH" and move on.
+                    addresses = await asyncio.wait_for(
+                        _cloudflare_edge_addresses(self.edge_ip_version), timeout=10.0)
+                except asyncio.TimeoutError:
+                    addresses = ""
+                except Exception:  # noqa: BLE001 - a broken DoH lookup must not kill the tunnel
+                    addresses = ""
+                if addresses:
+                    self._edge_addresses = addresses
+                    self.edge_source = getattr(addresses, "source", "doh") or "doh"
+                    self.edge_diag = f"край Cloudflare через {self.edge_source}"
+                    save_edge_cache(addresses, self.edge_source)
+                else:
+                    cached, _source = load_edge_cache()
+                    if cached:
+                        self._edge_addresses = cached
+                        self.edge_source = "cache"
+                        self.edge_diag = "край Cloudflare из кэша (DoH недоступен)"
+            if not self.registered and not self._edge_dns_failed and self.protocol == "auto" and not self.use_http2:
 
                 self.use_http2 = True
             if self.failures >= self.max_failures:
                 self.gave_up = True
-                self.retry_at = 0.0
-                self.on_state("failed", (self.last_error or f"cloudflared завершился (код {code})") +
+                self.retry_at = time.time() + self.auto_retry_delay
+                self.phase = "failed"
+                self.on_state("failed", (self._attempt_error or f"cloudflared завершился (код {code})") +
                               f" · {self.failures} попыток подряд — нажмите «Повторить»")
+                self._retry.clear()
+                try:
+                    await asyncio.wait_for(self._retry.wait(), timeout=self.auto_retry_delay)
+                except asyncio.TimeoutError:
+                    pass
+                self.retry_at = 0.0
+                if self._stopping:
+                    break
+                if self._retry.is_set() or self.auto_cycles < self.max_auto_cycles:
+                    # A manual «Retry», or a bounded automatic cycle:
+                    # the DNS situation may have changed by now (the ISP
+                    # fixed its resolver, DoH is reachable again), so the
+                    # pre-flight runs again instead of waiting forever.
+                    if not self._retry.is_set():
+                        self.auto_cycles += 1
+                    self.failures = 0
+                    self.gave_up = False
+                    self._preflight_done = False
+                    continue
+                # No more automatic cycles: wait for a manual retry.
                 self._retry.clear()
                 await self._retry.wait()
                 continue
             delay = self.backoff(self.failures)
             self.retry_at = time.time() + delay
-            self.on_state("error", (self.last_error or f"cloudflared завершился (код {code})") +
+            self.on_state("error", (self._attempt_error or f"cloudflared завершился (код {code})") +
                           f"; повтор через {int(delay)} с")
             self._retry.clear()
             sleeper = asyncio.ensure_future(self.sleep(delay))
@@ -775,17 +1342,28 @@ class CloudflaredTunnel:
         loop = asyncio.get_running_loop()
         self._set_url(None)
         self.registered = False
+        self._attempt_no += 1
+        self._attempt_error = ""
+        self._attempt_raw = ""
+        self.phase = "starting"
         self.on_state("starting", "")
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
         kwargs: Dict[str, Any] = dict(stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                       stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
                                       creationflags=flags, cwd=str(bin_dir()))
-        if self.named:
-            kwargs["env"] = {**os.environ, "TUNNEL_TOKEN": self.token}
+        if self.named or self._edge_addresses:
+            env = dict(os.environ)
+            if self.named:
+                env["TUNNEL_TOKEN"] = self.token
+            if self._edge_addresses and not env.get("TUNNEL_EDGE"):
+                env["TUNNEL_EDGE"] = self._edge_addresses
+            kwargs["env"] = env
+        self._attempt_static_edge = bool(kwargs.get("env", os.environ).get("TUNNEL_EDGE"))
         try:
             self.process = self.popen(self.command(), **kwargs)
         except (OSError, ValueError) as exc:
-            self.last_error = f"cloudflared не запустился: {exc}"
+            self._attempt_error = f"cloudflared не запустился: {exc}"
+            self._note_error(self._attempt_error)
             return None
         process = self.process
         queue: "asyncio.Queue[Optional[str]]" = asyncio.Queue()
@@ -816,13 +1394,17 @@ class CloudflaredTunnel:
                                   + (" — пробую HTTP/2" if self.protocol == "auto" and not self.use_http2 else
                                      " — возможна блокировка; попробуйте VPN или свой адрес"))
                     if timeout <= 0:
-                        self.last_error = self.last_error or reason
+                        if not self._attempt_error:
+                            self._attempt_error = reason
+                            self._note_error(reason)
                         self._terminate()
                         break
                 try:
                     line = await asyncio.wait_for(queue.get(), timeout) if timeout else await queue.get()
                 except asyncio.TimeoutError:
-                    self.last_error = self.last_error or reason
+                    if not self._attempt_error:
+                        self._attempt_error = reason
+                        self._note_error(reason)
                     self._terminate()
                     break
                 if line is None:
@@ -839,20 +1421,33 @@ class CloudflaredTunnel:
 
     def _line(self, line: str) -> None:
         self.lines.append(line)
+        dns_failure = _edge_dns_failure(line, quick=not self.named)
+        if self._attempt_static_edge and "edge discovery" in line.lower() and dns_failure:
+            # cloudflared also checks system DNS for diagnostics with a static edge list.
+            return
+        if not self.registered and dns_failure:
+            self._edge_dns_failed = True
         hint = _tunnel_error_hint(line)
         if hint and not self.registered:
-            self.last_error = hint
-        if _quic_trouble(line) and self.protocol == "auto":
+            self._attempt_error = hint
+            self._attempt_raw = line
+            self._note_error(hint, line)
+        if not dns_failure and _quic_trouble(line) and self.protocol == "auto":
             self.use_http2 = True
         url = None if self.named else parse_tunnel_url(line)
         if url and not self.url:
             self.url = url
-            self.last_error = ""
+            self.phase = "connecting"
             self.on_state("connecting", "")
         if (self.url or self.named) and not self.registered and _is_registered_line(line):
             self.registered = True
             self.last_error = ""
+            self.last_error_at = 0.0
+            self.last_error_raw = ""
+            self._attempt_error = ""
+            self._attempt_raw = ""
             self.failures = 0
+            self.phase = "online"
             if self.url:
                 self._set_url(self.url, force=True)
             self.on_state("online", "")
@@ -882,6 +1477,11 @@ class CloudflaredTunnel:
         self._stopping = True
         self._retry.set()
         self._terminate()
+        preflight, self._preflight_task = self._preflight_task, None
+        if preflight is not None and not preflight.done():
+            preflight.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await preflight
         task, self._task = self._task, None
         if task is not None and not task.done():
             task.cancel()
@@ -1033,6 +1633,12 @@ def _make_server(app: Any, port: int) -> Any:
         def install_signal_handlers(self) -> None:
             return None
 
+        async def serve(self, *args: Any, **kwargs: Any) -> None:
+            try:
+                await super().serve(*args, **kwargs)
+            except SystemExit:
+                log.warning("tgapp: the Mini App listener could not open port %s", port)
+
     return _QuietServer(uvicorn.Config(app, host="127.0.0.1", port=port, log_config=None,
                                        access_log=False, lifespan="off",
                                        timeout_keep_alive=20, ws="none"))
@@ -1054,6 +1660,13 @@ class Manager:
         self._download_retry_at = 0.0
         self._preferred_port = 0
         self._signature = ""
+        # Wave #8 (D-13): a busy port used to be retried every 2 s forever
+        # (reconcile runs on a 2 s loop and _ensure_server never gave up).
+        # Now each failed bind schedules the next attempt with backoff
+        # (5, 10, 20, 40, 80, 120 s); a settings change, wake() or the
+        # manual «Retry» (retry_at) resets it, so recovery stays fast.
+        self._server_failures = 0
+        self._server_retry_at = 0.0
         self._notified: Any = object()
         self._wake = asyncio.Event()
         self.detail = ""
@@ -1064,6 +1677,15 @@ class Manager:
         self.local_fallback = False
         self.last_working_url = ""
         self._last_check: Dict[str, Any] = {}
+        # A live tunnel can die quietly (the edge dropped it, the ISP
+        # started blocking it): probe the public healthz every minute and
+        # restart the tunnel after 3 consecutive "unreachable" results.
+        # DNS and HTTP failures never restart it — the address may simply
+        # not have propagated yet, or the local server is the problem.
+        self._health_failures = 0
+        self._health_checked_at = float("-inf")
+        self._health_restarts = 0
+        self._health_last_restart = float("-inf")
 
         self.probe: Optional[Callable[[str], Any]] = None
 
@@ -1078,14 +1700,31 @@ class Manager:
     def _diagnostics(self, local_url: str) -> Dict[str, Any]:
         check = self._last_check or {}
         host = check.get("host") or (urllib.parse.urlsplit(self.url or "").hostname or "")
+        tunnel = self.tunnel
+        report = tunnel_error_report(tunnel)
         return {"host": host, "error": check.get("detail") or self.detail or self.error,
-                "kind": check.get("kind") or "", "resolver": "system",
+                "kind": check.get("kind") or "",
+                "resolver": (tunnel.edge_source if tunnel is not None else "system"),
                 "checked_at": check.get("checked_at") or 0, "local_url": local_url,
                 "last_working_url": self._cached_working_url(),
-                "local_fallback": self.local_fallback}
+                "local_fallback": self.local_fallback,
+                "phase": (tunnel.phase if tunnel is not None else ""),
+                "edge_source": (tunnel.edge_source if tunnel is not None else ""),
+                "attempts_left": (tunnel.attempts_left if tunnel is not None else 0),
+                "dns_detail": (tunnel.edge_diag if tunnel is not None else ""),
+                "last_error": report.get("last_error", ""),
+                "last_error_en": report.get("last_error_en", ""),
+                "last_error_at": report.get("last_error_at", 0.0),
+                "last_error_raw": report.get("last_error_raw", ""),
+                "last_error_kind": report.get("last_error_kind", ""),
+                "next_step": report.get("next_step", ""),
+                "next_step_en": report.get("next_step_en", ""),
+                "error_history": report.get("error_history", []),
+                "recent_lines": report.get("recent_lines", [])}
 
     def snapshot(self) -> Dict[str, Any]:
         tunnel = self.tunnel
+        report = tunnel_error_report(tunnel)
         local_url = f"http://127.0.0.1:{self.port or DEFAULT_PORT}{ENTRY_PATH}"
         return {"pid": os.getpid(), "heartbeat": time.time(), "state": self.state, "error": self.error,
                 "error_en": status_en(self.error), "detail_en": status_en(self.detail),
@@ -1094,6 +1733,19 @@ class Manager:
                 "retry_at": (tunnel.retry_at if tunnel is not None else 0.0) or self.retry_at,
                 "protocol": (tunnel.effective_protocol() or "auto") if tunnel is not None else "",
                 "failures": tunnel.failures if tunnel is not None else 0,
+                "phase": (tunnel.phase if tunnel is not None else ""),
+                "edge_source": (tunnel.edge_source if tunnel is not None else ""),
+                "attempts_left": (tunnel.attempts_left if tunnel is not None else 0),
+                "dns_detail": (tunnel.edge_diag if tunnel is not None else ""),
+                "last_error": report.get("last_error", ""),
+                "last_error_en": report.get("last_error_en", ""),
+                "last_error_at": report.get("last_error_at", 0.0),
+                "last_error_raw": report.get("last_error_raw", ""),
+                "last_error_kind": report.get("last_error_kind", ""),
+                "next_step": report.get("next_step", ""),
+                "next_step_en": report.get("next_step_en", ""),
+                "error_history": report.get("error_history", []),
+                "recent_lines": report.get("recent_lines", []),
                 "local_url": local_url, "last_working_url": self._cached_working_url(),
                 "diagnostics": self._diagnostics(local_url)}
 
@@ -1149,11 +1801,19 @@ class Manager:
             if self.tunnel is not None:
                 await self._stop_tunnel()
             self._download_retry_at = 0.0
+            self._server_failures = 0
+            self._server_retry_at = 0.0
             self._signature = ""
         signature = json.dumps([wanted["run"], config["mode"], config["custom_url"], config["port"],
                                 config["cf_protocol"], config["cf_edge_ip"], config["named_url"],
                                 config["local_fallback"],
                                 hashlib.sha256(config["named_token"].encode()).hexdigest()[:12]])
+        if signature != self._signature:
+            # The settings changed (e.g. a different port): a fresh attempt.
+            self._server_failures = 0
+            self._server_retry_at = 0.0
+        if await self._watchdog(config):
+            return
         if signature == self._signature:
             settled = not wanted["run"] or (
                 self.server_task is not None and not self.server_task.done()
@@ -1171,8 +1831,13 @@ class Manager:
             return
         self.mode = config["mode"]
         self.local_fallback = bool(config["local_fallback"])
-        if self.server_task is not None and self._preferred_port != config["port"]:
+        if self.server_task is not None and (self._preferred_port != config["port"]
+                or (self.mode != "cloudflare" and self.port != config["port"])):
             await self.stop_all()
+        # Wave #8: still inside the backoff after a failed bind — wait,
+        # do not hammer the port every 2 s. The error state stays visible.
+        if self.server_task is None and time.monotonic() < self._server_retry_at:
+            return
         await self._ensure_server(config["port"])
         if self.server_task is None:
             return
@@ -1193,7 +1858,10 @@ class Manager:
             return
         from .tgapp_api import create_tgapp
         self._preferred_port = preferred
-        port = preferred if _port_free(preferred) else pick_port(preferred + 1)
+        port = preferred
+        # An external reverse proxy or a named tunnel already targets this port.
+        if self.mode == "cloudflare" and not _port_free(preferred):
+            port = pick_port(preferred + 1)
         server = _make_server(create_tgapp(), port)
         self.server, self.port = server, port
         self.server_task = asyncio.ensure_future(server.serve())
@@ -1202,9 +1870,20 @@ class Manager:
                 break
             await asyncio.sleep(0.05)
         if self.server_task.done() or not getattr(server, "started", False):
-            self.server_task = None
-            self._signature = ""
+            task, self.server, self.server_task = self.server_task, None, None
+            server.should_exit = True
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(task, 8)
+            # Wave #8: do not clear _signature here — clearing it made
+            # every reconcile look like a settings change and retried the
+            # bind at once. Schedule the next attempt with backoff instead.
+            self._server_failures += 1
+            self._server_retry_at = time.monotonic() + min(
+                120.0, 5.0 * 2 ** min(self._server_failures - 1, 5))
             self._set_state("error", f"Не удалось открыть порт {port}")
+        else:
+            self._server_failures = 0
+            self._server_retry_at = 0.0
 
     async def _ensure_tunnel(self) -> None:
         if self.tunnel is not None and self.tunnel.port == self.port:
@@ -1236,6 +1915,25 @@ class Manager:
         if self.desired()["run"] and self.mode in ("cloudflare", "named"):
             self._start_tunnel(binary)
 
+    def _on_tunnel_state(self, state: str, error: str) -> None:
+        """Tunnel state changes from CloudflaredTunnel.on_state.
+
+        The last error is NOT cleared while the next attempt starts: wiping
+        it on every "starting"/"connecting" is what made errors disappear
+        from the settings card. It is cleared by "online" (via _verify) or
+        by a newer error.
+        """
+        if state == "online":
+            self._set_state("verifying", "")
+            self._start_verify(publish=True)
+            return
+        self._cancel_verify()
+        self.verified = False
+        if state in ("starting", "connecting"):
+            self._set_state(state, self.error)
+        else:
+            self._set_state(state, error)
+
     def _start_tunnel(self, binary: Path) -> None:
         config = load_config()
         named = config["mode"] == "named"
@@ -1249,17 +1947,7 @@ class Manager:
             self.write_status()
             self._notify()
 
-        def on_state(state: str, error: str) -> None:
-            if state == "online":
-
-                self._set_state("verifying", "")
-                self._start_verify(publish=True)
-                return
-            self._cancel_verify()
-            self.verified = False
-            self._set_state(state, error)
-
-        self.tunnel = CloudflaredTunnel(binary, self.port, on_url=on_url, on_state=on_state,
+        self.tunnel = CloudflaredTunnel(binary, self.port, on_url=on_url, on_state=self._on_tunnel_state,
                                         protocol=config["cf_protocol"], edge_ip_version=config["cf_edge_ip"],
                                         token=config["named_token"] if named else "")
         self.tunnel.start()
@@ -1272,6 +1960,47 @@ class Manager:
     def _start_verify(self, *, publish: bool) -> None:
         self._cancel_verify()
         self._verify_task = asyncio.ensure_future(self._verify(publish))
+
+    async def _watchdog(self, config: Dict[str, Any]) -> bool:
+        """Restart a live tunnel that stopped answering through the internet.
+
+        Returns True when it restarted the tunnel (the caller should skip
+        the rest of this round): the next round starts a fresh tunnel.
+        """
+        if self.state != "online" or config["mode"] == "custom":
+            return False
+        base = self.url or ""
+        if not base or self.tunnel is None:
+            return False
+        now = time.monotonic()
+        if now - self._health_checked_at < 60:
+            return False
+        self._health_checked_at = now
+        try:
+            kind, _detail = await self._probe(base)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - an inconclusive probe restarts nothing
+            return False
+        if kind == "ok":
+            self._health_failures = 0
+            self._health_restarts = 0
+            return False
+        if kind != "unreachable":
+            # DNS (the address has not propagated yet) or HTTP (the local
+            # server answers wrongly): not the tunnel's fault.
+            self._health_failures = 0
+            return False
+        self._health_failures += 1
+        if (self._health_failures < 3 or self._health_restarts >= 3
+                or now - self._health_last_restart < 900):
+            return False
+        self._health_failures = 0
+        self._health_restarts += 1
+        self._health_last_restart = now
+        await self._stop_tunnel()
+        self._signature = ""
+        return True
 
     async def _probe(self, base: str) -> Tuple[str, str]:
         if self.probe is not None:
@@ -1320,8 +2049,8 @@ class Manager:
             if self.url != base:
                 return
             if kind == "ok":
-                self.verified, self.detail = True, ""
                 self.last_working_url = base
+                self.verified, self.detail = True, ""
                 try:
                     remember_working_url(base)
                 except Exception:
@@ -1377,6 +2106,10 @@ class Manager:
         self.port = 0
 
     def wake(self) -> None:
+        # Wave #8: something changed — a retry is due now, not after the
+        # port backoff.
+        self._server_failures = 0
+        self._server_retry_at = 0.0
         self._wake.set()
 
 _MANAGER: Optional[Manager] = None
@@ -1470,11 +2203,26 @@ def _status_diagnostics(status: Dict[str, Any], config: Dict[str, Any],
     return {"host": detail.get("host") or host,
             "error": detail.get("error") or status.get("detail") or status.get("error") or "",
             "kind": detail.get("kind") or "",
-            "resolver": "system", "checked_at": detail.get("checked_at") or 0,
+            "resolver": detail.get("resolver") or status.get("edge_source") or "system",
+            "checked_at": detail.get("checked_at") or 0,
             "local_url": local_url,
             "last_working_url": detail.get("last_working_url") or str(config.get("last_working_url") or ""),
             "last_working_at": int(config.get("last_working_at") or 0),
-            "local_fallback": bool(config.get("local_fallback"))}
+            "local_fallback": bool(config.get("local_fallback")),
+            "phase": detail.get("phase") or status.get("phase") or "",
+            "edge_source": detail.get("edge_source") or status.get("edge_source") or "",
+            "attempts_left": detail.get("attempts_left") if detail.get("attempts_left") is not None
+                            else status.get("attempts_left") or 0,
+            "dns_detail": detail.get("dns_detail") or status.get("dns_detail") or "",
+            "last_error": detail.get("last_error") or status.get("last_error") or "",
+            "last_error_en": detail.get("last_error_en") or status.get("last_error_en") or "",
+            "last_error_at": detail.get("last_error_at") or status.get("last_error_at") or 0.0,
+            "last_error_raw": detail.get("last_error_raw") or status.get("last_error_raw") or "",
+            "last_error_kind": detail.get("last_error_kind") or status.get("last_error_kind") or "",
+            "next_step": detail.get("next_step") or status.get("next_step") or "",
+            "next_step_en": detail.get("next_step_en") or status.get("next_step_en") or "",
+            "error_history": detail.get("error_history") or status.get("error_history") or [],
+            "recent_lines": detail.get("recent_lines") or status.get("recent_lines") or []}
 
 def desktop_status() -> Dict[str, Any]:
     """Everything the settings card in the desktop window shows.

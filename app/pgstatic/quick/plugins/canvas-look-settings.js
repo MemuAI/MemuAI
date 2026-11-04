@@ -222,6 +222,8 @@
         await ensureLook();
         [state.data, state.panels] = await Promise.all([ctx.api("/api/quick/canvas?lang=" + (en ? "en" : "ru")), loadPanels()]);
       } catch (e) { body.innerHTML = K.note(esc(tr("Не удалось загрузить настройки: ", "Could not load the settings: ") + e.message), "warn"); return; }
+      const d = state.data || {}, em = d.embed || {};
+      state.data = { ...d, embed: { ...em, items: Array.isArray(em.items) ? em.items : [] } };
       draw();
     }
     body.innerHTML = `<div class="qls-settings">${K.note(esc(tr("Загружаю…", "Loading…")), "info")}</div>`;

@@ -1054,55 +1054,149 @@
     "planning": [
       {
         "id": "playlist-growth",
-        "title": "Плейлисты выросли",
-        "title_en": "Playlists grew",
-        "description": "Напомнить сохранить копию плейлистов, когда в них добавится много треков.",
-        "description_en": "Remind to back up the playlists once many tracks have been added.",
+        "title": "Плейлисты выросли → резервная копия",
+        "title_en": "Playlists grew → backup",
+        "description": "Каждый раз, когда в плейлисты добавлено ещё N треков, все плейлисты сохраняются в JSON и M3U.",
+        "description_en": "Each time N more tracks were added to playlists, every playlist is saved as JSON and M3U.",
         "trigger": {
           "kind": "threshold",
-          "metric": "items",
+          "metric": "changes",
           "threshold": 25,
-          "scope": "any"
+          "scope": "any",
+          "mode": "delta"
         },
         "action": {
-          "kind": "notify",
-          "text": "В плейлисты добавлено уже много треков — сохраните или экспортируйте копию плейлистов, чтобы не потерять подборку.",
-          "text_en": "music"
+          "kind": "module",
+          "handler": "music.backup_playlists"
         },
         "settings": [
           {
             "key": "threshold",
             "type": "number",
-            "label": "Треков добавлено не меньше",
-            "label_en": "At least this many tracks added",
+            "label": "Новых треков в плейлистах",
+            "label_en": "New tracks in playlists",
             "default": 25,
-            "min": 5,
-            "max": 500
+            "min": 1,
+            "max": 100000
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
           }
         ]
       },
       {
-        "id": "duplicates-check",
-        "title": "Проверка дубликатов",
-        "title_en": "Duplicate check",
-        "description": "Раз в неделю напомнить проверить дубликаты треков в библиотеке.",
-        "description_en": "Remind once a week to check the library for duplicate tracks.",
+        "id": "backup-weekly",
+        "title": "Еженедельная копия плейлистов",
+        "title_en": "Weekly playlist backup",
+        "description": "Раз в неделю — все плейлисты в JSON и M3U для любого плеера.",
+        "description_en": "Once a week — every playlist as JSON and M3U for any player.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Проверьте дубликаты в библиотеке MemuMusic: модуль умеет находить одинаковые треки.",
-          "text_en": "music"
-        }
+          "kind": "module",
+          "handler": "music.backup_playlists"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "duplicates-check",
+        "title": "Поиск дубликатов",
+        "title_en": "Duplicate search",
+        "description": "Раз в неделю ищет одинаковые треки (название, исполнитель, длительность) и пишет отчёт; ничего не удаляет.",
+        "description_en": "Once a week finds identical tracks (title, artist, duration) and writes a report; deletes nothing.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "music.duplicates_report"
+        },
+        "settings": []
+      },
+      {
+        "id": "weekly-listening",
+        "title": "Отчёт о прослушивании за неделю",
+        "title_en": "Weekly listening report",
+        "description": "Минуты, топ исполнителей и треков за неделю из истории MemuMusic.",
+        "description_en": "Minutes, top artists and tracks of the week from the MemuMusic history.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "music.listening_report"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "За сколько дней",
+            "label_en": "Days to cover",
+            "default": 7,
+            "min": 1,
+            "max": 365
+          }
+        ]
+      },
+      {
+        "id": "ai-weekly-mix",
+        "title": "ИИ-подборка недели",
+        "title_en": "AI mix of the week",
+        "description": "Раз в неделю ИИ собирает новый плейлист только из треков вашей библиотеки.",
+        "description_en": "Once a week the AI builds a new playlist only from the tracks of your library.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "music.ai_playlist"
+        },
+        "settings": [
+          {
+            "key": "size",
+            "type": "number",
+            "label": "Треков",
+            "label_en": "Tracks",
+            "default": 15,
+            "min": 5,
+            "max": 60
+          },
+          {
+            "key": "theme",
+            "type": "text",
+            "label": "Тема",
+            "label_en": "Theme",
+            "default": ""
+          }
+        ]
       },
       {
         "id": "playlists-ten",
-        "title": "Десять плейлистов",
-        "title_en": "Ten playlists",
-        "description": "Сообщить, когда в MemuMusic появится десять плейлистов.",
-        "description_en": "Notify when MemuMusic has ten playlists.",
+        "title": "Десять плейлистов → копия",
+        "title_en": "Ten playlists → backup",
+        "description": "Когда плейлистов стало 10, делается их резервная копия.",
+        "description_en": "When there are 10 playlists, they are backed up.",
         "trigger": {
           "kind": "threshold",
           "metric": "items",
@@ -1110,60 +1204,29 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "В MemuMusic уже десять плейлистов — проверьте названия и порядок, чтобы нужное находилось быстро.",
-          "text_en": "MemuMusic already has ten playlists — check the names and order so everything is easy to find."
-        }
-      },
-      {
-        "id": "playlists-fifty",
-        "title": "Пятьдесят плейлистов",
-        "title_en": "Fifty playlists",
-        "description": "Попросить модель предложить, как упорядочить пятьдесят плейлистов.",
-        "description_en": "Ask the model to suggest how to organise fifty playlists.",
-        "trigger": {
-          "kind": "threshold",
-          "metric": "items",
-          "threshold": 50,
-          "scope": "any"
+          "kind": "module",
+          "handler": "music.backup_playlists"
         },
-        "action": {
-          "kind": "chat",
-          "prompt": "Предложи, как упорядочить пятьдесят плейлистов: объединить похожие, переименовать и выделить главные. Коротко, списком.",
-          "prompt_en": "Suggest how to organise fifty playlists: merge similar ones, rename them, and highlight the main ones. Briefly, as a list."
-        }
-      },
-      {
-        "id": "daily-music-check",
-        "title": "Ежедневная проверка библиотеки",
-        "title_en": "Daily library check",
-        "description": "Каждый день напомнить заглянуть в библиотеку MemuMusic.",
-        "description_en": "Remind every day to look into the MemuMusic library.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 1440
-        },
-        "action": {
-          "kind": "notify",
-          "text": "Загляните в библиотеку MemuMusic: новые треки, тексты песен и плейлисты, которые стоит привести в порядок.",
-          "text_en": "Look into the MemuMusic library: new tracks, lyrics, and playlists worth tidying up."
-        }
-      },
-      {
-        "id": "three-day-library",
-        "title": "Обзор библиотеки за три дня",
-        "title_en": "Three-day library review",
-        "description": "Раз в три дня попросить модель подвести итог пополнений библиотеки.",
-        "description_en": "Every three days, ask the model to sum up the library additions.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 4320
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог пополнений библиотеки за три дня и предложи, какие плейлисты обновить или создать. Коротко, списком.",
-          "prompt_en": "Sum up the library additions of the last three days and suggest which playlists to update or create. Briefly, as a list."
-        }
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Плейлистов",
+            "label_en": "Playlists",
+            "default": 10,
+            "min": 2,
+            "max": 10000
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
       }
     ]
   }

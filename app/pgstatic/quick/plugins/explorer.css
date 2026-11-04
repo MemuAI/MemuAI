@@ -26,10 +26,10 @@
 .qe-actions { display: flex; flex-wrap: wrap; gap: 5px; }
 .qe-act { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--qa-chip-line); background: transparent; color: var(--text); font: 500 12.5px var(--sans); max-width: 100%; }
-.qe-act svg { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.qe-act svg { width: 14px; height: 14px; color: var(--qe-act-icon, var(--muted)); flex: none; }
 .qe-act span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qe-act:hover, .qe-act:focus-visible { background: var(--qa-hover); outline: 0; border-color: color-mix(in srgb, var(--accent) 40%, var(--qa-chip-line)); }
-.qe-act:hover svg { color: var(--accent); }
+.qe-act:hover { --qe-act-icon: var(--accent); }
 .qe-act.preset svg { color: var(--accent-2); }
 .qe-head .qe-title { flex: 1; min-width: 0; font-weight: 640; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qe-spin { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);

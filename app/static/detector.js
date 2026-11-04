@@ -53,6 +53,7 @@ window.MemuDetector = (() => {
     identity_en: () => L("Кто ты? (англ.)", "Who are you? (EN)"), identity_ru: () => L("Кто ты? (рус.)", "Who are you? (RU)"),
     identity_base: () => L("Базовая модель", "Base model"), identity_complete: () => L("Дополни фразу", "Complete the sentence"),
     identity_version: () => L("Точная версия", "Exact version"), identity_repeat: () => L("Повтор вопроса «Кто ты?»", "Repeat of “Who are you?”"),
+    known_models: () => L("Какие новые модели знает", "Newest models it knows"),
     tokens: () => L("Служебные токены", "Special tokens"), cutoff_self: () => L("Дата знаний (сама о себе)", "Cutoff (self-report)"),
     quiz: () => L("Викторина по датам", "Dated quiz"), specs: () => L("Контекст и вывод (сама о себе)", "Context & output (self-report)"),
     judge: () => L("ИИ-анализ", "AI analysis"), capability: () => L("Задачи на рассуждение", "Reasoning tasks"),
@@ -142,13 +143,16 @@ window.MemuDetector = (() => {
             </div>
             <div class="field"><label>${esc(L("Глубина", "Depth"))}</label>
               <div class="segmented det-depth" role="radiogroup">
-                <button type="button" class="seg active" data-depth="quick" role="radio" aria-checked="true">${esc(L("Быстрая · 14 запросов", "Quick · 14 requests"))}</button>
-                <button type="button" class="seg" data-depth="full" role="radio" aria-checked="false">${esc(L("Полная · 17 запросов", "Full · 17 requests"))}</button>
+                <button type="button" class="seg active" data-depth="quick" role="radio" aria-checked="true">${esc(L("Быстрая · 15 запросов", "Quick · 15 requests"))}</button>
+                <button type="button" class="seg" data-depth="full" role="radio" aria-checked="false">${esc(L("Полная · 18 запросов", "Full · 18 requests"))}</button>
               </div></div>
             <div class="field"><label for="det-judge">${esc(L("ИИ-анализ ответов (необязательно)", "AI analysis of the answers (optional)"))}</label>
               <select id="det-judge"></select>
               <div class="field-hint">${esc(L("Другая модель прочитает все ответы и выскажет своё мнение. Её оценка смешивается с эвристикой 50/50. Лучше брать сильную модель другого семейства.",
-                "Another model reads every answer and gives its opinion, blended 50/50 with the heuristics. Prefer a strong model from a different family."))}</div></div>
+                "Another model reads every answer and gives its opinion, blended 50/50 with the heuristics. Prefer a strong model from a different family."))}</div>
+              <label class="det-web-toggle"><span class="switch"><input type="checkbox" id="det-web" checked><span class="slider"></span></span>
+                <span><b>${esc(L("Дать аналитику веб-поиск", "Give the analyst web search"))}</b><small>${esc(L("Перед анализом Proxy поищет в вебе даты выхода и срезы знаний заявленной модели и той, которой модель себя называет, и передаст найденное аналитику как справку. Источник поиска — из настроек веб-поиска.",
+                  "Before the analysis Proxy looks up release dates and cutoffs of the claimed model and of the model it names itself, and hands the results to the analyst as reference. The search engine comes from the web search settings."))}</small></span></label></div>
             <div class="row"><button class="btn primary" id="det-go" type="submit">${esc(L("Проверить", "Run the check"))}</button>
               <span class="field-hint grow">${esc(L("Запросы идут через обычный конвейер Proxy и видны в логах. Температура — 0.", "Requests go through the normal Proxy pipeline and show in the logs. Temperature is 0."))}</span></div>
           </form>
@@ -175,10 +179,14 @@ window.MemuDetector = (() => {
               <li><b>${esc(L("Служебные токены.", "Special tokens."))}</b> ${esc(L("Модель просят повторить строки с маркерами вроде <|im_end|> или <|eot_id|>; собственный маркер конца хода обрывает ответ.", "The model repeats lines containing markers such as <|im_end|> or <|eot_id|>; its own end-of-turn marker cuts the answer."))}</li>
               <li><b>${esc(L("Скрытые инструкции.", "Hidden instructions."))}</b> ${esc(L("По счёту токенов пустого запроса видно, сколько токенов провайдер добавляет от себя к каждому сообщению; в полной проверке модель ещё и прямо спрашивают, получала ли она инструкции.", "The token count of an empty request shows how many tokens the provider adds to every message on its own; the full check also asks the model directly whether it was given instructions."))}</li>
               <li><b>${esc(L("Дата знаний.", "Knowledge cutoff."))}</b> ${esc(L("Вопросы о событиях 2022–2026 годов. По тому, где ответы перестают быть верными, оценивается срез обучения.", "Questions about dated events from 2022–2026. Where answers stop being right estimates the training cutoff."))}</li>
+              <li><b>${esc(L("Какие модели знает.", "Models it knows."))}</b> ${esc(L("Модель просят перечислить самые новые известные ей модели с месяцем выхода. Верно названная свежая модель отодвигает оценку даты знаний дальше викторины; модели без даты, с неверной датой или «на всякий случай» не засчитываются, а список с выдуманными датами отбрасывается целиком.",
+                "The model lists the newest models it knows with their release months. A recent model named with the right month moves the cutoff estimate past the quiz; names without a date, with a wrong date or hedged do not count, and a list with made-up dates is dropped entirely."))}</li>
               <li><b>${esc(L("Версия.", "Version."))}</b> ${esc(L("Семейство и версия проверяются отдельно. Версии, чей известный срез знаний раньше событий, которые знает модель, исключаются; более новое поколение не может знать меньше старого; пакет задач на рассуждение даёт грубый уровень способностей. Догадка ИИ-аналитика сверяется с этими фактами.",
                 "Family and version are checked separately. Versions whose known cutoff predates events the model knows are ruled out; a newer generation cannot know less than an older one; a batch of reasoning tasks gives a coarse ability tier. The AI analyst's guess is checked against these facts."))}</li>
               <li><b>${esc(L("Качество ответов.", "Answer quality."))}</b> ${esc(L("Оценивается только видимый ответ: размышления (<think>…) вырезаются, отказы и пустые ответы не учитываются, ответы-догадки в викторине не засчитываются. Если reasoning-модель потратила лимит на размышления, проба повторяется один раз с большим лимитом; временные ошибки шлюза — тоже один повтор. Пробы, не ответившие вовремя, помечаются, а вердикт строится по остальным.",
                 "Only the visible answer is scored: reasoning (<think>…) is cut out, refusals and empty answers are ignored, hedged quiz answers do not count. If a reasoning model spent its budget on thinking, the probe is repeated once with a larger budget; transient gateway errors get one retry too. Probes that do not answer in time are marked and the verdict uses the rest."))}</li>
+              <li><b>${esc(L("Веб-поиск для ИИ-аналитика.", "Web search for the AI analyst."))}</b> ${esc(L("Если включён, перед анализом Proxy ищет даты выхода и срезы знаний заявленной модели и модели, которой она себя назвала. Найденное передаётся аналитику как непроверенная справка, а ссылки показываются в отчёте.",
+                "When on, Proxy looks up release dates and cutoffs of the claimed model and of the model it named itself before the analysis. The results go to the analyst as unverified reference, and the links show in the report."))}</li>
               <li><b>${esc(L("Характеристики.", "Specs."))}</b> ${esc(L("Модель называет заявленный контекст/вывод в токенах — сверяется с каталогом.", "The model states its claimed context/output in tokens, checked against a catalogue."))}</li>
             </ul>
             <p class="field-hint">${esc(L("Итоговый процент — калиброванная оценка (softmax с температурой + доля «недостаточно данных»), а не сырая доля сигналов: при слабых или противоречивых доказательствах она намеренно не приближается к 100%.",
@@ -231,7 +239,8 @@ window.MemuDetector = (() => {
     $("#det-go").disabled = true;
     try {
       S.run = await api("/api/admin/detector/run", { method: "POST", body: {
-        model, depth: depth(), judge: $("#det-judge").value, claimed: $("#det-claimed").value, lang: LANG } });
+        model, depth: depth(), judge: $("#det-judge").value, claimed: $("#det-claimed").value, lang: LANG,
+        web: $("#det-web") ? $("#det-web").checked : true } });
       S.viewing = S.run.id;
       renderRun();
       poll();
@@ -345,9 +354,10 @@ window.MemuDetector = (() => {
       ${judge ? `<div class="det-judge">${judge.error ? `<div class="warn-strip">${esc(L("ИИ-анализ не удался", "AI analysis failed"))}: ${esc(judge.error)}</div>`
         : `<h4 class="mini-title">${esc(L("Мнение ИИ-аналитика", "The AI analyst's view"))} · <span class="mono">${esc(run.judge)}</span></h4>
           ${judge.best_guess ? `<p><b>${esc(L("Лучшая догадка", "Best guess"))}:</b> ${esc(judge.best_guess)}${judgeConflict(r) ? ` <span class="badge invalid">${esc(L("противоречит фактам", "contradicts the facts"))}</span>` : ""}</p>` : ""}
-          ${judge.claimed_version ? `<p class="muted">${esc(L("О заявленной версии", "On the claimed version"))}: ${esc({ consistent: L("согласуется", "consistent"), contradicted: L("опровергнута", "contradicted"), unclear: L("неясно", "unclear") }[judge.claimed_version] || judge.claimed_version)}</p>` : ""}<p class="selectable">${esc(judge.reasoning || "")}</p>`}</div>` : ""}
+          ${judge.claimed_version ? `<p class="muted">${esc(L("О заявленной версии", "On the claimed version"))}: ${esc({ consistent: L("согласуется", "consistent"), contradicted: L("опровергнута", "contradicted"), unclear: L("неясно", "unclear") }[judge.claimed_version] || judge.claimed_version)}</p>` : ""}<p class="selectable">${esc(judge.reasoning || "")}</p>
+          ${judgeSources(judge)}`}</div>` : ""}
       <div class="det-facts">
-        <div class="stat"><div class="stat-val">${esc(cutoff.estimate || "—")}</div><div class="stat-lbl">${esc(L("Оценка даты знаний", "Estimated cutoff"))}${cutoff.expected ? ` · ${esc(L("ожидалось", "expected"))} ${esc(cutoff.expected)}` : ""}</div></div>
+        <div class="stat"><div class="stat-val">${esc((r.version && r.version.knowledge && r.version.knowledge.estimate) || cutoff.estimate || "—")}</div><div class="stat-lbl">${esc(L("Оценка даты знаний", "Estimated cutoff"))}${cutoff.expected ? ` · ${esc(L("ожидалось", "expected"))} ${esc(cutoff.expected)}` : ""}</div></div>
         ${tokensSignal.informative ? `<div class="stat"><div class="stat-val">${esc(tokensSignal.stopped_at ? `<|${tokensSignal.stopped_at}|>` : (tokensSignal.missing || []).map((key) => `<|${key}|>`).join(" ") || "—")}</div><div class="stat-lbl">${esc(tokensSignal.stopped_at ? L("Токен, оборвавший ответ", "Token that cut the answer") : L("Проглоченные служебные токены", "Swallowed special tokens"))}</div></div>` : ""}
         ${tokenizerStat(r.tokenizer)}
         ${r.ability && r.ability.total ? `<div class="stat"><div class="stat-val">${r.ability.passed}/${r.ability.total}</div><div class="stat-lbl">${esc(L("Задачи на точность", "Accuracy tasks"))}</div></div>` : ""}
@@ -366,6 +376,7 @@ window.MemuDetector = (() => {
           <td>${esc(CATEGORY[key]())}</td>
           <td>${(evidenceByCat[key] || []).map((row) => `<span class="mono" title="${esc(JSON.stringify(row.signal || {}))}">${esc(row.probe)}: ${esc(row.weight)}</span>`).join(" · ")}</td>
         </tr>`).join("")}</tbody></table></details>
+      ${knownModels(r)}
       ${(cutoff.quiz || []).length ? `<details class="det-sub"><summary>${esc(L("Викторина по датам", "Dated quiz"))} · ${(cutoff.quiz || []).filter((q) => q.correct).length}/${cutoff.quiz.length}</summary>
         <table class="tbl"><tbody>${cutoff.quiz.map((q) => `<tr><td class="mono">${esc(q.date)}</td><td>${esc(q.question)}</td><td class="selectable">${esc(q.answer || "—")}${q.hedged ? ` <span class="chip warn" title="${esc(L("Ответ-догадка («вероятно», «X или Y») не засчитан как знание", "A hedged guess (“probably”, “X or Y”) is not counted as knowledge"))}">${esc(L("догадка", "guess"))}</span>` : ""}</td><td>${q.correct ? "✓" : "✗"}</td></tr>`).join("")}</tbody></table></details>` : ""}
       ${(run.probes || []).length ? `<details class="det-sub"><summary>${esc(L("Все запросы и ответы", "Every prompt and answer"))}</summary>${run.probes.map((p, index) => `<div class="det-probe">
@@ -407,6 +418,29 @@ window.MemuDetector = (() => {
   }
 
   function judgeConflict(r) { return !!(r.version && r.version.judge && r.version.judge.conflict); }
+  function judgeSources(judge) {
+    const rows = (judge && judge.sources) || [];
+    if (!rows.length) return "";
+    return `<details class="det-sub det-sources"><summary>${esc(L("Что аналитик нашёл в вебе", "What the analyst found on the web"))} · ${rows.length}</summary>
+      <ol>${rows.map((row) => `<li><a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">${esc(row.title || row.url)}</a> <span class="muted mono">${esc(hostOf(row.url))}</span></li>`).join("")}</ol>
+      <p class="muted">${esc(L("Это сторонние страницы: аналитик использует их только как справку о датах и версиях.", "These are third-party pages: the analyst uses them only as reference on dates and versions."))}</p></details>`;
+  }
+  function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (_error) { return ""; } }
+  function knownModels(r) {
+    const known = r.known_models;
+    const items = (known && known.items) || [];
+    if (!items.length) return "";
+    const STATUS = {
+      recognized: ["ok", L("верно", "right")], wrong_date: ["warn", L("не та дата", "wrong date")], no_date: ["", L("без даты", "no date")],
+      hedged: ["warn", L("догадка", "guess")], unknown: ["", L("нет в каталоге", "not in the catalogue")],
+    };
+    return `<details class="det-sub"><summary>${esc(L("Какие новые модели знает", "Newest models it knows"))} · ${known.recognized || 0}/${items.length}</summary>
+      <table class="tbl"><tbody>${items.map((item) => { const [cls, label] = STATUS[item.status] || ["", item.status]; return `<tr><td class="selectable">${esc(item.text)}</td>
+        <td>${esc(item.label || "—")}</td><td class="mono">${esc(item.released || "—")}</td><td><span class="chip ${cls}">${esc(label)}</span></td></tr>`; }).join("")}</tbody></table>
+      ${known.doubt ? `<div class="warn-strip">${esc(known.doubt === "sequence" ? L("Даты идут месяц за месяцем — список похож на выдуманный и не учтён.", "The dates step one month at a time — the list looks made up and is ignored.") : L("Больше трети дат неверны — список не учтён.", "More than a third of the dates are wrong — the list is ignored."))}</div>` : ""}
+      <p class="muted">${esc(L("Засчитываются только модели из каталога детектора, названные с месяцем выхода (±4 месяца). Самая новая нужна с подтверждением: ещё одна модель за полгода до неё или кодовое имя, которое не угадать.",
+        "Only catalogue models named with their release month (±4 months) count. The newest one needs backing: another model within half a year before it, or a codename nobody would guess."))}</p></details>`;
+  }
 
   function versionBlock(r) {
     const v = r.version;
@@ -828,7 +862,8 @@ window.MemuDetector = (() => {
     relabel() {
       const root = $("#detector-root");
       if (!root || !root.dataset.ready) return;
-      const keep = { model: $("#det-model").value, judge: $("#det-judge").value, claimed: $("#det-claimed").value, depth: depth() };
+      const keep = { model: $("#det-model").value, judge: $("#det-judge").value, claimed: $("#det-claimed").value, depth: depth(),
+        web: $("#det-web") ? $("#det-web").checked : true };
       root.removeEventListener("click", onClick);
       delete root.dataset.ready;
       shell(root);
@@ -836,6 +871,7 @@ window.MemuDetector = (() => {
       $("#det-model").value = keep.model;
       $("#det-judge").value = keep.judge;
       $("#det-claimed").value = keep.claimed;
+      if ($("#det-web")) $("#det-web").checked = keep.web;
       $$(".det-depth .seg").forEach((x) => { const on = x.dataset.depth === keep.depth; x.classList.toggle("active", on); x.setAttribute("aria-checked", String(on)); });
       renderHistory();
       renderRun();

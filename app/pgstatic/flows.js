@@ -64,7 +64,7 @@
     dfy: { cat: "app", icon: "globe", title: T("Сделай за меня", "Do For You"), hint: T("Агент сделает дело в браузере (нужно окно MemuAI)", "The agent does it in a browser (needs the MemuAI window)") },
     memucode: { cat: "app", icon: "code", title: "MemuCode", hint: T("Агент для кода в папке проекта", "The coding agent in a project folder") },
     mcp_call: { cat: "app", icon: "tool", title: T("Инструмент MCP", "MCP tool"), hint: T("Вызвать инструмент подключённого сервера MCP (база, трекер, заметки…)", "Call a tool of a connected MCP server (database, tracker, notes…)") },
-    integration: { cat: "app", icon: "tool", title: "Telegram Use / Chrome", hint: T("Прочитать сообщения или страницу, отправить ответ, управлять вкладками; результат доступен следующим шагам", "Read messages or a page, send a reply, manage tabs; pass the result to the next steps") },
+    integration: { cat: "app", icon: "tool", title: T("Telegram или Chrome", "Telegram or Chrome"), hint: T("Прочитать сообщения или страницу, отправить ответ, управлять вкладками; результат доступен следующим шагам", "Read messages or a page, send a reply, manage tabs; pass the result to the next steps") },
   });
   const CATS = () => [["data", T("Данные", "Data")], ["ai", T("ИИ", "AI")], ["logic", T("Логика", "Logic")], ["send", T("Отправить", "Send")], ["app", T("Приложения", "Apps")]];
   const OPS = () => [["is_true", T("истинно / да", "is true / yes")], ["is_false", T("ложно / нет", "is false / no")], ["not_empty", T("не пусто", "is not empty")], ["empty", T("пусто", "is empty")],
@@ -247,7 +247,7 @@
       case "http": return `<div class="flw-cond">${select(id, "method", s.method, ["GET", "POST", "PUT", "PATCH", "DELETE"].map((m) => [m, m]))}${tplInput(id, "url", s.url, "https://api.example.com/items")}</div>` +
         row(T("Заголовки (JSON)", "Headers (JSON)"), jsonArea(id, "headers", s.headers, '{"Accept": "application/json"}')) + (s.method !== "GET" ? row(T("Тело запроса", "Body"), tplArea(id, "body", s.body, '{"text": "{{step2.result}}"}', 2)) : "") +
         `<p class="flw-note">${ico("globe")}${T("Только публичные адреса: локальные и внутренние запрещены. В тесте выполняются только GET.", "Public addresses only: local and internal ones are refused. The test runs GET only.")}</p>`;
-      case "telegram": return row(T("Сообщение", "Message"), tplArea(id, "text", s.text, T("Новые вакансии:\n{{step3.result | list}}", "New jobs:\n{{step3.result | list}}"), 3)) + (c.telegram === false ? `<p class="flw-note warn">${ico("send")}${T("Бот Telegram не привязан — Настройки → Telegram.", "The Telegram bot is not paired — Settings → Telegram.")}</p>` : "");
+      case "telegram": return row(T("Сообщение", "Message"), tplArea(id, "text", s.text, T("Новые вакансии:\n{{step3.result | list}}", "New jobs:\n{{step3.result | list}}"), 3)) + (c.telegram === false ? `<p class="flw-note warn">${ico("send")}${T("Бот Telegram не привязан — Настройки → Мессенджеры → Telegram.", "The Telegram bot is not paired — Settings → Messengers → Telegram.")}</p>` : "");
       case "notify": return row(T("Заголовок", "Title"), tplInput(id, "title", s.title, T("Название задачи", "Task name"))) + row(T("Текст", "Text"), tplArea(id, "text", s.text, "", 2)) + `<div class="flw-inline">${check(id, "windows", s.windows !== false, T("Уведомление Windows", "Windows notification"))}${check(id, "inbox", s.inbox !== false, T("Во «Входящие»", "To the Inbox"))}</div>`;
       case "run_task": return row(T("Задача", "Task"), select(id, "task_id", s.task_id, [["", T("— выберите —", "— choose —")], ...(c.tasks || []).filter((t) => t.id !== fs.draft.id).map((t) => [t.id, t.name || t.id])], "wide"));
       case "qa_command": return row(T("Сценарий", "Scenario"), select(id, "command", s.command, [["", T("— выберите —", "— choose —")], ...(c.scenarios || []).map((x) => [x.name, x.name])], "wide"), (c.scenarios || []).length ? "" : T("Своих сценариев пока нет: Настройки → Быстрый доступ → Команды.", "No scenarios yet: Settings → Quick Access → Commands."));
@@ -270,10 +270,13 @@
       case "integration": {
         const tools = c.integrations || [];
         const current = tools.find((tool) => tool.name === s.tool);
-        const choices = [["", T("— выберите инструмент —", "— choose a tool —")], ...tools.map((tool) => [tool.name,
-          tool.name + (tool.connected ? "" : T(" (не подключено)", " (disconnected)"))])];
+        const lang = (v) => (v && typeof v === "object" ? (en() ? v.en : v.ru) || v.en || v.ru || "" : typeof v === "string" ? v : "");
+        const title = (tool) => (lang(tool.title) ? `${tool.group ? `${tool.group}: ` : ""}${lang(tool.title)}` : tool.name);
+        const choices = [["", T("— выберите действие —", "— choose an action —")], ...tools.map((tool) => [tool.name,
+          title(tool) + (tool.connected ? "" : T(" (не подключено)", " (disconnected)"))])];
         if (s.tool && !current) choices.push([s.tool, s.tool]);
-        return row(T("Инструмент", "Tool"), select(id, "tool", s.tool, choices, "wide"), current?.description || "")
+        const fields = Object.entries(current?.parameters?.properties || {}).map(([key, prop]) => `${key} — ${lang(prop && prop.title) || key}`).join("; ");
+        return row(T("Действие", "Action"), select(id, "tool", s.tool, choices, "wide"), [current ? lang(current.about) || current.description || "" : "", fields ? `${T("Поля", "Fields")}: ${fields}` : ""].filter(Boolean).join(" · "))
           + row(T("Аргументы (JSON)", "Arguments (JSON)"), jsonArea(id, "args", s.args, '{"chat": "{{vars.chat}}", "text": "{{step2.result}}"'),
             T("Результат прошлого шага: {{stepN.result}}. Списки и объекты сохраняют свой тип.", "Previous step result: {{stepN.result}}. Lists and objects keep their types."))
           + `<p class="flw-note">${ico("tool")}${T("Интеграция должна быть подключена, чтение разрешено. Изменение данных по расписанию разрешается отдельно. Подтверждений во время запуска нет; в тесте изменение данных только показывается.", "Connect the integration and enable reading. Scheduled writes have a separate permission. Runs do not ask for approval; test runs only preview changes.")}</p>`;
@@ -315,7 +318,7 @@
       case "http": return `${s.method} ${v(s.url)}`; case "telegram": return v(s.text); case "notify": return v(s.title || s.text);
       case "run_task": return ((fs.cat?.tasks || []).find((t) => t.id === s.task_id) || {}).name || v(s.task_id); case "qa_command": return v(s.command);
       case "qa_macro": return ((fs.cat?.macros || []).find((m) => m.id === s.action_id) || {}).name || v(s.action_id); case "tool": return v(s.action);
-      case "dfy": return v(s.goal); case "memucode": return v(s.prompt); case "team": return (((fs.cat?.teams || []).find((tm) => tm.id === s.team_id) || {}).name ? `${((fs.cat?.teams || []).find((tm) => tm.id === s.team_id) || {}).name}: ` : "") + v(s.prompt); case "mcp_call": return v((s.server || "") + (s.tool ? "." + s.tool : "")); case "integration": return v(s.tool); default: return "";
+      case "dfy": return v(s.goal); case "memucode": return v(s.prompt); case "team": return (((fs.cat?.teams || []).find((tm) => tm.id === s.team_id) || {}).name ? `${((fs.cat?.teams || []).find((tm) => tm.id === s.team_id) || {}).name}: ` : "") + v(s.prompt); case "mcp_call": return v((s.server || "") + (s.tool ? "." + s.tool : "")); case "integration": { const t = (fs.cat?.integrations || []).find((x) => x.name === s.tool); const name = t && t.title && typeof t.title === "object" ? (en() ? t.title.en : t.title.ru) : ""; return v(name ? `${t.group ? `${t.group}: ` : ""}${name}` : s.tool); } default: return "";
     }
   }
   function stepHtml(s, list, index) {

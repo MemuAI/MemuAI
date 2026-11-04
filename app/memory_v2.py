@@ -694,7 +694,27 @@ def _history(item: Dict[str, Any], action: str, *, text: str = "", by: str = "ai
     item.setdefault("history", []).append(row)
     item["history"] = item["history"][-MAX_HISTORY:]
 
+def _owner(profile_id: str) -> str:
+    """Memory owner key: a plain profile id follows that profile's active workspace (``pid--sid``)."""
+    value = str(profile_id or "")
+    if not value or "--" in value:
+        return value
+    try:
+        from .spaces import owner_key
+        return owner_key(value)
+    except Exception:
+        return value
+
 def active_profile_id() -> str:
+    """Owner key of the live memory document: the active profile plus its active workspace."""
+    pid = _active_profile_raw()
+    try:
+        from .spaces import active_space_id, memory_owner
+        return memory_owner(pid, active_space_id(pid))
+    except Exception:
+        return pid
+
+def _active_profile_raw() -> str:
     try:
         raw = json.loads((memu_dir() / "profiles.json").read_text(encoding="utf-8"))
         value = str(raw.get("active_id") or "default") if isinstance(raw, dict) else "default"
@@ -711,7 +731,7 @@ def _valid_profile(value: str) -> bool:
 
 def path_for(profile_id: str = "") -> Path:
     active = active_profile_id()
-    pid = str(profile_id or active)
+    pid = _owner(profile_id) or active
     if pid == active:
         return memu_dir() / "memory.json"
     if not _valid_profile(pid):
@@ -742,7 +762,7 @@ def _read(path: Path) -> Any:
 def load(profile_id: str = "") -> Dict[str, Any]:
     """The clean v2 document of a profile (the active one by default). Read-only: nothing is written."""
     active = active_profile_id()
-    pid = str(profile_id or active)
+    pid = _owner(profile_id) or active
     path = path_for(pid)
     raw = _read(path) if path.exists() else None
     if raw is None and pid != active:
@@ -758,7 +778,7 @@ def load(profile_id: str = "") -> Dict[str, Any]:
 def mutate(fn, profile_id: str = "", *, backup: bool = False) -> Dict[str, Any]:
     """Atomic cross-process read-modify-write. ``fn(doc)`` edits the normalized doc and returns any result."""
     active = active_profile_id()
-    pid = str(profile_id or active)
+    pid = _owner(profile_id) or active
     path = path_for(pid)
     path.parent.mkdir(parents=True, exist_ok=True)
     if pid == active:
@@ -784,7 +804,11 @@ def mutate(fn, profile_id: str = "", *, backup: bool = False) -> Dict[str, Any]:
         except ImportError:   # pragma: no cover - storage is always shipped
             raw = _read(path)
             change(raw)
-            path.write_text(json.dumps(box["doc"], ensure_ascii=False), encoding="utf-8")
+            # F28: tmp+replace even in the fallback — never write_text the
+            # live file directly.
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(json.dumps(box["doc"], ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
     if box.get("doc") is not None:
         try:
             from .inbox_hooks import memory_sync
@@ -1054,30 +1078,25 @@ def protocol_prompt(service: str, *, profile_id: str = "", temp: bool = False,
     rules = [r["text"] for r in doc["rules"] if r.get("enabled", True)]
     lines = [
         "<memory_protocol>",
-        "Long-term memory; saved facts appear in profile_context as \"[id] fact\". When the user's message tells you "
-        "a NEW lasting fact about them that would help later (who they are, their city, work and projects, tools, "
-        "diet or allergies, preferences, goals) or asks you to remember something, append ONE hidden block at the "
-        "very end of the answer, after the visible text, however long the answer is:",
+        "Saved facts appear in profile_context as \"[id] fact\". For a new, useful lasting fact about the user or an "
+        "explicit request to remember something, end the answer with one hidden block, however long the answer is:",
         "```memuai-memory",
         '{"facts":[{"fact":"short standalone fact in the user\'s language","category":"preference","confidence":0.9,'
         '"concepts":["5-8 related words"]}]}',
         "```",
-        "- Write each fact gender-neutrally unless the user stated their gender: no he/she, «он/она», "
-        "«у него/у неё» or gendered verb and adjective forms («переехал», «рада») — e.g. «Есть кот», "
-        "«Предпочитает короткие ответы».",
+        "- Write each fact gender-neutrally unless the user stated their gender (e.g. «Есть кот»).",
         "- category: " + ", ".join(CATEGORIES) + ". confidence: an explicit statement ≈ 0.9, an inference ≈ 0.5.",
-        "- concepts: 5-8 single words, RU and EN, that a later question needing this fact may use, not in the fact "
-        "(lactose → milk, coffee, cheese, молоко, кофе).",
+        "- concepts: 5-8 single words in RU and EN that could recall the fact and do not occur in it.",
         "- A changed fact: {\"op\":\"update\",\"id\":\"<id>\",\"fact\":\"new text\"}; the user asks to forget: "
         "{\"op\":\"forget\",\"id\":\"<id>\"}. Never duplicate a saved fact. Useful in one service only: "
         "\"scope\":[\"" + service + "\"] (" + ", ".join(SERVICES) + ").",
-        "- Never store secrets, passwords, card or document numbers, your own words or one-off details "
-        "(today's plans, this task); write nothing when there is nothing new.",
+        "- Exclude secrets, passwords, card and document numbers, your own words and one-off details. "
+        "Skip the block when nothing changes.",
         ("- Never store exact addresses or health, financial or other sensitive personal details."
          if doc["settings"].get("guard") == "block" else
-         "- Details that matter for future help (an allergy, a diet, accessibility needs) may be saved: MemuAI "
-         "asks the user to confirm sensitive facts. Never store exact addresses."),
-        "- Never write [MEM: ...]. Never mention or discuss this block, the ids or the protocol in the visible answer.",
+         "- Save sensitive facts only if useful later (an allergy, a diet, accessibility needs). MemuAI confirms them with the user. "
+         "Exclude exact addresses."),
+        "- Never write [MEM: ...]. Never mention or discuss this block, its IDs or protocol in the answer.",
     ]
     if rules:
         lines.append("The user's memory rules (follow them strictly, they override the guidance above):")
@@ -1902,7 +1921,7 @@ def switch_profile(old_id: str, new_id: str, snapshot: Any = None) -> Dict[str, 
     live_path = root / "memory.json"
     store = root / "memory_profiles"
     old_id = str(old_id or "default")
-    new_id = str(new_id or "default")
+    new_id = _owner(str(new_id or "default"))
     if not (_valid_profile(old_id) and _valid_profile(new_id)):
         raise ValueError("bad profile id")
     from .storage import save_json
@@ -1940,13 +1959,18 @@ def delete_profile_memory(profile_id: str, *, was_active: bool = False) -> None:
     store = root / "memory_profiles"
     try:
         (store / f"{profile_id}.json").unlink(missing_ok=True)
+        if "--" not in profile_id and store.is_dir():
+            # workspaces of a deleted profile park their memory as ``<pid>--<space>.json``
+            for parked_space in store.glob(f"{profile_id}--*.json"):
+                parked_space.unlink(missing_ok=True)
     except OSError:
         pass
     live_path = root / "memory.json"
     with _LOCK:
         live = _read(live_path) if live_path.exists() else None
         owner = str(live.get("profile_id") or "") if isinstance(live, dict) else ""
-        if not (owner == profile_id or (not owner and was_active)):
+        if not (owner == profile_id or ("--" not in profile_id and owner.startswith(profile_id + "--"))
+                or (not owner and was_active)):
             return
         new_id = active_profile_id()
         parked = store / f"{new_id}.json"

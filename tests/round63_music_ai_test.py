@@ -54,9 +54,16 @@ class MusicAI(unittest.TestCase):
         f.evaluate("() => MemuMusic.go('settings', {tab:'music-ai'})")
         self.wait("() => !!document.querySelector('[data-ai-enabled]')")
         self.assertIn("provider", f.locator("#set-body").inner_text().lower())
-        self.wait("() => document.querySelector('[data-ai-picker=recModel] summary').textContent.includes('Test model')")
-        f.locator('[data-ai-picker="recModel"] summary').click()
-        self.assertEqual(f.locator('[data-model="image-only"]').count(), 0)
+        self.wait("() => (document.querySelector('[data-ai-picker=recModel] .ms-trigger')?.textContent || '').includes('Test model')")
+        self.assertEqual(f.locator('[data-ai-picker] details').count(), 0)
+        f.locator('[data-ai-picker="recModel"] .ms-trigger').click()
+        self.wait("() => !!document.querySelector('[data-ai-picker=recModel] [data-ms-model=\"test-chat\"]')")
+        self.assertEqual(f.locator('[data-ms-model="image-only"]').count(), 0)
+        f.locator('[data-ai-picker="recModel"] [data-ms-model="test-chat"]').click()
+        for _ in range(50):
+            if self.page.evaluate("() => window.__saved.prefs?.musicAI?.recModel === 'test-chat'"): break
+            self.page.wait_for_timeout(100)
+        self.assertEqual(f.evaluate("() => MemuMusic.S.prefs.musicAI.recModel"), 'test-chat')
         f.locator('[data-ai-enabled]').check()
         f.locator('[data-go="ai_recommendations"]').click()
         f.locator('[data-ai-run]').click()
@@ -106,7 +113,7 @@ class MusicAI(unittest.TestCase):
     def test_first_text_model_is_fallback_when_default_missing(self):
         self.page.evaluate("() => window.__noDefault = true")
         self.frame.evaluate("() => MemuMusic.go('settings', {tab:'music-ai'})")
-        self.wait("() => document.querySelector('[data-ai-picker=recModel] summary')?.textContent.includes('Test model')")
+        self.wait("() => (document.querySelector('[data-ai-picker=recModel] .ms-trigger')?.textContent || '').includes('Test model')")
         self.frame.locator('[data-ai-enabled]').check()
         self.frame.locator('[data-go="ai_recommendations"]').click()
         self.frame.locator('[data-ai-run]').click()

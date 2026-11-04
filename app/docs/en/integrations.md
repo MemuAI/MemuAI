@@ -15,6 +15,10 @@ Telegram Use connects **your personal account**, separately from the MemuAI Tele
 2. Press **Show QR**. On your phone, open Telegram → **Settings → Devices → Link Desktop Device** and scan the code. Alternatively, expand **Sign in with a phone number instead**, enter your number with its country code and the Telegram login code. Enter your 2FA cloud password if requested. MemuAI saves your completed settings before starting sign-in.
 3. Wait for the account to show as connected. API hash and the session use the protected Windows store; login codes and the 2FA password are not saved. Leaving API hash empty when editing settings keeps the saved value.
 
+### Several accounts
+
+You can connect several personal accounts at once — for example a personal and a work one. In the **Accounts** block press **Add an account** and sign in the same way, with a QR code or a phone number, on the phone of that account. The account name is only shown in MemuAI. Each account has its own `!//` commands (the **Handle !// commands in this account** switch) and its own [automations](doc:schedules#telegram-automations); MemuAI replies as the account the message came to. **Disconnect account** ends its session while the other accounts keep working. In a regular chat and in Planning the assistant picks the account by name; with a single account there is nothing to choose.
+
 The assistant can find chats, search and read messages, reply, forward, edit **your own** messages, delete, react and send files. Writes have a separate setting and follow the normal chat approval policy. The CLI's file-editing `acceptEdits` mode does not automatically allow sending Telegram messages.
 
 Before sending or editing, the confirmation shows Telegram formatting: line breaks, emphasis, quotes, code and links. Long messages show every part; file captions show the actual shortened text. Check the recipient and content, then confirm. Preparing the preview does not send anything.
@@ -36,12 +40,12 @@ Enable **Process Telegram commands automatically** separately. Commands use Memu
 | Command | Action |
 | --- | --- |
 | `!//question <question>` | Answer using conversation context and available web search |
-| `!//summary <count> [chat]` | Summarize the requested number of recent messages; count is required, from 1 to 1000 |
+| `!//summary <count> [chat]` | Summarize the requested number of recent messages; count is required, from 1 to 2000 |
 | `!//voice` | Transcribe the voice message **you replied to** with the command |
 
 `!//summary 50` reads the current conversation. `!//summary 50 AI Telegram News` reads another chat or channel you can access, then delivers the result in the conversation where you sent the command, or in MemuAI according to its delivery setting. A chat title may contain spaces without quotes. Decorative characters and small spelling differences are considered: for example, a plain title can match `AI T@l@gram News`. If several chats are close matches, specify the numeric ID; a random chat is never selected. Oversized context is explicitly marked as an excerpt. Other allowed users can only summarize the current conversation.
 
-Each command has an instruction, text model, context and delivery setting: replace your own command, reply in Telegram or save a new MemuAI chat. Basic formatting, links, quotes and code work without Premium; Premium-only custom emoji are not sent. Invalid arguments in your own command produce a usage hint while keeping the original message.
+Each command has an instruction, text model, context and delivery setting (by default a question sees the last 60 messages of the chat and a summary 100; the context goes up to 2000 messages and 500,000 characters): replace your own command, reply in Telegram or save a new MemuAI chat. Basic formatting, links, quotes and code work without Premium; Premium-only custom emoji are not sent. Invalid arguments in your own command produce a usage hint while keeping the original message.
 
 The editor supports custom commands with **ordered arguments**: text, chat title, integer, number, yes/no or a choice. Argument names use Latin letters, digits and `_`. Set required fields, defaults, bounds and hints, then reference them with `{argument_name}` in the instruction. `{question}` contains the original text after the command. The last text or chat argument may consume the remaining line, including spaces. A Summarize conversation action requires an integer `count` argument and can include a `chat` argument of type Chat title.
 

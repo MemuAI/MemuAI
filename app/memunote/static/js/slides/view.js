@@ -47,7 +47,7 @@ export class SlidesView {
     this.el.innerHTML = `<div class="sl-loading"><div class="spinner"></div><span>${esc(t("sl_loading"))}</span></div>`;
     this.thumbQueue = new Set();
     this.refreshThumbSoon = debounce(() => this.refreshThumb(this.cur), 250);
-    this.load().catch((e) => { console.error(e); this.el.innerHTML = `<div class="empty-state">${icon("warn", "big")}<h3>${esc(t("sl_open_failed"))}</h3><p>${esc(e.message)}</p></div>`; });
+    this.load().catch((e) => { console.error(e); const msg = /not a ZIP file|damaged ZIP|not a zip file/i.test(e.message || "") ? t("sl_file_damaged") : e.message; this.el.innerHTML = `<div class="empty-state">${icon("warn", "big")}<h3>${esc(t("sl_open_failed"))}</h3><p>${esc(msg)}</p></div>`; });
   }
 
   async load() {

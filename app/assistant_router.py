@@ -33,6 +33,8 @@ log = logging.getLogger("memuai.assistant.router")
 MODES = ("auto", "always", "off")
 DEFAULT_TIMEOUT = 4.0
 MAX_TOKENS = 120
+MAX_TOKENS_ECO = 100  # economy: the answer is a short JSON blob, 100 tokens is plenty
+CTX_CACHE_TTL = 10.0  # economy: live context (running apps, windows) is re-read at most this often
 MAX_TEXT = 200
 
 SKIP = {"assistant.help", "assistant.undo", "shell.run", "layout.capture", "layout.restore", "reminder.cancel"}
@@ -70,13 +72,23 @@ def looks_like_command(text: str) -> bool:
         return False
     return bool(_HEAD.match(clean)) or (len(words) <= 6 and bool(_WORDS.search(clean)))
 
-def action_lines(settings: Dict[str, Any]) -> List[str]:
-    """``id(param, param?=a|b)`` per enabled action — the router's whole vocabulary (no descriptions: ~2 KB)."""
+def action_lines(settings: Dict[str, Any], economy: bool = False) -> List[str]:
+    """``id(param, param?=a|b)`` per enabled action — the router's whole vocabulary (no descriptions: ~2 KB).
+
+    In economy mode only the id and the required parameters survive: enums and optional
+    parameters are dropped, because the router's job is classification (which action,
+    which names), not parameter validation — the safe layer checks every parameter
+    the model sends.
+    """
     disabled = set(settings.get("disabled_actions") or [])
     lines = []
     for row in catalog.ACTIONS:
         aid = row["id"]
         if aid in disabled or aid in SKIP or aid.startswith("_") or (row.get("advanced") and not settings.get("advanced_shell")):
+            continue
+        if economy:
+            required = [key for key in row["params"] if key in row["required"]]
+            lines.append(f"{aid}({', '.join(required)})")
             continue
         parts = []
         for key, spec in row["params"].items():
@@ -99,20 +111,30 @@ SYSTEM = (
     "Only this PC is controlled: lights, a router, a TV, other people, games' characters or a figure of speech are "
     "not actions — {\"a\":\"chat\"}; never pick a similar-sounding action as a guess.\nActions:\n")
 
-def build_messages(text: str, settings: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, str]]:
-    system = SYSTEM + "\n".join(action_lines(settings))
+def build_messages(text: str, settings: Dict[str, Any], context: Dict[str, Any],
+                   economy: bool = False) -> List[Dict[str, str]]:
+    """Router messages. Economy: short action lines, at most 12 running apps and
+    10 command names in the user message — the router classifies one short request,
+    it does not need the whole desktop inventory."""
+    system = SYSTEM + "\n".join(action_lines(settings, economy=economy))
     user = []
     running = context.get("running") or []
     if running:
-        user.append("Running: " + "; ".join(running))
+        user.append("Running: " + "; ".join(running[:12] if economy else running))
     commands = context.get("commands") or []
     if commands:
-        user.append("User commands (command.run name): " + "; ".join(commands))
+        user.append("User commands (command.run name): " + "; ".join(commands[:10] if economy else commands))
     user.append("Request: " + text)
     return [{"role": "system", "content": system}, {"role": "user", "content": "\n".join(user)}]
 
-def running_apps(windows: List[Dict[str, Any]], procs: List[Dict[str, Any]], limit: int = 24) -> List[str]:
-    """«Telegram (Telegram)», «INCY (tray)» — de-duplicated, trimmed, MemuAI's own windows left out."""
+def running_apps(windows: List[Dict[str, Any]], procs: List[Dict[str, Any]], limit: int = 24,
+                 titles: bool = True) -> List[str]:
+    """«Telegram (Telegram)», «INCY (tray)» — de-duplicated, trimmed, MemuAI's own windows left out.
+
+    ``titles=False`` (economy mode) drops the window titles: the app name alone is
+    what the router needs to match a request to a running app, and titles are the
+    bulky part (up to 40 characters each).
+    """
     from .assistant_procs_win import app_label, user_apps
     out: Dict[str, str] = {}
     for w in windows or []:
@@ -124,7 +146,7 @@ def running_apps(windows: List[Dict[str, Any]], procs: List[Dict[str, Any]], lim
             continue
         key = name.lower()
         if key not in out:
-            out[key] = name + (f" — {title[:40]}" if title and title.lower() != key else "")
+            out[key] = name + (f" — {title[:40]}" if titles and title and title.lower() != key else "")
     try:
         bg = user_apps(procs or [])
     except Exception:
@@ -186,11 +208,12 @@ def intents_strip_reasoning(raw: str) -> str:
 def json_closed(text: str) -> bool:
     return parse_answer(text) is not None
 
-async def _call_proxy(engine, model: str, messages: List[Dict[str, str]], timeout: float) -> str:
+async def _call_proxy(engine, model: str, messages: List[Dict[str, str]], timeout: float,
+                      max_tokens: int = MAX_TOKENS) -> str:
     if engine.proxy_sse is None:
         raise RuntimeError("no proxy")
     payload = json.dumps({"model": model, "messages": messages, "web_search": False, "thinking": False,
-                          "effort": "minimal", "temperature": 0, "max_tokens": MAX_TOKENS, "prompt_caching": True},
+                          "effort": "minimal", "temperature": 0, "max_tokens": max_tokens, "prompt_caching": True},
                          ensure_ascii=False).encode("utf-8")
     chunks: List[str] = []
 
@@ -229,16 +252,26 @@ async def _call_proxy(engine, model: str, messages: List[Dict[str, str]], timeou
     await asyncio.wait_for(run(), timeout)
     return "".join(chunks)
 
-async def _call_endpoint(prefs: Dict[str, Any], model: str, messages: List[Dict[str, str]], timeout: float, lang: str) -> str:
+async def _call_endpoint(prefs: Dict[str, Any], model: str, messages: List[Dict[str, str]], timeout: float, lang: str,
+                         max_tokens: int = MAX_TOKENS) -> str:
     from . import quick_ask_endpoint as endpoint
     return await asyncio.wait_for(endpoint.complete(endpoint.normalize_url(prefs.get("quick_ask_endpoint_url")),
-                                                    endpoint.get_key(), model, messages, max_tokens=MAX_TOKENS, lang=lang),
+                                                    endpoint.get_key(), model, messages, max_tokens=max_tokens, lang=lang),
                                   timeout)
 
-def pick_model(settings: Dict[str, Any], prefs: Dict[str, Any]) -> Tuple[str, bool]:
-    """(model, via_custom_endpoint). ``router_model`` wins; else the Quick Ask model; else the app's default."""
+def pick_model(settings: Dict[str, Any], prefs: Dict[str, Any], economy: bool = False) -> Tuple[str, bool]:
+    """(model, via_custom_endpoint). ``router_model`` wins; else the Quick Ask model; else the app's default.
+
+    In economy mode ``router_model_eco`` wins over all of them when set: routing is a
+    classification task (one action id from a short list), so a smaller, cheaper
+    model is safe here — it never writes text the user reads.
+    """
     from . import quick_ask_endpoint as endpoint
     custom = endpoint.active(prefs)
+    if economy:
+        eco = str(settings.get("router_model_eco") or "").strip()
+        if eco:
+            return eco, custom
     chosen = str(settings.get("router_model") or "").strip()
     if chosen:
         return chosen, custom
@@ -273,20 +306,33 @@ async def route(engine, text: str, lang: str = "ru", *, soft_miss: bool = False,
             prefs = load_preferences()
         except Exception:
             prefs = {}
-    model, custom = pick_model(settings, prefs)
+    economy = settings.get("mode") == "economy"
+    model, custom = pick_model(settings, prefs, economy=economy)
     if not model:
         return None
     started = time.monotonic()
-    context = await asyncio.to_thread(live_context, engine)
-    messages = build_messages(intents.normalize(text)[:MAX_TEXT], settings, context)
+    if economy:
+        # Live context (running apps, windows) is re-read at most once per 10 s:
+        # the router classifies one short request, and the desktop rarely changes
+        # between two such requests a few seconds apart.
+        cached = getattr(engine, "_router_ctx_cache", None)
+        if cached and time.monotonic() - cached[0] < CTX_CACHE_TTL:
+            context = cached[1]
+        else:
+            context = await asyncio.to_thread(live_context, engine, True)
+            engine._router_ctx_cache = (time.monotonic(), context)
+    else:
+        context = await asyncio.to_thread(live_context, engine)
+    messages = build_messages(intents.normalize(text)[:MAX_TEXT], settings, context, economy=economy)
     timeout = float(settings.get("router_timeout") or DEFAULT_TIMEOUT)
+    max_tokens = MAX_TOKENS_ECO if economy else MAX_TOKENS
     try:
         if call is not None:
             raw = await asyncio.wait_for(call(model, messages), timeout)
         elif custom:
-            raw = await _call_endpoint(prefs, model, messages, timeout, lang)
+            raw = await _call_endpoint(prefs, model, messages, timeout, lang, max_tokens=max_tokens)
         else:
-            raw = await _call_proxy(engine, model, messages, timeout)
+            raw = await _call_proxy(engine, model, messages, timeout, max_tokens=max_tokens)
     except asyncio.TimeoutError:
         log.info("router: %s did not answer in %.1fs", model, timeout)
         return {"action": "chat", "params": {}, "model": model, "ms": int((time.monotonic() - started) * 1000),
@@ -306,8 +352,12 @@ async def route(engine, text: str, lang: str = "ru", *, soft_miss: bool = False,
         return {"action": "chat", "params": {}, "model": model, "ms": ms, "reason": "chat" if action == "chat" else "unknown"}
     return {"action": action, "params": params, "model": model, "ms": ms}
 
-def live_context(engine) -> Dict[str, Any]:
-    """Running apps (windows + tray) and the user's command names — best effort, never raises."""
+def live_context(engine, economy: bool = False) -> Dict[str, Any]:
+    """Running apps (windows + tray) and the user's command names — best effort, never raises.
+
+    Economy: at most 12 apps, no window titles, at most 10 command names (build_messages
+    caps the same lists again, so a stale cached context can never leak a long list in).
+    """
     windows: List[Dict[str, Any]] = []
     procs: List[Dict[str, Any]] = []
     try:
@@ -319,7 +369,8 @@ def live_context(engine) -> Dict[str, Any]:
     except Exception:
         pass
     try:
-        commands = [c["name"] for c in engine.store.load()["commands"] if c.get("enabled", True)][:20]
+        commands = [c["name"] for c in engine.store.load()["commands"] if c.get("enabled", True)][:10 if economy else 20]
     except Exception:
         commands = []
-    return {"running": running_apps(windows, procs), "commands": commands}
+    return {"running": running_apps(windows, procs, limit=12 if economy else 24, titles=not economy),
+            "commands": commands}

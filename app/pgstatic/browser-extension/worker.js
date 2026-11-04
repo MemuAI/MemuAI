@@ -19,6 +19,43 @@ async function configuration() {
   return chrome.storage.local.get({ base: "http://127.0.0.1:8600", token: "" });
 }
 
+/* bundle.json is written by MemuAI next to the files it installs: the
+ * content hash tells the app whether this copy is current, install_id
+ * whether the copy lives in the folder MemuAI keeps up to date. */
+let bundleInfo = null;
+async function bundle() {
+  if (!bundleInfo) {
+    try {
+      bundleInfo = fetch(chrome.runtime.getURL("bundle.json"), { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : {}).catch(() => ({}));
+    } catch (_) { bundleInfo = Promise.resolve({}); }
+  }
+  const value = await bundleInfo;
+  return value && typeof value === "object" ? value : {};
+}
+function manifestVersion() {
+  try { return String(chrome.runtime.getManifest().version || ""); } catch (_) { return ""; }
+}
+/* A copy MemuAI cannot refresh itself (extracted by hand, or waiting for a
+ * browser restart) shows a notice in the side panel and a badge. */
+async function noteUpdate(update) {
+  const state = update && typeof update === "object" ? String(update.state || "") : "";
+  const pending = ["manual", "stuck", "restart"].includes(state);
+  try {
+    if (pending) await chrome.storage.local.set({ memuUpdate: { state, available: String(update.available || ""), at: Date.now() } });
+    else await chrome.storage.local.remove("memuUpdate");
+    await chrome.action.setBadgeText({ text: pending ? "!" : "" });
+    if (pending) await chrome.action.setBadgeBackgroundColor({ color: "#d6a048" });
+  } catch (_) {}
+}
+let reloading = false;
+async function reloadForUpdate() {
+  if (reloading) return;
+  reloading = true;
+  try { await cleanupTabs(); } catch (_) {}
+  setTimeout(() => chrome.runtime.reload(), 250);
+}
+
 async function api(path, options = {}) {
   const cfg = await configuration();
   const response = await fetch(localBase(cfg.base) + ROOT + "/bridge/" + path, { ...options, headers: {
@@ -45,15 +82,18 @@ async function connect() {
   try {
     const cfg = await configuration();
     if (!cfg.token) return;
+    const info = await bundle();
     const ws = new WebSocket(localBase(cfg.base).replace(/^http:/, "ws:") + ROOT + "/socket");
     socket = ws;
-    ws.onopen = () => ws.send(JSON.stringify({ token: cfg.token }));
+    ws.onopen = () => ws.send(JSON.stringify({ token: cfg.token, version: manifestVersion(),
+      bundle: String(info.hash || ""), install_id: String(info.install_id || "") }));
     ws.onmessage = async ({ data }) => {
       let command;
       try {
         command = JSON.parse(data);
-        if (command.op === "ready") { metadata(); return; }
+        if (command.op === "ready") { metadata(); noteUpdate(command.update); return; }
         if (command.op === "pong") return;
+        if (command.op === "reload") { await reloadForUpdate(); return; }
         if (command.op === "cancel" && command.cancel_id) {
           cancelled.add(command.cancel_id);
           if (cancelled.size > 1000) cancelled.delete(cancelled.values().next().value);

@@ -152,7 +152,8 @@ async def edit_skill(ctx: Context, row: Dict[str, Any]) -> None:
         return
     path = Path(row["path"])
     try:
-        text = path.read_text(encoding="utf-8")
+        # F33: a skill file with a bad byte used to kill the edit command.
+        text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
         ctx.say(str(exc), "error")
         return

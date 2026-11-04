@@ -1,0 +1,365 @@
+{
+  "id": "utils",
+  "title": "MemuUtils",
+  "title_en": "MemuUtils",
+  "summary": "Более 200 локальных утилит: конвертеры картинок, аудио, видео, PDF и документов, кодировщики, форматтеры, генераторы, проверки, сеть и система. ИИ в чате пользуется теми, что вы разрешили, — и может сам конвертировать прикреплённый файл.",
+  "summary_en": "200+ local utilities: image, audio, video, PDF and document converters, encoders, formatters, generators, validators, network and system tools. The AI in the chat uses the ones you allow — and can convert an attached file by itself.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "default_locale": "ru",
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1180,
+    "default_height": 780,
+    "min_width": 560,
+    "min_height": 440,
+    "max_width": 3200,
+    "max_height": 2000,
+    "fixed": false,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "prefs"
+  ],
+  "permissions": [
+    "utils",
+    "chat",
+    "models",
+    "storage",
+    "download",
+    "clipboard",
+    "notify"
+  ],
+  "bridge": {},
+  "contributes": {
+    "commands": [
+      {
+        "id": "run",
+        "title": "Запустить утилиту",
+        "title_en": "Run a utility",
+        "description": "Выполнить утилиту MemuUtils (id из списка ниже). Файлы берутся из вложений чата; результат и файлы показываются карточкой",
+        "description_en": "Run a MemuUtils utility (id from the list below). Files come from the chat attachments; the result and files are shown as a card",
+        "run": {
+          "handler": "utils.run"
+        },
+        "files": true,
+        "args": {
+          "type": "object",
+          "properties": {
+            "util": {
+              "type": "string",
+              "description": "utility id, e.g. image.convert"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 200000,
+              "description": "input text"
+            },
+            "text2": {
+              "type": "string",
+              "maxLength": 100000,
+              "description": "second text (text2 utilities)"
+            },
+            "opts": {
+              "type": "object",
+              "description": "options of the utility"
+            },
+            "file": {
+              "type": "string",
+              "description": "\"\" = latest attachments, a file name, \"all\" or out:<run>/<name> refs, comma-separated"
+            }
+          },
+          "required": [
+            "util"
+          ]
+        }
+      },
+      {
+        "id": "info",
+        "title": "Справка по утилите",
+        "title_en": "Utility help",
+        "description": "Все параметры одной утилиты (когда краткой строки списка мало)",
+        "description_en": "All options of one utility (when the short list line is not enough)",
+        "run": {
+          "handler": "utils.info"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "util": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "util"
+          ]
+        }
+      },
+      {
+        "id": "save",
+        "title": "Сохранить результат",
+        "title_en": "Save the result",
+        "description": "Сохранить файлы запуска в Загрузки/MemuAI/MemuUtils (кнопка карточки)",
+        "description_en": "Save the files of a run into Downloads/MemuAI/MemuUtils (a card button)",
+        "run": {
+          "handler": "utils.save"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "run": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ]
+        }
+      },
+      {
+        "id": "show",
+        "title": "Показать в папке",
+        "title_en": "Show in folder",
+        "description": "Сохранить (если ещё нет) и показать файл результата в проводнике (кнопка карточки)",
+        "description_en": "Save (if not yet) and show the output file in the file manager (a card button)",
+        "run": {
+          "handler": "utils.show"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "run": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "run"
+          ]
+        }
+      },
+      {
+        "id": "open",
+        "title": "Открыть MemuUtils",
+        "title_en": "Open MemuUtils",
+        "description": "Открыть окно MemuUtils на утилите (видео, ИИ-утилиты, когда нужен предпросмотр или ручная настройка)",
+        "description_en": "Open the MemuUtils window on a utility (video, AI utilities, when a preview or manual tuning is needed)",
+        "run": {
+          "open": true
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "util": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 200000
+            }
+          }
+        },
+        "phrases": [
+          "открой memuutils",
+          "открой утилиты",
+          "покажи утилиты"
+        ],
+        "phrases_en": [
+          "open memuutils",
+          "open utilities"
+        ]
+      }
+    ],
+    "skill": {
+      "handler": "utils.skill"
+    },
+    "planning": [
+      {
+        "id": "disk-space-daily",
+        "title": "Свободное место на дисках — каждый день",
+        "title_en": "Free drive space — every day",
+        "description": "Раз в день проверяет все диски и предупреждает ⚠, если свободно меньше 10% или 5 ГБ. Только чтение.",
+        "description_en": "Once a day checks every drive and warns ⚠ when less than 10% or 5 GB is free. Read-only.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "module",
+          "handler": "utils.disk_report"
+        },
+        "settings": [
+          {
+            "key": "min_free_pct",
+            "type": "number",
+            "label": "Предупредить, если свободно меньше, %",
+            "label_en": "Warn below free, %",
+            "default": 10,
+            "min": 0,
+            "max": 95
+          },
+          {
+            "key": "min_free_gb",
+            "type": "number",
+            "label": "Или меньше, ГБ",
+            "label_en": "Or below, GB",
+            "default": 5,
+            "min": 0,
+            "max": 100000
+          }
+        ]
+      },
+      {
+        "id": "results-grew",
+        "title": "Папка результатов выросла → отчёт",
+        "title_en": "Results folder grew → report",
+        "description": "Когда файлы в «Загрузки/MemuAI/MemuUtils» вместе превысят порог (по умолчанию 1 ГБ) — отчёт: типы, самые большие, старые файлы. Ничего не удаляет.",
+        "description_en": "When the files in “Downloads/MemuAI/MemuUtils” together pass the threshold (1 GB by default) — a report: types, the largest, old files. Deletes nothing.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "bytes",
+          "threshold": 1073741824,
+          "scope": "any"
+        },
+        "action": {
+          "kind": "module",
+          "handler": "utils.results_report"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Размер, байт",
+            "label_en": "Size, bytes",
+            "default": 1073741824,
+            "min": 10485760,
+            "max": 1000000000000
+          },
+          {
+            "key": "older_days",
+            "type": "number",
+            "label": "Считать старыми через, дней",
+            "label_en": "Old after, days",
+            "default": 30,
+            "min": 1,
+            "max": 3650
+          }
+        ]
+      },
+      {
+        "id": "results-weekly",
+        "title": "Еженедельный отчёт о результатах",
+        "title_en": "Weekly results report",
+        "description": "Раз в неделю — сколько файлов и места в папке результатов MemuUtils и что там лежит дольше месяца.",
+        "description_en": "Once a week — how many files and how much space the MemuUtils results folder holds and what has been there for over a month.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "utils.results_report"
+        },
+        "settings": [
+          {
+            "key": "older_days",
+            "type": "number",
+            "label": "Считать старыми через, дней",
+            "label_en": "Old after, days",
+            "default": 30,
+            "min": 1,
+            "max": 3650
+          }
+        ]
+      },
+      {
+        "id": "results-checksums",
+        "title": "Контрольные суммы результатов раз в неделю",
+        "title_en": "Weekly checksums of the results",
+        "description": "SHA-256 всех файлов папки результатов в файл SHA256SUMS и сравнение с прошлой неделей: что изменилось, пропало или появилось.",
+        "description_en": "SHA-256 of every file in the results folder into a SHA256SUMS file and a comparison with last week: what changed, went missing or appeared.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "utils.results_checksums"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 2,
+            "max": 100
+          },
+          {
+            "key": "max_mb",
+            "type": "number",
+            "label": "Не проверять файлы больше, МБ",
+            "label_en": "Skip files larger than, MB",
+            "default": 2048,
+            "min": 1,
+            "max": 50000
+          }
+        ]
+      },
+      {
+        "id": "settings-backup",
+        "title": "Резервная копия настроек MemuUtils",
+        "title_en": "MemuUtils settings backup",
+        "description": "Раз в неделю сохраняет избранное, недавние, модель и выбор «Доступа ИИ» в JSON; без изменений новый файл не создаётся.",
+        "description_en": "Once a week saves the favourites, recent, the model and the AI access choice to JSON; no new file when nothing changed.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "utils.settings_backup"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "ai-access-weekly",
+        "title": "Какие утилиты доступны ИИ — раз в неделю",
+        "title_en": "Utilities allowed for the AI — weekly",
+        "description": "Сколько утилит разрешено модели и по каким разделам, сколько токенов занимает их список и какие спрашивают подтверждение.",
+        "description_en": "How many utilities the model may run and in which sections, how many tokens their list takes and which ask for a confirmation.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "utils.ai_access_report"
+        },
+        "settings": []
+      }
+    ]
+  }
+}

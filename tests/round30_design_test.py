@@ -220,7 +220,7 @@ class LiveWindow(unittest.TestCase):
         self.assertTrue(got and got["ok"], got)
         self.assertLess(got["icon"], 40, got)
         page.keyboard.press("Escape")
-        page.evaluate("MemuPlan.openBuilder({id: 'x1', name: '', kind: 'chat'})")
+        page.evaluate("MemuPlan.openBuilder({id: 'x1', name: '', kind: 'chat'}, {step: 'when'})")
         page.wait_for_selector("#pln-builder [data-act='add-when']")
 
         page.evaluate("document.querySelector('#pln-builder [data-act=\"add-when\"]').scrollIntoView({block: 'end'})")
@@ -232,7 +232,7 @@ class LiveWindow(unittest.TestCase):
     def test_date_field_reads_and_writes_iso(self):
         page = self.open()
         page.evaluate("(async () => { await showSchedule(true); MemuPlan.openBuilder({id: 'x3', name: '', kind: 'chat',"
-                      " rule: {when: [{type: 'once', at: '2026-10-20T09:30'}]}}); })()")
+                      " rule: {when: [{type: 'once', at: '2026-10-20T09:30'}]}}, {step: 'when'}); })()")
         page.wait_for_selector("#pln-builder input[data-date]")
         field = "#pln-builder input[data-dt-part='date']"
         self.assertEqual(page.evaluate(f"[document.querySelector(\"{field}\").value, document.querySelector(\"{field}\").type]"),
@@ -254,7 +254,7 @@ class LiveWindow(unittest.TestCase):
         page.evaluate("(async () => { await showSchedule(true); MemuPlan.openBuilder({id: 'x2', name: '', kind: 'chat'}); })()")
         page.wait_for_selector("#pln-builder")
         page.wait_for_timeout(1200)
-        warns = page.evaluate("[...document.querySelectorAll('.pln-summary .pln-warn li')].map((li) => li.textContent.trim())")
+        warns = page.evaluate("[...document.querySelectorAll('.pln-summary .pln-warn li, #pb-review .pln-warn li')].map((li) => li.textContent.trim())")
         same = [w for w in warns if "одновременно" in w]
         if same:
             self.assertEqual(len(same), 1, warns)

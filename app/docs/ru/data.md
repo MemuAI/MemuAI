@@ -40,6 +40,7 @@ summary: Папка данных MemuAI, что в каких файлах, ре
 | `memory.json` | память |
 | `schedules.json`, `schedule_results.json` | задачи по расписанию и их результаты |
 | `workspaces.json` | проекты Work и MemuCode |
+| `spaces.json`, `spaces\<id>\` | [рабочие области](doc:spaces): какая открыта; у каждой области, кроме стандартной, — свои чаты, расписания, команды, проекты, панели и настройки (`preferences.json`) |
 | `prompts.json` | библиотека промптов |
 | `profiles\<id>\` | чаты, память, задачи и проекты остальных профилей |
 | `themes\` | [свои темы](doc:themes) |

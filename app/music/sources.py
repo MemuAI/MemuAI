@@ -13,7 +13,7 @@ import html
 import json
 import re
 import urllib.parse
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/126.0 Safari/537.36")
@@ -183,6 +183,75 @@ def _client():
     import httpx
     return httpx.Client(follow_redirects=True, timeout=httpx.Timeout(12, read=20),
                         headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.8,ru;q=0.6"})
+
+
+def fetch_public(url: str, *, limit: int = 20 * 1024 * 1024, timeout: float = 30.0,
+                 client: Any = None) -> Tuple[bytes, str]:
+    """F19: fetch a URL that came from untrusted data (cover search
+    results, thumbnails, artist pictures) the same way media_cache does
+    it: every hop validated with ``safe_url`` (DNS + public IP only, no
+    credentials), redirects followed manually (max 4), the body streamed
+    with a running byte cap. No ``Authorization`` is ever sent. Returns
+    ``(body, content_type)``. Raises ``ValueError`` on any failure (the
+    callers' established contract).
+    """
+    import httpx
+    from ..media_cache import Unreachable, safe_url
+    own = client is None
+    if own:
+        client = httpx.Client(follow_redirects=False, timeout=httpx.Timeout(timeout, connect=6),
+                              headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.8,ru;q=0.6"})
+    else:
+        client.follow_redirects = False
+    current = str(url or "").strip()
+    try:
+        for hop in range(5):
+            try:
+                current = safe_url(current)
+            except Unreachable as exc:
+                raise ValueError(f"bad url: {exc}") from exc
+            try:
+                with client.stream("GET", current) as resp:
+                    if resp.status_code in (301, 302, 303, 307, 308):
+                        if hop >= 4:
+                            raise ValueError("too many redirects")
+                        location = resp.headers.get("location", "")
+                        if not location:
+                            raise ValueError("redirect without a target")
+                        current = urllib.parse.urljoin(current, location)
+                        continue
+                    if resp.status_code < 200 or resp.status_code >= 300:
+                        raise ValueError(f"HTTP {resp.status_code}")
+                    try:
+                        declared = int(resp.headers.get("content-length") or 0)
+                    except ValueError:
+                        declared = 0
+                    if declared > limit:
+                        raise ValueError("file is too large")
+                    kind = (resp.headers.get("content-type") or "").split(";")[0].strip().lower()
+                    chunks: List[bytes] = []
+                    total = 0
+                    for block in resp.iter_bytes():
+                        chunks.append(block)
+                        total += len(block)
+                        if total > limit:
+                            raise ValueError("file is too large")
+                    return b"".join(chunks), kind
+            except httpx.HTTPError as exc:
+                raise ValueError(f"{type(exc).__name__}: {exc}") from exc
+        raise ValueError("too many redirects")
+    finally:
+        if own:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def fetch_public_bytes(url: str, *, limit: int = 20 * 1024 * 1024, timeout: float = 30.0,
+                       client: Any = None) -> bytes:
+    """Same as :func:`fetch_public`, body only."""
+    return fetch_public(url, limit=limit, timeout=timeout, client=client)[0]
 
 def _item(title: str, artist: str = "", album: str = "", duration: float = 0, cover: str = "",
           url: str = "", isrc: str = "", track_no: int = 0, year: str = "") -> Dict[str, Any]:

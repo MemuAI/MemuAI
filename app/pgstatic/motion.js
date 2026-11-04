@@ -123,6 +123,23 @@ const MemuMotion = (() => {
     if (visible && !shown.has(el)) { shown.add(el); originFor(el); }
     else if (!visible && shown.has(el)) shown.delete(el);
   }
+  // Popovers that changed are looked at once per frame, before it is drawn: building a page with many
+  // selects used to measure the layout again for each new menu.
+  const pendingPopovers = new Set();
+  let popoverFrame = 0;
+  function queuePopover(el) {
+    // A hidden menu needs no measuring: settle it at once instead of waiting for a frame
+    // (the slash menu is re-hidden on every keystroke).
+    if (el.hidden || el.style.display === "none") { pendingPopovers.delete(el); shown.delete(el); return; }
+    pendingPopovers.add(el);
+    if (popoverFrame) return;
+    popoverFrame = requestAnimationFrame(() => {
+      popoverFrame = 0;
+      const list = [...pendingPopovers];
+      pendingPopovers.clear();
+      list.forEach((item) => { if (item.isConnected) checkPopover(item); else shown.delete(item); });
+    });
+  }
 
   const LIST_ROOTS = ["#chats-pinned", "#chat-folders", "#chats-list", "#memes-list"];
   const ROW = ".chat-item[data-chat], section.chat-folder[data-folder-drop], section.meme-block[data-meme]";
@@ -299,6 +316,33 @@ const MemuMotion = (() => {
     root.classList.toggle("m-paused", paused);
   }
 
+  // A page or window that has just opened: its sections and cards rise in a short stagger. Only during
+  // this window — later re-renders of the same content stay still.
+  function enter(el, ms = 900) {
+    if (!(el instanceof Element) || !full() || !ready()) return;
+    // Only an element that is still rising needs a forced reflow to start over; otherwise the class is enough.
+    if (el.classList.contains("m-enter")) { el.classList.remove("m-enter"); void el.offsetWidth; }
+    el.classList.add("m-enter");
+    clearTimeout(el._mEnterTimer);
+    el._mEnterTimer = setTimeout(() => el.classList.remove("m-enter"), ms);
+  }
+  // A short confirmation on a button (copied, saved): a squeeze plus a drawn check mark.
+  function confirm(button, html, ms = 1300) {
+    if (!(button instanceof Element)) return;
+    if (button._mConfirm) { clearTimeout(button._mConfirm.timer); button.innerHTML = button._mConfirm.html; }
+    const before = button.innerHTML;
+    button._mConfirm = { html: before, timer: 0 };
+    button.classList.remove("m-confirmed");
+    void button.offsetWidth;
+    button.classList.add("m-confirmed");
+    if (html) button.innerHTML = html;
+    button._mConfirm.timer = setTimeout(() => {
+      button.classList.remove("m-confirmed");
+      if (html) button.innerHTML = before;
+      button._mConfirm = null;
+    }, ms);
+  }
+
   function init() {
     if (!root.dataset.motion) {
       try {
@@ -328,13 +372,13 @@ const MemuMotion = (() => {
         const target = record.target;
         if (!(target instanceof Element)) continue;
         if (record.type === "attributes") {
-          if (target.matches(POPOVERS)) checkPopover(target);
+          if (target.matches(POPOVERS)) queuePopover(target);
           else if (target.id === "image-viewer" && record.attributeName === "class" && target.classList.contains("visible")
             && !(record.oldValue || "").includes("visible")) zoomViewer(target);
         } else if (record.type === "childList") {
           if (!lists && target.closest && target.closest(LIST_ROOTS.join(","))) lists = true;
           record.addedNodes.forEach((node) => {
-            if (node instanceof Element && node.matches(POPOVERS)) checkPopover(node);
+            if (node instanceof Element && node.matches(POPOVERS)) queuePopover(node);
           });
         }
       }
@@ -357,6 +401,6 @@ const MemuMotion = (() => {
   }
   if (document.body) init(); else document.addEventListener("DOMContentLoaded", init, { once: true });
 
-  return Object.freeze({ swap, level, spring: () => spring() });
+  return Object.freeze({ swap, level, spring: () => spring(), enter, confirm });
 })();
 window.MemuMotion = MemuMotion;

@@ -315,7 +315,7 @@ class PageContracts(unittest.TestCase):
         self.assertNotIn("Продолжить в MemuAI (Ctrl+Enter)", js)
         self.assertIn('document.addEventListener("drop"', js)
         html = read(QUICK / "index.html")
-        self.assertRegex(html, r"quick\.js\?v=3\.\d+-r[234]\d")
+        self.assertRegex(html, r"quick\.js\?v=\d+\.\d+-r\d+")
         self.assertIn('[data-pinned="1"]', read(QUICK / "quick.css"))
 
     def test_commands_plugin_swatch_is_validated(self) -> None:

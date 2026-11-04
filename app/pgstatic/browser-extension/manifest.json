@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "MemuAI",
   "description": "Чаты MemuAI, контекст страниц и добровольное управление Chrome через локальный MemuAI.",
-  "version": "3.8.46",
+  "version": "5.0.0",
   "minimum_chrome_version": "120",
   "permissions": ["sidePanel", "storage", "tabs", "activeTab", "scripting", "alarms", "debugger"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],

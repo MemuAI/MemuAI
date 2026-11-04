@@ -80,6 +80,25 @@ function extractJson(text, from, open = "[") {
 
 const fresh = (entry) => entry && entry.at && Date.now() - entry.at < TTL;
 
+/* Raw transport errors ("HTTP 403", "Failed to fetch") mean nothing to a
+ * reader of a ratings page. Translate the common ones into a plain sentence
+ * that says what happened and what to do; anything unknown stays verbatim. */
+function friendlyError(error) {
+  const raw = String(error && error.message ? error.message : error || "").trim();
+  const http = /^HTTP\s+(\d{3})\b/i.exec(raw) || /\bstatus(?:\s+code)?\s*[:=]?\s*(\d{3})\b/i.exec(raw);
+  if (http) {
+    const code = Number(http[1]);
+    if (code === 429) return t("error.busy", { code });
+    if (code === 401 || code === 403 || code === 451) return t("error.blocked", { code });
+    if (code === 404 || code === 410) return t("error.moved", { code });
+    if (code >= 500) return t("error.server", { code });
+    return t("error.http", { code });
+  }
+  if (/timed?\s*out|timeout/i.test(raw)) return t("error.timeout");
+  if (/failed to fetch|networkerror|network error|getaddrinfo|enotfound|econn|unreachable|name resolution/i.test(raw)) return t("error.network");
+  return raw || t("error.title");
+}
+
 const inflight = new Map();
 
 function withLoading(key, job) {
@@ -91,7 +110,7 @@ function withLoading(key, job) {
     try {
       await job();
     } catch (error) {
-      state.errors[key] = error && error.message ? error.message : String(error);
+      state.errors[key] = friendlyError(error);
     } finally {
       state.loading.delete(key);
       inflight.delete(key);

@@ -3,6 +3,7 @@
 Every settings key is described in ``settings_schema.py`` (Round 38: MemuAI's Settings → «MemuFiles»
 reads and writes the same file through that schema)."""
 from __future__ import annotations
+import re
 
 import os
 import threading
@@ -11,6 +12,45 @@ from typing import Any, Dict, List
 from .paths import files_dir, read_json, write_json
 from .settings_schema import CHOICES, DEFAULTS, RANGES
 
+_CSS_IMPORT_RE = re.compile(r"@import[^;]*;?", re.IGNORECASE)
+_CSS_CHARSET_RE = re.compile(r"@charset[^;]*;?", re.IGNORECASE)
+_CSS_URL_RE = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.IGNORECASE | re.DOTALL)
+
+
+def sanitize_custom_css(value):
+    """User CSS for the app window only: no outside loads, no style-tag escape, capped.
+
+    ``@import``/``@charset`` go, ``url()`` stays only for ``data:`` (fonts, icons),
+    everything else becomes an empty ``url()`` the parser drops. ``<``/``>`` go so the
+    text can never break out of the ``<style>`` element it is placed in.
+    """
+    if not isinstance(value, str):
+        return ""
+    text = value[:20000]
+    text = _CSS_IMPORT_RE.sub("", text)
+    text = _CSS_CHARSET_RE.sub("", text)
+
+    def _url(match):
+        inner = (match.group(2) or "").strip()
+        return match.group(0) if inner.lower().startswith("data:") else "url()"
+
+    text = _CSS_URL_RE.sub(_url, text)
+    text = text.replace("<", "").replace(">", "")
+    text = re.sub(r"javascript\s*:", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"expression\s*\(", "(", text, flags=re.IGNORECASE)
+    return text.strip()
+
+def _clean(key: str, value: Any) -> Any:
+    """Per-key repairs before the generic checks: the old accent names and the custom colour."""
+    if key == "accent" and isinstance(value, str):
+        from .appearance import LEGACY_ACCENTS
+        return LEGACY_ACCENTS.get(value, value)
+    if key == "accent_custom":
+        from .appearance import normalize_hex
+        return normalize_hex(value)
+    if key == "custom_css":
+        return sanitize_custom_css(value)
+    return value
 _LOCK = threading.Lock()
 TAG_COLORS = ("red", "orange", "yellow", "green", "blue", "purple", "gray")
 
@@ -23,7 +63,7 @@ def load() -> Dict[str, Any]:
     for key, default in DEFAULTS.items():
         if key not in data:
             continue
-        got = data[key]
+        got = _clean(key, data[key])
         if isinstance(default, bool):
             ok = isinstance(got, bool)
         elif isinstance(default, int):
@@ -44,6 +84,7 @@ def save(changes: Dict[str, Any]) -> Dict[str, Any]:
         for key, val in (changes or {}).items():
             if key not in DEFAULTS:
                 continue
+            val = _clean(key, val)
             default = DEFAULTS[key]
             if isinstance(default, bool):
                 current[key] = bool(val)

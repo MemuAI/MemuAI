@@ -58,6 +58,20 @@ def normalize_url(value: Any) -> str:
     parts = urlsplit(text)
     if parts.scheme.lower() not in ("http", "https") or not parts.netloc or any(ch.isspace() for ch in text):
         return ""
+    # F19: no credentials in the URL (they would leak into logs), and no
+    # plain HTTP to a public host (the key would travel in clear text).
+    # Loopback and LAN hosts keep working (Ollama/LM Studio).
+    if parts.username is not None or parts.password is not None:
+        return ""
+    if parts.scheme.lower() == "http" and not is_local(text):
+        return ""
+    if parts.hostname:
+        import ipaddress
+        try:
+            if ipaddress.ip_address(parts.hostname.strip("[]")).is_link_local:
+                return ""
+        except ValueError:
+            pass
     try:
         port_ok = parts.port is None or 0 < parts.port < 65536
     except ValueError:
@@ -356,17 +370,46 @@ def is_local(url: str) -> bool:
         return False
     return address.is_loopback or address.is_private or address.is_link_local
 
+def _checked_url(url: str) -> str:
+    """F19: ``normalize_url`` plus the DNS check from media_cache (a
+    hostname that resolves to a private address is a LAN endpoint — fine
+    for Quick Ask, whose endpoint is the user's own server — but a
+    plain-HTTP hop to a public address is not). Returns ``""`` when the
+    URL must not be used."""
+    url = normalize_url(url)
+    if not url:
+        return ""
+    from .media_cache import validate_api_base_url
+    return "" if validate_api_base_url(url, allow_private=True) else url
+
+
+async def _redirect_guard(response: Any) -> None:
+    """F19: httpx response hook — a redirect is only followed when its
+    target passes the same checks as the endpoint itself. Without it,
+    a compromised/misconfigured endpoint could bounce the request (and
+    the API key — httpx strips Authorization on a cross-origin hop, but
+    the request itself would still reach the target) to loopback, the
+    LAN or the cloud metadata address. Raising here aborts the request
+    before httpx follows the redirect."""
+    if not getattr(response, "is_redirect", False):
+        return
+    from urllib.parse import urljoin
+    target = urljoin(str(response.url), response.headers.get("location", ""))
+    if not _checked_url(target):
+        raise ValueError(f"Redirect to a disallowed address: {target[:200]}")
+
+
 def _client(timeout_read: float = READ_TIMEOUT, url: str = ""):
     """Round 26: a local endpoint never goes through the system/env proxy. On Windows httpx takes the registry
     proxy (a VPN client's 127.0.0.1:port) but not its «bypass for local addresses» list, so Ollama at
     localhost:11434 answered with the proxy's 404/502 («на сервере нет /models»)."""
     import httpx
     return httpx.AsyncClient(timeout=httpx.Timeout(timeout_read, connect=CONNECT_TIMEOUT), follow_redirects=True,
-                             trust_env=not is_local(url))
+                             trust_env=not is_local(url), event_hooks={"response": [_redirect_guard]})
 
 async def fetch_models(url: str, key: str, *, lang: str = "ru", save: bool = True) -> Dict[str, Any]:
     """``GET <base>/models`` → ``{ok, models: [ids]}`` or ``{ok: False, error}``."""
-    url = normalize_url(url)
+    url = _checked_url(url)
     en = lang == "en"
     if not url:
         return {"ok": False, "error": "Enter the endpoint address (http:// or https://)." if en else
@@ -530,7 +573,10 @@ def _delta_line(text: str) -> str:
 async def stream_lines(url: str, key: str, payload: bytes, *, lang: str = "ru") -> AsyncIterator[str]:
     """SSE lines of ``POST <base>/chat/completions`` (stream) — the same shape the answer loop reads from the
     Proxy (``data: {choices:[{delta:{content}}]}``). Errors become one ``data: {"error": …}`` line."""
-    url = normalize_url(url)
+    url = _checked_url(url)
+    if not url:
+        yield "data: " + json.dumps({"error": {"message": "Bad endpoint address." if lang == "en" else "Некорректный адрес эндпоинта."}})
+        return
     try:
         body = openai_body(json.loads(payload.decode("utf-8")), stream=True, url=url)
     except ValueError as exc:
@@ -584,7 +630,9 @@ async def stream_lines(url: str, key: str, payload: bytes, *, lang: str = "ru") 
 async def complete(url: str, key: str, model: str, messages: List[Dict[str, Any]], *, max_tokens: int = 0,
                    lang: str = "ru") -> str:
     """One non-streaming answer (custom routines' «ask AI» step). Raises RuntimeError with a clear message."""
-    url = normalize_url(url)
+    url = _checked_url(url)
+    if not url:
+        raise RuntimeError("Bad endpoint address." if lang == "en" else "Некорректный адрес эндпоинта.")
     body = {"model": model, "messages": messages, "stream": False}
     if max_tokens:
         body["max_tokens"] = max_tokens

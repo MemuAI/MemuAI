@@ -40,6 +40,7 @@ Inside the `memuai\` folder:
 | `memory.json` | memory |
 | `schedules.json`, `schedule_results.json` | scheduled tasks and their results |
 | `workspaces.json` | Work and MemuCode projects |
+| `spaces.json`, `spaces\<id>\` | [workspaces](doc:spaces): which one is open; every workspace except the standard one keeps its own chats, schedules, teams, projects, panels and settings (`preferences.json`) |
 | `prompts.json` | the prompt library |
 | `profiles\<id>\` | chats, memory, tasks and projects of the other profiles |
 | `themes\` | [custom themes](doc:themes) |

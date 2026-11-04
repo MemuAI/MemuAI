@@ -1,0 +1,233 @@
+/* Retro — a classic 90s desktop: system grey, bevelled 3D controls, sunken fields,
+   a gradient title bar over the conversation and square corners everywhere. */
+:root[data-design="retro"] {
+  --rt-sans: Tahoma, Verdana, "Segoe UI", "DejaVu Sans", system-ui, sans-serif;
+  --d-display: var(--rt-sans); --d-text: var(--rt-sans); --d-small: var(--rt-sans); --sans: var(--rt-sans);
+  /* dark mode: the "high contrast night" flavour of the old desktop */
+  --rt-face: color-mix(in srgb, var(--bg-deep) 70%, #3a3a3a);
+  --rt-field: color-mix(in srgb, var(--bg) 82%, #1e1e1e);
+  --rt-hi: color-mix(in srgb, var(--rt-face) 55%, #ffffff);
+  --rt-lt: color-mix(in srgb, var(--rt-face) 80%, #ffffff);
+  --rt-sh: color-mix(in srgb, var(--rt-face) 55%, #000000);
+  --rt-dk: color-mix(in srgb, var(--rt-face) 20%, #000000);
+  --rt-title-1: color-mix(in srgb, var(--accent) 55%, #000080);
+  --rt-title-2: color-mix(in srgb, var(--accent) 30%, #0b4f8a);
+  --rt-title-text: #ffffff;
+  --rt-sel: color-mix(in srgb, var(--accent) 50%, #000080);
+  --rt-sel-text: #ffffff;
+  --rt-raised: inset -1px -1px 0 var(--rt-dk), inset 1px 1px 0 var(--rt-hi), inset -2px -2px 0 var(--rt-sh), inset 2px 2px 0 var(--rt-lt);
+  --rt-sunken: inset 1px 1px 0 var(--rt-sh), inset -1px -1px 0 var(--rt-hi), inset 2px 2px 0 var(--rt-dk), inset -2px -2px 0 var(--rt-lt);
+  --rt-pressed: inset 1px 1px 0 var(--rt-dk), inset -1px -1px 0 var(--rt-hi), inset 2px 2px 0 var(--rt-sh);
+  --rt-window: 1px 1px 0 var(--rt-dk), inset -1px -1px 0 var(--rt-dk), inset 1px 1px 0 var(--rt-hi), inset -2px -2px 0 var(--rt-sh), inset 2px 2px 0 var(--rt-lt);
+
+  --chrome: var(--rt-face); --canvas: var(--rt-field);
+  --canvas-line: var(--rt-sh);
+  --d-line: var(--rt-sh); --d-line-soft: color-mix(in srgb, var(--rt-sh) 50%, transparent);
+  --d-hover: color-mix(in srgb, var(--rt-sel) 18%, transparent); --d-press: color-mix(in srgb, var(--rt-sel) 30%, transparent);
+  --d-selected: var(--rt-sel);
+  --d-glass: var(--rt-face);
+  --d-pop-shadow: 2px 2px 0 var(--rt-dk);
+  --d-lift: none;
+  --r-xs: 0; --r-sm: 0; --r-md: 0; --r-lg: 0; --r-xl: 0; --r-2xl: 0;
+  --hover: var(--d-hover);
+  --composer-bg: var(--rt-face);
+  --composer-shadow: none;
+  --user-bubble: color-mix(in srgb, #ffffc0 12%, var(--rt-field));
+  --code-bg: color-mix(in srgb, var(--rt-field) 70%, #000);
+  --code-header: var(--rt-face);
+  --scroll-thumb: var(--rt-face);
+}
+:root[data-design="retro"][data-theme="light"] {
+  --rt-face: color-mix(in srgb, var(--bg-deep) 18%, #c3c3c3);
+  --rt-field: color-mix(in srgb, var(--panel) 30%, #ffffff);
+  --rt-hi: #ffffff;
+  --rt-lt: color-mix(in srgb, var(--rt-face) 70%, #ffffff);
+  --rt-sh: #808080;
+  --rt-dk: #0a0a0a;
+  --rt-title-1: color-mix(in srgb, var(--accent) 40%, #000080);
+  --rt-title-2: color-mix(in srgb, var(--accent) 30%, #1084d0);
+  --rt-sel: color-mix(in srgb, var(--accent) 40%, #000080);
+  --user-bubble: #ffffe1;
+  --code-bg: color-mix(in srgb, var(--rt-field) 92%, #000);
+}
+:root[data-design="retro"] body { background: var(--rt-face); font-family: var(--rt-sans); }
+:root[data-design="retro"] #app { background: var(--rt-face); }
+:root[data-design="retro"] :focus-visible { outline: 1px dotted var(--text); outline-offset: -4px; }
+:root[data-design="retro"] :is(textarea, .pinput, .ptexta, input):focus-visible { outline: none; }
+:root[data-design="retro"] ::selection { background: var(--rt-sel); color: var(--rt-sel-text); }
+:root[data-design="retro"] #startup-cover { background: var(--rt-face); }
+:root[data-design="retro"] .startup-mark { border-radius: 0; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] :is(.btn-new, .chip-sug, .pbtn, .send, .plus-btn, .jump-latest, .bar-icon, .iconbtn, .msg-actions button, .code-copy-btn, .panel-close, .mp-chip) { border-radius: 0 !important; }
+
+/* ---- frame: the conversation is a window with a title bar ---- */
+:root[data-design="retro"] .main {
+  margin: 6px 6px 6px 0; border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-window); padding: 3px;
+}
+:root[data-design="retro"] .main::before {
+  content: "MemuAI"; display: block; flex: none; height: 22px; line-height: 22px; padding: 0 8px;
+  background: linear-gradient(90deg, var(--rt-title-1), var(--rt-title-2)); color: var(--rt-title-text);
+  font: 700 12px/22px var(--rt-sans); letter-spacing: .02em;
+}
+:root[data-design="retro"] .side.hidden ~ .main, :root[data-design="retro"] .focus-mode .main { margin-left: 6px; }
+:root[data-design="retro"] .side { padding: 10px 8px 8px; background: var(--rt-face); border-right: 0; }
+:root[data-design="retro"] .brand { font: 700 16px/1 var(--rt-sans); letter-spacing: 0; }
+:root[data-design="retro"] :is(.brand-dot, .greet-mark, .msg-assistant .who .mini, .profile-avatar) { border-radius: 0; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .btn-new {
+  border: 0; background: var(--rt-face); color: var(--text); font-weight: 700; box-shadow: var(--rt-raised);
+}
+:root[data-design="retro"] .btn-new:hover { background: var(--rt-face); }
+:root[data-design="retro"] .btn-new:active { box-shadow: var(--rt-pressed); }
+:root[data-design="retro"] .btn-new .ico { border-radius: 0; box-shadow: none; }
+:root[data-design="retro"] :is(.btn-temp, .side-btn, .chat-item, .ci-more) { border-radius: 0; }
+:root[data-design="retro"] .mode-switch { border-radius: 0; border: 0; background: var(--rt-face); padding: 3px; box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] .mode-switch .side-btn.active-section { background: var(--rt-face); color: var(--text); box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .side-nav .side-btn.active-section { background: var(--rt-sel); color: var(--rt-sel-text); box-shadow: none; }
+:root[data-design="retro"] .side-nav .side-btn.active-section .ico { color: var(--rt-sel-text); }
+:root[data-design="retro"] .side-btn:hover { background: var(--d-hover); }
+:root[data-design="retro"] .side-label { font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); }
+:root[data-design="retro"] .chat-item:hover { background: var(--d-hover); }
+:root[data-design="retro"] .chat-item.active { background: var(--rt-sel); color: var(--rt-sel-text); box-shadow: none; }
+:root[data-design="retro"] .chat-item.active :is(.ci-more, .ci-more .ui-icon) { color: var(--rt-sel-text); }
+:root[data-design="retro"] :is(.meme-empty, .meme-new-chat) { border-radius: 0; border: 1px dotted var(--rt-sh); background: transparent; }
+:root[data-design="retro"] .profile-card { border-radius: 0; background: var(--rt-face); border: 0; box-shadow: var(--rt-sunken); }
+
+/* ---- toolbar ---- */
+:root[data-design="retro"] .topbar.appbar { background: var(--rt-face); border-bottom: 1px solid var(--rt-sh); box-shadow: 0 1px 0 var(--rt-hi); }
+:root[data-design="retro"] :is(.bar-icon, .iconbtn):hover, :root[data-design="retro"] .bar-icon.open { background: transparent; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] :is(.bar-icon, .iconbtn):active { box-shadow: var(--rt-pressed); }
+:root[data-design="retro"] .appbar .iconbtn.active { background: var(--rt-face); box-shadow: var(--rt-pressed); }
+:root[data-design="retro"] .chat-search { border-radius: 0; background: var(--rt-field); border: 0; box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] .dd-btn { border-radius: 0; font-weight: 700; }
+:root[data-design="retro"] .dd-btn:hover { background: transparent; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .context-meter { border-radius: 0; background: var(--rt-face); border: 0; box-shadow: var(--rt-sunken); font-variant-numeric: tabular-nums; }
+
+/* ---- menus ---- */
+:root[data-design="retro"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
+  border-radius: 0; background: var(--rt-face); border: 0; box-shadow: var(--rt-window), 3px 3px 0 color-mix(in srgb, #000 30%, transparent);
+  -webkit-backdrop-filter: none; backdrop-filter: none; padding: 3px;
+}
+:root[data-design="retro"] :is(.dd-item, .app-menu-pop button, .context-menu button, .profile-menu-pop button, .pretty-select-menu button, .msg-more-pop button, .slash-menu button, .plus-row) { border-radius: 0; }
+:root[data-design="retro"] :is(.dd-item:hover, .dd-item.kb, .app-menu-pop button:hover, .context-menu button:hover, .profile-menu-pop button:hover, .pretty-select-menu button:hover, .msg-more-pop button:hover, .slash-menu button:hover, .slash-menu button.active, .plus-row:hover) {
+  background: var(--rt-sel); color: var(--rt-sel-text);
+}
+:root[data-design="retro"] :is(.dd-item:hover, .dd-item.kb, .pretty-select-menu button:hover, .slash-menu button.active, .plus-row:hover) :is(small, span, .ui-icon) { color: var(--rt-sel-text); }
+:root[data-design="retro"] :is(.dd-item.sel, .pretty-select-menu button.selected, .plus-row.is-active) { background: color-mix(in srgb, var(--rt-sel) 22%, var(--rt-face)); }
+:root[data-design="retro"] :is(.dd-search input, .plus-search) { border-radius: 0; background: var(--rt-field); border: 0; box-shadow: var(--rt-sunken); }
+
+/* ---- home ---- */
+:root[data-design="retro"] .greeting h1 { font: 700 clamp(1.7rem, 3vw, 2.3rem)/1.15 var(--rt-sans); letter-spacing: -.01em; }
+:root[data-design="retro"] .greeting-subtitle { color: var(--muted); }
+:root[data-design="retro"] .chip-sug { border: 0; background: var(--rt-face); color: var(--text); font-weight: 600; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .chip-sug:hover { background: var(--rt-face); text-decoration: underline; }
+:root[data-design="retro"] .chip-sug:active { box-shadow: var(--rt-pressed); }
+:root[data-design="retro"] .chip-sug.featured { font-weight: 800; box-shadow: 0 0 0 1px var(--rt-dk), var(--rt-raised); }
+:root[data-design="retro"] :is(.work-guide, .temp-guide, .code-guide) { border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-window); }
+:root[data-design="retro"] .chat { background: var(--rt-field); }
+:root[data-design="retro"] .greeting-wrap { background: transparent; }
+
+/* ---- composer ---- */
+:root[data-design="retro"] .composer-wrap { background: var(--rt-face); }
+:root[data-design="retro"] .composer-wrap::before { display: none; }
+:root[data-design="retro"] .composer { border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .composer textarea { background: var(--rt-field); box-shadow: var(--rt-sunken); padding: 6px 8px; }
+:root[data-design="retro"] :is(.cbtn, .attach-chip, .composer .tog, .tool-chip, .composer .image-aspect) { border-radius: 0; }
+:root[data-design="retro"] .plus-btn { background: var(--rt-face); border: 0; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .send { background: var(--rt-face); color: var(--text); box-shadow: 0 0 0 1px var(--rt-dk), var(--rt-raised); }
+:root[data-design="retro"] .send:hover { filter: none; }
+:root[data-design="retro"] .send:active { box-shadow: 0 0 0 1px var(--rt-dk), var(--rt-pressed); }
+
+/* ---- messages ---- */
+:root[data-design="retro"] .msg-user .bubble {
+  border-radius: 0; background: var(--user-bubble); color: var(--text); border: 1px solid var(--rt-dk); box-shadow: 2px 2px 0 color-mix(in srgb, #000 25%, transparent);
+}
+:root[data-design="retro"][data-theme="light"] .msg-user .bubble { color: #000; }
+:root[data-design="retro"] .msg-assistant .who-name { font-weight: 700; }
+:root[data-design="retro"] .msg-assistant .body { font-size: 14.5px; }
+:root[data-design="retro"] .msg-assistant .body :is(h1, h2, h3) { font-weight: 700; letter-spacing: 0; }
+:root[data-design="retro"] .msg-assistant .body h2 { padding: 2px 6px; background: linear-gradient(90deg, var(--rt-title-1), var(--rt-title-2)); color: var(--rt-title-text); font-size: 1.05em; }
+:root[data-design="retro"] .msg-assistant .body a { color: color-mix(in srgb, var(--accent) 40%, #0000ee); }
+:root[data-design="retro"][data-theme="dark"] .msg-assistant .body a { color: color-mix(in srgb, var(--accent) 50%, #8ab4ff); }
+:root[data-design="retro"] .msg-assistant .body :not(pre) > code,
+:root[data-design="retro"] .msg-user .user-text :not(pre) > code { border-radius: 0; background: var(--rt-face); box-shadow: var(--rt-sunken); padding: 1px 4px; }
+:root[data-design="retro"] .code-block-wrap { border-radius: 0; border: 0; background: var(--code-bg); box-shadow: var(--rt-window); overflow: hidden; }
+:root[data-design="retro"] .code-header { background: linear-gradient(90deg, var(--rt-title-1), var(--rt-title-2)); border-bottom: 0; }
+:root[data-design="retro"] .code-header :is(span, button, .code-copy-btn, .ui-icon) { color: var(--rt-title-text); }
+:root[data-design="retro"] .table-wrap { border-radius: 0; border: 0; background: var(--rt-field); box-shadow: var(--rt-sunken); overflow: hidden; }
+:root[data-design="retro"] :is(.table-wrap th, .body th) { background: var(--rt-face); font-weight: 700; box-shadow: var(--rt-raised); border-bottom: 0; }
+:root[data-design="retro"] :is(.table-wrap td, .body td) { border-color: color-mix(in srgb, var(--rt-sh) 50%, transparent); }
+:root[data-design="retro"] :is(.body, .user-text) blockquote { border-radius: 0 !important; background: var(--user-bubble) !important; border-left: 0 !important; box-shadow: inset 0 0 0 1px var(--rt-sh); }
+:root[data-design="retro"] :is(.trail, .rs-card, .file-pill, .continue-strip, .msg-video, .msg-tool) { border-radius: 0; }
+:root[data-design="retro"] :is(.rs-card, .file-pill, .continue-strip) { border: 0; background: var(--rt-face); box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .imgwrap img { border-radius: 0; box-shadow: var(--rt-sunken); padding: 2px; background: var(--rt-face); }
+:root[data-design="retro"] .msg-actions button:hover { background: transparent; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .jump-latest { background: var(--rt-face); border: 0; box-shadow: var(--rt-raised); }
+
+/* ---- dialogs ---- */
+:root[data-design="retro"] .panel-back { background: color-mix(in srgb, #008080 30%, rgba(0, 0, 0, .35)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-design="retro"] .panel { border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-window), 4px 4px 0 color-mix(in srgb, #000 35%, transparent); }
+:root[data-design="retro"] .settings-header { border-bottom: 0; background: linear-gradient(90deg, var(--rt-title-1), var(--rt-title-2)); color: var(--rt-title-text); }
+:root[data-design="retro"] .settings-header :is(h2, h3, span, b, .ui-icon, button) { color: var(--rt-title-text); }
+:root[data-design="retro"] .panel-close { background: var(--rt-face); box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .panel-close .ui-icon { color: var(--text); }
+:root[data-design="retro"] .settings-tabs-sidebar { background: var(--rt-face); border-right: 1px solid var(--rt-sh); }
+:root[data-design="retro"] .settings-tab-btn { border-radius: 0; }
+:root[data-design="retro"] .settings-tab-btn:hover { background: var(--d-hover); }
+:root[data-design="retro"] .settings-tab-btn.active { background: var(--rt-sel); color: var(--rt-sel-text); box-shadow: none; }
+:root[data-design="retro"] .settings-tab-btn.active .ui-icon { color: var(--rt-sel-text); }
+:root[data-design="retro"] .settings-section { border-radius: 0; }
+:root[data-design="retro"] :is(.pinput, .ptexta, .pretty-select-button) { border-radius: 0; background: var(--rt-field); border: 0; box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] .pretty-select-button { background: var(--rt-field); }
+:root[data-design="retro"] .pbtn { background: var(--rt-face); color: var(--text); border: 0; box-shadow: 0 0 0 1px var(--rt-dk), var(--rt-raised); font-weight: 700; }
+:root[data-design="retro"] .pbtn:active { box-shadow: 0 0 0 1px var(--rt-dk), var(--rt-pressed); }
+:root[data-design="retro"] .pbtn.ghost { box-shadow: var(--rt-raised); font-weight: 600; }
+:root[data-design="retro"] .pbtn.danger { color: var(--danger); }
+:root[data-design="retro"] .hintbox { border-radius: 0; background: var(--user-bubble); border: 1px solid var(--rt-dk); }
+:root[data-design="retro"][data-theme="light"] .hintbox { color: #000; }
+:root[data-design="retro"] .switch .sl { border-radius: 0; box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] .switch .sl::before { border-radius: 0; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .toast { border-radius: 0; background: var(--user-bubble); color: var(--text); border: 1px solid var(--rt-dk); box-shadow: 2px 2px 0 color-mix(in srgb, #000 35%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-design="retro"][data-theme="light"] .toast { color: #000; }
+:root[data-design="retro"] .memu-tooltip { border-radius: 0; background: #ffffe1; color: #000; border: 1px solid #000; }
+:root[data-design="retro"] .module-window { border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-window), 4px 4px 0 color-mix(in srgb, #000 30%, transparent); }
+:root[data-design="retro"] .module-window-bar { border-bottom: 0; background: linear-gradient(90deg, var(--rt-title-1), var(--rt-title-2)); color: var(--rt-title-text); }
+:root[data-design="retro"] .module-window-bar :is(span, b, button, .ui-icon) { color: var(--rt-title-text); }
+:root[data-design="retro"] :is(.module-card, .module-taskbar) { border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-raised); }
+:root[data-design="retro"] .mp-card { --mp-r: 0px; border: 0; background: var(--rt-face); box-shadow: var(--rt-window); }
+:root[data-design="retro"] .mp-chip { box-shadow: var(--rt-raised); border: 0; }
+:root[data-design="retro"] :is(.mp-menu, .mp-modal) { border-radius: 0; border: 0; box-shadow: var(--rt-window); background: var(--rt-face); }
+:root[data-design="retro"] :is(.docs-search, .docs-find) { border-radius: 0; border: 0; background: var(--rt-field); box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] :is(.docs-page-link, .docs-group-head, .docs-result) { border-radius: 0; }
+:root[data-design="retro"] .docs-page-link.active { background: var(--rt-sel); color: var(--rt-sel-text); }
+:root[data-design="retro"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 0; box-shadow: var(--rt-sunken); border: 0; }
+:root[data-design="retro"] .live-call { border-radius: 0; border: 0; background: var(--rt-face); box-shadow: var(--rt-window); }
+/* the classic scrollbar: dithered track, raised thumb */
+:root[data-design="retro"] ::-webkit-scrollbar { width: 16px; height: 16px; }
+:root[data-design="retro"] ::-webkit-scrollbar-track {
+  background-color: var(--rt-face);
+  background-image: repeating-conic-gradient(var(--rt-hi) 0 25%, transparent 0 50%); background-size: 2px 2px;
+}
+:root[data-design="retro"] ::-webkit-scrollbar-thumb { background: var(--rt-face); border-radius: 0; box-shadow: var(--rt-raised); }
+:root[data-design="retro"] ::-webkit-scrollbar-corner { background: var(--rt-face); }
+:root[data-design="retro"]:is([data-motion="reduced"], [data-motion="off"]) :is(.btn-new, .chip-sug, .send, .pbtn) { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="retro"] :is(.btn-new, .chip-sug, .send, .pbtn) { transition: none; }
+}
+@media (max-width: 800px) {
+  :root[data-design="retro"] .side, :root[data-design="retro"] .side.hidden { background: var(--rt-face); box-shadow: var(--rt-window); }
+  :root[data-design="retro"] .main, :root[data-design="retro"] .side.hidden ~ .main { margin: 4px; }
+  :root[data-design="retro"] .main::before { height: 18px; line-height: 18px; font-size: 11px; }
+}
+:root[data-design="retro"] {
+  --sx-r: 0px; --sx-r-sm: 0px; --sx-font: var(--rt-sans); --sx-display: var(--rt-sans);
+  --sx-bg: var(--rt-face); --sx-side: var(--rt-face); --sx-card: var(--rt-field); --sx-card-hover: color-mix(in srgb, var(--rt-sel) 10%, var(--rt-field));
+  --sx-line: var(--rt-sh); --sx-line-soft: color-mix(in srgb, var(--rt-sh) 50%, transparent); --sx-sel: var(--rt-sel);
+}
+:root[data-design="retro"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 0; }
+:root[data-design="retro"] .sx-shell .sx-nav .settings-tab-btn.active { background: var(--rt-sel); color: var(--rt-sel-text); }
+:root[data-design="retro"] .sx-shell .sx-nav .settings-tab-btn.active .ui-icon { color: var(--rt-sel-text); }
+:root[data-design="retro"] .sx-nav-label { font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); }
+:root[data-design="retro"] .sx-card { border: 0; box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] .sx-shell .sx-page-title { font-weight: 700; letter-spacing: 0; }
+:root[data-design="retro"] .sx-shell .sx-section-title { font-weight: 700; }
+:root[data-design="retro"] :is(.sx-search, .sx-seg) { border-radius: 0; border: 0; box-shadow: var(--rt-sunken); }
+:root[data-design="retro"] :is(.sx-page-icon, .sx-link-icon, .sx-result-icon) { border-radius: 0; box-shadow: var(--rt-raised); }

@@ -17,9 +17,11 @@ The manager is a separate role. It talks to you, receives personal instructions 
 
 ## Chat and Work
 
+Open **Settings** on a team's card and choose its **Run mode**. Standard uses the configured limits and sends the result to the manager. Economy caps the context and model response size. When the work has passed review and the manager has no custom instructions, the lead's result can be shown directly. Each team saves its own mode.
+
 Choose **Chat** for discussion, research and creating materials. Choose **Work** to operate in a project folder. The conversation is saved in the selected mode’s normal history, including its team activity card. New ordinary chats do not inherit the team.
 
-The lead assigns independent work with explicit responsibilities, collects reports and verifies the outcome. Members can exchange messages; questions pass through the lead and manager. When context is insufficient, the manager shows a clarification form in the chat. The manager presents the final response.
+The lead assigns independent work with explicit responsibilities, collects reports and verifies the outcome. Members can exchange messages; questions pass through the lead and manager. When context is insufficient, the manager shows a clarification form in the chat.
 
 Members share MemuAI’s tools: Work and coding tools, enabled web search, skills, integrations, MCP, modules, Canvas and media generation when the required connections are configured. Existing access settings remain effective. Scheduling requests create proposals that you add manually.
 

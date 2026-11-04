@@ -45,7 +45,7 @@ body.resizing-v, body.resizing-v * { cursor: ns-resize !important; user-select: 
 .mn-run-link:hover { color: var(--accent); }
 .mn-run-in { display: flex; align-items: center; gap: 6px; padding: 5px 8px 6px 12px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); flex: 0 0 auto; }
 .mn-run-prompt { color: var(--accent); font: 700 14px/1 var(--mono); }
-.mn-run-in input { flex: 1; min-width: 0; height: 28px; padding: 0 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); font: 12.5px var(--mono); outline: none; }
+.mn-run-in input { flex: 1; min-width: 0; height: 28px; padding: 0 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--field-bg, var(--bg)); font: 12.5px var(--mono); outline: none; }
 .mn-run-in input:focus { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .mn-run-in .btn.sm { height: 28px; }
 :root[data-theme="light"] .mn-run { background: color-mix(in srgb, var(--panel-2) 55%, var(--bg)); }

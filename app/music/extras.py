@@ -239,24 +239,26 @@ def _image_bytes(data: str) -> bytes:
     return raw
 
 def _fetch(url: str, client_factory: Optional[Callable[[], Any]] = None, limit: int = 20 * 1024 * 1024) -> bytes:
+    """Fetch a cover/artist picture.
+
+    F19: the URL comes from search results, not from the user — the old
+    code used a redirect-following client and read the whole body before
+    checking its size. ``sources.fetch_public_bytes`` validates every hop
+    (public IP only) and streams with a running cap.
+    """
     url = str(url or "").strip()
     if not re.match(r"^https?://", url):
         raise ValueError("Нужна ссылка http(s) / An http(s) link is required")
     from . import sources
-    client = (client_factory or sources._client)()
+    client = (client_factory or sources._client)() if client_factory else None
     try:
-        resp = client.get(url)
-        if resp.status_code >= 400:
-            raise ValueError(f"HTTP {resp.status_code}")
-        data = resp.content
+        return sources.fetch_public_bytes(url, limit=limit, client=client)
     finally:
-        try:
-            client.close()
-        except Exception:
-            pass
-    if len(data) > limit:
-        raise ValueError("Файл слишком большой / The file is too large")
-    return data
+        if client is not None:
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 def _video_frame(lib: Library, row: Dict[str, Any], at: float, client_factory=None) -> bytes:
     """A frame of the track's own video (mp4/webm with a video stream) via ffmpeg, else the source video's

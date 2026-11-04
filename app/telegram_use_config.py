@@ -8,10 +8,15 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from .telegram_use_arguments import SUMMARY_ARGUMENTS, schema
 
+CONFIG_VERSION = 2
+MAX_CONTEXT_MESSAGES = 2000
+QUESTION_CONTEXT = 60
+CONTEXT_CHARS = 100000
+MAX_CONTEXT_CHARS = 500000
 DEFAULT_COMMANDS = [
     {"name": "question", "trigger": "!//question", "kind": "question", "enabled": True,
      "prompt": "Answer the user's question using the conversation if relevant. Use the language of the question.",
-     "context_messages": 30, "output": "replace", "allowed_users": [], "allowed_chats": [],
+     "context_messages": QUESTION_CONTEXT, "output": "replace", "allowed_users": [], "allowed_chats": [],
      "max_per_hour": 10, "max_per_day": 50, "cooldown_seconds": 5},
     {"name": "voice", "trigger": "!//voice", "kind": "voice", "enabled": True,
      "prompt": "", "context_messages": 0, "output": "replace", "allowed_users": [], "allowed_chats": [],
@@ -19,15 +24,18 @@ DEFAULT_COMMANDS = [
     {"name": "summary", "trigger": "!//summary", "kind": "summary", "enabled": True,
      "arguments": SUMMARY_ARGUMENTS,
      "prompt": "Summarize the last {count} messages in {chat}: main topics, decisions, outstanding questions and next actions. Do not invent missing details.",
-     "context_messages": 50, "output": "replace", "allowed_users": [], "allowed_chats": [],
+     "context_messages": 100, "output": "replace", "allowed_users": [], "allowed_chats": [],
      "max_per_hour": 10, "max_per_day": 50, "cooldown_seconds": 5},
 ]
+MAIN_ACCOUNT = {"id": "main", "label": "", "commands": True}
 DEFAULTS = {"enabled": False, "commands_enabled": False, "model": "", "api_id": 0,
             "allow_writes": True, "schedule_writes": False, "max_media_mb": 20,
-            "context_chars": 32000, "max_parallel": 2, "commands": DEFAULT_COMMANDS,
+            "context_chars": CONTEXT_CHARS, "max_parallel": 2, "commands": DEFAULT_COMMANDS,
             "web_enabled": True, "system_prompt": "",
             "stt_source": "voice", "stt_local_model": "", "stt_language": "auto",
-            "voice_cleanup_enabled": False, "voice_cleanup_model": "", "voice_cleanup_prompt": ""}
+            "voice_cleanup_enabled": False, "voice_cleanup_model": "", "voice_cleanup_prompt": "",
+            "accounts": [MAIN_ACCOUNT], "automations": [], "automations_enabled": True,
+            "config_version": CONFIG_VERSION}
 _lock = threading.RLock()
 _stores: dict[str, Any] = {}
 
@@ -80,16 +88,17 @@ def command(value: Any) -> dict:
         count = next((a for a in arguments if a["name"] == "count"), None)
         if not count or count["type"] != "integer" or not count["required"]:
             raise ValueError("Пересказу нужен обязательный целочисленный аргумент count / Summary requires a required integer count argument")
-        count["min"], count["max"] = max(1, count.get("min", 1)), min(1000, count.get("max", 1000))
+        count["min"] = max(1, count.get("min", 1))
+        count["max"] = min(MAX_CONTEXT_MESSAGES, count.get("max", MAX_CONTEXT_MESSAGES))
         if count["min"] > count["max"]:
-            raise ValueError("Количество сообщений: 1–1000 / Message count: 1–1000")
+            raise ValueError("Количество сообщений: 1–%d / Message count: 1–%d" % (MAX_CONTEXT_MESSAGES, MAX_CONTEXT_MESSAGES))
         if any(a["name"] == "chat" and a["type"] != "chat" for a in arguments):
             raise ValueError("Аргумент chat должен иметь тип «Название чата» / The chat argument must have type chat")
     return {"name": str(value.get("name") or trigger[3:])[:80], "trigger": trigger,
             "enabled": value.get("enabled", True) is not False,
             "kind": kind, "arguments": arguments,
             "prompt": str(value.get("prompt") or "")[:16000], "model": str(value.get("model") or "")[:200],
-            "context_messages": integer(value.get("context_messages"), 30, 0, 200),
+            "context_messages": integer(value.get("context_messages"), QUESTION_CONTEXT, 0, MAX_CONTEXT_MESSAGES),
             "output": value.get("output") if value.get("output") in ("reply", "memuai") else "replace",
             "allowed_users": ids(value.get("allowed_users")), "allowed_chats": ids(value.get("allowed_chats")),
             "max_per_hour": integer(value.get("max_per_hour"), 10, 1, 1000),
@@ -97,14 +106,59 @@ def command(value: Any) -> dict:
             "cooldown_seconds": integer(value.get("cooldown_seconds"), 5, 0, 86400),
             "max_input_chars": integer(value.get("max_input_chars"), 8000, 100, 32000)}
 
+def _migrate(raw: dict) -> dict:
+    """Older settings kept the small context defaults; move only values the user never changed."""
+    if not raw or integer(raw.get("config_version"), 1, 1, 1000) >= CONFIG_VERSION:
+        return raw
+    raw = dict(raw)
+    if raw.get("context_chars") in (None, 32000):
+        raw["context_chars"] = CONTEXT_CHARS
+    if isinstance(raw.get("commands"), list):
+        rows = []
+        for item in raw["commands"]:
+            if isinstance(item, dict):
+                item = dict(item)
+                if item.get("kind", "question") == "question" and item.get("context_messages") in (None, 30):
+                    item["context_messages"] = QUESTION_CONTEXT
+                if isinstance(item.get("arguments"), list):
+                    item["arguments"] = [{**a, "max": MAX_CONTEXT_MESSAGES} if isinstance(a, dict) and a.get("name") == "count"
+                                         and (item.get("kind") == "summary" or str(item.get("trigger") or "").casefold() == "!//summary")
+                                         and a.get("max") == 1000 else a
+                                         for a in item["arguments"]]
+            rows.append(item)
+        raw["commands"] = rows
+    raw["config_version"] = CONFIG_VERSION
+    return raw
+
+def accounts(value: Any) -> list[dict]:
+    """The main account first, then extra personal accounts in the order they were added."""
+    rows = [dict(MAIN_ACCOUNT)]
+    for item in value if isinstance(value, list) else []:
+        if not isinstance(item, dict):
+            continue
+        account_id = str(item.get("id") or "").strip()
+        row = {"id": account_id, "label": str(item.get("label") or "").strip()[:80],
+               "commands": item.get("commands", True) is not False}
+        if account_id == "main":
+            rows[0] = row
+        elif re.fullmatch(r"[a-z0-9]{6,12}", account_id) and all(r["id"] != account_id for r in rows) and len(rows) < 10:
+            rows.append(row)
+    return rows
+
+def session_key(account_id: str) -> str:
+    return "session" if account_id in ("", "main") else "session." + account_id
+
 def normalize(value: Any) -> dict:
-    raw = value if isinstance(value, dict) else {}
+    from .telegram_use_automations import normalize_list
+    raw = _migrate(value if isinstance(value, dict) else {})
     out = {**DEFAULTS, **{k: raw[k] for k in DEFAULTS if k in raw}}
     for key in ("enabled", "commands_enabled", "allow_writes", "schedule_writes", "web_enabled", "voice_cleanup_enabled"):
         out[key] = out[key] is True
+    out["automations_enabled"] = out["automations_enabled"] is not False
+    out["config_version"] = CONFIG_VERSION
     out["api_id"] = integer(out["api_id"], 0, 0, 2147483647)
     out["max_media_mb"] = integer(out["max_media_mb"], 20, 1, 50)
-    out["context_chars"] = integer(out["context_chars"], 32000, 1000, 100000)
+    out["context_chars"] = integer(out["context_chars"], CONTEXT_CHARS, 1000, MAX_CONTEXT_CHARS)
     out["max_parallel"] = integer(out["max_parallel"], 2, 1, 4)
     out["model"] = str(out["model"] or "")[:200]
     out["system_prompt"] = str(out["system_prompt"] or "")[:16000]
@@ -119,6 +173,8 @@ def normalize(value: Any) -> dict:
     triggers = [item["trigger"].casefold() for item in out["commands"]]
     if len(set(triggers)) != len(triggers):
         raise ValueError("Триггеры команд должны различаться / Duplicate command triggers")
+    out["accounts"] = accounts(out["accounts"])
+    out["automations"] = normalize_list(out["automations"], accounts={a["id"] for a in out["accounts"]})
     return out
 
 def load() -> dict:
@@ -129,6 +185,16 @@ def save(values: dict) -> dict:
     from .storage import _json_transaction, save_json
     with _lock, _json_transaction(path()):
         out = normalize({**load(), **{k: v for k, v in values.items() if k in DEFAULTS}})
+        save_json(path(), out)
+    return out
+
+def mutate(key: str, change) -> dict:
+    """Read-modify-write of one list setting under the same lock as save()."""
+    import copy
+    from .storage import _json_transaction, save_json
+    with _lock, _json_transaction(path()):
+        current = load()
+        out = normalize({**current, key: change(copy.deepcopy(current[key]))})
         save_json(path(), out)
     return out
 

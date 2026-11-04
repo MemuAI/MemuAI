@@ -189,13 +189,22 @@
       if (typeof S !== "undefined" && S.currentId === chatId && typeof renderMessages === "function") renderMessages();
     } catch (e) {  }
   }
+  // In the agentic workspace the companion is the one who remembers.
+  function rememberedVerb() {
+    const spaces = window.MemuSpaces;
+    if (spaces && spaces.isAgent && spaces.isAgent()) {
+      const c = spaces.companion ? spaces.companion() : null;
+      if (c && c.name) return L(`${c.name} ${c.gender === "f" ? "запомнила" : c.gender === "m" ? "запомнил" : "запомнил(а)"}: `, `${c.name} remembered: `);
+    }
+    return L("Запомнил: ", "Remembered: ");
+  }
   function announce(res) {
     if (!res || res.notify === false) return;
     const saved = [...(res.added || []), ...(res.updated || [])];
     const undo = saved.length ? { label: L("Отменить", "Undo"), run: () => undoSaved(res) } : null;
     if (saved.length) {
       const first = saved[0];
-      const verb = (res.updated || []).length && !(res.added || []).length ? L("Обновил в памяти: ", "Memory updated: ") : L("Запомнил: ", "Remembered: ");
+      const verb = (res.updated || []).length && !(res.added || []).length ? L("Обновил в памяти: ", "Memory updated: ") : rememberedVerb();
       say(verb + String(first.text).slice(0, 48) + (saved.length > 1 ? ` (+${saved.length - 1})` : ""), "ok", undo);
     }
     if ((res.pending || []).length) {
@@ -228,7 +237,7 @@
       const out = await call("/api/memory/items", { method: "POST", body });
       adopt(out.memory);
       const r = out.result || {};
-      if ((r.added || []).length || (r.updated || []).length) say(L("Запомнил: ", "Remembered: ") + value.slice(0, 48), "ok");
+      if ((r.added || []).length || (r.updated || []).length) say(rememberedVerb() + value.slice(0, 48), "ok");
       else if (r.duplicates) say(L("Это уже есть в памяти", "That is already in memory"), "info");
       else if (r.blocked) say(L("Не сохранено: похоже на секрет или запрещено правилом", "Not saved: it looks like a secret or a rule forbids it"), "warn");
       else say(L("Память выключена", "Memory is turned off"), "warn");
@@ -1006,5 +1015,7 @@
     _parseRule: parseRule,
   };
 
-  setTimeout(() => { load(true); }, 1500);
+  // E08: guard against partial-DOM environments (test stubs without
+  // documentElement) — in a real browser documentElement always exists.
+  if (!document.documentElement?.dataset.moduleApp) setTimeout(() => { load(true); }, 1500);
 })();

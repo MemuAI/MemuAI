@@ -338,7 +338,9 @@
 
   function animateIn(node) {
     if (!node || reducedMotion()) return;
-    node.classList.remove("sx-enter"); void node.offsetWidth; node.classList.add("sx-enter");
+    // Two keyframe sets with the same motion: switching between them restarts the entrance without a forced reflow.
+    node.classList.add("sx-enter");
+    node.classList.toggle("sx-enter-b");
   }
   function reducedMotion() {
     const root = document.documentElement;
@@ -403,17 +405,23 @@
     }
     return 0;
   }
+  /* Satellite apps repeat common settings (theme, font, language, model) under the same names. Unless the
+     query names the app («memunote тема»), the main MemuAI settings come first. */
+  const SATELLITES = new Set(["quick", "panels", "memunote", "memufiles", "remote", "dfy"]);
   function scoreEntry(tokens, entry) {
-    let total = 0;
+    let total = 0, named = false;
     for (const token of tokens) {
       const label = tokenScore(token, entry.labelWords, entry.labelN) * 3;
-      const rest = Math.max(tokenScore(token, entry.descWords, entry.descN), tokenScore(token, entry.kwWords, entry.kwN) * 1.4, tokenScore(token, entry.ctxWords, entry.ctxN) * 0.6);
+      const page = tokens.length > 1 && entry.pageWords ? tokenScore(token, entry.pageWords, entry.pageN) : 0;
+      if (page >= 8) named = true;
+      const rest = Math.max(tokenScore(token, entry.descWords, entry.descN), tokenScore(token, entry.kwWords, entry.kwN) * 1.4, tokenScore(token, entry.ctxWords, entry.ctxN) * 0.6, page * 0.6);
       const best = Math.max(label, rest);
       if (!best) return 0;
       total += best;
     }
     if (entry.labelN.startsWith(tokens.join(" "))) total += 12;
     if (entry.kind === "page") total += 4;
+    else if (!named && SATELLITES.has(entry.page)) total *= 0.55;
     return total;
   }
 
@@ -424,7 +432,8 @@
   }
   function makeEntry(o) {
     const labelN = norm(o.label), descN = norm(o.desc), kwN = norm(o.keywords), ctxN = norm([o.context, o.subTitle].filter(Boolean).join(" "));
-    return { ...o, labelN, descN, kwN, ctxN,
+    const pageN = o.kind === "page" ? "" : norm(pageMeta(o.page).title);
+    return { ...o, labelN, descN, kwN, ctxN, pageN, pageWords: pageN.split(" ").filter(Boolean),
       labelWords: labelN.split(" ").filter(Boolean), descWords: descN.split(" ").filter(Boolean),
       kwWords: kwN.split(" ").filter(Boolean), ctxWords: ctxN.split(" ").filter(Boolean) };
   }
@@ -448,7 +457,7 @@
         const labelNode = firstOf(node, [".sx-label", ".tl", ".settings-title", "b", "label"]);
 
         if (node.dataset.sxLabel) label = node.dataset.sxLabel;
-        else if (node.matches(".sx-section, section")) label = textOf(node.querySelector(".sx-section-title, .settings-title"));
+        else if (node.matches(".sx-section, section")) label = textOf(node.querySelector(".sx-section-title > span:not([class])") || node.querySelector(".sx-section-title, .settings-title"));
         else label = textOf(labelNode);
         if (!label) return;
         seen.add(node);
@@ -620,11 +629,13 @@
       sh.classList.toggle("sx-quiet", o.animate === false);
 
       const nav = sh.querySelector(".sx-nav"), btn = nav && nav.querySelector(".settings-tab-btn.active");
-      if (nav && btn) {
+      // Measured in the next frame, after the page has been built: one layout instead of one in the middle.
+      if (nav && btn) requestAnimationFrame(() => {
+        if (!btn.isConnected || !btn.classList.contains("active")) return;
         const n = nav.getBoundingClientRect(), r = btn.getBoundingClientRect();
         if (r.bottom > n.bottom - 8) nav.scrollTop += r.bottom - n.bottom + 24;
         else if (r.top < n.top + 8) nav.scrollTop -= n.top - r.top + 24;
-      }
+      });
     }
     const sub = o.sub !== undefined ? o.sub : state.sub[pageId] || "";
     if (sub) openSub(sub, { focus: false, scroll: o.scroll !== false, animate: o.animate !== false });
@@ -637,6 +648,43 @@
 
   function invalidate() { state.index = null; }
 
+  /* A page may carry its own search field (the Home page does): Ctrl+F and «/» focus it instead of the sidebar one. */
+  function shown(node) {
+    if (!node) return false;
+    return typeof node.checkVisibility === "function" ? node.checkVisibility({ visibilityProperty: true, opacityProperty: true }) : node.offsetParent !== null;
+  }
+  function searchField() {
+    const here = activePane()?.querySelector("[data-sx-search-here]");
+    if (shown(here)) return here;
+    return document.querySelector("#panel #sx-search");
+  }
+  function describe(hit) {
+    const e = hit.entry, meta = pageMeta(e.page);
+    const parts = [meta.title, e.subTitle, e.context && e.context !== e.label ? e.context : ""].filter(Boolean);
+    return {
+      page: e.page, kind: e.kind, icon: meta.icon || "", label: e.label, desc: e.desc || "",
+      path: e.kind === "page" ? L("Раздел", "Section") : parts.join(" › "),
+      pathHtml: e.kind === "page" ? esc(L("Раздел", "Section")) : parts.map(esc).join(" <i>›</i> "),
+      labelHtml: mark(e.label, hit.tokens), descHtml: e.desc ? mark(e.desc.slice(0, 160), hit.tokens) : "",
+      go: () => jumpTo(e),
+    };
+  }
+  function find(query, limit = 8) {
+    const hits = search(query);
+    return { total: hits.length, items: hits.slice(0, Math.max(1, limit)).map(describe) };
+  }
+  /* Full results in the main area, the same as typing into the sidebar field. */
+  function showAll(query) {
+    const sh = shell();
+    const input = sh?.querySelector("#sx-search");
+    if (!input) return;
+    sh.classList.remove("sx-nav-open");
+    input.value = String(query || "");
+    setQuery(input.value);
+    if (shown(input)) input.focus({ preventScroll: true });
+    else document.querySelector("#panel .sx-result")?.focus({ preventScroll: true });
+  }
+
   function mount(o = {}) {
     const sh = shell();
     if (!sh) return;
@@ -648,6 +696,7 @@
     sh.addEventListener("input", (event) => {
       const t = event.target;
       if (t.id === "sx-search") { setQuery(t.value); return; }
+      if (t.matches?.("[data-sx-search-here]")) return;
       if (t.type === "range") {
         const out = sh.querySelector(`output.sx-slider-value[for="${CSS.escape(t.id)}"]`);
         if (out) out.textContent = sliderText(t.value, out.dataset.unit || "", out.dataset.signed === "1");
@@ -655,7 +704,7 @@
       refreshDeps(activePane()); refreshModified(activePane());
     });
     sh.addEventListener("change", (event) => {
-      if (event.target.id === "sx-search") return;
+      if (event.target.id === "sx-search" || event.target.matches?.("[data-sx-search-here]")) return;
       refreshDeps(activePane()); refreshModified(activePane());
     });
     sh.addEventListener("click", (event) => {
@@ -719,25 +768,26 @@
         if (state.sub[state.page] && !t.closest("input, textarea, select")) { event.preventDefault(); event.stopPropagation(); closeSub(); return; }
       }
       if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.code === "KeyF" || event.key === "f" || event.key === "а")) {
-        event.preventDefault(); input?.focus(); input?.select(); return;
+        event.preventDefault(); const field = state.query ? input : searchField(); field?.focus(); field?.select(); return;
       }
       if (event.altKey && event.key === "ArrowLeft" && state.sub[state.page]) { event.preventDefault(); event.stopPropagation(); closeSub(); return; }
       if (t.closest(".sx-nav") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-        const items = [...sh.querySelectorAll(".sx-nav .settings-tab-btn")];
+        const current = t.closest(".settings-tab-btn");
+        const items = [...sh.querySelectorAll(".sx-nav .settings-tab-btn")].filter((item) => item === current || item.offsetParent !== null);
         let i = items.indexOf(t.closest(".settings-tab-btn"));
         if (event.key === "Home") i = 0; else if (event.key === "End") i = items.length - 1;
         else i = Math.max(0, Math.min(items.length - 1, i + (event.key === "ArrowDown" ? 1 : -1)));
         event.preventDefault(); items[i]?.focus(); items[i]?.click(); items[i]?.focus();
         return;
       }
-      if ((window.MemuKeys ? MemuKeys.latin(event) : event.key) === "/" && !t.closest("input, textarea, select, [contenteditable]")) { event.preventDefault(); input?.focus(); }
+      if ((window.MemuKeys ? MemuKeys.latin(event) : event.key) === "/" && !t.closest("input, textarea, select, [contenteditable]")) { event.preventDefault(); (state.query ? input : searchField())?.focus(); }
     });
 
     const bodyNode = sh.querySelector(".settings-body");
     if (bodyNode && window.MutationObserver) {
       state.observer = new MutationObserver((records) => {
         if (!sh.isConnected) { state.observer.disconnect(); return; }
-        if (!records.some((record) => record.type === "childList" || record.target.matches(".settings-tab-pane"))) return;
+        if (!records.some((record) => (record.type === "childList" && !record.target.closest?.("[data-sx-noindex]")) || record.target.matches(".settings-tab-pane"))) return;
         const pane = activePane();
         const id = pane?.dataset.page;
         if (id && id !== state.page) {
@@ -755,8 +805,8 @@
     if (o.focusSearch) setTimeout(() => {
       if (!sh.isConnected) return;
 
-      const visible = input && (typeof input.checkVisibility === "function" ? input.checkVisibility({ visibilityProperty: true, opacityProperty: true }) : input.offsetParent !== null);
-      if (visible) input.focus({ preventScroll: true });
+      const field = o.query ? input : searchField();
+      if (shown(field)) field.focus({ preventScroll: true });
       else { const title = activePane()?.querySelector(".sx-page-title"); if (title) { if (!title.hasAttribute("tabindex")) title.setAttribute("tabindex", "-1"); title.focus({ preventScroll: true }); } }
     }, 0);
     else crumbs();
@@ -778,6 +828,7 @@
     configure, mount, open, openSub, closeSub, pageShown, saved, refreshDeps, refreshModified, registerSearch, invalidate,
     search: (q) => search(q).map((hit) => ({ page: hit.entry.page, sub: hit.entry.sub, label: hit.entry.label, kind: hit.entry.kind, score: hit.score })),
     jump: (q) => { const hit = search(q)[0]; if (hit) jumpTo(hit.entry); return !!hit; },
+    find, showAll, mark,
     state,
   };
   window.MemuSettingsKit = api;

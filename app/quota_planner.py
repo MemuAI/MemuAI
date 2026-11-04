@@ -71,7 +71,7 @@ KEEP_RESERVE = 0.03
 STATUS_RANK = {"ok": 0, "idle": 0, "insufficient": 0, "no_reset": 0, "tight": 1, "runs_out": 2, "exhausted": 3}
 STATUSES = ("ok", "tight", "runs_out", "exhausted", "insufficient", "no_reset")
 DEFAULT_SETTINGS: Dict[str, Any] = {"enabled": True, "poll_minutes": 10, "save_quota": False, "notify": True}
-POLL_PROVIDERS = ("antigravity", "kiro")
+POLL_PROVIDERS = ("antigravity", "kiro", "zcode")
 
 _clock: Callable[[], float] = time.time
 

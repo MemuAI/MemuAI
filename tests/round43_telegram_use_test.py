@@ -75,7 +75,7 @@ class ConfigCase(TempConfig):
             with self.subTest(url=url), self.assertRaises(ValueError): config.parse_proxy(url)
     def test_commands_normalized_and_duplicate_rejected(self):
         c = config.command({"trigger":"!//custom", "allowed_users":"7, 7 8", "context_messages":99999})
-        self.assertEqual(c["allowed_users"], [7, 8]); self.assertEqual(c["context_messages"], 200)
+        self.assertEqual(c["allowed_users"], [7, 8]); self.assertEqual(c["context_messages"], config.MAX_CONTEXT_MESSAGES)
         with self.assertRaises(ValueError): config.normalize({"commands":[c, {**c, "trigger":"!//CUSTOM"}]})
         with self.assertRaises(ValueError): config.command({"trigger":"send anything"})
     def test_secrets_protected_and_public_config_clean(self):

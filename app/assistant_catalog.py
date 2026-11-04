@@ -378,11 +378,21 @@ def tool_name_to_action(name: str) -> str:
             return action_id
     return ""
 
-def compact_catalog(enabled: Optional[List[str]] = None) -> str:
-    """One line per action for the Quick Ask system prompt: ``id(param, param?) [tier] — description``."""
+def compact_catalog(enabled: Optional[List[str]] = None, short: bool = False) -> str:
+    """One line per action for the Quick Ask system prompt: ``id(param, param?) [tier] — description``.
+
+    ``short=True`` (economy mode) drops the descriptions and optional parameters: the model still
+    sees every action id and its required parameters, which is what routing a tool call needs —
+    the full parameter schemas travel with the tool itself, and the safe layer re-validates
+    everything the model sends.
+    """
     lines = []
     for row in ACTIONS:
         if enabled is not None and row["id"] not in enabled:
+            continue
+        if short:
+            required = [key for key in row["params"] if key in row["required"]]
+            lines.append(f"  {row['id']}({', '.join(required)})")
             continue
         parts = []
         for key, spec in row["params"].items():

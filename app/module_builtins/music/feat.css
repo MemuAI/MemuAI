@@ -14,12 +14,18 @@
 .mm-pick-search { position: relative; padding: 4px 4px 6px; }
 .mm-pick-search svg { position: absolute; left: 14px; top: 50%; width: 16px; height: 16px; transform: translateY(-55%); color: var(--mm-muted); pointer-events: none; }
 .mm-pick-search .mm-input { width: 100%; height: 34px; padding-left: 34px; }
-.mm-pick-list { max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.mm-pick-list { max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+.mm-pick-list::-webkit-scrollbar { width: 8px; }
+.mm-pick-list::-webkit-scrollbar-track { margin: 10px 0; background: transparent; }
+.mm-pick-list::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .mm-menu .mm-pick-list button em { margin-left: auto; font-style: normal; color: var(--mm-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
 .mm-pick-art { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 6px; overflow: hidden; display: block; background: var(--mm-panel-2); }
 .mm-pick-art img, .mm-pick-art .mm-collage { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mm-pick-empty { margin: 6px 12px 10px; color: var(--mm-muted); font-size: 13px; }
-.mm-modal-card:has(.mm-ed) { width: min(680px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow-y: auto; scrollbar-width: thin; }
+.mm-modal-card:has(.mm-ed) { width: min(680px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; overscroll-behavior: contain; }
+.mm-modal-card:has(.mm-ed)::-webkit-scrollbar { width: 8px; }
+.mm-modal-card:has(.mm-ed)::-webkit-scrollbar-track { margin: 12px 0; background: transparent; }
+.mm-modal-card:has(.mm-ed)::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .mm-ed { display: grid; gap: 16px; }
 .mm-ed-head { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .mm-ed-head > div { min-width: 0; }

@@ -66,7 +66,9 @@ DEFAULTS: Dict[str, Any] = {
     "auto_compact_threshold": 85,
 
     "context_budget": 40000,
-    "tool_timeout_seconds": 0,
+    # F35: a hung tool used to hang the whole turn forever (default 0).
+    # 300 s is the new default; 0 is an explicit opt-out.
+    "tool_timeout_seconds": 300,
     "context_window": 0,
     "keep_recent_messages": 8,
     "output_style": "default",
@@ -429,12 +431,48 @@ def flatten(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
             rows[dotted] = value
     return rows
 
+_SECRET_WORDS = ("key", "token", "secret", "password", "passwd", "auth", "bearer", "credential")
+# Sections whose *values* are never shown anywhere a report may go: only
+# the names of the entries survive (an env var name is useful for support,
+# its value is a live secret).
+_NAMES_ONLY = ("env", "hooks", "pricing.overrides", "model_notes")
+
+
+def _is_secret_key(key: str) -> bool:
+    low = str(key or "").lower()
+    return any(word in low for word in _SECRET_WORDS)
+
+
+def _mask_string(value: str) -> str:
+    return (value[:3] + "…" + value[-4:]) if len(value) > 10 else "••••"
+
+
 def mask(key: str, value: Any) -> Any:
-    """Secrets are shown as ``sk-…abcd``."""
-    low = key.lower()
-    if isinstance(value, str) and value and any(word in low for word in ("key", "token", "secret")):
-        return (value[:3] + "…" + value[-4:]) if len(value) > 10 else "••••"
-    if key == "connections" and isinstance(value, list):
-        return [{**row, "api_key": mask("api_key", row.get("api_key", ""))} if isinstance(row, dict) else row
-                for row in value]
+    """A recursive scrubber for anything that may leave the machine
+    (``/bug`` report, ``/config list``, ``--config``).
+
+    F32: the old version only masked *string* values whose key contained
+    ``key``/``token``/``secret`` and returned dicts (``env``, ``hooks``,
+    ``pricing.overrides``) untouched — so a ``/bug`` report titled
+    "secrets masked" contained the API keys in plain text. Now:
+
+    * a value under a secret-ish key is masked, whatever its type;
+    * ``env``/``hooks``/``pricing.overrides``/``model_notes`` keep only
+      their entry names, never the values;
+    * dicts/lists are scrubbed recursively.
+    """
+    low = str(key or "").lower()
+    tail = low.rsplit(".", 1)[-1]
+    if low in _NAMES_ONLY or tail in _NAMES_ONLY:
+        if isinstance(value, dict):
+            return {str(k): "<hidden>" for k in value}
+        return _mask_string(str(value)) if value else value
+    if isinstance(value, dict):
+        return {k: mask(f"{key}.{k}" if key else str(k), v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [mask(key, item) for item in value]
+    if isinstance(value, str) and value and _is_secret_key(key):
+        return _mask_string(value)
+    if _is_secret_key(key) and value not in (None, "", 0, False):
+        return "<hidden>"
     return value

@@ -349,7 +349,7 @@ class Skills:
     def catalogue(self, *, refresh: bool = False, include_disabled: bool = False) -> List[Dict[str, Any]]:
         if self._cache is None or refresh:
             rows: Dict[str, Dict[str, Any]] = {}
-            base = code_skills.catalogue(self.root if self.trusted else "", include_prompt=True)
+            base = code_skills.catalogue(self.root if self.trusted else "", include_prompt=True, place="cli")
             for row in base:
                 rows[row["id"]] = dict(row)
             if guide_row := self._guide_row():

@@ -56,10 +56,39 @@ CONTEXT_MODES = ("auto", "server", "stateless")
 REASONING_OUTPUTS = ("reasoning_content", "think_tags", "hidden")
 CHAT_BACKENDS = ("agent", "copilot", "auto")
 
-def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
-    salt = salt or secrets.token_hex(8)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 60_000).hex()
+# F13: OWASP now recommends 600k PBKDF2-HMAC-SHA256 iterations (was 60k);
+# salts are 16 bytes (was 8). Old 60k hashes still verify once and are then
+# upgraded to 600k on the next successful login (see check_admin_password).
+_PBKDF2_ITERATIONS = 600_000
+_PBKDF2_LEGACY_ITERATIONS = 60_000
+# Readable first-run password alphabet: no 0/O/1/l/I to mistype.
+_FIRST_RUN_PASSWORD_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def hash_password(password: str, salt: str | None = None, *,
+                  iterations: int = _PBKDF2_ITERATIONS) -> tuple[str, str]:
+    salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations).hex()
     return digest, salt
+
+
+def _password_matches(password: str, salt: str, expected: str) -> tuple[bool, bool]:
+    """Check a password against current and legacy iteration counts.
+
+    Returns ``(matches, is_legacy)`` — legacy matches are upgraded by the
+    caller instead of being accepted silently forever.
+    """
+    for iterations, legacy in ((_PBKDF2_ITERATIONS, False), (_PBKDF2_LEGACY_ITERATIONS, True)):
+        digest, _ = hash_password(password, salt, iterations=iterations)
+        if secrets.compare_digest(digest, expected):
+            return True, legacy
+    return False, False
+
+
+def generate_first_run_password() -> str:
+    """A random, typable first-run password (4 groups of 4 characters)."""
+    alphabet = _FIRST_RUN_PASSWORD_ALPHABET
+    return "-".join("".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(4))
 
 @dataclass
 class Settings:
@@ -73,7 +102,11 @@ class Settings:
     admin_password_salt: str = ""
 
     api_keys: List[str] = field(default_factory=list)
-    cors_enabled: bool = True
+    # F15: CORS used to be on by default with `Access-Control-Allow-Origin: *`.
+    # Now off by default; when enabled, only the explicit allow-list below
+    # is reflected — never "*".
+    cors_enabled: bool = False
+    cors_origins: List[str] = field(default_factory=list)
 
     proxy_enabled: bool = True
 
@@ -164,6 +197,24 @@ def _normalized_bind_host(value: Any, default: str | None = "127.0.0.1") -> str 
         if _HOSTNAME_RE.fullmatch(host):
             return host
     return default
+
+def valid_cors_origin(value: Any) -> bool:
+    """One explicit `scheme://host[:port]` origin — no wildcards, no paths."""
+    if not isinstance(value, str):
+        return False
+    value = value.strip()
+    if "*" in value:
+        return False
+    try:
+        parsed = urllib.parse.urlsplit(value)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+        return False
+    return True
+
 
 def _is_loopback_host(value: str) -> bool:
     host = str(value or "").strip().strip("[]")
@@ -270,6 +321,9 @@ class ConfigStore:
         self._lock = threading.RLock()
         self._runtime_host: str | None = None
         self._runtime_port: int | None = None
+        # F13: the generated first-run password, in memory only — never
+        # persisted and returned exactly once via take_first_run_password().
+        self.first_run_password_value: str | None = None
         self.settings = Settings()
         self.load()
 
@@ -292,9 +346,14 @@ class ConfigStore:
                 self.settings = Settings(**_normalized_settings(raw))
             if raw is missing or not _valid_password_material(
                     self.settings.admin_password_hash, self.settings.admin_password_salt):
-                digest, salt = hash_password("admin")
+                # F13: never fall back to the well-known "admin" password.
+                # Generate a random one; the desktop launcher shows it once
+                # (main.py) and it is never written to disk in plain text.
+                first_run = generate_first_run_password()
+                digest, salt = hash_password(first_run)
                 self.settings.admin_password_hash = digest
                 self.settings.admin_password_salt = salt
+                self.first_run_password_value = first_run
                 repair_malformed = True
             if repair_malformed:
                 self.save()
@@ -321,16 +380,36 @@ class ConfigStore:
             self._runtime_host = normalized_host
             self._runtime_port = int(port)
 
+    def take_first_run_password(self) -> str | None:
+        """The generated first-run password, returned once, then forgotten."""
+        with self._lock:
+            value = self.first_run_password_value
+            self.first_run_password_value = None
+            return value
+
     @property
     def first_run_password(self) -> bool:
+        """True while the admin password is still the known default "admin".
+
+        Checks both iteration counts so a legacy 60k default hash is still
+        recognised (and LAN binding stays blocked for it).
+        """
         with self._lock:
-            digest, _ = hash_password("admin", self.settings.admin_password_salt)
-            return secrets.compare_digest(digest, self.settings.admin_password_hash)
+            ok, _legacy = _password_matches(
+                "admin", self.settings.admin_password_salt, self.settings.admin_password_hash)
+            return ok
 
     def check_admin_password(self, password: str) -> bool:
         with self._lock:
-            digest, _ = hash_password(password, self.settings.admin_password_salt)
-            return secrets.compare_digest(digest, self.settings.admin_password_hash)
+            ok, legacy = _password_matches(
+                password, self.settings.admin_password_salt, self.settings.admin_password_hash)
+            if ok and legacy:
+                # F13: upgrade a legacy 60k hash to 600k on successful login.
+                digest, salt = hash_password(password)
+                self.settings.admin_password_hash = digest
+                self.settings.admin_password_salt = salt
+                self.save()
+            return ok
 
     def set_admin_password(self, password: str) -> None:
         digest, salt = hash_password(password)
@@ -351,8 +430,20 @@ class ConfigStore:
                    for candidate in self.settings.api_keys)
 
     def authorize_api_request(self, key: str | None, *, host: str = "",
-                              origin: str = "", fetch_site: str = "") -> bool:
-        """Keep keyless loopback clients working without granting access to websites."""
+                              origin: str = "", fetch_site: str = "", peer: str = "") -> bool:
+        """Keep keyless loopback clients working without granting access to websites.
+
+        The app's own window never has the hub key to send (the UI sends no auth
+        header), so a configured key must not lock it out: a request that arrived
+        on the loopback interface, for a loopback Host, with a same-authority
+        Origin (or none) and a non-cross-site fetch is the window itself. A website
+        cannot fake that combination — the browser sets Origin and Sec-Fetch-Site —
+        and a remote caller cannot fake the peer address, so the Host/Origin pair
+        alone is never trusted. Callers that do not pass ``peer`` (the Proxy's /v1)
+        keep the old behaviour: the key is required whenever one is set.
+        """
+        if self._is_own_window(host, origin, fetch_site, peer):
+            return True
         if not self.check_api_key(key):
             return False
         if self.settings.api_keys:
@@ -374,6 +465,30 @@ class ConfigStore:
         except ValueError:
             return False
         return host_name in ("127.0.0.1", "localhost", "::1") and same_authority
+
+    @staticmethod
+    def _is_own_window(host: str, origin: str, fetch_site: str, peer: str) -> bool:
+        """True for a request from the app's own window (see authorize_api_request)."""
+        if not peer:
+            return False
+        # "testclient" is Starlette's test client (same idiom as telegram_use_api).
+        if peer != "testclient" and not _is_loopback_host(peer):
+            return False
+        if fetch_site.strip().lower() == "cross-site":
+            return False
+        try:
+            host_name = (urllib.parse.urlsplit("//" + host).hostname or "").lower()
+        except ValueError:
+            return False
+        if host_name not in ("127.0.0.1", "localhost", "::1"):
+            return False
+        if not origin:
+            return True
+        try:
+            parsed_origin = urllib.parse.urlsplit(origin)
+        except ValueError:
+            return False
+        return parsed_origin.netloc.lower() == host.lower()
 
     def provider_cfg(self, provider_id: str) -> Dict[str, Any]:
         return self.settings.provider_settings.setdefault(provider_id, {})
@@ -436,6 +551,14 @@ class ConfigStore:
                                 or any(not isinstance(item, str) for item in value)):
                             raise TypeError
                         candidate[key] = list(value)
+                    elif key == "cors_origins":
+                        # F15: only valid explicit origins are stored; wildcards
+                        # and malformed values are silently dropped, never saved.
+                        if (not isinstance(value, (list, tuple))
+                                or any(not isinstance(item, str) for item in value)):
+                            raise TypeError
+                        candidate[key] = [item.strip() for item in value
+                                          if item.strip() and valid_cors_origin(item.strip())]
                     elif isinstance(current, bool):
                         if isinstance(value, bool):
                             candidate[key] = value

@@ -345,9 +345,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     flags = args["flags"]
     if "--unregister-open-with" in flags:
         from . import winsys
+        winsys.unregister_explorer_menu()
         winsys.unregister()
         winsys.clean_script_choices()
         winsys.forget_state()
+        return 0
+    if "--sync-explorer-menu" in flags:
+        from . import winsys
+        winsys.sync_explorer_menu()
         return 0
     if "--migrate-open-with" in flags:
         from . import winsys
@@ -393,13 +398,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             pass
 
 def _migrate_assoc() -> None:
+    from . import winsys
     try:
-        from . import winsys
         result = winsys.migrate()
         if result.get("migrated"):
             log.warning("file associations cleaned up: %s", result)
     except Exception as exc:  # noqa: BLE001 - never block the start
         log.warning("association clean-up failed: %s", exc)
+    try:
+        winsys.sync_explorer_menu()
+    except Exception as exc:  # noqa: BLE001 - never block the start
+        log.warning("Explorer menu synchronization failed: %s", exc)
 
 def _run_window(webview: Any, app: Any, flags: set, url: str) -> Tuple[str, str]:
     """Create the pywebview window and run its loop: ``("", "")`` on a normal close, else (error, traceback)."""

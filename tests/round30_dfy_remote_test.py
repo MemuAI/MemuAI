@@ -5,6 +5,7 @@ temporary directory; MemuAI talks to it over HTTP with HMAC signatures. SSH is c
 stand-in ``ssh`` binary that runs the remote command locally. No network beyond 127.0.0.1.
 """
 import asyncio
+import itertools
 import json
 import os
 import platform
@@ -25,10 +26,13 @@ from app.dfy_remote import (HttpTransport, LocalTransport, MachineStore, RemoteM
 from app.dfy_vault import SecretVault
 
 ROOT = Path(__file__).resolve().parents[1]
+_HELPER_IDS = itertools.count(1)
 
 def python_command(root: Path, source: str, *, confirmation=False):
     """Only a uniquely named helper owned by this temporary fixture is executed."""
-    script = root / ("helper-%d.py" % time.monotonic_ns())
+    # A small counter, not a timestamp: a long digit run in the command line can look like
+    # a card number and be masked in the confirmation prompt the test reads back.
+    script = root / ("helper-%d.py" % next(_HELPER_IDS))
     script.write_text(source, encoding="utf-8")
     # A venv inside MemuAI is itself protected from destructive shell commands;
     # these standard-library-only helpers use its external base interpreter.

@@ -33,9 +33,39 @@ class Runtime(unittest.IsolatedAsyncioTestCase):
             self.broker_calls.append((actor,name,args))
             return {"tool":name,"ok":True,"result":"actual evidence"}
         self.broker_calls=[]
-        return TeamRun(definition(),complete=complete,tool=kwargs.pop("tool",broker),emit=self.events.append,
+        return TeamRun(kwargs.pop("team", definition()),complete=complete,tool=kwargs.pop("tool",broker),emit=self.events.append,
                        guard=kwargs.pop("guard",lambda:None),messages=[{"role":"user","content":"Build feature"}],
                        require_confirmation=False,manager_context="PRIVATE_PERSONAL_MEMORY",tools_prompt="Shared tool instructions",**kwargs)
+
+    async def test_economy_uses_smaller_payloads_and_skips_a_clean_final_rewrite(self):
+        calls = []
+        async def complete(model, messages, max_tokens):
+            calls.append((model, max_tokens))
+            system = messages[0]["content"]
+            if model == "manager-model" and "Select the explicit" in system:
+                return {"text": '{"lead_id":"lead","brief":"Check evidence"}'}
+            if model == "lead-model":
+                return {"text": "The evidence was verified."}
+            return {"text": "Manager’s final presentation."}
+
+        saved = definition()
+        standard = await self.run_for(complete, team=saved).run()
+        self.assertEqual(standard["run"]["calls"], 3)
+        self.assertTrue(all(limit == 6000 for _, limit in calls))
+        calls.clear()
+        runtime = self.run_for(complete, team={**saved, "run_mode": "economy"})
+        economy = await runtime.run()
+        self.assertEqual(economy["run"]["run_mode"], "economy")
+        self.assertEqual(economy["text"], "The evidence was verified.")
+        self.assertEqual(calls, [("manager-model", 4000), ("lead-model", 4000)])
+        self.assertEqual(runtime.budget["context_chars"], 32000)
+        self.assertEqual(saved["budget"]["context_chars"], 48000)
+        self.assertEqual(economy["run"]["lead_id"], "lead")
+
+        calls.clear()
+        customized = self.run_for(complete, team={**saved, "run_mode": "economy", "manager_instructions": "Present a checklist."})
+        self.assertEqual((await customized.run())["text"], "Manager’s final presentation.")
+        self.assertEqual(len(calls), 3)
 
     async def test_parallel_delegation_private_manager_context_and_final_review(self):
         calls=Counter(); captured=[]; active=0; peak=0
@@ -251,6 +281,30 @@ class StorageAPI(unittest.TestCase):
         self.assertEqual(self.client.post("/api/pg/teams/runs/"+done["run"]["id"]+"/answer",json={"profile_id":"default","request_id":"old","result":{}}).status_code,409)
         self.assertEqual(self.client.delete("/api/pg/teams/test-team?profile_id=default").status_code,200)
         self.assertEqual(self.client.get("/api/pg/teams").json()["teams"],[])
+
+    def test_team_run_mode_is_persisted_and_used_by_the_bridge(self):
+        standard = definition()
+        standard.pop("run_mode")  # Existing files and callers omit this field.
+        economy = {**standard, "id": "economy-team", "run_mode": "economy",
+                   "budget": {**standard["budget"], "context_chars": 24000}}
+        for row in (standard, economy):
+            self.assertEqual(self.client.post("/api/pg/teams", json={"team": row}).status_code, 200)
+        legacy_edit = {key: value for key, value in economy.items() if key != "run_mode"}
+        self.assertEqual(self.client.post("/api/pg/teams", json={"team": legacy_edit}).json()["team"]["run_mode"], "economy")
+        stored = {row["id"]: row for row in self.client.get("/api/pg/teams").json()["teams"]}
+        self.assertEqual(stored[standard["id"]]["run_mode"], "standard")
+        self.assertEqual(stored[economy["id"]]["budget"]["context_chars"], 24000)
+
+        with patch("app.teams_api.TeamRun", side_effect=lambda *args, **kwargs: TeamRun(*args, **kwargs, require_confirmation=False)):
+            stream = self.client.post("/api/pg/teams/run", json={
+                "team_id": economy["id"], "team_snapshot": {**economy, "run_mode": "standard"},
+                "chat_id": "chat-economy", "messages": [{"role": "user", "content": "Work"}],
+            })
+        self.assertEqual(stream.status_code, 200)
+        events = [json.loads(line[6:]) for line in stream.text.splitlines() if line.startswith("data: ") and line != "data: [DONE]"]
+        run = next(event["run"] for event in events if event["event"] == "done")
+        self.assertEqual((run["run_mode"], run["calls"]), ("economy", 2))
+        self.assertEqual(self.client.get("/api/pg/teams/runs").json()["runs"][0]["run_mode"], "economy")
 
     def test_invalid_members_and_duplicate_lead(self):
         bad=definition();bad["members"][1]["is_lead"]=True

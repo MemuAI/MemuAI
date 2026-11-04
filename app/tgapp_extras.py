@@ -543,7 +543,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
     @op("weblogin.inspect")
     async def weblogin_inspect(ctx, body):
         _web_enabled(ctx)
-        info = tgapp_weblogin.inspect(str(body.get("code") or ""))
+        info = tgapp_weblogin.inspect(str(body.get("code") or ""), key=ctx["user"])
         if info is None:
             raise ApiError(404, "no_request", t(ctx["prefs"], "Код не найден или устарел — обновите страницу в браузере",
                                                 "The code is unknown or expired — reload the page in the browser"))

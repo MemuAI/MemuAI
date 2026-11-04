@@ -425,7 +425,11 @@ class ProxyBackend(Backend):
 
     def client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = http_client(httpx.Timeout(900, connect=8), url=self.base_url(), trust_env=False)
+            # F35: total 900 s, but a silent stream (no SSE line for 120 s)
+            # is a timeout, not a hang — httpx raises ReadTimeout, which
+            # becomes an LLMError(kind="timeout") below.
+            self._client = http_client(httpx.Timeout(900, connect=8, read=120, write=30, pool=15),
+                                       url=self.base_url(), trust_env=False)
         return self._client
 
     def headers(self) -> Dict[str, str]:
@@ -596,6 +600,12 @@ class ProxyBackend(Backend):
                     yield StreamEvent(kind, text=text)
                 return
             except httpx.TransportError as exc:
+                if isinstance(exc, httpx.ReadTimeout):
+                    # F35: 120 s without a single SSE line — say so plainly
+                    # instead of the generic "connection lost".
+                    raise LLMError(tr("Модель не отвечает более 120 с — запрос остановлен по таймауту",
+                                      "The model has been silent for over 120 s — the request was stopped by timeout"),
+                                   kind="timeout", retryable=True) from exc
                 if started_output or attempts > 2:
                     raise LLMError(tr("Связь с MemuAI Proxy прервалась", "Lost the connection to MemuAI Proxy")
                                    + f" ({type(exc).__name__})", kind="network", retryable=True) from exc
@@ -698,7 +708,8 @@ class OpenAIBackend(Backend):
 
     def client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
-            self._client = http_client(httpx.Timeout(900, connect=15), url=self.base)
+            # F35: see ProxyBackend.client — read=120 s of SSE silence.
+            self._client = http_client(httpx.Timeout(900, connect=15, read=120, write=30, pool=15), url=self.base)
         return self._client
 
     def headers(self) -> Dict[str, str]:
@@ -878,6 +889,13 @@ class OpenAIBackend(Backend):
                     yield StreamEvent("done", finish=finish or ("tool_calls" if calls else "stop"))
                     return
             except httpx.TransportError as exc:
+                if isinstance(exc, httpx.ReadTimeout):
+                    # F35: 120 s without a single SSE line.
+                    raise LLMError(tr("Модель не отвечает более 120 с — запрос остановлен по таймауту",
+                                      "The model has been silent for over 120 s — the request was stopped by timeout"),
+                                   kind="timeout", retryable=True,
+                                   hint=tr(f"Проверьте {self.base} — возможно, провайдер завис.",
+                                           f"Check {self.base} — the provider may be stuck.")) from exc
                 if started or attempt >= 3:
                     raise LLMError(f"{type(exc).__name__}: {exc}", kind="network", retryable=True,
                                    hint=tr(f"Нет связи с {self.base} — проверьте адрес подключения, интернет или прокси.",

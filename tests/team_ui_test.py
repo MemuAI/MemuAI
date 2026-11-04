@@ -124,6 +124,24 @@ class TeamUI(unittest.TestCase):
         self.page.evaluate("setTheme('light',false)")
         self.page.screenshot(path=str(self.output / "team-home-light.png"))
 
+    def test_team_settings_keep_run_modes_and_budgets_independent(self):
+        self.create()
+        self.page.locator("#tm-run-mode").click()
+        self.assertTrue(self.page.locator('input[name="tm-run-mode"][value="standard"]').is_checked())
+        self.page.locator('input[name="tm-run-mode"][value="economy"]').check()
+        self.page.locator(".tm-budget summary").click()
+        self.page.locator("#tm-context").fill("24000")
+        self.page.locator("#tm-save").click()
+        self.page.wait_for_function("document.querySelector('#tm-run-mode')?.textContent.includes('Экономный')")
+        self.page.evaluate("teamStore.push({...teamStore[0],id:'other-team',name:'Вторая команда',run_mode:'standard'}); MemuTeams.open()")
+        self.page.locator('[data-tm-settings="other-team"]').click()
+        self.assertIn("Вторая команда", self.page.locator("#tm-editor h2").inner_text())
+        self.assertTrue(self.page.locator('input[name="tm-run-mode"][value="standard"]').is_checked())
+        self.page.locator("#tm-cancel").click()
+        self.page.locator('[data-tm-settings="test-team"]').click()
+        self.assertTrue(self.page.locator('input[name="tm-run-mode"][value="economy"]').is_checked())
+        self.assertEqual(self.page.locator("#tm-context").input_value(), "24000")
+
     def test_hidden_shortcut_remains_accessible_and_home_navigation_exits(self):
         self.create()
         self.page.locator("#tm-sidebar").uncheck()

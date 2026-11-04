@@ -338,7 +338,7 @@ class IntegrationTest(MemoryCase):
         self.assertIn("MemuMemory.contextFor", js)
         self.assertIn("MemuMemory.extract", js)
         html = (STATIC / "index.html").read_text(encoding="utf-8")
-        self.assertIn('/memory.js?v=1.1-r40', html)
+        self.assertIn('/memory.js?v=5.0-r80', html)
         self.assertIn('/memory.css?v=1.2-r40', html)
 
     def test_memory_js_syntax_and_rule_parser_parity(self) -> None:
@@ -348,7 +348,7 @@ class IntegrationTest(MemoryCase):
         subprocess.run([node, "--check", str(STATIC / "memory.js")], check=True)
         rules = ["Не запоминай ничего о здоровье", "Don't remember anything about money", "Пиши кратко",
                  "Никогда не запоминай «пароль» и \"кот\"", "Do not store my family or address"]
-        script = ("globalThis.window=globalThis;globalThis.document={querySelectorAll:()=>[],querySelector:()=>null};"
+        script = ("globalThis.window=globalThis;globalThis.document={querySelectorAll:()=>[],querySelector:()=>null,documentElement:{dataset:{}}};"
                   "globalThis.setTimeout=()=>0;require(process.argv[1]);"
                   "const rules=JSON.parse(process.argv[2]);"
                   "console.log(JSON.stringify(rules.map(r=>{const p=MemuMemory._parseRule(r);return [p.negative,p.cats.sort(),p.terms];})))")

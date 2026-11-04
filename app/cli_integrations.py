@@ -12,6 +12,10 @@ hand-edit env vars or config files. They can point at the Proxy or a direct API:
   pointing at our Responses-compatible ``/v1``, plus a ``[profiles.<name>]`` table per
   model the user wants (so they can run ``codex --profile <name>``), and,
   when it is safe to do so, top-level ``model`` / ``model_provider`` defaults.
+  The Codex desktop app and the IDE extension read the same file but cannot pick a
+  profile, so "app mode" takes the top-level ``model`` / ``model_provider`` /
+  ``profile`` keys over: their original lines are kept in the state file and put
+  back by reset() (or by applying again without app mode).
 
 Agent tools require an OpenAI-compatible Custom API connection whose upstream
 model implements function calling. Other providers remain available for text,
@@ -29,6 +33,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import tomllib
 import threading
 import time
@@ -277,6 +282,68 @@ def _slugify(value: str) -> str:
 def _strip_managed_block(text: str) -> str:
     return _BLOCK_RE.sub("", text)
 
+CODEX_APP_KEYS = ("model", "model_provider", "profile")
+_ROOT_KEY_RE = re.compile(r"""^[ \t]*["']?(model|model_provider|profile)["']?[ \t]*=.*$""", re.MULTILINE)
+
+def _root_end(text: str) -> int:
+    """Where the root table ends: the first table header, or the end of the text."""
+    match = _TABLE_HEADER_RE.search(text)
+    return match.start() if match else len(text)
+
+def _take_root_keys(text: str) -> Tuple[str, Dict[str, str]]:
+    """``text`` without its top-level model/model_provider/profile lines, and those lines by key."""
+    end = _root_end(text)
+    root, rest = text[:end], text[end:]
+    taken: Dict[str, str] = {}
+
+    def drop(match: "re.Match[str]") -> str:
+        taken.setdefault(match.group(1), match.group(0).strip())
+        return "\x00"
+    root = _ROOT_KEY_RE.sub(drop, root)
+    root = re.sub(r"\x00\r?\n?", "", root)
+    return root + rest, taken
+
+def _put_root_keys(text: str, lines: Dict[str, str]) -> str:
+    """Put saved top-level lines back, skipping keys the file defines again by now."""
+    try:
+        doc = tomllib.loads(text) if text.strip() else {}
+    except tomllib.TOMLDecodeError:
+        doc = {}
+    missing = [line for key, line in lines.items() if key not in doc and line]
+    if not missing:
+        return text
+
+    head = re.match(r"(?:[ \t]*(?:#[^\n]*)?\n)*", text)
+    at = head.end() if head else 0
+    rest = text[at:]
+    gap = "\n" if rest.lstrip().startswith("[") else ""
+    return text[:at] + "\n".join(missing) + "\n" + gap + rest
+
+def codex_app_candidates(home: Optional[str] = None) -> List[str]:
+    """Where the Codex desktop app is usually installed on this system."""
+    base = home_dir(home)
+    if os.environ.get("MEMUAI_CODEX_APP_PATHS"):
+        return [path for path in os.environ["MEMUAI_CODEX_APP_PATHS"].split(os.pathsep) if path]
+    if sys.platform == "darwin":
+        return ["/Applications/Codex.app", os.path.join(base, "Applications", "Codex.app")]
+    if os.name == "nt":
+        local = os.environ.get("LOCALAPPDATA") or os.path.join(base, "AppData", "Local")
+        programs = os.environ.get("ProgramFiles") or r"C:\Program Files"
+        return [os.path.join(local, "Programs", "Codex", "Codex.exe"), os.path.join(local, "Programs", "codex", "Codex.exe"),
+                os.path.join(programs, "Codex", "Codex.exe"), os.path.join(local, "Microsoft", "WindowsApps", "Codex.exe"),
+                os.path.join(local, "Packages", "OpenAI.Codex*")]
+    return [os.path.join(base, ".local", "share", "applications", "codex.desktop"), "/usr/share/applications/codex.desktop",
+            "/opt/Codex", os.path.join(base, "Applications", "Codex.AppImage")]
+
+def codex_app_info(home: Optional[str] = None) -> Dict[str, Any]:
+    """Whether the Codex desktop app looks installed (best effort — it only changes the wording in the UI)."""
+    import glob
+    for candidate in codex_app_candidates(home):
+        found = glob.glob(candidate) if any(char in candidate for char in "*?[") else ([candidate] if os.path.exists(candidate) else [])
+        if found:
+            return {"found": True, "path": found[0]}
+    return {"found": False, "path": ""}
+
 def codex_status(home: Optional[str] = None, state_path: Optional[str] = None) -> Dict[str, Any]:
     state_path = state_path or STATE_PATH
     state = _load_state(state_path).get("codex") or {}
@@ -291,15 +358,20 @@ def codex_status(home: Optional[str] = None, state_path: Optional[str] = None) -
         "profiles": state.get("profiles") or [],
         "default_profile": state.get("default_profile") or "",
         "default_set": bool(state.get("default_written")),
+        "app_mode": bool(state.get("app_mode")),
+        "taken_over": sorted((state.get("restore_root") or {}).keys()),
+        "app": codex_app_info(home),
     }
 
 def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None,
                 home: Optional[str] = None, state_path: Optional[str] = None,
                 base_url: Optional[str] = None, api_key: Optional[str] = None,
-                connection: str = "proxy") -> Dict[str, Any]:
+                connection: str = "proxy", app: bool = False) -> Dict[str, Any]:
     """profiles: [{"name": <slug, optional>, "model": <proxy model id>}, ...].
     default: profile name (after slugifying) to also install as the top-level
-    default model/model_provider, when that is safe (see module docstring)."""
+    default model/model_provider, when that is safe (see module docstring).
+    app: also make it the default of the Codex desktop app / IDE extension, taking
+    over the user's own top-level model, model_provider and profile (restored by reset)."""
     state_path = state_path or STATE_PATH
     path = codex_config_path(home)
     backup_path = path + ".memuai-backup"
@@ -346,6 +418,15 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
         _ensure_backup(path, backup_path)
 
         remainder = _strip_managed_block(original)
+        saved_root: Dict[str, str] = dict((_load_state(state_path).get("codex") or {}).get("restore_root") or {})
+        if app:
+            remainder, taken = _take_root_keys(remainder)
+            for root_key, line in taken.items():
+                saved_root.setdefault(root_key, line)
+        elif saved_root:
+
+            remainder = _put_root_keys(remainder, saved_root)
+            saved_root = {}
         try:
             remainder_doc = tomllib.loads(remainder) if remainder.strip() else {}
         except tomllib.TOMLDecodeError as exc:
@@ -368,7 +449,8 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
                 f"В {path} уже есть профиль(и) {', '.join(clashing)}, не созданные MemuAI.",
                 f"{path} already has profile(s) {', '.join(clashing)} MemuAI did not create.")
 
-        can_set_default = "model" not in remainder_doc and "model_provider" not in remainder_doc
+        can_set_default = "model" not in remainder_doc and "model_provider" not in remainder_doc and (
+            not app or "profile" not in remainder_doc)
 
         lines = [_BEGIN]
         if can_set_default:
@@ -413,18 +495,22 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
             "profiles": clean_profiles, "default_profile": default_slug if can_set_default else "",
             "default_written": can_set_default, "path": path, "backup_path": backup_path,
             "connection": connection, "base_url": base_url, "api_key_set": bool(key),
+            "app_mode": bool(app and can_set_default), "restore_root": saved_root,
         }
         _save_state(state_path, full_state)
 
     return {"ok": True, "path": path, "backup_path": backup_path, "profiles": clean_profiles,
             "default_profile": default_slug if can_set_default else "",
-            "default_set": can_set_default,
+            "default_set": can_set_default, "app_mode": bool(app and can_set_default),
+            "taken_over": sorted(saved_root.keys()),
             "note_en": ("" if can_set_default else
                         "config.toml already defines a top-level model/model_provider; "
-                        "MemuAI only added profiles — switch to one with `codex --profile <name>`."),
+                        "MemuAI only added profiles — switch to one with `codex --profile <name>`. "
+                        "Turn on the Codex app option to make MemuAI the default."),
             "note": ("" if can_set_default else
                      "В config.toml уже есть свои model/model_provider; MemuAI только добавил профили — "
-                     "переключайтесь через `codex --profile <name>`.")}
+                     "переключайтесь через `codex --profile <name>`. Чтобы MemuAI стал моделью по умолчанию, "
+                     "включите вариант для приложения Codex.")}
 
 def reset_codex(*, home: Optional[str] = None, state_path: Optional[str] = None) -> Dict[str, Any]:
     state_path = state_path or STATE_PATH
@@ -438,6 +524,8 @@ def reset_codex(*, home: Optional[str] = None, state_path: Optional[str] = None)
             with open(path, "r", encoding="utf-8-sig") as f:
                 original = f.read()
             new_text = _strip_managed_block(original)
+            if codex_state.get("restore_root"):
+                new_text = _put_root_keys(new_text, codex_state["restore_root"])
             try:
                 tomllib.loads(new_text)
             except tomllib.TOMLDecodeError as exc:
@@ -449,6 +537,7 @@ def reset_codex(*, home: Optional[str] = None, state_path: Optional[str] = None)
             _atomic_write_text(path, new_text)
         full_state["codex"] = {"profiles": [], "default_profile": "", "default_written": False,
                                 "path": path, "backup_path": path + ".memuai-backup",
-                                "connection": "proxy", "base_url": "", "api_key_set": False}
+                                "connection": "proxy", "base_url": "", "api_key_set": False,
+                                "app_mode": False, "restore_root": {}}
         _save_state(state_path, full_state)
     return {"ok": True, "path": path}

@@ -3,7 +3,7 @@
 .sg-name { width: 92px; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: 600 12px var(--mono); text-align: center; }
 .sg-name:focus, .sg-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .sg-fx { font: italic 600 12px var(--sans); color: var(--muted); padding: 0 2px; user-select: none; }
-.sg-input { flex: 1 1 auto; min-width: 0; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: 13px var(--mono); }
+.sg-input { flex: 1 1 auto; min-width: 0; height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--field-bg, var(--bg)); color: var(--text); font: 13px var(--mono); }
 .sg.readonly .sg-input { color: var(--muted); }
 .sg-ro { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .sg-ro .ic, .sg-ro svg { width: 14px; height: 14px; }

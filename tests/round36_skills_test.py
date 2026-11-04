@@ -162,8 +162,8 @@ class FrontendStatic(unittest.TestCase):
         self.assertNotIn(".sk-card:has(", css)
         self.assertIn(".sk-vrow [hidden]", css)
         html = (STATIC / "index.html").read_text(encoding="utf-8")
-        self.assertIn("/skills-ui.js?v=1.0-r36", html)
-        self.assertIn("/skills-ui.css?v=1.0-r36", html)
+        self.assertIn("/skills-ui.js?v=5.0-r78", html)
+        self.assertRegex(html, r"/skills-ui\.css\?v=5\.0-r(?:79|8\d)\"")
 
 try:
     from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402

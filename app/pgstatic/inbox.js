@@ -156,7 +156,9 @@
       st.error = e.message;
     } finally { st.loading = false; }
   }
-  const isOpen = () => !!$q("#panel.ibx-panel #ibx-root");
+  // closePanel() only hides the host, the markup stays: an inbox that was
+  // opened and closed must not count as open, or it never shows again.
+  const isOpen = () => !!$q("#panel.ibx-panel #ibx-root") && !!document.getElementById("panel-back")?.classList.contains("visible");
 
   function visible() {
     const q = st.q.trim().toLowerCase();
@@ -530,6 +532,7 @@
   }
 
   function boot() {
+    if (document.documentElement.dataset.moduleApp) return;
     ensureButton();
     document.addEventListener("click", (e) => {
       if (st.menu && !(e.target.closest && e.target.closest(".ibx-snooze-wrap"))) { st.menu = ""; renderList(); }

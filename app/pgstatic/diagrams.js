@@ -383,7 +383,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     const swatch = (it, x, y) => {
       const off = hidden.has(it.i);
       const lw = Math.ceil(measure(it.name, fs, fam));
-      legend.push(`<g class="md-leg" data-series="${it.i}" style="cursor:pointer" opacity="${off ? 0.38 : 1}"><title>${esc(t("Нажмите, чтобы скрыть или показать", "Click to hide or show"))}</title><rect x="${x}" y="${y - fs * 0.78}" width="${fs * 0.9}" height="${fs * 0.9}" rx="${fs * 0.22}" fill="${esc(it.color)}"/><text x="${x + fs * 1.3}" y="${y}" font-size="${fs}" fill="${esc(th.text)}"${off ? ' text-decoration="line-through"' : ""}>${esc(it.name)}</text>${pieLike && it.value !== null && it.value !== undefined ? `<text x="${x + fs * 1.3 + lw + 6}" y="${y}" font-size="${fs}" fill="${esc(th.muted)}">${esc(fmtNum(it.value, spec.y.unit, true))}</text>` : ""}</g>`);
+      legend.push(`<g class="md-leg" data-series="${it.i}" style="cursor:pointer" opacity="${off ? 0.38 : 1}"><title>${esc(t("Нажмите, чтобы скрыть или показать", "Click to hide or show"))}</title><rect x="${x}" y="${y - fs * 0.78}" width="${fs * 0.9}" height="${fs * 0.9}" rx="${fs * 0.22}" fill="${esc(it.color)}"/><text class="md-leg-t" x="${x + fs * 1.3}" y="${y}" font-size="${fs}" fill="${esc(th.text)}"${off ? ' text-decoration="line-through"' : ""}>${esc(it.name)}</text>${pieLike && it.value !== null && it.value !== undefined ? `<text class="md-leg-t" x="${x + fs * 1.3 + lw + 6}" y="${y}" font-size="${fs}" fill="${esc(th.muted)}">${esc(fmtNum(it.value, spec.y.unit, true))}</text>` : ""}</g>`);
     };
     if (legendPos === "top" || legendPos === "bottom") {
       const rows = [[]]; let x = 0;
@@ -733,6 +733,26 @@ table unless asked, and never mention "the code block" or "the JSON".
       _bg: th.background, _exportBg: th.exportBg, _dark: dark,
     };
   }
+  // B-XSS-H1: belt-and-braces on top of Mermaid securityLevel:"strict" —
+  // the SVG string is built from model-supplied diagram code and inserted
+  // via innerHTML. Parse it as XML and drop anything executable before it
+  // ever touches the DOM (same pattern as export.js svgFromData).
+  function sanitizeSvg(svgText) {
+    try {
+      const doc = new DOMParser().parseFromString(String(svgText || ""), "image/svg+xml");
+      const svg = doc.querySelector("svg");
+      if (!svg) return "";
+      svg.querySelectorAll("script, foreignObject, animate, set, iframe, object, embed, link, style").forEach((el) => el.remove());
+      svg.querySelectorAll("*").forEach((el) => {
+        [...el.attributes].forEach((attr) => {
+          const name = attr.name.toLowerCase();
+          if (name.startsWith("on") || (/^(href|xlink:href)$/.test(name) && /^\s*javascript:/i.test(attr.value))) el.removeAttribute(attr.name);
+        });
+      });
+      return new XMLSerializer().serializeToString(svg);
+    } catch (e) { return ""; }
+  }
+
   function sanitizeMermaid(code) {
 
     return String(code || "").replace(/^\s*%%\{[\s\S]*?\}%%\s*$/gm, "").replace(/^\s*click\s+.*$/gim, "").trim();
@@ -832,7 +852,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     const value = String(text || "");
     const open = value.match(/```[ \t]*(memuai[-_]?chart|mermaid|mmd)\b(?:(?!```)[\s\S])*$/i);
     if (open) return value.slice(0, open.index) + "```memuai-diagram-pending\n" + (/^m/i.test(open[1]) && !/^memuai/i.test(open[1]) ? "mermaid" : "chart") + "\n```";
-    const closed = value.match(/```[ \t]*(memuai[-_]?chart|mermaid|mmd)\b[\s\S]*?```\s*$/i);
+    const closed = value.match(/```[ \t]*(memuai[-_]?chart|mermaid|mmd)\b(?:(?!```)[\s\S])*```\s*$/i);
     if (closed) return value.slice(0, closed.index) + "```memuai-diagram-pending\n" + (/^memuai/i.test(closed[1]) ? "chart" : "mermaid") + "\n```\n";
     return value;
   }
@@ -910,7 +930,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     host.classList.remove("md-failed");
     const label = kind === "mermaid" ? mermaidKind(code) : (result.spec?.title || t("График", "Chart"));
     const bgStyle = kind === "mermaid" ? "" : "";
-    host.innerHTML = `<div class="md-stage${kind === "mermaid" ? " md-scheme" : ""}" title="" ${bgStyle}>${result.svg}</div>${barHtml(kind)}<pre class="md-code"${keepCode ? "" : " hidden"}><code>${esc(code)}</code></pre>`;
+    host.innerHTML = `<div class="md-stage${kind === "mermaid" ? " md-scheme" : ""}" title="" ${bgStyle}>${sanitizeSvg(result.svg)}</div>${barHtml(kind)}<pre class="md-code"${keepCode ? "" : " hidden"}><code>${esc(code)}</code></pre>`;
     host.setAttribute("aria-label", label);
     const svg = host.querySelector(".md-stage svg");
     if (svg && kind === "mermaid" && window.MemuDiagramZoom && !opts.detached) {
@@ -1047,7 +1067,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       const W = r.width + pad * 2, H = r.height + pad * 2;
       const bgv = opts.background !== undefined ? opts.background : (style.background === "none" ? "none" : style.background === "theme" ? r.exportBg : style.background === "solid" ? style.bg1 : { gradient: [style.bg1, style.bg2, style.gradAngle] });
       const bg = bgMarkup(bgv, W, H, "mdx" + (++uid), 0);
-      const inner = r.svg.replace(/^<svg/, `<svg x="${pad}" y="${pad}"`);
+      const inner = sanitizeSvg(r.svg).replace(/^<svg/, `<svg x="${pad}" y="${pad}"`);
       return { svg: `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><defs>${bg.defs}</defs>${bg.rect}${inner}</svg>`, width: W, height: H };
     }
     const spec = src.spec ? normalizeSpec(src.spec) : parseSpec(src.code);

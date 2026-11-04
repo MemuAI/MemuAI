@@ -24,6 +24,7 @@ import json
 import os
 import socket
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -50,6 +51,14 @@ class DnsTestBase(unittest.TestCase):
 
 def _gaierror(errno):
     return socket.gaierror(errno, "Name or service not known")
+
+
+class EdgeDiscoveryClassificationTest(unittest.TestCase):
+    def test_named_tunnel_regional_endpoints_are_not_global(self):
+        for domain in ("us-region1.v2.argotunnel.com", "region1.v2.argotunnel.com.example"):
+            with self.subTest(domain=domain):
+                self.assertFalse(tg_webapp._edge_dns_failure(f"lookup {domain}: no such host", quick=False))
+        self.assertTrue(tg_webapp._edge_dns_failure("lookup region1.v2.argotunnel.com: no such host", quick=False))
 
 
 class ResolveHostTest(DnsTestBase):
@@ -369,6 +378,533 @@ class DesktopStatusTest(DnsTestBase):
         self.assertEqual(data["local_url"], "http://127.0.0.1:8641/tgapp/")
         self.assertEqual(data["diagnostics"]["local_url"], "http://127.0.0.1:8641/tgapp/")
         self.assertEqual(data["diagnostics"]["host"], "")
+
+
+class EdgeDnsFailureWidenedTest(unittest.TestCase):
+    """Real lines from cloudflared 2026.10.7 in a network namespace without
+    DNS: the SRV discovery failure, its shutdown line, and a failed lookup
+    of the quick-tunnel API. Before the fix the first two produced no
+    hint at all and the third was misclassified as "no address"."""
+    SRV_TIMEOUT = ('2026-11-03T12:00:00Z ERR edge discovery: error looking up Cloudflare edge IPs: '
+                   'the DNS query failed error="lookup _v2-origintunneld._tcp.argotunnel.com on '
+                   '[fd8b:4f84:7d32:99::1]:53: dial udp [fd8b:4f84:7d32:99::1]:53: connect: '
+                   'cannot assign requested address"')
+    SRV_SHUTDOWN = ('2026-11-03T12:00:01Z ERR Initiating shutdown error="Could not lookup srv records '
+                    'on _v2-origintunneld._tcp.argotunnel.com: lookup _v2-origintunneld._tcp.argotunnel.com '
+                    'on [fd8b:4f84:7d32:99::1]:53: dial udp [fd8b:4f84:7d32:99::1]:53: connect: '
+                    'cannot assign requested address"')
+    API_NXDOMAIN = ('2026-11-03T12:00:00Z ERR failed to request quick Tunnel: Post '
+                    '"https://api.trycloudflare.com/tunnel": dial tcp: lookup api.trycloudflare.com: '
+                    'no such host')
+
+    def test_srv_timeout_triggers_the_fallback(self):
+        self.assertTrue(tg_webapp._edge_dns_failure(self.SRV_TIMEOUT, quick=True))
+        self.assertTrue(tg_webapp._edge_dns_failure(self.SRV_TIMEOUT, quick=False))
+
+    def test_srv_shutdown_line_is_not_invisible(self):
+        self.assertTrue(tg_webapp._edge_dns_failure(self.SRV_SHUTDOWN, quick=True))
+        self.assertTrue(tg_webapp._edge_dns_failure(self.SRV_SHUTDOWN, quick=False))
+
+    def test_api_lookup_failure_triggers_the_fallback_for_quick_tunnels(self):
+        self.assertTrue(tg_webapp._edge_dns_failure(self.API_NXDOMAIN, quick=True))
+        # A named tunnel never talks to api.trycloudflare.com.
+        self.assertFalse(tg_webapp._edge_dns_failure(self.API_NXDOMAIN, quick=False))
+
+    def test_srv_lines_name_the_host_in_the_hint(self):
+        for line in (self.SRV_TIMEOUT, self.SRV_SHUTDOWN):
+            with self.subTest(line=line[:40]):
+                hint = tg_webapp._tunnel_error_hint(line)
+                self.assertIn("_v2-origintunneld._tcp.argotunnel.com", hint)
+                self.assertIn("не резолвится", hint)
+                self.assertIn("Смените DNS", hint)
+
+    def test_api_lookup_failure_is_a_dns_hint_not_a_no_address_hint(self):
+        hint = tg_webapp._tunnel_error_hint(self.API_NXDOMAIN)
+        self.assertIn("api.trycloudflare.com", hint)
+        self.assertIn("не резолвится", hint)
+        self.assertNotIn("не выдал адрес", hint)
+
+    def test_tls_failure_still_says_no_address(self):
+        hint = tg_webapp._tunnel_error_hint(
+            '2026-11-03T12:00:00Z ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": '
+            'tls: first record does not look like a TLS handshake')
+        self.assertIn("не выдал адрес", hint)
+
+    def test_new_hint_texts_have_english_twins(self):
+        for text in (
+                "Компьютер не может найти серверы Cloudflare (DNS): не резолвится region1.v2.argotunnel.com — системный DNS не отдаёт адреса Cloudflare. Смените DNS на 1.1.1.1 или 8.8.8.8 либо используйте свой туннель",
+                "Компьютер не может найти серверы Cloudflare (DNS) — системный DNS не отдаёт адреса Cloudflare. Смените DNS на 1.1.1.1 или 8.8.8.8 либо используйте свой туннель"):
+            self.assertNotRegex(tg_webapp.status_en(text), "[А-Яа-яЁё]")
+
+
+class _FakeDoHResponse:
+    def __init__(self, answers=None, status=200):
+        self._answers = answers or []
+        self.status_code = status
+
+    def raise_for_status(self):
+        if self.status_code != 200:
+            raise httpx.HTTPStatusError("bad", request=None, response=None)
+
+    def json(self):
+        return {"Answer": self._answers}
+
+
+class _FakeDoHClient:
+    def __init__(self, handler):
+        self.handler = handler
+        self.calls = []
+
+    async def get(self, endpoint, params=None, headers=None):
+        self.calls.append((endpoint, params["name"], params["type"]))
+        return self.handler(endpoint, params["name"], params["type"])
+
+    async def aclose(self):
+        pass
+
+
+class EdgeDoHTest(DnsTestBase, unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        DnsTestBase.setUp(self)
+        unittest.IsolatedAsyncioTestCase.setUp(self)
+
+    async def test_first_doh_source_down_second_answers(self):
+        def handler(endpoint, name, _type):
+            if "1.1.1.1" in endpoint:
+                raise httpx.ConnectError("down")
+            return _FakeDoHResponse([{"name": name, "type": 1, "data": "198.41.192.7"},
+                                     {"name": name, "type": 1, "data": "198.41.192.47"}])
+
+        addresses, source = await tg_webapp._resolve_edge_addresses("4", client=_FakeDoHClient(handler))
+        self.assertEqual(source, "doh:8.8.8.8")
+        self.assertEqual(addresses, "198.41.192.7:7844,198.41.192.47:7844")
+        self.assertEqual(addresses.source, "doh:8.8.8.8")
+
+    async def test_all_doh_sources_down(self):
+        def handler(*_args):
+            raise httpx.ConnectError("down")
+
+        addresses, source = await tg_webapp._resolve_edge_addresses("4", client=_FakeDoHClient(handler))
+        self.assertEqual((addresses, source), ("", ""))
+
+    async def test_broken_httpx_client_means_no_edge_not_an_exception(self):
+        # The sandbox proxy env makes httpx.AsyncClient() itself raise
+        # InvalidURL ("[::1]" in no_proxy): that must never kill the
+        # tunnel loop, it just means "no edge from DoH".
+        with mock.patch("httpx.AsyncClient", side_effect=httpx.InvalidURL("bad")):
+            self.assertEqual(await tg_webapp._resolve_edge_addresses("4"), ("", ""))
+
+    async def test_cloudflare_edge_addresses_stays_a_plain_string(self):
+        def handler(endpoint, name, _type):
+            return _FakeDoHResponse([{"name": name, "type": 1, "data": "198.41.192.7"}])
+
+        addresses = await tg_webapp._cloudflare_edge_addresses("4", client=_FakeDoHClient(handler))
+        self.assertEqual(addresses, "198.41.192.7:7844")
+
+
+class EdgeCacheTest(DnsTestBase):
+    def test_save_load_round_trip(self):
+        tg_webapp.save_edge_cache("198.41.192.7:7844,198.41.192.47:7844", "doh:1.1.1.1")
+        self.assertEqual(tg_webapp.load_edge_cache(),
+                         ("198.41.192.7:7844,198.41.192.47:7844", "cache"))
+
+    def test_expired_cache_is_ignored(self):
+        tg_webapp.save_edge_cache("198.41.192.7:7844", "doh:1.1.1.1")
+        path = tg_webapp._edge_cache_path()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["at"] -= 49 * 3600
+        path.write_text(json.dumps(data), encoding="utf-8")
+        self.assertEqual(tg_webapp.load_edge_cache(), ("", ""))
+
+    def test_malformed_and_private_cache_is_rejected(self):
+        path = tg_webapp._edge_cache_path()
+        for bad in ("198.41.192.7:9999", "10.0.0.1:7844", "not-an-ip:7844", "198.41.192.7"):
+            with self.subTest(bad=bad):
+                path.write_text(json.dumps({"addresses": bad, "at": int(time.time())}),
+                                encoding="utf-8")
+                self.assertEqual(tg_webapp.load_edge_cache(), ("", ""))
+        path.write_text("not json", encoding="utf-8")
+        self.assertEqual(tg_webapp.load_edge_cache(), ("", ""))
+
+
+class _DeadProcess:
+    """A cloudflared that exits at once with no output."""
+
+    def __init__(self):
+        import io
+
+        self.stdout = io.StringIO("")
+        self.returncode = None
+        self.terminated = False
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        self.returncode = 1
+        return 1
+
+    def terminate(self):
+        self.terminated = True
+        self.returncode = -15
+
+    def kill(self):
+        self.terminate()
+
+
+class _LineProcess:
+    """A cloudflared that prints lines, then exits with code 1."""
+
+    def __init__(self, lines):
+        import io
+
+        self.stdout = io.StringIO("".join(line + "\n" for line in lines))
+        self.returncode = None
+        self.terminated = False
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        self.returncode = 1
+        return 1
+
+    def terminate(self):
+        self.terminated = True
+        self.returncode = -15
+
+    def kill(self):
+        self.terminate()
+
+
+class TunnelPreflightTest(DnsTestBase):
+    def _tunnel(self, **kwargs):
+        started = []
+
+        def popen(command, **kwargs):
+            started.append(kwargs)
+            return _DeadProcess()
+
+        tunnel = tg_webapp.CloudflaredTunnel(
+            Path("/nonexistent/cloudflared"), 8641, on_url=lambda u: None,
+            on_state=lambda s, e: None, popen=popen,
+            sleep=lambda seconds: asyncio.sleep(0), max_failures=1,
+            auto_retry_delay=3600, max_auto_cycles=0, **kwargs)
+        return tunnel, started
+
+    async def _drive(self, tunnel, started):
+        tunnel.start()
+        deadline = asyncio.get_running_loop().time() + 5
+        while not started and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(0.01)
+        await tunnel.stop()
+
+    def test_system_dns_ok_means_no_bypass(self):
+        tunnel, started = self._tunnel()
+        with mock.patch.object(tg_webapp, "resolve_host", new=mock.AsyncMock(return_value=True)):
+            asyncio.run(self._drive(tunnel, started))
+        self.assertEqual(len(started), 1)
+        self.assertNotIn("env", started[0])
+        self.assertEqual(tunnel.edge_source, "system")
+        self.assertEqual(tunnel._edge_addresses, "")
+
+    def test_preflight_never_delays_the_launch(self):
+        # A slow or unavailable DoH resolver must not delay the launch. The
+        # first attempt starts while DoH is still hanging — without
+        # TUNNEL_EDGE — and the pre-flight delivers its addresses in the
+        # background for the next attempt.
+        tunnel, started = self._tunnel()
+        gate = asyncio.Event()
+
+        async def hanging_doh(family):
+            await gate.wait()
+            return "", ""
+
+        with mock.patch.object(tg_webapp, "resolve_host", new=mock.AsyncMock(return_value=False)), \
+                mock.patch.object(tg_webapp, "_resolve_edge_addresses", new=hanging_doh):
+            asyncio.run(self._drive(tunnel, started))
+        self.assertEqual(len(started), 1)
+        self.assertNotIn("env", started[0])
+
+    def test_background_preflight_applies_the_edge_and_writes_the_cache(self):
+        tunnel, started = self._tunnel()
+        edge = tg_webapp._EdgeAddresses("198.41.192.7:7844")
+        edge.source = "doh:1.1.1.1"
+
+        async def slow_doh(family):
+            await asyncio.sleep(0.05)
+            return edge, "doh:1.1.1.1"
+
+        with mock.patch.object(tg_webapp, "resolve_host", new=mock.AsyncMock(return_value=False)), \
+                mock.patch.object(tg_webapp, "_resolve_edge_addresses", new=slow_doh):
+            async def drive():
+                tunnel.start()
+                deadline = asyncio.get_running_loop().time() + 5
+                while tunnel._edge_addresses != "198.41.192.7:7844" \
+                        and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.01)
+                self.assertEqual(tunnel._edge_addresses, "198.41.192.7:7844")
+                self.assertEqual(tunnel.edge_source, "doh:1.1.1.1")
+                await tunnel.stop()
+
+            asyncio.run(drive())
+        self.assertEqual(tg_webapp.load_edge_cache(), ("198.41.192.7:7844", "cache"))
+
+    def test_dead_doh_falls_back_to_the_cache(self):
+        tg_webapp.save_edge_cache("198.41.192.47:7844", "doh:1.1.1.1")
+        tunnel, started = self._tunnel()
+        with mock.patch.object(tg_webapp, "resolve_host", new=mock.AsyncMock(return_value=False)), \
+                mock.patch.object(tg_webapp, "_resolve_edge_addresses",
+                                  new=mock.AsyncMock(return_value=("", ""))):
+            asyncio.run(self._drive(tunnel, started))
+        self.assertEqual(started[0]["env"]["TUNNEL_EDGE"], "198.41.192.47:7844")
+        self.assertEqual(tunnel.edge_source, "cache")
+
+    def test_explicit_tunnel_edge_skips_the_preflight(self):
+        tunnel, started = self._tunnel()
+        resolve = mock.AsyncMock(return_value=False)
+        doh = mock.AsyncMock(return_value=("", ""))
+        with mock.patch.dict(os.environ, {"TUNNEL_EDGE": "198.41.192.99:7844"}), \
+                mock.patch.object(tg_webapp, "resolve_host", new=resolve), \
+                mock.patch.object(tg_webapp, "_resolve_edge_addresses", new=doh):
+            asyncio.run(self._drive(tunnel, started))
+        resolve.assert_not_called()
+        doh.assert_not_called()
+        # No explicit env: the process inherits TUNNEL_EDGE from the
+        # environment, so _run_once passes nothing.
+        self.assertNotIn("env", started[0])
+
+
+class TunnelRetryTest(DnsTestBase):
+    def test_retry_keeps_the_edge_addresses(self):
+        tunnel = tg_webapp.CloudflaredTunnel(Path("/nonexistent/cloudflared"), 8641,
+                                             on_url=lambda u: None, on_state=lambda s, e: None)
+        tunnel._edge_addresses = "198.41.192.7:7844"
+        tunnel.failures = 6
+        tunnel.gave_up = True
+        tunnel.auto_cycles = 2
+        tunnel._preflight_done = True
+        tunnel.start = lambda: None  # the task itself is not under test here
+        tunnel.retry()
+        self.assertEqual(tunnel._edge_addresses, "198.41.192.7:7844")
+        self.assertEqual(tunnel.failures, 0)
+        self.assertFalse(tunnel.gave_up)
+        self.assertEqual(tunnel.auto_cycles, 0)
+        self.assertFalse(tunnel._preflight_done)
+
+    def test_give_up_retries_itself_once(self):
+        started = []
+
+        def popen(command, **kwargs):
+            started.append(command)
+            return _DeadProcess()
+
+        tunnel = tg_webapp.CloudflaredTunnel(
+            Path("/nonexistent/cloudflared"), 8641, on_url=lambda u: None,
+            on_state=lambda s, e: None, popen=popen,
+            sleep=lambda seconds: asyncio.sleep(0), max_failures=1,
+            auto_retry_delay=0.05, max_auto_cycles=1)
+
+        async def drive():
+            with mock.patch.object(tg_webapp, "resolve_host", new=mock.AsyncMock(return_value=True)):
+                tunnel.start()
+                deadline = asyncio.get_running_loop().time() + 5
+                while len(started) < 2 and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.01)
+                await tunnel.stop()
+
+        asyncio.run(drive())
+        self.assertGreaterEqual(len(started), 2)
+        self.assertEqual(tunnel.auto_cycles, 1)
+
+
+class TunnelWatchdogTest(DnsTestBase):
+    def _manager(self, probe):
+        manager = tg_webapp.Manager()
+        manager.state = "online"
+        manager.url = "https://quiet-river-cat.trycloudflare.com"
+        manager.tunnel = mock.Mock()
+        manager.tunnel.stop = mock.AsyncMock()
+        manager.probe = probe
+        return manager
+
+    def test_three_unreachable_probes_restart_the_tunnel(self):
+        manager = self._manager(lambda base: ("unreachable", "boom"))
+        config = {"mode": "cloudflare"}
+
+        async def drive():
+            results = []
+            for _ in range(3):
+                manager._health_checked_at = float("-inf")
+                results.append(await manager._watchdog(config))
+            return results
+
+        results = asyncio.run(drive())
+        self.assertEqual(results, [False, False, True])
+        self.assertEqual(manager._health_restarts, 1)
+        self.assertIsNone(manager.tunnel)
+
+    def test_dns_and_http_failures_never_restart(self):
+        for kind in ("dns", "http"):
+            with self.subTest(kind=kind):
+                probes = []
+                manager = self._manager(lambda base, kind=kind: probes.append(base) or (kind, "x"))
+                config = {"mode": "cloudflare"}
+                manager._health_checked_at = float("-inf")
+                self.assertFalse(asyncio.run(manager._watchdog(config)))
+                self.assertEqual(manager._health_failures, 0)
+                self.assertIsNotNone(manager.tunnel)
+                self.assertEqual(len(probes), 1)
+
+    def test_ok_probe_resets_the_counter_and_custom_mode_is_skipped(self):
+        manager = self._manager(lambda base: ("ok", ""))
+        manager._health_failures = 2
+        manager._health_checked_at = float("-inf")
+        self.assertFalse(asyncio.run(manager._watchdog({"mode": "cloudflare"})))
+        self.assertEqual(manager._health_failures, 0)
+        manager._health_checked_at = float("-inf")
+        self.assertFalse(asyncio.run(manager._watchdog({"mode": "custom"})))
+
+    def test_snapshot_shows_tunnel_phase_and_resolver(self):
+        manager = tg_webapp.Manager()
+        tunnel = mock.Mock()
+        tunnel.phase = "dns_check"
+        tunnel.edge_source = "doh:8.8.8.8"
+        tunnel.edge_diag = "край Cloudflare через doh:8.8.8.8"
+        tunnel.attempts_left = 4
+        tunnel.retry_at = 0.0
+        tunnel.failures = 2
+        tunnel.effective_protocol.return_value = "auto"
+        manager.tunnel = tunnel
+        snap = manager.snapshot()
+        self.assertEqual(snap["phase"], "dns_check")
+        self.assertEqual(snap["edge_source"], "doh:8.8.8.8")
+        self.assertEqual(snap["attempts_left"], 4)
+        self.assertEqual(snap["diagnostics"]["resolver"], "doh:8.8.8.8")
+        self.assertEqual(snap["diagnostics"]["phase"], "dns_check")
+        self.assertEqual(snap["diagnostics"]["dns_detail"], "край Cloudflare через doh:8.8.8.8")
+
+
+class TunnelStickyErrorTest(DnsTestBase):
+    """The last error stays on screen while the tunnel keeps
+    retrying — it is never wiped by the next attempt's start."""
+
+    DNS_LINE = ('2026-11-04T10:00:00Z ERR error="lookup _v2-origintunneld._tcp.argotunnel.com '
+                'on 1.1.1.1:53: no such host" failed to dial to edge')
+
+    def _tunnel(self, popen, **kwargs):
+        return tg_webapp.CloudflaredTunnel(
+            Path("/nonexistent/cloudflared"), 8641, on_url=lambda u: None,
+            on_state=lambda s, e: None, popen=popen,
+            sleep=lambda seconds: asyncio.sleep(0), max_failures=1,
+            auto_retry_delay=3600, max_auto_cycles=0, **kwargs)
+
+    def test_last_error_survives_the_next_attempt(self):
+        calls = []
+
+        def popen(command, **kwargs):
+            calls.append(command)
+            if len(calls) == 1:
+                return _LineProcess([self.DNS_LINE])
+            return _DeadProcess()
+
+        tunnel = self._tunnel(popen)
+        with mock.patch.object(tg_webapp, "resolve_host", new=mock.AsyncMock(return_value=False)), \
+                mock.patch.object(tg_webapp, "_resolve_edge_addresses",
+                                  new=mock.AsyncMock(return_value=("", ""))):
+            async def drive():
+                tunnel.start()
+                deadline = asyncio.get_running_loop().time() + 5
+                while not tunnel.gave_up and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.01)
+                self.assertTrue(tunnel.gave_up, "the tunnel never gave up")
+                self.assertEqual(len(tunnel.error_history), 1)
+                self.assertEqual(tunnel.error_history[0]["attempt"], 1)
+                self.assertIn("argotunnel", tunnel.error_history[0]["error"])
+                self.assertIn("argotunnel", tunnel.last_error)
+                self.assertGreater(tunnel.last_error_at, 0)
+                self.assertEqual(tunnel.error_report()["last_error_kind"], "dns")
+                tunnel.retry()
+                deadline = asyncio.get_running_loop().time() + 5
+                while len(tunnel.error_history) < 2 and asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.01)
+                self.assertEqual(len(tunnel.error_history), 2)
+                # The second attempt died silently: its own entry says so,
+                # but the sticky last error is still the DNS hint.
+                self.assertIn("завершился (код 1)", tunnel.error_history[1]["error"])
+                self.assertIn("argotunnel", tunnel.last_error)
+                await tunnel.stop()
+
+            asyncio.run(drive())
+
+    def test_error_panel_ui_smoke(self):
+        """The real settings card in jsdom (see the .cjs file for details):
+        the sticky panel renders in state "starting", copy copies the full
+        diagnostic text, dismiss hides it until a newer error arrives, and
+        the English twins render. Exit code 2 means jsdom is not installed
+        in this checkout — the smoke is skipped then, like the Playwright
+        tests.
+        """
+        import subprocess
+
+        root = Path(__file__).resolve().parent.parent
+        done = subprocess.run(
+            ["node", str(root / "tests" / "tgapp_settings_ui_test.cjs")],
+            capture_output=True, text=True, timeout=180)
+        if done.returncode == 2 and "jsdom not available" in done.stdout:
+            self.skipTest("jsdom is not installed in this checkout")
+        self.assertEqual(done.returncode, 0, done.stderr + done.stdout)
+        self.assertIn("tunnel error panel UI smoke OK", done.stdout)
+
+    def test_manager_keeps_the_error_while_starting(self):
+        manager = tg_webapp.Manager()
+        manager._set_state("error", "boom")
+        manager._on_tunnel_state("starting", "")
+        self.assertEqual(manager.state, "starting")
+        self.assertEqual(manager.error, "boom")
+        manager._on_tunnel_state("error", "new boom")
+        self.assertEqual(manager.error, "new boom")
+        manager._on_tunnel_state("connecting", "")
+        self.assertEqual(manager.error, "new boom")
+
+    def test_error_kinds_and_next_steps(self):
+        tunnel = tg_webapp.CloudflaredTunnel(Path("/nonexistent/cloudflared"), 8641,
+                                             on_url=lambda u: None, on_state=lambda s, e: None)
+        cases = (
+            ('2026-11-04T10:00:00Z ERR error="lookup _v2-origintunneld._tcp.argotunnel.com on 1.1.1.1:53: no such host" failed to dial', "dns"),
+            ('2026-11-04T10:00:00Z ERR failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": tls: first record does not look like a TLS handshake', "quick_api"),
+            ('2026-11-04T10:00:00Z ERR error="tls: failed to verify certificate: x509: certificate signed by unknown authority"', "tls"),
+            ('2026-11-04T10:00:00Z ERR error="invalid tunnel secret" failed to run tunnel', "token"),
+            ('2026-11-04T10:00:00Z ERR config.yaml found, cannot determine default configuration', "config"),
+            ('2026-11-04T10:00:00Z ERR error="lookup 127.0.0.1:8641: connection refused"', "local"),
+        )
+        for line, kind in cases:
+            with self.subTest(kind=kind):
+                tunnel._line(line)
+                report = tunnel.error_report()
+                self.assertEqual(report["last_error_kind"], kind)
+                self.assertTrue(report["next_step"])
+                self.assertNotRegex(report["next_step_en"], "[А-Яа-яЁё]")
+                self.assertIn("argotunnel" if kind == "dns" else "", report["recent_lines"][-1])
+
+    def test_snapshot_and_diagnostics_expose_the_sticky_error(self):
+        manager = tg_webapp.Manager()
+        tunnel = tg_webapp.CloudflaredTunnel(Path("/nonexistent/cloudflared"), 8641,
+                                             on_url=lambda u: None, on_state=lambda s, e: None)
+        tunnel._line(self.DNS_LINE)
+        manager.tunnel = tunnel
+        snap = manager.snapshot()
+        self.assertIn("argotunnel", snap["last_error"])
+        self.assertEqual(snap["last_error_kind"], "dns")
+        self.assertIn("VPN", snap["next_step"])
+        self.assertIn("argotunnel", snap["diagnostics"]["last_error"])
+        self.assertEqual(snap["diagnostics"]["last_error_kind"], "dns")
+        # A stale status file still carries the error through.
+        stale = tg_webapp._status_diagnostics(
+            {"diagnostics": snap["diagnostics"]}, {"mode": "cloudflare"},
+            "http://127.0.0.1:8641/tgapp/")
+        self.assertIn("argotunnel", stale["last_error"])
+        self.assertEqual(stale["last_error_kind"], "dns")
 
 
 if __name__ == "__main__":

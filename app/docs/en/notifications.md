@@ -20,7 +20,7 @@ Tones do not overlap when several answers finish at once.
 
 ## The Telegram bot
 
-**Settings → Telegram**. The bot is MemuAI on your phone: the same chats, models, profiles and agents, live answers, voice messages, photos and files. It connects in a minute with a QR code or a one-time code — no Chat ID hunting. Notifications about finished answers, tasks, Work and modules are configured per category, with quiet hours.
+**Settings → Messengers → Telegram**. The bot is MemuAI on your phone: the same chats, models, profiles and agents, live answers, voice messages, photos and files. It connects in a minute with a QR code or a one-time code — no Chat ID hunting. Notifications about finished answers, tasks, Work and modules are configured per category, with quiet hours.
 
 All the details: [Telegram bot](doc:telegram).
 

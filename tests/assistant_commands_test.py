@@ -969,6 +969,11 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(bad.status_code, 400)
         ok = self.client.post("/api/assistant/commands", json={"op": "save", "command": ac.template_good_morning("ru")}).json()
         self.assertEqual(len(ok["commands"]), 1)
+        original = ok["commands"][0]
+        changed = self.client.post("/api/assistant/commands", json={
+            "op": "mode", "id": original["id"], "mode": "economy",
+        }).json()["commands"][0]
+        self.assertEqual(changed, {**original, "mode": "economy"})
         exported = self.client.post("/api/assistant/commands", json={"op": "export"}).json()
         self.assertEqual(exported["kind"], "quick-commands")
         imported = self.client.post("/api/assistant/commands", json={"op": "import", "commands": exported, "replace": True}).json()

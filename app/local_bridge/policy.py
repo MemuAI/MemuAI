@@ -42,7 +42,7 @@ ALLOWED_COMMANDS: Dict[str, FrozenSet[str]] = {
 
 # Modules a ``python -m`` invocation may run: the test runner only.
 ALLOWED_PY_MODULES = frozenset({"pytest"})
-_SHELL_META_RE = re.compile(r"[;|&$`\\\n\r<>]")
+_SHELL_META_RE = re.compile(r"[;|&$`\n\r<>]")
 _URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
 

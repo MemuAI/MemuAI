@@ -199,6 +199,9 @@ async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "
 
 async def _compact_once(runtime: "Runtime", *, instructions: str = "", reason: str = "manual") -> Dict[str, Any]:
     session = runtime.session
+    # F30: a covered message without an id would make covers_until None
+    # and the summary would cover nothing (see Session.ensure_message_ids).
+    session.ensure_message_ids()
     messages = session.api_messages()
     if len(messages) < 4:
         return {"ok": False, "error": tr("Нечего сжимать — разговор ещё короткий.", "Nothing to compact yet.")}

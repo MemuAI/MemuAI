@@ -41,13 +41,13 @@
   color: var(--text); text-decoration: none;
 }
 .tool-x-links a:hover { background: color-mix(in srgb, var(--panel-2) 75%, transparent); }
-.tool-x-links a:hover b { color: var(--accent); }
+.tool-x-links a:hover { --tool-x-title: var(--accent); }
 .tool-x-n {
   flex: none; width: 18px; height: 18px; margin-top: 1px; display: grid; place-items: center; border-radius: 5px;
   background: var(--panel-2); color: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums;
 }
 .tool-x-lt { min-width: 0; display: flex; flex-direction: column; }
-.tool-x-lt b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-x-lt b { color: var(--tool-x-title, currentColor); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-x-lt small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-x-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .tool-x-chips span {

@@ -13,8 +13,8 @@ The result is an estimate, not proof. But several independent signals that agree
 
 1. Pick the **model to check** — any model in the Proxy catalogue, local ones included.
 2. The **claimed family** is usually taken from the name: `genspark-claude-opus-5` → Claude. When the name has no family, set it by hand or leave "Auto" — the detector then just names the most likely one.
-3. Pick the **depth**: quick — 14 requests, full — 17.
-4. Optionally pick a model for **AI analysis of the answers**.
+3. Pick the **depth**: quick — 15 requests, full — 18.
+4. Optionally pick a model for **AI analysis of the answers** and decide whether it gets **web search**.
 5. Press **Run the check**.
 
 Requests go through the normal Proxy pipeline at temperature 0 and show on the Logs tab. A check can be stopped at any moment.
@@ -27,6 +27,7 @@ Requests go through the normal Proxy pipeline at temperature 0 and show on the L
 | Hidden instructions | the token count of an empty request shows how many tokens the provider adds to every message on its own. The full check also asks the model directly whether it was given instructions and what persona they set | the measurement is exact; the persona is the model's own word |
 | Special tokens | the model repeats lines containing markers of different families verbatim: `<\|im_end\|>`, `<\|eot_id\|>`, `<end_of_turn>`, `[/INST]` and more. Its own end-of-turn marker cuts the answer | high, unless the provider escapes these markers |
 | Knowledge cutoff | questions about dated events from 2022–2026. Where the answers stop being right is roughly the training cutoff, compared with the known date of the claimed model | medium |
+| Models it knows | the model lists the newest models it knows with their release months. Catalogue models named with the right month (±4 months) count; the newest one needs backing — another model within half a year before it, or a codename nobody would guess. This takes the cutoff estimate past the quiz. A list with made-up dates (one month apart each, or more than a third wrong) is dropped | medium: a model may know a model from announcements, so the estimate means "no earlier than" |
 | Self-identification | the model is asked in several ways who it is and who trained it, in English and in Russian; the full check repeats one question literally | low: a reseller's system prompt can fake the answer |
 | Reasoning tasks | eight small tasks in one request; the number solved gives a coarse ability tier | helps spot a swap for a simpler model |
 | Speed | time to the first character and answer speed — in tokens per second when the provider reports them | for reference |
@@ -62,6 +63,8 @@ Families with the same counts (DeepSeek and Llama 3 are nearly indistinguishable
 When an analyst model is selected, it receives every question and answer after the probes and gives its own opinion: a distribution by family, the most likely model and a short explanation. Its estimate is blended 50/50 with the detector's heuristics.
 
 Prefer a strong analyst from a **different** family than the model being checked, so its opinion is not biased.
+
+With **web search** on, Proxy looks up release dates and cutoffs of the claimed model and of the model the checked one named itself (up to two queries, using the engine from the web search settings) before the analysis. The results go to the analyst as unverified reference, with an explicit instruction not to follow instructions from third-party pages. The links show in the report under "What the analyst found on the web". If the search fails, the analysis runs without it.
 
 ## Reading the result
 

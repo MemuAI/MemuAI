@@ -23,6 +23,29 @@ _STATE_KEYS = {"track_id": str, "position": float, "playing": bool, "queue": lis
                "shuffle": bool, "repeat": str, "device": str, "device_name": str, "duration": float, "context": dict,
                "speed": float}
 
+# Metadata of a track that has no library row (a streamed «Listen» result, id "online:…"):
+# the playing side sends it along so remotes and the mini-player can show the title and cover.
+_TRACK_TEXT = {"id": 300, "title": 300, "artist": 300, "album": 300, "cover": 2000, "accent": 16, "online_url": 2000}
+
+def _clean_track(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    out: Dict[str, Any] = {}
+    for key, limit in _TRACK_TEXT.items():
+        text = value.get(key)
+        if isinstance(text, (str, int, float)) and not isinstance(text, bool) and str(text).strip():
+            out[key] = str(text).strip()[:limit]
+    cover = out.get("cover", "")
+    if cover and not cover.startswith(("https://", "http://", "/")):
+        out.pop("cover", None)
+    try:
+        duration = float(value.get("duration") or 0)
+        if 0 < duration < 86400:
+            out["duration"] = round(duration, 2)
+    except (TypeError, ValueError):
+        pass
+    return out if out.get("id") else {}
+
 STALE_SECONDS = 120.0
 PENDING_SECONDS = 2.5
 _PC_TARGETS = ("pc", "desktop", "memuai", "dock")
@@ -46,7 +69,7 @@ class PlayerHub:
         self.state: Dict[str, Any] = {"track_id": "", "position": 0.0, "position_at": 0.0, "playing": False,
                                       "queue": [], "index": -1, "volume": 1.0, "shuffle": False, "repeat": "off",
                                       "device": "", "device_name": "", "duration": 0.0, "context": {}, "speed": 1.0,
-                                      "updated_at": 0.0, "pending": None}
+                                      "updated_at": 0.0, "pending": None, "track": {}}
         self._load()
 
     def _load(self) -> None:
@@ -62,6 +85,8 @@ class PlayerHub:
                     self.state[key] = _CAST.get(kind, kind)(saved[key])
                 except (TypeError, ValueError):
                     pass
+        track = _clean_track(saved.get("track"))
+        self.state["track"] = track if track.get("id") == self.state["track_id"] else {}
         self.state["playing"] = False
 
     def _save(self) -> None:
@@ -69,7 +94,9 @@ class PlayerHub:
             return
         try:
             tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps({k: self.state.get(k) for k in _STATE_KEYS}, ensure_ascii=False), encoding="utf-8")
+            data = {k: self.state.get(k) for k in _STATE_KEYS}
+            data["track"] = self.state.get("track") or {}
+            tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
             tmp.replace(self.path)
         except OSError:
             pass
@@ -129,6 +156,13 @@ class PlayerHub:
                 self.state["position_at"] = now
             self.state["stale"] = False
             self.state["pending"] = None
+            new_id = fields.get("track_id")
+            if "track" in fields:
+                track = _clean_track(fields.get("track"))
+                target = str(new_id) if new_id is not None else self.state["track_id"]
+                self.state["track"] = track if track.get("id") == target else {}
+            elif new_id is not None and str(new_id) != self.state["track_id"]:
+                self.state["track"] = {}
             for key, kind in _STATE_KEYS.items():
                 if key in fields and fields[key] is not None:
                     try:

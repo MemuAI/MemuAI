@@ -24,6 +24,7 @@ import threading
 import time
 import urllib.parse
 import uuid
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -36,7 +37,10 @@ log = logging.getLogger("memunote.server")
 
 STATIC = Path(__file__).resolve().parent / "static"
 MAX_JSON = 64 * 1024 * 1024
-MAX_TEXT = 1024 * 1024 * 1024
+# F34: a text save used to allow a 1 GiB body read into RAM in one go.
+MAX_TEXT = 256 * 1024 * 1024
+# F34: idle sockets (slowloris-style) used to block a thread forever.
+SOCKET_TIMEOUT = 120
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico", ".avif"}
 
 KINDS = {
@@ -56,10 +60,53 @@ KINDS = {
     "notebook": {".ipynb"},
 
     "slides": {".pptx", ".pptm", ".ppsx", ".potx", ".odp"},
+    "media": {".mp3", ".wav", ".ogg", ".oga", ".flac", ".m4a", ".aac", ".opus", ".weba", ".mp4", ".m4v", ".webm", ".mov", ".ogv", ".mkv"},
+    "font": {".ttf", ".otf", ".woff", ".woff2"},
+    "email": {".eml"},
     "legacy": {".doc", ".xls", ".ppt", ".pages"},
 }
+MEDIA_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".flac": "audio/flac",
+               ".m4a": "audio/mp4", ".aac": "audio/aac", ".opus": "audio/ogg", ".weba": "audio/webm", ".mp4": "video/mp4",
+               ".m4v": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime", ".ogv": "video/ogg", ".mkv": "video/x-matroska",
+               ".ttf": "font/ttf", ".otf": "font/otf", ".woff": "font/woff", ".woff2": "font/woff2"}
 RICH_KINDS = ("docx", "odt", "rtf")
 RICH_WRITERS = ("docx", "odt", "rtf", "html", "md", "txt")
+
+def _damaged_package_message(lang: str, kind: str) -> str:
+    """Plain-language error for a ZIP-based Office file that is empty,
+    truncated or not a ZIP at all.
+
+    Windows Explorer «New → PowerPoint Presentation» creates a 0-byte file
+    when the Office template is missing, and a renamed text file is not a
+    presentation either. Either way the user needs to hear what is wrong
+    with the file and what to do — not the raw «not a ZIP file» from the
+    ZIP reader.
+    """
+    texts = {
+        "slides": ("Файл пустой или повреждён: это не настоящая презентация. "
+                   "Откройте его в PowerPoint и сохраните заново",
+                   "The file is empty or damaged: it is not a real presentation. "
+                   "Open it in PowerPoint and save it again"),
+        "docx": ("Файл пустой или повреждён: это не настоящий документ. "
+                 "Откройте его в Word и сохраните заново",
+                 "The file is empty or damaged: it is not a real document. "
+                 "Open it in Word and save it again"),
+        "odt": ("Файл пустой или повреждён: это не настоящий документ. "
+                "Откройте его в текстовом редакторе и сохраните заново",
+                "The file is empty or damaged: it is not a real document. "
+                "Open it in a word processor and save it again"),
+        "sheet": ("Файл пустой или повреждён: это не настоящая таблица. "
+                  "Откройте его в Excel и сохраните заново",
+                  "The file is empty or damaged: it is not a real spreadsheet. "
+                  "Open it in Excel and save it again"),
+        "book": ("Файл пустой или повреждён: это не настоящая книга. "
+                 "Попробуйте сохранить её заново из программы, в которой она была создана",
+                 "The file is empty or damaged: it is not a real book. "
+                 "Try saving it again from the app it was made in"),
+    }
+    ru, en = texts.get(kind, texts["docx"])
+    return ru if lang == "ru" else en
+
 
 def kind_of(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
@@ -67,6 +114,20 @@ def kind_of(path: str) -> str:
         if ext in exts:
             return kind
     return "text"
+
+def _byte_range(header: str, total: int) -> Any:
+    """``(first, last)`` for a single ``bytes=`` range, ``None`` for none / unsupported, ``"bad"`` when unsatisfiable."""
+    m = re.fullmatch(r"\s*bytes=(\d*)-(\d*)\s*", header or "")
+    if not m or not (m.group(1) or m.group(2)):
+        return None
+    if m.group(1):
+        first = int(m.group(1))
+        last = min(int(m.group(2)), total - 1) if m.group(2) else total - 1
+    else:
+        first, last = max(0, total - int(m.group(2))), total - 1
+    if first >= total or first > last:
+        return "bad"
+    return first, last
 
 def _stat(path: str) -> Dict[str, Any]:
     try:
@@ -153,29 +214,63 @@ class NoteApp:
     def allowed(self, path: str) -> bool:
         return os.path.normcase(os.path.abspath(path)) in self.opened
 
+    def allowed_asset(self, path: str) -> bool:
+        """F36: an image is servable if it is opened itself, or sits in the
+        same folder as an opened document (Markdown previews reference
+        images next to the note). A plain ``allowed()`` check here would
+        break every relative image in a preview, because only the note
+        itself is in ``opened``; an absolute path anywhere else on disk
+        (``C:\\Users\\...\\secret.png``) is still refused."""
+        path = os.path.normcase(os.path.abspath(path))
+        if path in self.opened:
+            return True
+        folder = os.path.dirname(path)
+        return any(os.path.dirname(item) == folder for item in self.opened)
+
     def lang(self, value: str = "") -> str:
-        value = value or settings_store.load().get("language", "auto")
-        if value in ("ru", "en"):
-            return value
-        return "en" if memuai_preferences().get("language") == "en" else "ru"
+        return settings_store.language(value)
 
     def theme(self) -> Dict[str, Any]:
+        """Mode, colour tokens and design: MemuNote's own choice or MemuAI's (``auto``)."""
         prefs = memuai_preferences()
-        mode = settings_store.load().get("theme", "auto")
-        if mode not in ("dark", "light"):
-            mode = "light" if prefs.get("theme") == "light" else "dark"
-        tokens: Dict[str, str] = {}
+        from . import appearance
         try:
-            from .. import themes
-            tokens = themes.resolve_tokens(mode, str(prefs.get(f"surface_{mode}") or ""),
-                                           str(prefs.get("accent_color") or ""))
+            look = appearance.resolve(settings_store.load(), prefs)
         except Exception as exc:  # noqa: BLE001 - standalone/dev: the page has its own defaults
             log.debug("theme tokens unavailable: %s", exc)
-        safe = {k: v for k, v in tokens.items()
+            look = {"mode": "light" if prefs.get("theme") == "light" else "dark", "tokens": {}, "palette": "auto",
+                    "accent": "auto", "design": "classic", "design_setting": "auto"}
+        safe = {k: v for k, v in look["tokens"].items()
                 if re.fullmatch(r"--[\w-]{1,40}", k) and isinstance(v, str) and len(v) < 200 and "<" not in v
                 and ";" not in v and "}" not in v}
-        return {"mode": mode, "tokens": safe, "design": str(prefs.get("ui_design") or ""),
-                "font_scale": prefs.get("font_scale", 100)}
+        return {"mode": look["mode"], "tokens": safe, "design": look["design"], "design_setting": look["design_setting"],
+                "palette": look["palette"], "accent": look["accent"],
+                "memuai_design": str(prefs.get("ui_design") or ""), "font_scale": prefs.get("font_scale", 100)}
+
+    def _check_zip_package(self, path: str, kind: str) -> None:
+        """Reject an empty / truncated / not-a-ZIP Office file, and a ZIP
+        without the main part of its kind, with a plain-language error.
+
+        Runs before the tab is created, so the user gets one clear message
+        instead of the slides viewer failing later with the raw «not a ZIP
+        file». The main part is mandatory per format spec, so a package
+        without it is not a document of that kind either.
+        """
+        ext = os.path.splitext(path)[1].lower()
+        main = {
+            "slides": "content.xml" if ext == ".odp" else "ppt/presentation.xml",
+            "docx": "word/document.xml",
+            "odt": "content.xml",
+            "sheet": "content.xml" if ext == ".ods" else "xl/workbook.xml",
+            "book": "META-INF/container.xml",
+        }[kind]
+        try:
+            with zipfile.ZipFile(path) as archive:
+                names = set(archive.namelist())
+        except (zipfile.BadZipFile, OSError):
+            raise ValueError(_damaged_package_message(self.lang(), kind)) from None
+        if main not in names:
+            raise ValueError(_damaged_package_message(self.lang(), kind))
 
     def open_document(self, raw_path: str, encoding: str = "") -> Dict[str, Any]:
         path = _clean_path(raw_path)
@@ -186,6 +281,8 @@ class NoteApp:
             raise IsADirectoryError(path)
         kind = kind_of(path)
         result: Dict[str, Any] = {"path": path, "name": os.path.basename(path), "kind": kind, **info}
+        if kind in ("docx", "odt", "sheet", "slides") or (kind == "book" and path.lower().endswith(".epub")):
+            self._check_zip_package(path, kind)
         self.allow(path)
         if kind in RICH_KINDS:
             data = Path(path).read_bytes()
@@ -219,7 +316,14 @@ class NoteApp:
             except Exception as exc:  # noqa: BLE001
                 raise ValueError(f"cannot read the book: {exc}") from exc
             return result
-        if kind in ("pdf", "image", "legacy", "slides"):
+        if kind == "email":
+            from .formats.email_msg import read_eml
+            try:
+                result.update(read_eml(path))
+            except Exception as exc:  # noqa: BLE001 - not really a message
+                raise ValueError(f"cannot read the message: {exc}") from exc
+            return result
+        if kind in ("pdf", "image", "legacy", "slides", "media", "font"):
             return result
         from .formats import textio
         detected = textio.detect_file(path)
@@ -361,10 +465,25 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"ok": False, "error": message, **extra}, status)
 
     def _body(self, limit: int = MAX_JSON) -> bytes:
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ValueError("bad content length") from None
         if length < 0 or length > limit:
             raise ValueError("request too large")
-        return self.rfile.read(length) if length else b""
+        if not length:
+            return b""
+        # F34: read in 1 MiB chunks so a large body is not held as one
+        # giant allocation, and stop if the peer sends more than declared.
+        chunks: List[bytes] = []
+        remaining = length
+        while remaining > 0:
+            block = self.rfile.read(min(1024 * 1024, remaining))
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+        return b"".join(chunks)
 
     def _json_body(self) -> Dict[str, Any]:
         raw = self._body()
@@ -445,12 +564,18 @@ class Handler(BaseHTTPRequestHandler):
             ctype = "text/javascript"
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
-        data = target.read_bytes()
-        cache = "no-cache" if target.suffix == ".html" else "max-age=86400"
-        self.send_response(200)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", cache)
+        # Every file is revalidated (a cheap 304 while unchanged): ES module imports carry no ?v= tag, and a
+        # module kept in the cache from the previous version would break the page right after an update.
+        info = target.stat()
+        etag = f'"{info.st_mtime_ns:x}-{info.st_size:x}"'
+        fresh = etag in [tag.strip() for tag in (self.headers.get("If-None-Match") or "").split(",")]
+        data = b"" if fresh else target.read_bytes()
+        self.send_response(304 if fresh else 200)
+        if not fresh:
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("ETag", etag)
         self.send_header("X-Content-Type-Options", "nosniff")
         if target.suffix == ".html":
             self.send_header("Content-Security-Policy",
@@ -458,7 +583,7 @@ class Handler(BaseHTTPRequestHandler):
                              "script-src 'self'; worker-src 'self' blob:; connect-src 'self'; font-src 'self' data:; "
                              "frame-src 'self' blob:; object-src 'none'; base-uri 'none'")
         self.end_headers()
-        if self.command != "HEAD":
+        if self.command != "HEAD" and not fresh:
             self.wfile.write(data)
 
     def api_boot(self, method: str) -> None:
@@ -484,6 +609,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_theme(self, method: str) -> None:
         self._json({"ok": True, "theme": self.app.theme(), "lang": self.app.lang()})
+
+    def api_appearance(self, method: str) -> None:
+        """Palettes (with preview colours for both modes), accents and designs for the in-app picker."""
+        from . import appearance
+        self._json({"ok": True, **appearance.catalog(self.app.lang(), memuai_preferences()),
+                    "theme": self.app.theme()})
 
     def api_session(self, method: str) -> None:
         body = self._json_body()
@@ -536,9 +667,27 @@ class Handler(BaseHTTPRequestHandler):
             offset = 0
         size = total - offset
         ctype = "application/pdf" if path.lower().endswith(".pdf") else "application/octet-stream"
-        if kind_of(path) == "image":
+        kind = kind_of(path)
+        if kind == "image":
             ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
-        self.send_response(200)
+        elif kind in ("media", "font"):
+            ctype = MEDIA_TYPES.get(os.path.splitext(path)[1].lower(), "application/octet-stream")
+        # Byte ranges let the audio / video player seek without reading the whole file.
+        span = _byte_range(self.headers.get("Range", ""), total) if kind == "media" else None
+        if span == "bad":
+            self.send_response(416)
+            self.send_header("Content-Range", f"bytes */{total}")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if span:
+            offset, size = span[0], span[1] - span[0] + 1
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {span[0]}-{span[1]}/{total}")
+        else:
+            self.send_response(200)
+        if kind == "media":
+            self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(size))
         self.send_header("Cache-Control", "no-store")
@@ -560,9 +709,29 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(chunk)
                 left -= len(chunk)
 
+    def api_eml_part(self, method: str) -> None:
+        """An attachment of an opened .eml message, as bytes (the page saves it with save_binary)."""
+        path = _clean_path(self._query().get("path", ""))
+        if not self.app.allowed(path) or kind_of(path) != "email":
+            self._error("not opened", 403)
+            return
+        from .formats.email_msg import attachment
+        try:
+            name, _ctype, data = attachment(path, int(self._query().get("index") or 0))
+        except IndexError:
+            self._error("not found", 404)
+            return
+        self._send(200, data, "application/octet-stream", {"X-MN-Name": urllib.parse.quote(name),
+                                                           "Content-Disposition": "attachment"})
+
     def api_asset(self, method: str) -> None:
         """Pictures referenced by a Markdown preview (local images only)."""
         path = _clean_path(self._query().get("path", ""))
+        # F36: like api_raw — refuse images that do not belong to an
+        # opened document (was: any image on disk, given the token).
+        if not self.app.allowed_asset(path):
+            self._error("not opened", 403)
+            return
         if os.path.splitext(path)[1].lower() not in IMAGE_EXT or not os.path.isfile(path):
             self._error("not an image", 404)
             return
@@ -788,6 +957,20 @@ class Handler(BaseHTTPRequestHandler):
         result = winsys.register_open_with(bool(body.get("enable")))
         self._json({"ok": True, **result})
 
+    def api_explorermenu(self, method: str) -> None:
+        from . import winsys
+        if method == "GET":
+            self._json({"ok": True, **winsys.explorer_menu_state()})
+            return
+        if method != "POST":
+            self._error("method not allowed", 405)
+            return
+        enable = self._json_body().get("enable")
+        if not isinstance(enable, bool):
+            self._error("enable must be a boolean")
+            return
+        self._json({"ok": True, **winsys.sync_explorer_menu(enable=enable)})
+
     def api_ai_status(self, method: str) -> None:
         from . import ai
         settings = settings_store.load()
@@ -886,20 +1069,52 @@ class Handler(BaseHTTPRequestHandler):
 
         emit({"t": "start", "id": request_id, "model": model, "memory_facts": built["memory_facts"],
               "agent": edit_stream is not None})
+        def show(text: str) -> bool:
+            raw_parts.append(text)
+            visible = flt.feed(text) if flt is not None else text
+            return not visible or emit_visible(visible)
+
         try:
-            payload = {"model": model, "messages": built["messages"],
-                       "web_search": bool(body.get("web_search")), "thinking": bool(body.get("thinking")),
-                       "max_tokens": int(body.get("max_tokens") or 0) or None,
-                       "temperature": body.get("temperature"), "effort": str(body.get("effort") or "")[:16]}
-            for event in ai.stream_chat(base, payload, cancel, lambda c: stream_state.__setitem__("conn", c)):
-                if event["t"] == "delta":
-                    raw_parts.append(event["text"])
-                    visible = flt.feed(event["text"]) if flt is not None else event["text"]
-                    if visible and not emit_visible(visible):
-                        break
-                    continue
-                if not emit(event):
+            from .. import skills_scope
+            messages = built["messages"]
+            # the shared skill library: a hidden ```memuai-skill block asks for playbooks -> one more pass with them
+            gate = skills_scope.SkillGate() if built.get("skills") else None
+            for attempt in range(2):
+                payload = {"model": model, "messages": messages,
+                           "web_search": bool(body.get("web_search")), "thinking": bool(body.get("thinking")),
+                           "max_tokens": int(body.get("max_tokens") or 0) or None,
+                           "temperature": body.get("temperature"), "effort": str(body.get("effort") or "")[:16]}
+                stream = ai.stream_chat(base, payload, cancel, lambda c: stream_state.__setitem__("conn", c))
+                alive = True
+                try:
+                    for event in stream:
+                        if event["t"] == "delta":
+                            text = gate.feed(event["text"]) if gate is not None else event["text"]
+                            if text and not show(text):
+                                alive = False
+                                break
+                            if gate is not None and gate.done:
+                                if attempt == 0:
+                                    break
+                                gate = skills_scope.SkillGate()  # a second request is only hidden
+                            continue
+                        if not emit(event):
+                            alive = False
+                            break
+                finally:
+                    stream.close()
+                if not alive or cancel.is_set():
                     break
+                if gate is not None and attempt == 0 and gate.done:
+                    messages, loaded = skills_scope.follow_up(messages, gate.requested, "note", gate.shown)
+                    emit({"t": "skill", "ids": loaded})
+                    gate = skills_scope.SkillGate()
+                    continue
+                if gate is not None:
+                    tail = gate.finish()
+                    if tail:
+                        show(tail)
+                break
             if flt is not None and not cancel.is_set():
                 tail = flt.finish()
                 if tail:
@@ -988,6 +1203,8 @@ class Server(ThreadingHTTPServer):
     allow_reuse_address = False
 
     request_queue_size = 128
+    # F34: a stalled client no longer holds a worker thread forever.
+    timeout = SOCKET_TIMEOUT
 
 def start(app: NoteApp, port: int = 0) -> Tuple[Server, threading.Thread]:
     handler = type("BoundHandler", (Handler,), {"app": app})

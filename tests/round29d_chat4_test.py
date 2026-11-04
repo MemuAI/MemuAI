@@ -69,7 +69,9 @@ class WorkBarRussian(unittest.TestCase):
         self.assertNotIn('"Включить Full access?"', js)
         self.assertNotIn(">Ask for approval</option>", js)
         code = (STATIC / "memucode.js").read_text(encoding="utf-8")
-        self.assertIn('t("Полный доступ", "Full access") : t("С подтверждением", "Ask")', code)
+        self.assertIn('level === "full" ? memeText("Полный доступ", "Full access")', js)
+        self.assertIn('level === "edits" ? memeText("Правки без вопросов", "Auto-edit")', js)
+        self.assertIn('memeText("С подтверждением", "Ask first")', js)
 
     def test_ru_docs_use_the_ui_names(self) -> None:
         for name in ("work.md", "memucode.md", "schedules.md", "troubleshooting.md"):

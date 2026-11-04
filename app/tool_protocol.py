@@ -9,14 +9,15 @@ from .routing import resolve
 
 TOOL_PROVIDER_ERROR = (
     "Tool calls require an OpenAI-compatible Custom API model with native function "
-    "calling or a local model (llama.cpp). Select such a model in MemuAI Proxy."
+    "calling, a ZCode model or a local model (llama.cpp). Select such a model in MemuAI Proxy."
 )
 TOOL_PROVIDER_ERROR_RU = (
     "Вызовы инструментов работают только с моделью OpenAI-совместимого подключения «Собственный API» "
-    "с нативным function calling или с локальной моделью (llama.cpp). Выберите такую модель в MemuAI Proxy."
+    "с нативным function calling, с моделью ZCode или с локальной моделью (llama.cpp). "
+    "Выберите такую модель в MemuAI Proxy."
 )
 
-TOOL_PROVIDERS = frozenset({"custom", "local"})
+TOOL_PROVIDERS = frozenset({"custom", "local", "zcode"})
 
 def tool_provider_supported(model: str) -> bool:
     from . import composite_models

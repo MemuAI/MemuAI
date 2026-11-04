@@ -72,13 +72,13 @@ window.MemuCliTools = (() => {
         </div>
 
         <div class="card" id="cli-codex-card">
-          <h3>Codex CLI</h3>
+          <h3>${esc(L("Codex — CLI и приложение", "Codex — CLI and app"))}</h3>
           <p class="sub">${esc(L(
-            "Добавляет провайдера memuai и профиль на каждую выбранную модель в ~/.codex/config.toml — переключение через codex --profile <имя>.",
-            "Adds a memuai provider and one profile per selected model to ~/.codex/config.toml — switch with codex --profile <name>."))}</p>
+            "Добавляет провайдера memuai и профиль на каждую выбранную модель в ~/.codex/config.toml — переключение через codex --profile <имя>. Приложение Codex и расширение для VS Code читают тот же файл.",
+            "Adds a memuai provider and one profile per selected model to ~/.codex/config.toml — switch with codex --profile <name>. The Codex app and the VS Code extension read the same file."))}</p>
           <div class="cli-tool-note">${esc(L(
-            "Через Proxy действия Codex требуют модели «Свой API» с function calling. Свой API напрямую должен поддерживать OpenAI Responses с инструментами. Веб-провайдеры Proxy могут отвечать в чате без инструментов. После применения перезапустите Codex CLI.",
-            "Through the Proxy, Codex actions require a Custom API model with function calling. A direct API must support OpenAI Responses with tools. Proxy web providers can chat without tools. Restart Codex CLI after applying."))}</div>
+            "Через Proxy действия Codex требуют модели «Свой API» с function calling. Свой API напрямую должен поддерживать OpenAI Responses с инструментами. Веб-провайдеры Proxy могут отвечать в чате без инструментов. После применения перезапустите Codex CLI и приложение Codex.",
+            "Through the Proxy, Codex actions require a Custom API model with function calling. A direct API must support OpenAI Responses with tools. Proxy web providers can chat without tools. Restart Codex CLI and the Codex app after applying."))}</div>
           <div id="cli-codex-status" class="cli-status"></div>
           <div class="field"><label for="cli-codex-source">${esc(L("Подключение", "Connection"))}</label>
             <select id="cli-codex-source"><option value="proxy">MemuAI Proxy</option>
@@ -97,6 +97,11 @@ window.MemuCliTools = (() => {
             <div class="field"><label for="cli-codex-key">API key</label><input id="cli-codex-key" type="password" autocomplete="off"></div>
             <div class="field"><label for="cli-codex-model">${esc(L("ID модели", "Model ID"))}</label><input id="cli-codex-model" type="text" autocomplete="off"></div>
           </div>
+          <label class="cli-app-toggle"><span class="switch"><input type="checkbox" id="cli-codex-app"><span class="slider"></span></span>
+            <span><b>${esc(L("Также для приложения Codex", "Also for the Codex app"))}</b>
+              <small>${esc(L("Приложение Codex и расширение для VS Code используют модель Proxy по умолчанию. Исходные значения model, model_provider и profile в config.toml восстанавливаются при сбросе или отключении флажка.",
+                "The Codex app and the VS Code extension use the Proxy model by default. Resetting or clearing this checkbox restores the original model, model_provider and profile values in config.toml."))}</small>
+              <small id="cli-codex-app-found"></small></span></label>
           <div class="row" style="margin-top:10px">
             <button class="btn primary small" id="cli-codex-apply" type="button">${esc(L("Установить", "Install"))}</button>
             <button class="btn small danger" id="cli-codex-reset" type="button">${esc(L("Сбросить", "Reset"))}</button>
@@ -124,6 +129,11 @@ window.MemuCliTools = (() => {
     $("#cli-codex-source").value = codex.connection === "direct" ? "direct" : "proxy";
     $("#cli-codex-url").value = codex.connection === "direct" ? codex.base_url || "" : "";
     $("#cli-codex-model").value = codex.connection === "direct" ? codex.profiles?.[0]?.model || "" : "";
+    $("#cli-codex-app").checked = !!codex.app_mode;
+    const app = codex.app || {};
+    $("#cli-codex-app-found").textContent = app.found
+      ? L(`Приложение найдено: ${app.path}`, `App found: ${app.path}`)
+      : L("Приложение на этом компьютере не найдено — настройка подействует, когда вы его установите.", "The app was not found on this computer — the setting applies once you install it.");
     toggleSource("claude");
     toggleSource("codex");
   }
@@ -208,10 +218,12 @@ window.MemuCliTools = (() => {
       return;
     }
     const names = (st.profiles || []).map((p) => `<code>${esc(p.name)}</code> → <code>${esc(p.model)}</code>`).join("<br>");
-    box.innerHTML = `<div class="chip ok" style="margin-bottom:6px">${esc(L("Установлено", "Installed"))}</div>
+    box.innerHTML = `<div class="row" style="gap:6px;margin-bottom:6px"><span class="chip ok">${esc(L("Установлено", "Installed"))}</span>
+      ${st.app_mode ? `<span class="chip ok">${esc(L("Приложение Codex: модель по умолчанию", "Codex app: default model"))}</span>` : ""}</div>
       <div class="mono" style="font-size:12px">${names}</div>
       <div class="help">${esc(st.path || "")}${st.default_set ? "" : " · " + esc(L(
-        "top-level model уже задан вручную — доступно только через --profile", "top-level model is already set by hand — only reachable via --profile"))}</div>`;
+        "top-level model уже задан вручную — доступно только через --profile; для приложения Codex включите флажок ниже", "top-level model is already set by hand — only reachable via --profile; turn on the box below for the Codex app"))}
+      ${(st.taken_over || []).length ? `<br>${esc(L("Сохранены и вернутся при сбросе", "Kept and restored on reset"))}: ${(st.taken_over || []).map((key) => `<code>${esc(key)}</code>`).join(", ")}` : ""}</div>`;
   }
 
   async function claudeApply() {
@@ -267,13 +279,16 @@ window.MemuCliTools = (() => {
       return;
     }
     const def = direct ? directModel : $("#cli-codex-default")?.value || "";
+    const app = !!$("#cli-codex-app")?.checked;
     try {
-      const body = direct ? { profiles, default: def, connection: "direct",
+      const body = direct ? { profiles, default: def, connection: "direct", app,
         base_url: $("#cli-codex-url").value.trim(), api_key: $("#cli-codex-key").value }
-        : { profiles, default: def };
+        : { profiles, default: def, app };
       const result = await api("/api/admin/cli/codex/apply", { method: "POST", body });
       const note = LANG === "en" ? result.note_en : result.note;
-      toast(L(`Готово: ${result.path}. Перезапустите Codex CLI.`, `Done: ${result.path}. Restart Codex CLI.`) + (note ? " " + note : ""));
+      toast((result.app_mode
+        ? L(`Готово: ${result.path}. Перезапустите Codex CLI и приложение Codex.`, `Done: ${result.path}. Restart Codex CLI and the Codex app.`)
+        : L(`Готово: ${result.path}. Перезапустите Codex CLI.`, `Done: ${result.path}. Restart Codex CLI.`)) + (note ? " " + note : ""));
       await load();
     } catch (error) { toast(errorOf(error), "warn"); }
   }

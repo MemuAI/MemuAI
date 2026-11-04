@@ -17,7 +17,9 @@ import difflib
 import html
 import json
 import re
+import threading
 import time
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, wait
 from functools import lru_cache
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -93,16 +95,8 @@ def romanize_text(text: str, language: str = "auto") -> str:
     return "\n".join(line(s) for s in (text or "").split("\n"))
 
 
-def romanize(lib: Library, track_id: str, language: str = "auto") -> Dict[str, Any]:
-    if not lib.row(track_id):
-        raise KeyError("Трек не найден / Track not found")
-    row = lib.cached_lyrics(track_id) or {}
-    synced = row.get("synced")
+def _romanized(synced: Optional[list], plain: Optional[str], context: str, language: str) -> Dict[str, Any]:
     if language == "auto":
-        track = lib.row(track_id) or {}
-        context = "\n".join(str(value or "") for value in (
-            track.get("title"), track.get("artist"), track.get("album"), track.get("album_artist"),
-            row.get("plain"), *(r[1] for r in synced or [])))
         language = detect_romanization_language(context)
     converted = None
     if synced:
@@ -114,7 +108,21 @@ def romanize(lib: Library, track_id: str, language: str = "auto") -> Dict[str, A
             if len(item) > 2:
                 item[2] = None
             converted.append(item)
-    return {"synced": converted, "plain": romanize_text(row.get("plain") or "", language)}
+    return {"synced": converted, "plain": romanize_text(plain or "", language)}
+
+
+def romanize(lib: Library, track_id: str, language: str = "auto") -> Dict[str, Any]:
+    if not lib.row(track_id):
+        raise KeyError("Трек не найден / Track not found")
+    row = lib.cached_lyrics(track_id) or {}
+    synced = row.get("synced")
+    context = ""
+    if language == "auto":
+        track = lib.row(track_id) or {}
+        context = "\n".join(str(value or "") for value in (
+            track.get("title"), track.get("artist"), track.get("album"), track.get("album_artist"),
+            row.get("plain"), *(r[1] for r in synced or [])))
+    return _romanized(synced, row.get("plain"), context, language)
 
 _CREDIT = re.compile(r"^\s*(作词|作曲|编曲|制作人|制作|混音|母带|和声|吉他|贝斯|鼓|监制|出品|录音|词|曲|"
                      r"lyrics by|lyricist|composed by|composer|produced by|producer|arranged by|written by|mixed by|"
@@ -448,7 +456,15 @@ def _genius(client, q) -> List[Dict[str, Any]]:
         artist = (h.get("primary_artist") or {}).get("name") or h.get("artist_names") or ""
         if not h.get("url") or score({"title": h.get("title") or "", "artist": artist}, q) <= 0:
             continue
-        page = client.get(h["url"], headers={"User-Agent": _UA})
+        # Wave #14: the page URL comes from the API response — fetch
+        # only genuine genius.com pages, no redirects (a compromised
+        # or poisoned response must not turn this into an SSRF fetch
+        # of an arbitrary host with the shared client).
+        from urllib.parse import urlsplit
+        parts = urlsplit(str(h["url"]))
+        if parts.scheme != "https" or parts.netloc not in ("genius.com", "www.genius.com"):
+            continue
+        page = client.get(h["url"], headers={"User-Agent": _UA}, follow_redirects=False)
         c = _cand("genius", h.get("title") or "", artist, 0, None, genius_lyrics(page.text) if page.status_code == 200 else "")
         return [c] if c else []
     return []
@@ -639,6 +655,160 @@ def set_manual(lib: Library, track_id: str, text: str) -> Dict[str, Any]:
     lib.store_lyrics(track_id, synced, plain, "manual")
 
     return _answer(lib, track_id, True)
+
+# Streamed tracks: «Listen» plays a search result without downloading it; the player calls it ``online:<id>``.
+# Its lyrics come from the same sources with the same ranking and the same answer as for a library track (variants,
+# offset, romanization, pasted text), but they live only in memory (LRU) — nothing is written to the library.
+ONLINE_PREFIX = "online:"
+ONLINE_MAX = 200
+ONLINE_TTL = 6 * 3600
+ONLINE_MISS_TTL = 15 * 60
+_online: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+_online_lock = threading.Lock()
+
+
+# Wave #10 (D-26): an online id used to be any string starting with
+# "online:" — a client could invent keys at will and fill the shared
+# 200-entry LRU with junk (or overwrite another user's entry for a
+# known video). Only the ids the search really produces are accepted:
+# a bare provider id (YouTube videoId, SoundCloud numeric id) or a
+# full https URL on a known provider host (the "online:<url>" fallback
+# the Mini App sends when a result has no id).
+_ONLINE_ID = re.compile(
+    r"^online:(?:[A-Za-z0-9_-]{6,64}"
+    r"|https://(?:www\.youtube\.com|music\.youtube\.com|youtu\.be|soundcloud\.com|www\.soundcloud\.com)/[^\s]{1,200})$")
+
+
+def is_online(track_id: Any) -> bool:
+    return isinstance(track_id, str) and bool(_ONLINE_ID.match(track_id))
+
+
+def _online_meta(args: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    args = args if isinstance(args, dict) else {}
+    try:
+        duration = max(0.0, float(args.get("duration") or 0))
+    except (TypeError, ValueError):
+        duration = 0.0
+    return {"title": str(args.get("title") or "").strip()[:300], "artist": str(args.get("artist") or "").strip()[:300],
+            "album": str(args.get("album") or "").strip()[:300], "duration": duration if duration < 86400 else 0.0}
+
+
+def _online_entry(track_id: str) -> Optional[Dict[str, Any]]:
+    with _online_lock:
+        entry = _online.get(track_id)
+        if entry is not None:
+            _online.move_to_end(track_id)
+        return entry
+
+
+def _online_store(track_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
+    with _online_lock:
+        _online[track_id] = entry
+        _online.move_to_end(track_id)
+        while len(_online) > ONLINE_MAX:
+            _online.popitem(last=False)
+    return entry
+
+
+def _online_current(entry: Dict[str, Any]) -> Tuple[Optional[list], Optional[str], str, Dict[str, Any]]:
+    """(synced, plain, source, chosen variant) — the pasted text wins over the found variants."""
+    alts, choice = entry["alts"], entry["choice"]
+    chosen = alts[choice] if 0 <= choice < len(alts) else {}
+    manual = entry.get("manual")
+    if manual:
+        return manual.get("synced"), manual.get("plain"), "manual", {}
+    return chosen.get("synced"), chosen.get("plain"), chosen.get("source") or "", chosen
+
+
+def _online_answer(lib: Library, entry: Dict[str, Any], cached: bool) -> Dict[str, Any]:
+    synced, plain, source, chosen = _online_current(entry)
+    want, got = float(entry["meta"].get("duration") or 0), float(chosen.get("duration") or 0)
+    diff = round(abs(got - want), 1) if synced and want and got else 0.0
+    try:
+        general = max(-2.0, min(2.0, float(lib.settings().get("lyrics_offset_ms") or 0) / 1000))
+    except (TypeError, ValueError):
+        general = 0.0
+    return {"synced": synced, "plain": plain, "source": source, "duration_diff": diff, "general_offset": general,
+            "source_name": SOURCE_NAMES.get(source, source), "instrumental": bool(chosen.get("instrumental")),
+            "words": bool(synced and any(len(r) > 2 and r[2] for r in synced)), "offset": entry["offset"],
+            "choice": entry["choice"], "alts": _summary(entry["alts"]), "status": entry["status"], "cached": cached,
+            "online": True}
+
+
+def online_op(lib: Library, op: str, args: Dict[str, Any], client_factory: Optional[Callable[[], Any]] = None) -> Dict[str, Any]:
+    """``lyrics.get`` / ``choose`` / ``offset`` / ``set`` / ``romanize`` for a streamed track (id ``online:…``).
+    ``lyrics.get`` needs ``title`` and ``artist`` (``album``, ``duration`` help the ranking) the first time;
+    later calls may send only the id while the entry is still in memory."""
+    track_id = str(args.get("id") or "")
+    if not is_online(track_id):
+        raise KeyError("Трек не найден / Track not found")
+    meta = _online_meta(args)
+    entry = _online_entry(track_id)
+    if entry is not None and meta["title"]:
+        entry["meta"] = {**entry["meta"], **{k: v for k, v in meta.items() if v}}
+    now = time.time()
+    if op == "lyrics.get":
+        if entry is not None and not args.get("force"):
+            age = now - entry["fetched_at"]
+            if age < ONLINE_TTL and (entry["alts"] or entry.get("manual") or age < ONLINE_MISS_TTL):
+                return _online_answer(lib, entry, True)
+        base = entry["meta"] if entry is not None else meta
+        if not base["title"]:
+            raise KeyError("Трек не найден / Track not found")
+        settings = lib.settings()
+        if entry is None and not args.get("force") and not settings.get("auto_lyrics", True):
+            empty = {"meta": base, "alts": [], "choice": 0, "offset": 0.0, "status": {}, "manual": None, "fetched_at": 0.0}
+            return {**_online_answer(lib, empty, True), "auto_off": True}
+        chosen = settings.get("lyrics_sources")
+        cands, status = search(query_of(base), list(chosen) if isinstance(chosen, list) else list(SOURCES), client_factory,
+                               bool(settings.get("lyrics_plain_fallback", True)))
+        if not cands and status and all(v not in ("ok", "empty") for v in status.values()):
+            raise RuntimeError("Источники текста недоступны / Lyrics sources unavailable")
+        entry = _online_store(track_id, {"meta": base, "alts": cands, "choice": 0,
+                                         "offset": (entry or {}).get("offset", 0.0), "status": status,
+                                         "manual": (entry or {}).get("manual"), "fetched_at": now})
+        return _online_answer(lib, entry, False)
+    if entry is None:
+        if op != "lyrics.set" or not meta["title"]:
+            raise KeyError("Трек не найден / Track not found")
+        entry = _online_store(track_id, {"meta": meta, "alts": [], "choice": 0, "offset": 0.0, "status": {},
+                                         "manual": None, "fetched_at": now})
+    if op == "lyrics.choose":
+        if entry["alts"]:
+            n = len(entry["alts"])
+            index = args.get("index")
+            if index is None:
+                pick = (entry["choice"] + (1 if args.get("next") else 0)) % n
+            else:
+                try:
+                    pick = max(0, min(n - 1, int(index)))
+                except (TypeError, ValueError):
+                    pick = entry["choice"]
+            entry["choice"], entry["manual"] = pick, None
+        return _online_answer(lib, entry, True)
+    if op == "lyrics.offset":
+        try:
+            value = float(args.get("offset") or 0)
+        except (TypeError, ValueError):
+            value = 0.0
+        entry["offset"] = round(max(-30.0, min(30.0, value)), 2)
+        return {"offset": entry["offset"]}
+    if op == "lyrics.set":
+        text = str(args.get("text") or "").replace("\r\n", "\n").strip()[:200_000]
+        if not text:
+            entry["manual"] = None
+            return {"synced": None, "plain": None, "source": ""}
+        synced = parse_lrc(text)
+        entry["manual"] = {"synced": synced, "plain": "\n".join(row[1] for row in synced) if synced else text}
+        return _online_answer(lib, entry, True)
+    if op == "lyrics.romanize":
+        synced, plain, _source, _chosen = _online_current(entry)
+        language = str(args.get("language") or "auto")
+        context = "\n".join(str(v or "") for v in (entry["meta"].get("title"), entry["meta"].get("artist"),
+                                                    entry["meta"].get("album"), plain, *(r[1] for r in synced or [])))
+        return _romanized(synced, plain, context, language)
+    raise KeyError("Неизвестная операция / Unknown operation")
+
 
 class Prefetcher:
     """Fetches lyrics for newly added tracks in the background: one track at a time with a pause between

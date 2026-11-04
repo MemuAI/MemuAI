@@ -740,6 +740,21 @@ class ChatService:
 
         full_text = "".join(text_parts)
         if not full_text.strip() and not got_tool_call:
+            if finish_reason == "length":
+                # F20: the provider stopped on the token limit before any
+                # text arrived. Say so plainly (and how to fix it) instead
+                # of the generic "no text, probably a content filter".
+                # The desktop UI offers Retry on this error.
+                truncated = ProviderServerError(
+                    f"{provider.id}: the model stopped because it reached the max_tokens limit "
+                    "before producing any text. Increase the answer token limit or shorten "
+                    "the request and try again.",
+                    message_ru=f"{provider.id}: модель остановилась, достигнув лимита max_tokens, "
+                    "и не вернула ни слова. Увеличьте лимит токенов ответа или сократите запрос "
+                    "и попробуйте ещё раз.")
+                if got_output:
+                    raise _MidStreamAbort(truncated)
+                raise truncated
             empty = ProviderServerError(
                 f"{provider.id}: провайдер завершил поток без текста. Чаще всего это "
                 "отказ модели по фильтрам безопасности или обрыв на стороне сервиса.")

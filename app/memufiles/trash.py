@@ -17,6 +17,7 @@ import datetime
 import json
 import logging
 import os
+import secrets
 import shutil
 import subprocess
 import time
@@ -49,16 +50,29 @@ def trash_root() -> Path:
 def _posix_send(path: str) -> str:
     root = trash_root()
     name = os.path.basename(path.rstrip(os.sep)) or "item"
-    candidate, index = name, 1
-    while os.path.lexists(root / "files" / candidate) or (root / "info" / (candidate + ".trashinfo")).exists():
-        index += 1
-        base, ext = os.path.splitext(name)
-        candidate = f"{base}.{index}{ext}"
-    info = ("[Trash Info]\nPath=" + urllib.parse.quote(os.path.abspath(path)) + "\nDeletionDate="
-            + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + "\n")
-    info_path = root / "info" / (candidate + ".trashinfo")
-    with open(info_path, "x", encoding="utf-8") as handle:
-        handle.write(info)
+    base, ext = os.path.splitext(name)
+    # F34: the old sequential ".1", ".2" names were predictable and the
+    # lexists-check-then-create was a TOCTOU: two concurrent deletes (or a
+    # planted file) collided. Names now carry a random suffix and the info
+    # file is created with "x" inside a retry loop.
+    candidate = name
+    info_path = None
+    for _attempt in range(16):
+        info_path = root / "info" / (candidate + ".trashinfo")
+        if os.path.lexists(root / "files" / candidate):
+            candidate = f"{base}.{secrets.token_hex(6)}{ext}"
+            continue
+        info = ("[Trash Info]\nPath=" + urllib.parse.quote(os.path.abspath(path)) + "\nDeletionDate="
+                + datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S") + "\n")
+        try:
+            with open(info_path, "x", encoding="utf-8") as handle:
+                handle.write(info)
+            break
+        except FileExistsError:
+            candidate = f"{base}.{secrets.token_hex(6)}{ext}"
+    else:
+        raise TrashError("could not place the item in the trash")
+    assert info_path is not None
     try:
         shutil.move(path, str(root / "files" / candidate))
     except BaseException:
@@ -106,11 +120,20 @@ def _posix_restore(token: str, target: Optional[str] = None) -> str:
         raise TrashError("not in trash")
     original = target
     if not original:
-        for line in info.read_text(encoding="utf-8").splitlines():
+        # F34: a missing/unreadable .trashinfo used to raise a raw
+        # FileNotFoundError, and an unsigned Path= was trusted blindly.
+        try:
+            lines = info.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise TrashError("trash info unreadable") from exc
+        for line in lines:
             if line.startswith("Path="):
                 original = urllib.parse.unquote(line[5:])
     if not original:
         raise TrashError("original path unknown")
+    original = os.path.abspath(original)
+    if not os.path.isabs(original):
+        raise TrashError("original path is not absolute")
     if os.path.lexists(original):
         from .fsops import unique_name
         original = os.path.join(os.path.dirname(original), unique_name(os.path.dirname(original),

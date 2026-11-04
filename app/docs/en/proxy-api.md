@@ -106,6 +106,8 @@ In **Proxy → Settings → Integrations**, select the models and apply the sett
 
 For agent actions (reading and editing files, running commands), select a **Custom API** model whose upstream server supports OpenAI-compatible `tools` / `tool_calls`. The Proxy carries calls between the model and the CLI; the CLI performs the actions. A web provider without native function calling returns an explicit `400` for a request with tools, while ordinary chat remains available.
 
+The **Codex app** (desktop) and the Codex extension for VS Code read the same `~/.codex/config.toml` but cannot pick a profile — they use the default model. Turn on **Also for the Codex app**: the MemuAI model becomes the default, and MemuAI keeps your own top-level `model`, `model_provider` and `profile` lines and puts them back on Reset (or when you clear the box and apply again). Restart the app afterwards. If the app asks you to sign in, sign in as usual — requests still go through the MemuAI provider while it is the default.
+
 If you already have a separate API, choose **Own API directly** in the same panel and enter its Base URL, key and model ID. The CLI then connects without going through the Proxy. Claude Code requires an Anthropic Messages endpoint (`/v1/messages`); Codex CLI requires OpenAI Responses (`/v1/responses`) with tool calls. Re-enter the key when applying the settings again.
 
 ## Pass-through to your API (`/p/`)

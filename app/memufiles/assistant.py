@@ -295,6 +295,8 @@ def _fmt_items(scope: str, result: Dict[str, Any]) -> Dict[str, Any]:
 
 def run_tool(scope: str, name: str, args: Dict[str, Any], cancel: Optional[threading.Event] = None) -> Dict[str, Any]:
     args = args if isinstance(args, dict) else {}
+    if name == "load_skill":
+        return load_skill(args)
     if name == "find_files":
         return _fmt_items(scope, find_files(scope, args, cancel, hard_limit=5000))
     if name == "list_folder":
@@ -589,10 +591,33 @@ def _execute_plan(plan: Dict[str, Any], selected: Iterable[int], queue: Any, per
         count += len(rows)
     return {"ops": ops, "skipped": skipped, "count": count}
 
+SKILLS_RU = ("\n\nСкиллы — общие плейбуки MemuAI (список выше). Если запрос явно подходит к одному и это большая работа "
+             "(разбор, план, документ), сначала загрузи его: <tool>{\"name\": \"load_skill\", \"args\": {\"ids\": [\"id\"]}}</tool> "
+             "— не больше двух, один раз за запрос, и не упоминай скиллы в ответе.")
+SKILLS_EN = ("\n\nSkills are the shared MemuAI playbooks listed above. When the request clearly matches one and is substantial "
+             "work (a review, plan, document), load it first: <tool>{\"name\": \"load_skill\", \"args\": {\"ids\": [\"id\"]}}</tool> "
+             "— at most two, once per request, and never mention skills in the answer.")
+
 def system_prompt(scope: str, lang: str) -> str:
     template = PROMPT_EN if lang == "en" else PROMPT_RU
-    return template.format(scope=scope, os="Windows" if os.name == "nt" else "Linux/macOS",
+    text = template.format(scope=scope, os="Windows" if os.name == "nt" else "Linux/macOS",
                            today=time.strftime("%Y-%m-%d"))
+    try:
+        from .. import skills_scope
+        block = skills_scope.prompt_block("files", protocol="tool")
+    except Exception:  # noqa: BLE001 - the assistant works without skills
+        block = ""
+    if block:
+        text += "\n\n" + block + (SKILLS_EN if lang == "en" else SKILLS_RU)
+    return text
+
+def load_skill(args: Dict[str, Any]) -> Dict[str, Any]:
+    """The ``load_skill`` tool: the playbooks of the shared library that work in MemuFiles."""
+    from .. import skills_scope
+    raw = args.get("ids") if isinstance(args.get("ids"), list) else [args.get("id") or args.get("skill") or ""]
+    ids = [str(item).strip() for item in raw if str(item or "").strip()][:2]
+    text, loaded = skills_scope.instructions(ids, "files")
+    return {"skills": loaded, "instructions": text}
 
 PY_CALL_RE = re.compile(r"<\u200b?\|tool_call_start\|>\s*\[?\s*([A-Za-z_]\w*\(.*?\))\s*\]?\s*(?:<\u200b?\|tool_call_end\|>|$)", re.S)
 

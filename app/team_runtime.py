@@ -14,11 +14,11 @@ import json
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from .cli import protocol
-from .teams import normalize
+from .teams import ECONOMY_CAPS, normalize
 
 MAX_EVENTS = 240
 MAX_TASKS = 500
@@ -211,7 +211,7 @@ class TeamRun:
     def __init__(self, team: dict, *, complete: Complete, tool: Tool, emit: Callable[[dict], None],
                  guard: Callable[[], None], messages: list[dict], manager_context: str = "",
                  tools_prompt: str = "", run_id: str = "", mode: str = "chat", require_confirmation: bool = True,
-                 available_models: list[str] | None = None):
+                 available_models: list[str] | None = None, source: str = "chat"):
         self.team = normalize(team)
         self.complete = complete
         self.tool = tool
@@ -222,10 +222,14 @@ class TeamRun:
         self.tools_prompt = tools_prompt[:100000]
         self.id = run_id or "run_" + uuid.uuid4().hex
         self.mode = mode
+        self.source = source if source in ("chat", "schedule") else "chat"
         self.require_confirmation = require_confirmation
         self.available_models = list(dict.fromkeys([self.team["manager_model"], *(available_models or [])]))[:100]
         self.members = {row["id"]: row for row in self.team["members"]}
-        self.budget = self.team["budget"]
+        self.budget = dict(self.team["budget"])
+        if self.team["run_mode"] == "economy":
+            for key, cap in ECONOMY_CAPS.items():
+                self.budget[key] = min(self.budget[key], cap)
         self.tasks: dict[str, Task] = {}
         self.mailboxes: dict[str, list[str]] = {}
         self.events: list[dict] = []
@@ -269,7 +273,8 @@ class TeamRun:
 
     def snapshot(self) -> dict:
         return {"id": self.id, "run_id": self.id, "team_id": self.team["id"], "team_name": self.team["name"],
-                "status": self.status, "phase": self.phase, "mode": self.mode,
+                "status": self.status, "phase": self.phase, "mode": self.mode, "source": self.source,
+                "run_mode": self.team["run_mode"],
                 "lead_id": self.lead_id, "started": self.started, "finished": self.finished,
                 "calls": self.calls, "max_calls": self.budget["max_calls"], "tool_calls": self.tool_calls,
                 "members": [{key: row[key] for key in ("id", "name", "role", "model", "status", "is_lead") if key in row}
@@ -399,7 +404,7 @@ class TeamRun:
         self.assignments = []
         if revision == 0:
             self.event("run_started", team_id=self.team["id"], team_name=self.team["name"],
-                       members=self.snapshot()["members"], max_calls=self.budget["max_calls"])
+                       members=self.snapshot()["members"], max_calls=self.budget["max_calls"], run_mode=self.team["run_mode"])
         roster = [{key: member[key] for key in ("id", "name", "role", "is_lead")} for member in self.members.values()]
         system = ('Select the explicit team lead when present; otherwise choose the best role for this request. '
               'First explain your understanding and proposed approach in user-facing plan. Ask essential missing questions there. '
@@ -469,6 +474,8 @@ class TeamRun:
         return (f"[TEAM_ACTOR:{actor}]\n" + _COMMON + (_LEAD if actor == self.lead_id else _MEMBER)
                 + "\nYour role: " + member["role"] + "\nYour role instructions:\n" + member["instructions"]
                 + "\nTeam roster:\n" + _json(roster)
+                + ('\nYour final report can be delivered directly to the user. Present the result and verification, preserve exact links and paths, '
+                   'and include material limitations without internal coordination.' if self.team["run_mode"] == "economy" and actor == self.lead_id else "")
                 + '\nShared desktop tools include web_search/web_fetch, Work files/terminal, code tools, browser, '
                   'Computer Use, DFY, skills and visualizations. Before first use request team_tool_help {query:"tool name or topic"} for exact '
                   'schemas and permissions. This is a local lookup, not another agent. Do not guess tool arguments. '
@@ -903,17 +910,26 @@ class TeamRun:
                         break
                 await self._join()
             self.guard()
-            self.event("handoff", source=self.lead_id, target="manager", title="Результат передан менеджеру / Result sent to the manager")
-            self.set_phase("presenting")
-            final = await self._complete("manager", [
-                {"role": "system", "content": "[TEAM_ACTOR:manager]\n" + self._manager_system(
-                   "Present the team's result directly to the user. Preserve links, exact file paths and useful artifacts. "
-                   "State verification and material limitations. Do not hide errors or budget exhaustion. "
-                   "Do not repeat internal coordination or expose private memory. Do not emit tool calls; work is complete for this run.")},
-                {"role": "user", "content": "Original conversation:\n" + _json(self.messages, 30000)
-                 + "\nLead report:\n" + lead_report + "\nTask outcomes:\n"
-                 + _json([task.public() for task in self.tasks.values()], 8000)
-                 + ("\nThe run hit a configured budget; explicitly state what remains." if self.limited else "")}], reserve=0)
+            direct = (self.team["run_mode"] == "economy" and not self.team["manager_instructions"] and not self.limited
+                      and self.actor_state[self.lead_id]["status"] == "done"
+                      and all(task.status == "done" for task in self.tasks.values())
+                      and not any(row["status"] == "error" for row in self.actor_state.values()))
+            if direct:
+                final = lead_report
+                self.event("handoff", source=self.lead_id, target="user",
+                           title="Ответ тимлида готов / The lead's answer is ready")
+            else:
+                self.event("handoff", source=self.lead_id, target="manager", title="Результат передан менеджеру / Result sent to the manager")
+                self.set_phase("presenting")
+                final = await self._complete("manager", [
+                    {"role": "system", "content": "[TEAM_ACTOR:manager]\n" + self._manager_system(
+                       "Present the team's result directly to the user. Preserve links, exact file paths and useful artifacts. "
+                       "State verification and material limitations. Do not hide errors or budget exhaustion. "
+                       "Do not repeat internal coordination or expose private memory. Do not emit tool calls; work is complete for this run.")},
+                    {"role": "user", "content": "Original conversation:\n" + _json(self.messages, 30000)
+                     + "\nLead report:\n" + lead_report + "\nTask outcomes:\n"
+                     + _json([task.public() for task in self.tasks.values()], 8000)
+                     + ("\nThe run hit a configured budget; explicitly state what remains." if self.limited else "")}], reserve=0)
 
             parsed = protocol.parse(final, finished=True)
             extra, final, invalid = external_calls(parsed.text)

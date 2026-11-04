@@ -17,7 +17,7 @@ try {
   const accent = localStorage.getItem("memu_accent") || "";
   root.dataset.accent = /^[a-z]{2,24}$/.test(accent) ? accent : "terracotta";
   const design = localStorage.getItem("memu_design") || "";
-  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal)$/.test(design) ? design : "classic";
+  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal|notebook|messenger|retro|clay|studio|zen)$/.test(design) ? design : "classic";
   const surface = localStorage.getItem("memu_surface_" + theme) || "";
   if (/^[a-z0-9-]{1,48}$/.test(surface)) root.dataset.surface = surface;
   root.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru";
@@ -30,7 +30,7 @@ try {
 <link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
 <link rel="stylesheet" href="/quick/quick.css?v=3.4-r38">
 <link rel="stylesheet" href="/tables.css?v=1.1-r30">
-<link rel="stylesheet" href="/diagrams.css?v=1.1-r30">
+<link rel="stylesheet" href="/diagrams.css?v=5.0-r79">
 <link rel="stylesheet" href="/cmd-highlight.css?v=1.0-r30">
 <link rel="stylesheet" href="/quick/quick-dfy.css?v=1.3-r34">
 <link rel="stylesheet" href="/askuser.css?v=3.5-r35">
@@ -42,7 +42,7 @@ try {
 <link rel="stylesheet" href="/quick/quick-ux.css?v=1.2-r34">
 <link rel="stylesheet" href="/quick/quick-models.css?v=3.6-r34">
 
-<link rel="stylesheet" href="/designs/quick-extra.css?v=1.0-r24">
+<link rel="stylesheet" href="/designs/quick-extra.css?v=4.5-r76">
 
 <link rel="stylesheet" href="/quick/quick-appearance.css?v=1.0-r30">
 
@@ -104,25 +104,25 @@ try {
   </main>
 </div>
 <script src="/vendor/katex/katex.min.js?v=1.0-final" defer></script>
-<script src="/syntax.js?v=1.0-syntax"></script>
-<script src="/tables.js?v=1.0-r29"></script>
+<script src="/syntax.js?v=5.0-r79"></script>
+<script src="/tables.js?v=5.0-r79"></script>
 <script src="/diagram-zoom.js?v=1.1-r36"></script>
-<script src="/diagrams.js?v=1.2-r36"></script>
+<script src="/diagrams.js?v=5.0-r79"></script>
 <script src="/quick/quick-md.js?v=1.3-r34"></script>
 <script src="/quick/quick-calc.js?v=34.1"></script>
 
 <script src="/quick/quick-bus.js?v=1.0-r28"></script>
 <script src="/memu-live.js?v=1.0-r40"></script>
-<script src="/memu-model-names.js?v=3.5-r33"></script>
-<script src="/quick/quick.js?v=3.13-r40"></script>
+<script src="/memu-model-names.js?v=5.0-r78"></script>
+<script src="/quick/quick.js?v=4.5-r76"></script>
 
-<script src="/cmd-highlight.js?v=1.0-r30"></script>
+<script src="/cmd-highlight.js?v=5.0-r79"></script>
 
 <script src="/quick/quick-copy.js?v=1.1-r34"></script>
 
 <script src="/quick/quick-computer.js?v=2.1-r34"></script>
 
-<script src="/dfy-client.js?v=3.8-r46" onerror="this.remove()"></script>
+<script src="/dfy-client.js?v=4.5-r76" onerror="this.remove()"></script>
 
 <script src="/dfy-remote.js?v=1.1-r30" onerror="this.remove()"></script>
 <script src="/stuck.js?v=1.0-r29"></script>

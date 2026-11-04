@@ -8,7 +8,7 @@ const MemuCode = (() => {
     set(key, value) { try { localStorage.setItem(key, String(value)); } catch (e) {  } },
   };
   const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
-  const TAB_IDS = ["file", "diff", "artifact", "terminal", "tasks", "changes", "skills"];
+  const TAB_IDS = ["file", "diff", "artifact", "terminal", "tasks", "changes", "skills", "agents"];
   const savedTab = store.get("memu_code_tab", "") || (() => { try { return sessionStorage.getItem("memu_code_tab"); } catch (e) { return ""; } })();
 
   const state = {
@@ -50,6 +50,8 @@ const MemuCode = (() => {
     editor: null,
     dockExpanded: store.get("memu_code_dock_expanded", "0") === "1",
   };
+  const approvalWaiters = new Map();
+  const approvalGrants = new Map();
 
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
   const t = (ru, english) => (en() ? english : ru);
@@ -94,7 +96,9 @@ const MemuCode = (() => {
     edit: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
     save: '<path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8V3M7 21v-7h10v7"/>',
     expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+    shield: '<path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-4"/>',
     shrink: '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>',
+    users: '<path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1"/><circle cx="9.5" cy="7.5" r="3.5"/><path d="M21 19v-1a4 4 0 0 0-3-3.9M15.5 4.2a3.5 3.5 0 0 1 0 6.6"/>',
   };
   const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
   function fillIcons(root) {
@@ -161,14 +165,25 @@ const MemuCode = (() => {
     return (all[key] && Array.isArray(all[key].disabled)) ? all[key].disabled : [];
   }
 
+  /* Of a line «Does X. Use for Y.» the model needs «use for Y» to choose; the rest arrives with the playbook
+     (the same rule as MemuCode CLI). */
+  function skillWhen(text) {
+    let line = String(text || "").replace(/\s+/g, " ").trim();
+    const found = line.match(/(?:^|[.;]\s+)(Use (?:for|when|to|it)\b.*)$/);
+    if (found && found[1].length >= 12 && !/\b(?:such|it|them|this|these)\b/.test(found[1].slice(4))) line = found[1][0].toLowerCase() + found[1].slice(1);
+    line = line.replace(/\.$/, "");
+    return line.length > 110 ? line.slice(0, 109).trimEnd() + "…" : line;
+  }
+
   function codeSkillsPrompt() {
     const disabled = new Set(skillState());
     const rows = (state.skills || []).filter((row) => row && row.id && !disabled.has(row.id));
     if (!rows.length) return "";
     const lines = ["<code_skills>",
-      "MemuCode playbooks. Call code_skill {id} before a task that clearly matches one (not for questions or small edits). Project skills override built-ins."];
-    rows.slice(0, 24).forEach((row) => {
-      lines.push(`• ${row.id} (${row.source || "builtin"}) — ${row.description || row.title || ""}`);
+      "MemuCode playbooks, not loaded yet. Call code_skill {id} before a task that clearly matches a line (not for questions or small edits); at most two. Project skills override built-ins."];
+    rows.slice(0, 48).forEach((row) => {
+      const own = row.source === "project" || row.source === "personal" ? ` (${row.source})` : "";
+      lines.push(`• ${row.id}${own} — ${skillWhen(row.description || row.title || "")}`);
     });
     lines.push("</code_skills>");
     return "\n\n" + lines.join("\n");
@@ -344,12 +359,17 @@ const MemuCode = (() => {
     if (name) name.textContent = active ? active.name : t("не выбран", "none");
     const accessButton = document.getElementById("code-access");
     if (accessButton) {
-      const full = access() === "full";
-      accessButton.textContent = full ? t("Полный доступ", "Full access") : t("С подтверждением", "Ask");
-      accessButton.classList.toggle("danger-active", full);
-      accessButton.title = full
-        ? t("Полный доступ: правки и команды без подтверждения", "Full access: edits and commands run without asking")
-        : t("С подтверждением: каждое изменение файла ждёт подтверждения", "Ask: every file change waits for approval");
+      const level = typeof codeAccessLevel === "function" ? codeAccessLevel() : access();
+      const grantsNow = grantsFor(typeof S !== "undefined" ? S.currentId : "");
+      const extra = level !== "full" && (grantsNow.edits || grantsNow.commands) ? " +" : "";
+      const label = typeof codeAccessLabel === "function" ? codeAccessLabel(level) : level;
+      accessButton.innerHTML = svg(level === "full" ? "bolt" : level === "edits" ? "edit" : "shield")
+        + `<span class="cb-access-label">${esc(label)}</span>` + (extra ? '<b class="cb-access-plus" aria-hidden="true">+</b>' : "");
+      accessButton.classList.toggle("danger-active", level === "full");
+      accessButton.classList.toggle("warn-active", level === "edits");
+      accessButton.title = (typeof codeAccessHint === "function" ? codeAccessHint(level) : "")
+        + (extra ? t(". В этой сессии часть действий разрешена без вопросов", ". Some actions are allowed without asking in this session") : "");
+      accessButton.setAttribute("aria-label", t("Разрешения MemuCode: ", "MemuCode permissions: ") + label + extra);
     }
     const plan = document.getElementById("code-plan");
     if (plan) {
@@ -392,6 +412,7 @@ const MemuCode = (() => {
         const sandbox = await post("/api/code/sandbox", { session: session() });
         const node = document.getElementById("code-sandbox-state");
         const active = Number(sandbox.active_processes || 0);
+        state.sandboxActive = active > 0;
         if (node) {
           node.textContent = active ? t(`песочница · ${active}`, `sandbox · ${active}`) : t("песочница", "sandbox");
           node.classList.toggle("live", active > 0);
@@ -966,6 +987,7 @@ const MemuCode = (() => {
     ["tasks", "tasks", "Задачи", "Tasks"],
     ["changes", "undo", "Откат", "Undo"],
     ["skills", "skills", "Скиллы", "Skills"],
+    ["agents", "users", "Агенты", "Agents"],
   ];
 
   function badgeFor(id) {
@@ -973,6 +995,7 @@ const MemuCode = (() => {
     if (id === "tasks") { const n = state.tasks.filter((task) => task.running).length; return n ? String(n) : ""; }
     if (id === "changes") return state.changesCount ? String(state.changesCount) : "";
     if (id === "artifact") return state.artifacts.length ? String(state.artifacts.length) : "";
+    if (id === "agents") { const n = window.MemuCodeAgents ? MemuCodeAgents.runningCount() : 0; return n ? String(n) : ""; }
     return "";
   }
 
@@ -981,8 +1004,23 @@ const MemuCode = (() => {
       const badge = button.querySelector(".cd-badge");
       if (!badge) return;
       badge.textContent = badgeFor(button.dataset.tab);
-      badge.classList.toggle("live", button.dataset.tab === "tasks" && !!badge.textContent);
+      badge.classList.toggle("live", (button.dataset.tab === "tasks" || button.dataset.tab === "agents") && !!badge.textContent);
     });
+    fitTabs();
+  }
+
+  // The active tab shows its name only while every tab fits: a narrow panel or
+  // several counters hide it instead of pushing the last tabs out of sight.
+  function fitTabs() {
+    const host = document.getElementById("code-dock-tabs");
+    if (!host || !host.clientWidth) return;
+    host.classList.remove("cd-tabs-compact");
+    if (host.scrollWidth > host.clientWidth + 1) host.classList.add("cd-tabs-compact");
+    const active = host.querySelector('[aria-selected="true"]');
+    if (!active) return;
+    const box = host.getBoundingClientRect(), item = active.getBoundingClientRect();
+    if (item.left < box.left) host.scrollLeft -= box.left - item.left;
+    else if (item.right > box.right) host.scrollLeft += item.right - box.right;
   }
 
   function renderTabs() {
@@ -993,6 +1031,10 @@ const MemuCode = (() => {
         title="${esc(t(ru, english))} — Alt+${index + 1}">${svg(iconName)}<span class="cd-label">${esc(t(ru, english))}</span><span class="cd-badge"></span></button>`
     ).join("");
     updateBadges();
+    if (!host.dataset.fit && typeof ResizeObserver === "function") {
+      host.dataset.fit = "1";
+      new ResizeObserver(() => fitTabs()).observe(host);
+    }
     const body = dockBody();
     if (body) body.setAttribute("aria-labelledby", "code-tab-" + state.tab);
   }
@@ -1016,6 +1058,7 @@ const MemuCode = (() => {
     if (tab === "tasks") { renderTasks(); return refreshMeta(); }
     if (tab === "changes") return renderChanges();
     if (tab === "skills") return renderSkills();
+    if (tab === "agents" && window.MemuCodeAgents) return MemuCodeAgents.render(dockBody());
   }
 
   async function loadDiff(focusPath) {
@@ -1170,7 +1213,7 @@ const MemuCode = (() => {
     const files = parseDiff(state.diffText);
     const add = files.reduce((sum, file) => sum + file.add, 0);
     const del = files.reduce((sum, file) => sum + file.del, 0);
-    const split = state.diffMode === "split";
+    const split = diffView() === "split";
     const toolbar = `<div class="cd-toolbar">
       <div class="cd-title"><b>${esc(t("Изменения в рабочем дереве", "Working tree changes"))}</b></div>
       <div class="cd-seg" role="group" aria-label="${esc(t("Вид", "View"))}">
@@ -1219,7 +1262,7 @@ const MemuCode = (() => {
     body.querySelectorAll("[data-diff]").forEach((button) => {
       button.onclick = () => {
         state.diffMode = button.dataset.diff === "split" ? "split" : "unified";
-        store.set("memu_code_diff_mode", state.diffMode);
+        if (typeof savePreferences === "function") savePreferences({ code_diff_view: state.diffMode });
         renderDiff();
       };
     });
@@ -1363,9 +1406,8 @@ const MemuCode = (() => {
   async function renderTerminal() {
     const body = dockBody();
     if (!body) return;
-    const full = access() === "full";
     body.innerHTML = `<div class="cd-toolbar">
-      <div class="cd-title"><b>${esc(t("Терминал проекта", "Project terminal"))}</b><small>${esc(full ? "full access" : t("только чтение", "read-only"))}</small></div>
+      <div class="cd-title"><b>${esc(t("Терминал проекта", "Project terminal"))}</b><small>${esc(t("песочница", "sandbox"))}</small></div>
       <button type="button" class="cd-btn icon" id="code-term-clear" title="${esc(t("Очистить экран", "Clear the screen"))}">${svg("trash")}</button>
       <button type="button" class="cd-btn danger" id="code-term-stop" title="${esc(t("Остановить процессы", "Stop the processes"))}">${svg("stop")}${esc(t("Стоп", "Stop"))}</button>
     </div>
@@ -1374,8 +1416,7 @@ const MemuCode = (() => {
       <span class="code-term-prompt" aria-hidden="true">$</span>
       <input id="code-term-input" spellcheck="false" autocomplete="off" aria-label="${esc(t("Команда", "Command"))}" placeholder="${esc(t("git status, npm test, python -m pytest…", "git status, npm test, python -m pytest…"))}">
       <button type="submit" class="cd-btn primary">${esc(t("Запуск", "Run"))}</button>
-    </form>
-    ${full ? "" : `<div class="code-term-hint">${esc(t("В режиме «С подтверждением» работают только команды чтения. Остальные требуют полного доступа.", "In Ask mode only read-only commands run. Everything else needs Full access."))}</div>`}`;
+    </form>`;
     setTerminal("");
     const input = document.getElementById("code-term-input");
     document.getElementById("code-term-stop")?.addEventListener("click", stopSandbox);
@@ -1404,8 +1445,10 @@ const MemuCode = (() => {
       const submit = event.target.querySelector("button[type=submit]");
       if (submit) submit.disabled = true;
       try {
+        // A command typed here is the person's own action, so the agent's
+        // permission level does not apply to it.
         const result = await post("/api/code/terminal", {
-          project_id: projectId(), session: session(), action: "run", command, access: access(),
+          project_id: projectId(), session: session(), action: "run", command, access: "full",
         });
         state.termCleared = false;
         setTerminal(result.scrollback || ((result.stdout || "") + (result.stderr || "")));
@@ -1552,16 +1595,16 @@ const MemuCode = (() => {
     }
     const disabled = new Set(skillState());
     const q = state.skillFilter.trim().toLowerCase();
-    const rows = state.skills.filter((skill) => !q || `${skill.id} ${skill.title} ${skill.description}`.toLowerCase().includes(q));
+    const rows = state.skills.filter((skill) => !q || `${skill.id} ${skill.title} ${skill.description} ${skill.title_ru || ""} ${skill.description_ru || ""}`.toLowerCase().includes(q));
     const on = state.skills.filter((skill) => !disabled.has(skill.id)).length;
     body.innerHTML = `<div class="cd-toolbar">
       <input class="cd-filter" id="code-skill-filter" type="search" placeholder="${esc(t("Найти скилл", "Find a skill"))}" value="${esc(state.skillFilter)}" aria-label="${esc(t("Найти скилл", "Find a skill"))}">
       <small class="cd-state">${on}/${state.skills.length}</small></div>
-      <p class="code-note">${esc(t("Проектные скиллы из .memuai/skills перекрывают встроенные. Выключение действует для этого проекта.",
-        "Project skills in .memuai/skills override built-ins. Disabling applies to this project."))}</p>
+      <p class="code-note">${esc(t("Тот же список, что в MemuCode CLI: скиллы проекта (.memucode/skills, .memuai/skills, .claude/skills) перекрывают личные и встроенные. Скиллы библиотеки MemuAI приходят сюда, если в окне «Скиллы» MemuAI для них включён MemuCode. Скилл запускается и командой /имя задача. Выключение здесь действует для этого проекта.",
+        "The same list as in MemuCode CLI: project skills (.memucode/skills, .memuai/skills, .claude/skills) override personal and built-in ones. Skills of the MemuAI library come here when MemuCode is on for them in the MemuAI Skills window. A skill also runs as /name task. Disabling here applies to this project."))}</p>
       <div class="cd-scroll">${rows.map((skill) => `<label class="code-skill">
         <span class="cd-switch"><input type="checkbox" data-skill="${esc(skill.id)}" ${disabled.has(skill.id) ? "" : "checked"}><i></i></span>
-        <span><b>${esc(skill.title || skill.id)}</b><em>${esc(skill.description || "")}</em><small>${esc(skill.source || "builtin")} · ${esc(skill.id)}</small></span>
+        <span><b>${esc(skillTitle(skill))}</b><em>${esc(skillDescription(skill))}</em><small>${esc(skillSource(skill))} · ${esc(skill.id)}</small></span>
       </label>`).join("") || emptyView({ icon: "skills", title: projectId() ? t("Ничего не найдено", "Nothing found") : t("Проект не выбран", "No project selected") })}</div>`;
     const filter = body.querySelector("#code-skill-filter");
     filter?.addEventListener("input", () => {
@@ -1584,6 +1627,19 @@ const MemuCode = (() => {
         if (counter) counter.textContent = `${state.skills.length - next.size}/${state.skills.length}`;
       };
     });
+  }
+
+  const skillTitle = (skill) => t(skill.title_ru || skill.title || skill.id, skill.title || skill.id);
+  const skillDescription = (skill) => t(skill.description_ru || skill.description || "", skill.description || "");
+  const skillSource = (skill) => ({
+    library: t("библиотека MemuAI", "MemuAI library"), project: t("проект", "project"),
+    personal: t("личный", "personal"), builtin: t("встроенный", "built-in"),
+  })[skill.source || "builtin"] || String(skill.source || "");
+
+  function openAgents() {
+    if (S.mode !== "code") return;
+    if (state.dockHidden) setDockHidden(false);
+    selectTab("agents");
   }
 
   function openSkills() {
@@ -1616,18 +1672,23 @@ const MemuCode = (() => {
     ];
   }
 
-  function matchScore(text, query) {
+  function matchScore(text, query, fuzzy = true) {
     const hay = String(text || "").toLowerCase();
     if (!query) return 1;
     const at = hay.indexOf(query);
-    if (at >= 0) return 1000 - at - (hay.length / 100);
+    if (at >= 0) return 1000 - at - (hay.length / 100) + (at === 0 || /[\s/_.\-]/.test(hay[at - 1]) ? 50 : 0);
+    if (!fuzzy || query.length < 2) return 0;
     let position = 0;
+    let first = -1;
     for (const char of query) {
       position = hay.indexOf(char, position);
       if (position < 0) return 0;
+      if (first < 0) first = position;
       position += 1;
     }
-    return 100 - hay.length / 100;
+
+    if (position - first > query.length * 2 + 2) return 0;
+    return 100 - (position - first) - hay.length / 100;
   }
 
   function markMatch(text, query) {
@@ -1642,17 +1703,18 @@ const MemuCode = (() => {
     let only = "";
     if (query.startsWith("/") || query.startsWith(">")) { only = "command"; query = query.slice(1).trim(); }
     else if (query.startsWith("#")) { only = "skill"; query = query.slice(1).trim(); }
-    const commands = (typeof CODE_SLASH_COMMANDS !== "undefined" ? CODE_SLASH_COMMANDS : []).map((row) => ({
+    const own = typeof codeCustomSlashRows === "function" ? codeCustomSlashRows({ skills: false }) : [];
+    const commands = (typeof CODE_SLASH_COMMANDS !== "undefined" ? CODE_SLASH_COMMANDS : []).concat(own).map((row) => ({
       kind: "command", icon: "command", label: row[0], detail: [row[1], row[2]].map((v) => (typeof cmdText === "function" ? cmdText(v) : v)).filter(Boolean).join(" — "), run: row[0],
     }));
-    const skills = state.skills.map((skill) => ({ kind: "skill", icon: "skills", label: skill.id, detail: skill.title || skill.description || "", run: skill.id }));
+    const skills = state.skills.map((skill) => ({ kind: "skill", icon: "skills", label: skill.id, detail: skillTitle(skill) === skill.id ? skillDescription(skill) : skillTitle(skill), run: skill.id }));
     const files = state.tree.map((path) => ({ kind: "file", icon: "file", label: path.split("/").pop(), detail: path, run: path }));
     const groups = only === "command" ? [["command", [...actionItems(), ...commands]]]
       : only === "skill" ? [["skill", skills]]
         : [["file", files], ["command", [...actionItems(), ...commands]], ["skill", skills]];
     const out = [];
     groups.forEach(([group, items]) => {
-      const scored = items.map((item) => ({ item, score: Math.max(matchScore(item.label, query) * 2, matchScore(item.detail, query)) }))
+      const scored = items.map((item) => ({ item, score: Math.max(matchScore(item.label, query) * 2, matchScore(item.detail, query, item.kind === "file")) }))
         .filter((row) => row.score > 0).sort((a, b) => b.score - a.score)
         .slice(0, group === "file" ? (query ? 30 : 8) : 12);
       scored.forEach((row, index) => out.push({ ...row.item, group: index === 0 ? group : "" }));
@@ -1719,9 +1781,10 @@ const MemuCode = (() => {
     if (item.kind === "file") return openFile(item.run);
     if (item.kind === "action") return item.run();
     if (item.kind === "skill") {
+      // As in MemuCode CLI: /skill task — the playbook goes with the task, no extra tool round.
       const input = document.getElementById("input");
       if (input) {
-        input.value = (en() ? "Use the code skill " : "Используй скилл кода ") + item.run + " ";
+        input.value = "/" + item.run + " ";
         input.dispatchEvent(new Event("input"));
         input.focus();
       }
@@ -1737,12 +1800,233 @@ const MemuCode = (() => {
   }
 
   async function activate() {
+    applyPrefs();
     state.loaded = false;
     await refreshTree();
     try { await loadSkills(true); } catch (e) { state.skills = state.skills || []; }
     countChanges();
     await refreshMeta();
     renderDock();
+  }
+
+  // ── Approvals ─────────────────────────────────────────────────────────
+  // In code mode an edit or a command that the permission level does not
+  // cover waits here as a card in the chat until the person decides. The diff
+  // comes from a dry run on the server, so the card shows exactly what the
+  // tool would write.
+  function grantsFor(chatId) { return approvalGrants.get(String(chatId || "")) || {}; }
+  function granted(chatId, kind) { return !!grantsFor(chatId)[kind]; }
+  function grantSession(chatId, kind) {
+    const key = String(chatId || "");
+    approvalGrants.set(key, { ...grantsFor(key), [kind]: true });
+    fillChrome();
+  }
+  function clearGrants(chatId) {
+    if (chatId === undefined) approvalGrants.clear();
+    else approvalGrants.delete(String(chatId || ""));
+    fillChrome();
+  }
+
+  const KEEP_ARGS = ["path", "to", "command", "cwd", "shell", "action", "start_line", "end_line", "line", "label", "timeout", "id", "kind", "title"];
+  function compactArgs(args) {
+    const out = {};
+    for (const key of KEEP_ARGS) {
+      if (args && args[key] !== undefined && args[key] !== null && args[key] !== "") out[key] = typeof args[key] === "string" ? args[key].slice(0, 600) : args[key];
+    }
+    return out;
+  }
+  function compactPreview(preview) {
+    const p = preview || {};
+    const out = {};
+    for (const key of ["path", "from", "to", "created", "deleted", "folder", "files", "command", "read_only", "replacements", "line", "start_line", "end_line"]) {
+      if (p[key] !== undefined) out[key] = p[key];
+    }
+    if (p.diff) out.diff = String(p.diff).slice(0, 60000);
+    return out;
+  }
+  function approvalHead(rec) {
+    const p = rec.preview || {};
+    const a = rec.args || {};
+    const path = p.path || a.path || "";
+    if (rec.kind === "command") {
+      if (rec.tool === "code_task") return { icon: "tasks", title: t("Запустить фоновую задачу", "Start a background task") };
+      if (rec.tool === "code_diagnostics") return { icon: "play", title: t("Запустить проверки проекта", "Run the project checks") };
+      return { icon: "command", title: t("Выполнить команду", "Run a command") };
+    }
+    if (rec.tool === "work_delete") return { icon: "trash", danger: true, title: (p.folder ? t("Удалить папку ", "Delete the folder ") : t("Удалить ", "Delete ")) + path };
+    if (rec.tool === "work_move") return { icon: "edit", title: t("Переместить ", "Move ") + (p.from || path) };
+    if (rec.tool === "work_mkdir") return { icon: "folder", title: t("Создать папку ", "Create the folder ") + path };
+    if (rec.tool === "code_artifact") return { icon: "artifact", title: t("Сохранить артефакт в ", "Save the artifact to ") + (a.path || "") };
+    return { icon: p.created ? "plus" : "edit", title: (p.created ? t("Создать ", "Create ") : t("Изменить ", "Edit ")) + path };
+  }
+  function approvalStats(rec) {
+    const files = parseDiff(rec.preview?.diff || "");
+    const add = files.reduce((sum, file) => sum + file.add, 0);
+    const del = files.reduce((sum, file) => sum + file.del, 0);
+    return { files, add, del };
+  }
+  function approvalBody(rec) {
+    const p = rec.preview || {};
+    const a = rec.args || {};
+    if (rec.kind === "command") {
+      const command = p.command || a.command || "";
+      const where = a.cwd ? t(`Папка: ${a.cwd}`, `Folder: ${a.cwd}`) : t("Папка проекта", "The project folder");
+      return `${command ? `<pre class="cap-cmd"><span aria-hidden="true">$</span> ${esc(command)}</pre>` : ""}
+        <p class="cap-sub">${esc(where)} · ${esc(t("песочница без секретов окружения; «Стоп» завершает процессы", "a sandbox without environment secrets; Stop ends the processes"))}</p>`;
+    }
+    if (rec.tool === "work_move") {
+      return `<p class="cap-move"><code>${esc(p.from || a.path || "")}</code><span aria-hidden="true">→</span><code>${esc(p.to || a.to || "")}</code></p>`;
+    }
+    if (rec.tool === "work_delete" && p.folder) {
+      return `<p class="cap-sub">${esc(t(`Папка и всё внутри (${p.files || 0} файлов) будут удалены. Откатить удаление папки нельзя.`, `The folder and everything inside it (${p.files || 0} files) will be deleted. Deleting a folder cannot be undone.`))}</p>`;
+    }
+    if (rec.tool === "work_mkdir") return "";
+    const { files } = approvalStats(rec);
+    const file = files[0];
+    if (!file || !file.rows.length) return `<p class="cap-sub">${esc(t("Изменений в тексте нет.", "No text changes."))}</p>`;
+    const limit = 400;
+    return `<div class="cap-diff diff-body">${unifiedRows(file, limit)}</div>
+      ${file.rows.length > limit ? `<p class="cap-sub">${esc(t(`Показаны первые ${limit} строк из ${file.rows.length}.`, `Showing the first ${limit} of ${file.rows.length} lines.`))}</p>` : ""}`;
+  }
+  function approvalCard(rec) {
+    const head = approvalHead(rec);
+    const { add, del } = rec.kind === "edit" ? approvalStats(rec) : { add: 0, del: 0 };
+    const counts = add || del ? `<span class="diff-plus">+${add}</span><span class="diff-minus">−${del}</span>` : "";
+    if (rec.status !== "pending") {
+      const label = rec.status === "approved"
+        ? (rec.kind === "command" ? t("Выполнено с вашего разрешения", "Run with your approval") : t("Применено с вашего разрешения", "Applied with your approval"))
+        : rec.status === "rejected" ? t("Отклонено", "Rejected") : t("Не дождалось решения", "Not decided");
+      return `<div class="cap-card cap-done cap-s-${esc(rec.status)}" data-cap="${esc(rec.id)}">
+        <span class="cap-mark">${svg(rec.status === "approved" ? "check" : "close")}</span>
+        <span class="cap-done-text"><b>${esc(label)}</b><span>${esc(head.title)}</span>${counts}</span>
+        ${rec.scope === "session" ? `<small class="cap-tag">${esc(t("до конца сессии", "for this session"))}</small>` : ""}
+        ${rec.note ? `<span class="cap-note">${esc(rec.note)}</span>` : ""}</div>`;
+    }
+    const sessionLabel = rec.kind === "command" ? t("Разрешить команды в этой сессии", "Allow commands in this session")
+      : t("Разрешить правки в этой сессии", "Allow edits in this session");
+    return `<section class="cap-card cap-pending${head.danger ? " cap-danger" : ""}" data-cap="${esc(rec.id)}" role="group" aria-label="${esc(head.title)}">
+      <header class="cap-head"><span class="cap-ico">${svg(head.icon)}</span>
+        <div class="cap-title"><b title="${esc(head.title)}">${esc(head.title)}</b><small>${esc(rec.tool)}${counts ? " · " : ""}${counts}</small></div>
+        <span class="cap-badge">${esc(t("ждёт решения", "waiting"))}</span></header>
+      ${approvalBody(rec)}
+      <footer class="cap-foot">
+        <button type="button" class="cap-btn primary" data-cap-act="approve">${svg("check")}<span>${esc(rec.kind === "command" ? t("Выполнить", "Run") : head.danger ? t("Удалить", "Delete") : t("Применить", "Apply"))}</span></button>
+        <button type="button" class="cap-btn" data-cap-act="session">${esc(sessionLabel)}</button>
+        <button type="button" class="cap-btn ghost" data-cap-act="reject">${esc(t("Отклонить", "Reject"))}</button>
+        <span class="cap-hint">${esc(t("Или напишите в чат, что сделать иначе", "Or write in the chat what to do instead"))}</span>
+      </footer></section>`;
+  }
+  // Decided cards stay with the tool trail above the answer; a pending card
+  // goes below the answer, where the agent has just explained what it wants.
+  function approvalsHtml(m, index, which = "") {
+    const list = ((m && m.codeApprovals) || []).filter((rec) => !which || (which === "pending") === (rec.status === "pending"));
+    return list.length ? `<div class="cap-stack${which ? " cap-stack-" + which : ""}">${list.map(approvalCard).join("")}</div>` : "";
+  }
+  function rerenderChat() { try { if (typeof renderMessages === "function") renderMessages(); } catch (e) {  } }
+  function persistApproval(ctx) {
+    try { if (ctx && ctx.chatId && typeof persistChatSnapshot === "function") persistChatSnapshot(ctx.chatId, ctx.messages); } catch (e) {  }
+  }
+  function requestApproval(assistant, request, ctx = {}) {
+    const rec = { id: "cap-" + Math.random().toString(36).slice(2, 10), kind: request.kind, tool: request.tool,
+      args: compactArgs(request.args), preview: compactPreview(request.preview), status: "pending", createdAt: Date.now() };
+    (assistant.codeApprovals = assistant.codeApprovals || []).push(rec);
+    const progress = assistant.progress;
+    assistant.awaitingUser = true;
+    assistant.progress = "";
+    persistApproval(ctx);
+    rerenderChat();
+    setTimeout(() => {
+      const card = document.querySelector(`[data-cap="${CSS.escape(rec.id)}"]`);
+      if (!card) return;
+      card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      if (!document.activeElement?.closest?.(".composer, #composer, textarea#input")) card.querySelector("[data-cap-act=approve]")?.focus({ preventScroll: true });
+    }, 60);
+    if (document.hidden && typeof toast === "function") toast(t("MemuCode ждёт вашего решения в чате", "MemuCode is waiting for your decision in the chat"), "warn", 6000);
+    return new Promise((resolve, reject) => {
+      const waiter = { resolve, reject, rec, ctx };
+      approvalWaiters.set(rec.id, waiter);
+      const abort = () => {
+        if (!approvalWaiters.has(rec.id)) return;
+        approvalWaiters.delete(rec.id);
+        rec.status = "cancelled";
+        reject(new DOMException("aborted", "AbortError"));
+      };
+      if (ctx.signal) {
+        if (ctx.signal.aborted) { abort(); return; }
+        ctx.signal.addEventListener("abort", abort, { once: true });
+      }
+    }).finally(() => {
+      assistant.awaitingUser = (assistant.codeApprovals || []).some((item) => item.status === "pending");
+      assistant.progress = progress || "";
+      persistApproval(ctx);
+      rerenderChat();
+    });
+  }
+  function decideApproval(id, status, scope = "", note = "") {
+    const waiter = approvalWaiters.get(id);
+    if (!waiter) return false;
+    approvalWaiters.delete(id);
+    const rec = waiter.rec;
+    rec.status = status;
+    rec.decidedAt = Date.now();
+    if (note) rec.note = String(note).slice(0, 2000);
+    if (status === "approved" && scope === "session") {
+      rec.scope = "session";
+      grantSession(waiter.ctx.chatId, rec.kind === "command" ? "commands" : "edits");
+    }
+    waiter.resolve({ status, scope, note: rec.note || "" });
+    return true;
+  }
+  function pendingApproval() {
+    for (const [id, waiter] of approvalWaiters) {
+      if (typeof S !== "undefined" && waiter.ctx.chatId === S.currentId) return id;
+    }
+    return "";
+  }
+  function interceptSend(text) {
+    const value = String(text || "").trim();
+    const id = pendingApproval();
+    if (!id || !value || value.startsWith("/")) return false;
+    return decideApproval(id, "rejected", "", value);
+  }
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-cap-act]");
+    if (!button) return;
+    const card = button.closest("[data-cap]");
+    if (!card) return;
+    event.preventDefault();
+    const act = button.dataset.capAct;
+    card.querySelectorAll("[data-cap-act]").forEach((node) => { node.disabled = true; });
+    decideApproval(card.dataset.cap, act === "reject" ? "rejected" : "approved", act === "session" ? "session" : "");
+  });
+
+  // ── Preferences that shape the window ───────────────────────────────────
+  function diffView() {
+    const value = typeof pref === "function" ? pref("code_diff_view", "") : "";
+    return value === "split" || value === "unified" ? value : state.diffMode;
+  }
+  function applyPrefs() {
+    const size = Math.max(11, Math.min(18, Number(typeof pref === "function" ? pref("code_font_size", 13) : 13) || 13));
+    document.documentElement.style.setProperty("--code-fs", size + "px");
+    document.body.classList.toggle("code-wrap", !!(typeof pref === "function" && pref("code_wrap", false)));
+    state.diffMode = diffView();
+    if (S.mode !== "code" || state.dockHidden) return;
+    if (state.tab === "diff") renderDiff();
+    else if (state.tab === "file" && !state.edit) renderFile();
+    else if (state.tab === "file" && state.edit) renderEditor();
+    fillChrome();
+  }
+  function clearTerminalHistory() {
+    state.termHistory = [];
+    state.termIndex = -1;
+    store.set("memu_code_term_history", "[]");
+  }
+  function followEdit(path) {
+    if (!path || typeof pref !== "function" || !pref("code_follow_edits", true)) return;
+    if (narrow() || state.dockHidden || editorDirty()) return;
+    if (["terminal", "tasks"].includes(state.tab)) return;
+    if (state.diffRepo === false) { selectTab("changes"); return; }
+    showDiffFor(path);
   }
 
   function sync() {
@@ -1783,7 +2067,8 @@ const MemuCode = (() => {
       clearTimeout(treeTimer);
       treeTimer = setTimeout(() => { refreshTree(); countChanges(); if (state.tab === "diff") loadDiff(); if (state.tab === "changes") renderChanges(); }, 250);
     }
-    if (name === "code_read_cached" || name === "code_context" || result?.saved_chars) refreshMeta();
+    if (name === "code_read_cached" || name === "code_context" || result?.saved_chars
+      || /^code_(run|task|terminal)/.test(name)) refreshMeta();
     if (state.tab === "terminal" && /^code_terminal/.test(name) && result?.scrollback !== undefined) {
 
       setTerminal(result.scrollback);
@@ -1791,12 +2076,19 @@ const MemuCode = (() => {
     const touched = [result?.path, result?.from, result?.to].filter(Boolean);
     if (state.edit && touched.includes(state.edit.path)) onEditedFileChanged();
     else if (state.tab === "file" && state.file && touched.includes(state.file.path)) openFile(state.file.path, state.file.start_line || 1);
+    if (!result?.error && /^work_(write|patch|insert|replace_lines|append)$/.test(name) && result?.path) {
+      clearTimeout(state.followTimer);
+      state.followTimer = setTimeout(() => followEdit(result.path), 320);
+    }
   }
 
   function bind() {
     fillIcons(document);
     document.getElementById("code-add-project")?.addEventListener("click", () => document.getElementById("work-add-project")?.click());
-    document.getElementById("code-access")?.addEventListener("click", () => { if (typeof openWorkAccessChooser === "function") openWorkAccessChooser(); });
+    document.getElementById("code-access")?.addEventListener("click", () => {
+      if (typeof openCodeAccessChooser === "function") openCodeAccessChooser();
+      else if (typeof openWorkAccessChooser === "function") openWorkAccessChooser();
+    });
     document.getElementById("code-plan")?.addEventListener("click", () => { if (typeof setWorkPlanMode === "function") setWorkPlanMode(!S.workPlanMode); });
     document.getElementById("code-run")?.addEventListener("click", () => { if (typeof handleCommand === "function") handleCommand("/test"); });
     document.getElementById("code-stop")?.addEventListener("click", stopSandbox);
@@ -1896,7 +2188,7 @@ const MemuCode = (() => {
       if (hit("code_explorer", ctrl && event.shiftKey && event.code === "KeyE")) { event.preventDefault(); setExplorerHidden(!state.explorerHidden); return; }
       if (hit("code_dock", ctrl && event.shiftKey && event.code === "KeyD")) { event.preventDefault(); setDockHidden(!state.dockHidden); return; }
       if (hit("code_terminal", ctrl && event.code === "Backquote")) { event.preventDefault(); focusTerminal(); return; }
-      if (event.altKey && !ctrl && !event.shiftKey && /^Digit[1-7]$/.test(event.code)) {
+      if (event.altKey && !ctrl && !event.shiftKey && /^Digit[1-8]$/.test(event.code)) {
         event.preventDefault();
         if (state.dockHidden) setDockHidden(false);
         selectTab(TAB_IDS[Number(event.code.slice(-1)) - 1]);
@@ -1915,12 +2207,23 @@ const MemuCode = (() => {
       placeExplorer();
       if (!state.dockHidden) renderDock();
     });
-    setInterval(() => { if (S.mode === "code" && !document.hidden) refreshMeta(); }, 4000);
+    // Status polling: every 4 s while something runs, otherwise every 16 s.
+    let idleTicks = 0;
+    setInterval(() => {
+      if (S.mode !== "code" || document.hidden) return;
+      const busy = (state.tasks || []).some((task) => task.running) || state.sandboxActive
+        || (typeof generationJobs !== "undefined" && generationJobs.has(S.currentId)) || state.tab === "tasks";
+      if (!busy && ++idleTicks < 4) return;
+      idleTicks = 0;
+      refreshMeta();
+    }, 4000);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
   else bind();
-  return { activate, sync, onToolResult, openSkills, openPalette, refreshTree, setExplorerHidden, setDockHidden, selectTab,
-    openFile };
+  const skillRows = () => { const off = new Set(skillState()); return (state.skills || []).filter((row) => row && row.id && !off.has(row.id)); };
+  return { activate, sync, onToolResult, openSkills, openAgents, openPalette, refreshTree, setExplorerHidden, setDockHidden, selectTab, updateBadges, skillRows,
+    openFile, applyPrefs, clearTerminalHistory, terminalHistorySize: () => state.termHistory.length,
+    requestApproval, approvalsHtml, interceptSend, granted, grantsFor, clearGrants, hasPendingApproval: () => !!pendingApproval() };
 })();
 window.MemuCode = MemuCode;

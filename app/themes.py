@@ -108,6 +108,8 @@ SEMANTIC_TOKENS: List[Dict[str, str]] = [
     {"name": "--side-bg", "fallback": "var(--bg-deep)", "ru": "Фон боковой панели", "en": "Sidebar background"},
     {"name": "--topbar-bg", "fallback": "var(--bg)", "ru": "Фон верхней панели", "en": "Top bar background"},
     {"name": "--composer-bg", "fallback": "var(--panel)", "ru": "Фон поля ввода", "en": "Composer background"},
+    {"name": "--field-bg", "fallback": "var(--panel) / color-mix(in srgb, var(--bg-deep) 45%, var(--panel))", "ru": "Фон полей ввода, поиска и списков выбора (никогда не серый)", "en": "Inputs, search boxes and selects (never grey)"},
+    {"name": "--field-border", "fallback": "color-mix(in srgb, var(--control-border) 34%, var(--border))", "ru": "Рамка полей ввода", "en": "Input border"},
     {"name": "--user-bubble", "fallback": "var(--panel-2)", "ru": "Фон сообщения пользователя", "en": "User message background"},
     {"name": "--user-bubble-text", "fallback": "var(--text)", "ru": "Текст сообщения пользователя", "en": "User message text"},
     {"name": "--link", "fallback": "var(--accent)", "ru": "Цвет ссылок в ответах", "en": "Link colour in answers"},
@@ -137,6 +139,9 @@ _DARK_BASE = {
     "--on-accent": "#141416", "--danger": "#ffa9a2", "--ok": "#84d59c",
     "--code-bg": "#141416", "--code-text": "#ebe9e4", "--code-header": "rgba(255,255,255,.03)",
     "--shadow": "0 22px 60px rgba(0,0,0,.5)", "--composer-shadow": "0 12px 34px rgba(0,0,0,.32)",
+    # Fields are never grey: a shade deeper than the panel in dark themes, the panel itself in light ones.
+    "--field-bg": "color-mix(in srgb, var(--bg-deep) 45%, var(--panel))",
+    "--field-border": "color-mix(in srgb, var(--control-border) 34%, var(--border))",
 }
 _LIGHT_BASE = {
     "--bg": "#fcfcfb", "--bg-deep": "#f2f1ee", "--panel": "#ffffff", "--panel-2": "#f0efec",
@@ -144,6 +149,8 @@ _LIGHT_BASE = {
     "--on-accent": "#ffffff", "--danger": "#a52925", "--ok": "#1d7442",
     "--code-bg": "#f6f5f1", "--code-text": "#282622", "--code-header": "rgba(0,0,0,.03)",
     "--shadow": "0 22px 60px rgba(28,26,20,.14)", "--composer-shadow": "0 10px 30px rgba(28,26,20,.07)",
+    "--field-bg": "var(--panel)",
+    "--field-border": "color-mix(in srgb, var(--control-border) 34%, var(--border))",
 }
 
 VARIANTS: Dict[str, List[Dict[str, Any]]] = {
@@ -299,6 +306,24 @@ DESIGNS: List[Dict[str, str]] = [
     {"id": "brutal", "ru": "Брутализм", "en": "Brutal",
      "note_ru": "Смелые контуры, жёсткие тени со сдвигом и плоские цветные блоки",
      "note_en": "Bold outlines, hard offset shadows and flat colour blocks"},
+    {"id": "notebook", "ru": "Блокнот", "en": "Notebook",
+     "note_ru": "Редакционный блокнот: тёплая бумага, книжный шрифт в диалоге, тонкие линейки вместо рамок",
+     "note_en": "An editorial notebook: warm paper, a book serif for the conversation, hairline rules instead of boxes"},
+    {"id": "messenger", "ru": "Мессенджер", "en": "Messenger",
+     "note_ru": "Как в любимом мессенджере: пузыри с обеих сторон, круглые аватары, обои в чате",
+     "note_en": "Like your favourite messenger: bubbles on both sides, round avatars, a wallpaper behind the chat"},
+    {"id": "retro", "ru": "Ретро", "en": "Retro",
+     "note_ru": "Классический рабочий стол 90-х: объёмные кнопки, заголовки окон, системный серый",
+     "note_en": "A classic 90s desktop: bevelled buttons, window title bars, system grey"},
+    {"id": "clay", "ru": "Глина", "en": "Clay",
+     "note_ru": "Неоморфизм: мягкие выпуклые поверхности, вдавленные поля, без рамок",
+     "note_en": "Neumorphism: soft raised surfaces, pressed-in fields, no outlines"},
+    {"id": "studio", "ru": "Студия", "en": "Studio",
+     "note_ru": "Плотная среда как в IDE: вкладки, строка состояния, моноширинные метки, всё под рукой",
+     "note_en": "A dense IDE-like workspace: tabs, a status bar, monospace labels, everything within reach"},
+    {"id": "zen", "ru": "Дзен", "en": "Zen",
+     "note_ru": "Тишина и простор: без рамок, крупный лёгкий шрифт, интерфейс проявляется при наведении",
+     "note_en": "Calm and space: no outlines, large light type, the interface appears on hover"},
 ]
 DEFAULT_DESIGN = "classic"
 

@@ -76,10 +76,28 @@ class GensparkClient:
     """Кэширует AsyncSession по комбинации (прокси, отпечаток, verify_ssl)."""
 
     FALLBACK_CHAIN = ["chrome136", "chrome150", "chrome131"]
+    DEFAULT_API_BASE = "https://www.genspark.ai"
+
+    @staticmethod
+    def _valid_api_base(api_base: Any) -> str:
+        """SSRF guard (wave #14): ``api_base`` comes from raw provider config
+        (no settings field exposes it) and carries the session cookie, so it
+        must be a public https host — no userinfo, no loopback/LAN/metadata,
+        plain HTTP never. An invalid value falls back to the default with a
+        warning instead of failing the provider outright."""
+        import logging
+        from ...media_cache import validate_api_base_url
+        raw = str(api_base or "").strip().rstrip("/")
+        error = validate_api_base_url(raw, allow_private=False) if raw else "empty"
+        if error:
+            logging.getLogger("memuai.genspark").warning(
+                "genspark: ignoring invalid api_base %r (%s), using %s", raw, error, GensparkClient.DEFAULT_API_BASE)
+            return GensparkClient.DEFAULT_API_BASE
+        return raw
 
     def __init__(self, api_base: str, impersonate: str = "chrome136",
                  verify_ssl: bool = True, user_agent: str = "") -> None:
-        self.api_base = api_base.rstrip("/")
+        self.api_base = self._valid_api_base(api_base)
         self.impersonate = impersonate
         self.verify_ssl = verify_ssl
         self.user_agent = user_agent or self._ua_for(impersonate)
@@ -122,7 +140,7 @@ class GensparkClient:
                           verify_ssl: bool | None = None, user_agent: str | None = None) -> None:
         async with self._lock:
             if api_base is not None:
-                self.api_base = api_base.rstrip("/")
+                self.api_base = self._valid_api_base(api_base)
             if impersonate is not None:
                 self.impersonate = impersonate
             if verify_ssl is not None:

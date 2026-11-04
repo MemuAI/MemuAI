@@ -129,17 +129,17 @@ class CloudTtsTest(unittest.TestCase):
                 synth(lambda request: httpx.Response(200, content=MP3), lang="en")
 
 SETTINGS_PAGES_RU = {"Общие", "Внешний вид", "Уведомления", "Модели", "Чат и ответы", "Веб-поиск", "Изображения и видео",
-                     "Голос и Live", "Work и агенты", "Do For You", "Быстрый доступ", "Панели", "Telegram", "Интеграции",
+                     "Голос и Live", "Work и агенты", "Do For You", "Быстрый доступ", "Панели", "Мессенджеры", "Интеграции",
                      "Синхронизация", "Горячие клавиши",
                      "Профиль и память", "Рефлексия", "Время и фокус",
                      "Системные промпты", "Данные", "Модули", "Документация", "О программе",
                      "MemuNote",
-                     "MemuFiles", "Ссылки и командная строка"}
+                     "MemuFiles", "Ссылки и командная строка", "Сервер", "Главная", "MemuCode", "Рабочие области"}
 SETTINGS_PAGES_EN = {"General", "Appearance", "Notifications", "Models", "Chat & replies", "Web search", "Images & video",
-                     "Voice & Live", "Work & agents", "Do For You", "Quick Ask", "Panels", "Telegram", "Integrations",
+                     "Voice & Live", "Work & agents", "Do For You", "Quick Ask", "Panels", "Messengers", "Integrations",
                      "Profile & memory", "Reflect", "Time & focus", "System prompts",
                      "Sync", "Keyboard shortcuts", "Data", "Modules", "Documentation", "About",
-                     "MemuNote", "MemuFiles", "Links & command line"}
+                     "MemuNote", "MemuFiles", "Links & command line", "Server", "Home", "MemuCode", "Workspaces"}
 
 NOT_MEMUAI = ("Proxy →", "Mini App", "Windows Settings", "Windows ", "Параметры Windows", "(Settings → Data controls", "(Settings → Privacy",
               "Telegram →", "MemuMusic Settings →",

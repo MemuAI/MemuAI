@@ -143,6 +143,30 @@ class SettingsShellBrowser(unittest.TestCase):
         self.wait("document.querySelector('[data-sx-sub=\"tts\"]').hidden")
         self.assertTrue(self.page.evaluate("document.querySelector('#panel-back').classList.contains('visible')"))
 
+    def test_reselecting_a_page_keeps_its_controls_and_scroll(self):
+        self.open("voice")
+        self.page.click('[data-sx-open="tts"]')
+        self.wait("!document.querySelector('[data-sx-sub=tts]').hidden")
+        result = self.page.evaluate("""() => {
+          const shell = document.querySelector('.sx-shell');
+          const sub = shell.querySelector('[data-sx-sub=tts]');
+          const body = shell.querySelector('.settings-body');
+          body.scrollTop = 50;
+          const scroll = body.scrollTop;
+          const button = shell.querySelector('[data-set-tab=voice]');
+          const kit = window.MemuSettingsKit;
+          const original = kit.pageShown;
+          let shows = 0;
+          kit.pageShown = (...args) => { shows++; return original(...args); };
+          try {
+            for (let i = 0; i < 5; i++) button.click();
+            const preserved = !sub.hidden && body.scrollTop === scroll;
+            openSettingsPage('voice', { sub: '' });
+            return { preserved, shows, closed: sub.hidden };
+          } finally { kit.pageShown = original; }
+        }""")
+        self.assertEqual(result, {"preserved": True, "shows": 1, "closed": True})
+
     def test_search_is_fuzzy_bilingual_and_jumps(self):
         self.open("general")
         kit = "window.MemuSettingsKit"

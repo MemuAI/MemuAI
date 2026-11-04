@@ -80,12 +80,12 @@
 .ml-btn:focus-visible, .ml-icon-btn:focus-visible, .ml-nav-item:focus-visible, .ml-course-link:focus-visible, .ml-grade:focus-visible,
 .ml-course-card:focus-visible, .ml-lesson-link:focus-visible, .ml-src:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.ml-input { width: 100%; min-height: 38px; padding: 8px 12px; border: 1px solid var(--ml-line); border-radius: 10px; background: var(--bg);
+.ml-input { width: 100%; min-height: 38px; padding: 8px 12px; border: 1px solid var(--ml-line); border-radius: 10px; background: var(--field-bg, var(--bg));
   color: var(--text); font: inherit; font-size: .94em; outline: none; transition: border-color .15s, box-shadow .15s; resize: vertical; }
 .ml-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .ml-input.big { min-height: 48px; font-size: 1.08em; padding: 10px 14px; }
 .ml-input.mono, .ml-input.code { font-family: var(--mono); font-size: .88em; line-height: 1.55; tab-size: 4; }
-.ml-input.code { background: var(--code-bg, var(--bg-deep)); color: var(--code-text, var(--text)); }
+.ml-input.code { background: var(--field-bg, var(--bg)); color: var(--text); }
 .ml-input.num { width: 96px; text-align: right; }
 select.ml-input { cursor: pointer; padding-right: 8px; }
 .ml-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

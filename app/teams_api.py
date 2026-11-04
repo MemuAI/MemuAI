@@ -5,7 +5,6 @@ import asyncio
 import codecs
 import copy
 import json
-import time
 import uuid
 from dataclasses import dataclass, field
 
@@ -120,10 +119,44 @@ def register(app, *, proxy_sse=None, complete=None) -> None:
         try:
             active = _profile(profile_id)
             rows = await asyncio.to_thread(teams.load, active)
+            try:
+                stats = await asyncio.to_thread(teams.run_stats, active)
+            except Exception:  # noqa: BLE001 - a damaged history must not hide the teams
+                stats = {}
             _profile(active)
             return {"profile_id": active, "teams": rows, "presets": teams.presets(),
+                    "categories": teams.preset_categories(), "stats": stats,
                     "limits": {"max_members": teams.MAX_MEMBERS, "max_teams": teams.MAX_TEAMS,
+                               "max_starters": teams.MAX_STARTERS, "icons": list(teams.TEAM_ICONS),
+                               "colors": [c for c in teams.TEAM_COLORS if c],
                                "default_budget": teams.DEFAULT_BUDGET}}
+        except TeamContextChanged as exc:
+            return JSONResponse({"error": str(exc)}, 409)
+
+    @app.get("/api/pg/teams/runs")
+    async def list_runs(profile_id: str = "", team_id: str = "", limit: int = 40):
+        try:
+            active = _profile(profile_id)
+            rows = await asyncio.to_thread(teams.run_history, active, str(team_id or "")[:80], limit)
+            _profile(active)
+            return {"runs": rows}
+        except TeamContextChanged as exc:
+            return JSONResponse({"error": str(exc)}, 409)
+
+    @app.post("/api/pg/teams/runs-clear")
+    async def clear_runs(request: Request):
+        try:
+            body = await _body(request, 64 * 1024)
+            active = _profile(str(body.get("profile_id") or ""))
+            team_id = str(body.get("team_id") or "").strip()[:80]
+            run_id = str(body.get("run_id") or "").strip()[:120]
+            if not team_id and not run_id:
+                return JSONResponse({"error": "Укажите запуск или команду / Choose a run or a team"}, 400)
+            if run_id and run_id in live and not live[run_id].cancelled and live[run_id].task and not live[run_id].task.done():
+                return JSONResponse({"error": "Запуск ещё идёт / The run is still in progress"}, 409)
+            removed = await asyncio.to_thread(teams.delete_run, run_id, active, team_id)
+            _profile(active)
+            return {"ok": True, "removed": removed}
         except TeamContextChanged as exc:
             return JSONResponse({"error": str(exc)}, 409)
 

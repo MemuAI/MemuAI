@@ -9,6 +9,7 @@ import uuid
 from fastapi import Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from . import personalities
 from .browser_extension import PREFIX, TOOLS, WRITE, HINT, run_tool, settings as bridge_settings
 
 def _event(kind: str, **value) -> str:
@@ -165,8 +166,7 @@ def install_chat(app, *, check, completion, stream_lines, run_chat_tool, chat_lo
                                    if p.get("id") == (chat_row.get("prompt_id") or prompts.get("default_id"))), pgdata.DEFAULT_PROMPT)
                     prefs = await asyncio.to_thread(pgdata.load_preferences)
                     require_context()
-                    personality = "pragmatic" if prefs.get("ai_personality") == "pragmatic" else "friendly"
-                    system += "\n" + pgdata.internal_prompt("personality-" + personality)
+                    system += "\n" + personalities.block(prefs, pgdata.internal_prompt)
                     if prefs.get("custom_system_prompt"):
                         system += "\n<user_custom_instructions>" + str(prefs["custom_system_prompt"]) + "</user_custom_instructions>"
                     if chat_row.get("chatSystem"):

@@ -9,7 +9,10 @@ group, ru/en label and description, and per type ``min``/``max``/``step``/``unit
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Dict, List, Tuple
+
+from .appearance import DESIGNS, PALETTES, _FALLBACK_ACCENTS
 
 FONT_PRESETS = ["JetBrains Mono", "Cascadia Code", "Consolas", "Fira Code", "Source Code Pro", "Courier New",
                 "Segoe UI", "Inter", "Georgia", "Times New Roman", "Arial", "Calibri"]
@@ -43,11 +46,26 @@ def _e(key, default, group, ru, en, choices, dru="", den="", **extra):
 
 _AUTO_LANG = [("auto", "Как в MemuAI", "Same as MemuAI"), ("ru", "Русский", "Русский"), ("en", "English", "English")]
 _AUTO_THEME = [("auto", "Как в MemuAI", "Same as MemuAI"), ("dark", "Тёмная", "Dark"), ("light", "Светлая", "Light")]
+_PALETTES = [(row["id"], row["ru"], row["en"]) for row in PALETTES]
+_ACCENTS = ([("auto", "Как в MemuAI", "Same as MemuAI"), ("palette", "Из палитры", "From the palette")]
+            + [(key, row["ru"], row["en"]) for key, row in _FALLBACK_ACCENTS.items()] + [("custom", "Свой цвет", "Custom colour")])
+_DESIGNS = [(row["id"], row["ru"], row["en"]) for row in DESIGNS]
 
 SCHEMA: List[Dict[str, Any]] = [
 
     _e("language", "auto", "appearance", "Язык", "Language", _AUTO_LANG),
     _e("theme", "auto", "appearance", "Тема", "Theme", _AUTO_THEME, "«Как в MemuAI» берёт тему, фон и акцент MemuAI.", "“Same as MemuAI” uses MemuAI's theme, surface and accent."),
+    _e("palette", "auto", "appearance", "Палитра", "Palette", _PALETTES,
+       "Цвета окна и подсветки кода. У каждой палитры есть тёмный и светлый вариант.",
+       "Window and syntax colours. Every palette has a dark and a light face."),
+    _e("accent", "auto", "appearance", "Акцент", "Accent", _ACCENTS,
+       "Кнопки, ссылки и активные элементы. Цвет подстраивается под фон, чтобы оставаться читаемым.",
+       "Buttons, links and active items. The colour adapts to the background to stay readable."),
+    {"key": "accent_custom", "type": "text", "default": "", "group": "appearance", "ru": "Свой цвет акцента", "en": "Custom accent colour",
+     "desc_ru": "HEX, например #3366ff.", "desc_en": "HEX, for example #3366ff.", "maxlen": 7, "placeholder": "#3366ff",
+     "pattern": r"#[0-9a-fA-F]{6}", "when": "accent=custom"},
+    _e("design", "auto", "appearance", "Дизайн", "Design", _DESIGNS,
+       "Форма окна: скругления, рамки, плотность, стекло.", "The window's shape: corners, outlines, density, glass."),
     {"key": "font_family", "type": "font", "default": "JetBrains Mono", "group": "appearance", "ru": "Шрифт редактора", "en": "Editor font",
      "desc_ru": "Любой установленный шрифт; список — популярные.", "desc_en": "Any installed font; the list has popular ones.", "suggest": FONT_PRESETS, "maxlen": 64},
     _i("font_size", 14, "appearance", "Размер шрифта", "Font size", 8, 40, 1, " px"),
@@ -57,6 +75,27 @@ SCHEMA: List[Dict[str, Any]] = [
     _b("show_statusbar", True, "appearance", "Строка состояния", "Status bar"),
     _b("show_sidebar", False, "appearance", "Боковая панель при запуске", "Sidebar on start", "Структура документа и файлы (Ctrl+B).", "Outline and files (Ctrl+B)."),
     _b("compact_tabs", False, "appearance", "Компактные вкладки", "Compact tabs"),
+    _e("tab_style", "classic", "appearance", "Вид вкладок", "Tab style",
+       [("classic", "Классические", "Classic"), ("compact", "Компактные", "Compact"), ("icons", "Только значки", "Icons only"),
+        ("preview", "С превью", "With a preview"), ("vertical", "Сбоку списком", "Side list")],
+       "«С превью» — под именем вкладки размер и дата файла; «Сбоку списком» — вкладки уходят в левую колонку.",
+       "“With a preview” shows the file size and date under the tab name; “Side list” moves tabs into a left column."),
+    _b("show_tab_bar", True, "appearance", "Полоса вкладок", "Tab bar",
+       "Выключено — вкладки переключаются через «Все вкладки», Ctrl+Tab и Ctrl+P.",
+       "Off — switch tabs from “All tabs”, Ctrl+Tab and Ctrl+P."),
+    _b("tab_meta", False, "appearance", "Размер и дата во вкладках", "Size and date in tabs",
+       "Во всплывающей подсказке и во второй строке стиля «С превью».",
+       "In the tooltip and in the second line of the “With a preview” style."),
+    _e("sidebar_side", "left", "appearance", "Боковая панель", "Sidebar",
+       [("left", "Слева", "On the left"), ("right", "Справа", "On the right")]),
+    _i("sidebar_width", 264, "appearance", "Ширина боковой панели", "Sidebar width", 160, 600, 4, " px"),
+    _e("md_preview_side", "right", "appearance", "Просмотр Markdown", "Markdown preview",
+       [("right", "Справа от текста", "Right of the text"), ("left", "Слева от текста", "Left of the text")],
+       "Где показывать просмотр в режиме «Текст и просмотр рядом».", "Where the preview goes in the “Source and preview” mode."),
+    {"key": "custom_css", "type": "text", "default": "", "group": "appearance", "ru": "Свой CSS", "en": "Custom CSS",
+     "desc_ru": "Свои правила для окна MemuNote. Редактор — в самом приложении: Настройки → Внешний вид → «Свой CSS».",
+     "desc_en": "Your own rules for the MemuNote window. The editor lives in the app: Settings → Appearance → “Custom CSS”.",
+     "maxlen": 20000, "hidden": True},
     _b("smooth_caret", True, "appearance", "Плавный курсор", "Smooth caret"),
 
     _b("word_wrap", True, "editor", "Перенос строк", "Word wrap", "Alt+Z в окне.", "Alt+Z in the window."),
@@ -168,6 +207,8 @@ def check(key: str, value: Any) -> Tuple[bool, Any, str]:
         return False, None, "font"
     if kind == "url" and value and (not _local_url(value) if item.get("local_only") else not value.startswith(("http://", "https://"))):
         return False, None, "url"
+    if item.get("pattern") and value and not re.fullmatch(item["pattern"], value):
+        return False, None, "format"
     return True, value, ""
 
 def validate(changes: Any) -> Tuple[Dict[str, Any], Dict[str, str]]:

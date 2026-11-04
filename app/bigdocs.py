@@ -24,6 +24,7 @@ Storage: ``<DATA_DIR>/memuai/bigdocs/<id>/doc.json.gz`` (pages, sections, chunks
 """
 
 import asyncio
+import copy
 import gzip
 import hashlib
 import html as _html
@@ -103,6 +104,11 @@ def _remember(doc: Dict[str, Any]) -> None:
             _MEM.popitem(last=False)
 
 def save_doc(doc: Dict[str, Any]) -> None:
+    # F36: a non-dict / bad-id doc used to raise KeyError or write outside
+    # the store (``_doc_path`` raises BigDocError, but only after the key
+    # lookup). Validate first.
+    if not isinstance(doc, dict) or not valid_id(doc.get("id")):
+        raise BigDocError("Неверный идентификатор документа", "Invalid document id", "bad_id")
     folder = _doc_path(doc["id"])
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / ("doc.json.gz.%s.tmp" % uuid.uuid4().hex[:6])
@@ -116,12 +122,15 @@ def save_doc(doc: Dict[str, Any]) -> None:
         pass
 
 def load_doc(doc_id: str) -> Optional[Dict[str, Any]]:
+    # F36: the cached dict used to be returned as-is, so a caller mutating
+    # it corrupted the cache; and a cache file holding a JSON array/string
+    # raised AttributeError at ``doc.get("v")`` instead of returning None.
     with _MEM_LOCK:
         hit = _MEM.get(doc_id)
         if hit is not None:
             _MEM.move_to_end(doc_id)
     if hit is not None:
-        return hit
+        return copy.deepcopy(hit)
     path = _doc_path(doc_id) / "doc.json.gz"
     if not path.exists():
         return None
@@ -130,14 +139,20 @@ def load_doc(doc_id: str) -> Optional[Dict[str, Any]]:
             doc = json.load(fh)
     except Exception:
         return None
-    if int(doc.get("v") or 0) != EXTRACTOR_VERSION:
+    if not isinstance(doc, dict) or not valid_id(doc.get("id")) or doc.get("id") != doc_id:
+        return None
+    try:
+        version = int(doc.get("v") or 0)
+    except (TypeError, ValueError):
+        return None
+    if version != EXTRACTOR_VERSION:
         return None
     try:
         os.utime(path, None)
     except OSError:
         pass
     _remember(doc)
-    return doc
+    return copy.deepcopy(doc)
 
 def get_doc(doc_id: str) -> Dict[str, Any]:
     doc = load_doc(doc_id)
@@ -371,7 +386,10 @@ def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
         raise BigDocError(f"DOCX не разобран: {exc}", f"Could not parse the DOCX: {exc}", "parse") from None
     heading_styles: Dict[str, int] = {}
     try:
-        styles = ET.fromstring(_zip_member(archive, "word/styles.xml"))
+        # F36: refuse <!ENTITY> declarations (billion laughs) — reuse the
+        # checker sheets.py already uses for xlsx/ods.
+        from .memunote.formats.sheets import safe_fromstring
+        styles = safe_fromstring(_zip_member(archive, "word/styles.xml"))
         for style in styles.iter(_W + "style"):
             sid = style.get(_W + "styleId") or ""
             name_el = style.find(_W + "name")
@@ -384,8 +402,9 @@ def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
     except Exception:
         pass
     try:
-        root = ET.fromstring(xml)
-    except ET.ParseError as exc:
+        from .memunote.formats.sheets import safe_fromstring
+        root = safe_fromstring(xml)
+    except (ET.ParseError, ValueError) as exc:
         raise BigDocError(f"DOCX повреждён: {exc}", f"The DOCX is damaged: {exc}", "parse") from None
     body = root.find(_W + "body")
     paragraphs: List[Tuple[str, Optional[int], int]] = []

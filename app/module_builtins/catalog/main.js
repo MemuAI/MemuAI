@@ -40,6 +40,7 @@ const state = {
   cache: saved.cache && Array.isArray(saved.cache.rows) ? saved.cache : null,
   query: "",
   mine: false,
+  mineOpen: false,
   mySet: null,
   loading: false,
   error: "",
@@ -72,6 +73,28 @@ function remember(withCache = false, now = false) {
 window.addEventListener("pagehide", () => remember(false, true));
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+/* Model descriptions from OpenRouter / models.dev are Markdown: "[GPT-6.1 Terra](https://openrouter.ai/…)",
+   **bold**, `code`. The list shows them as plain text, the model sheet renders links as safe buttons. */
+const MD_LINK = /\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)]{1,600})\)|(https?:\/\/[^\s<>()\[\]]{4,600}[^\s<>()\[\].,;:!?'"])/g;
+const MD_TAIL = /\[([^\]\n]{1,200})\]\([^)\s]*$/;
+function mdPlain(text) {
+  return String(text ?? "").replace(MD_TAIL, "$1").replace(MD_LINK, (all, label, url, bare) => label || bare || all)
+    .replace(/\*\*([^*\n]+)\*\*|__([^_\n]+)__/g, (all, a, b) => a || b)
+    .replace(/`([^`\n]+)`/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/[ \t]+/g, " ").trim();
+}
+function mdRich(text) {
+  const source = String(text ?? "").replace(MD_TAIL, "$1");
+  let out = "", last = 0;
+  const inline = (part) => esc(part).replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/`([^`\n]+)`/g, "<code>$1</code>");
+  for (const match of source.matchAll(MD_LINK)) {
+    out += inline(source.slice(last, match.index));
+    const url = match[2] || match[3];
+    const label = match[1] || match[3];
+    out += `<button type="button" class="mc-link mc-inline-link" data-open-url="${esc(url)}" title="${esc(url)}">${esc(label)}</button>`;
+    last = match.index + match[0].length;
+  }
+  return out + inline(source.slice(last));
+}
 const num = (value, digits = 0) => Memu.i18n.number(+value, { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 
 function compact(value) {
@@ -619,7 +642,7 @@ function renderFilters() {
   for (const slug of f.orgs) if (!counts.has(slug)) orgs.unshift({ slug, name: slug, count: 0 });
   const active = f.inputs.length + f.outputs.length + f.features.length + f.orgs.length + f.sources.length + (f.context ? 1 : 0) + (f.price !== "any" ? 1 : 0) + (f.hideExpiring ? 1 : 0);
   $("#filters").innerHTML = `<div class="mc-filters-head"><b>${esc(t("filters.title"))}</b>${active ? `<button type="button" class="mc-link" data-reset>${esc(t("filters.reset", { count: active }))}</button>` : ""}</div>
-    <fieldset class="mc-group"><legend>${esc(t("mine"))}</legend><small class="mc-muted">${esc(t("mine.title"))}</small><div id="my-models-rail"></div></fieldset>
+    <details class="mc-group mc-mine-group" ${state.mineOpen ? "open" : ""}><summary><span>${esc(t("mine"))}</span>${Array.isArray(state.myList) && state.myList.length ? `<small>${state.myList.length}</small>` : ""}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg></summary><small class="mc-muted">${esc(t("mine.title"))}</small><div id="my-models-rail"></div></details>
     ${checkGroup(t("filters.input"), "inputs", INPUTS, f.inputs, (kind) => t(`in.${kind}`))}
     ${checkGroup(t("filters.output"), "outputs", OUTPUTS, f.outputs, (kind) => t(`out.${kind}`))}
     <fieldset class="mc-group"><legend>${esc(t("filters.context"))}</legend>
@@ -632,6 +655,8 @@ function renderFilters() {
     <fieldset class="mc-group"><legend>${esc(t("filters.orgs"))}</legend>
       <input class="mc-input" id="org-search" type="search" value="${esc(state.orgQuery)}" placeholder="${esc(t("filters.orgs.search"))}" aria-label="${esc(t("filters.orgs.search"))}">
       <div class="mc-orgs">${orgs.map((org) => `<label class="mc-check"><input type="checkbox" data-filter="orgs" value="${esc(org.slug)}" ${f.orgs.includes(org.slug) ? "checked" : ""}><span>${esc(org.name)}</span><small>${org.count}</small></label>`).join("")}</div></fieldset>`;
+  const mineGroup = $("#filters .mc-mine-group");
+  if (mineGroup) mineGroup.addEventListener("toggle", () => { state.mineOpen = mineGroup.open; });
   renderMyRail();
 }
 
@@ -681,7 +706,7 @@ function modelCard(row) {
         <span class="mc-model-org">${esc(row.org)}</span>
         <b class="mc-model-name">${esc(row.name)}</b>
       </button></div>
-      ${row.description ? `<p class="mc-model-description">${esc(row.description)}</p>` : `<p class="mc-model-description mc-muted">${esc(row.id)}</p>`}
+      ${row.description ? `<p class="mc-model-description">${esc(mdPlain(row.description))}</p>` : `<p class="mc-model-description mc-muted">${esc(row.id)}</p>`}
       <div class="mc-badges">${badges(row)}</div>
       ${benchmarkSummary(row)}
       <dl class="mc-facts">
@@ -820,7 +845,7 @@ function openCard(id) {
       <div><span>${esc(t("fact.maxout"))}</span><b>${row.maxOut ? compact(row.maxOut) : "—"}</b></div>
     </div>
     <div class="mc-badges">${badges(row)}</div>
-    ${row.description ? `<p class="mc-desc">${esc(row.description)}</p>` : ""}
+    ${row.description ? `<p class="mc-desc">${mdRich(row.description)}</p>` : ""}
     <p class="mc-desc">${esc(t("card.source", {source:row.source === "models.dev" ? `Models.dev · ${row.provider}` : "OpenRouter"}))}</p>
     <section id="card-benchmarks" class="mc-bench-section" aria-live="polite"></section>
     <dl class="mc-facts wide">

@@ -246,8 +246,8 @@ class MiniAppHintsTest(unittest.TestCase):
         source = (TGAPP / "app.js").read_text(encoding="utf-8")
         self.assertNotIn("Интеграции → Telegram", source)
         self.assertNotIn("Integrations → Telegram", source)
-        self.assertIn("Настройки → Telegram", source)
-        self.assertIn("Settings → Telegram", source)
+        self.assertIn("Настройки → Мессенджеры → Telegram", source)
+        self.assertIn("Settings → Messengers → Telegram", source)
 
 @unittest.skipUnless(sync_playwright is not None, "playwright is not installed")
 class MiniAppSettingsRefreshBrowserTest(unittest.TestCase):

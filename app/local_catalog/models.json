@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "version": "2026-10-11",
+ "version": "2026-11-03",
  "source": "Curated by MemuAI; files/sizes/KV refreshed from the Hugging Face API by tools/update_local_catalog.py",
  "scores_note": "Scores are editorial 0-100 estimates per task, based on the published benchmarks in the model cards and community evaluations; they compare models with each other, not absolute quality.",
  "models": [
@@ -3567,6 +3567,775 @@
    },
    "moe": true,
    "checked": "2026-10-11"
+  },
+  {
+   "id": "qwen2.5-coder-7b",
+   "name": "Qwen2.5 Coder 7B",
+   "vendor": "Alibaba Qwen",
+   "family": "Qwen",
+   "repo": "unsloth/Qwen2.5-Coder-7B-Instruct-GGUF",
+   "base": "Qwen/Qwen2.5-Coder-7B-Instruct",
+   "released": "2024-09",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 48,
+    "coding": 62,
+    "ru": 40,
+    "vision": 0,
+    "reasoning": 45,
+    "agent": 48
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "light",
+    "coding"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "why": {
+    "ru": "Маленький специалист по коду: на слабом компьютере пишет и чинит код заметно лучше обычных моделей того же размера.",
+    "en": "A small coding specialist: on a weak computer it writes and fixes code noticeably better than general models of the same size."
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen2.5-Coder-7B-Instruct-Q3_K_M.gguf"
+     ],
+     "size": 3808391136,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf"
+     ],
+     "size": 4683073504,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen2.5-Coder-7B-Instruct-Q5_K_M.gguf"
+     ],
+     "size": 5444831200,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen2.5-Coder-7B-Instruct-Q6_K.gguf"
+     ],
+     "size": 6254198752,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen2.5-Coder-7B-Instruct-Q8_0.gguf"
+     ],
+     "size": 8098525152,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 7615616512,
+   "ctx_max": 32768,
+   "arch": "qwen2",
+   "gated": false,
+   "downloads": 9190,
+   "kv": {
+    "per_token": 57344,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-11-03"
+  },
+  {
+   "id": "smollm3-3b",
+   "name": "SmolLM3 3B",
+   "vendor": "Hugging Face",
+   "family": "SmolLM",
+   "repo": "bartowski/HuggingFaceTB_SmolLM3-3B-GGUF",
+   "base": "HuggingFaceTB/SmolLM3-3B",
+   "released": "2025-07",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "es",
+    "fr",
+    "de",
+    "pt",
+    "it",
+    "ar",
+    "zh",
+    "ja",
+    "ko"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 45,
+    "coding": 38,
+    "ru": 42,
+    "vision": 0,
+    "reasoning": 38,
+    "agent": 30
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "light"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "why": {
+    "ru": "Кроха на 3 млрд параметров: быстрая даже без видеокарты, аккуратно пишет по-русски и на других языках.",
+    "en": "A tiny 3B model: fast even with no GPU, writes Russian and other languages neatly."
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "HuggingFaceTB_SmolLM3-3B-Q3_K_M.gguf"
+     ],
+     "size": 1571069760,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "HuggingFaceTB_SmolLM3-3B-Q4_K_M.gguf"
+     ],
+     "size": 1915305792,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "HuggingFaceTB_SmolLM3-3B-Q5_K_M.gguf"
+     ],
+     "size": 2213756736,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "HuggingFaceTB_SmolLM3-3B-Q6_K.gguf"
+     ],
+     "size": 2530860864,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "HuggingFaceTB_SmolLM3-3B-Q8_0.gguf"
+     ],
+     "size": 3275575104,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 3075098624,
+   "ctx_max": 65536,
+   "arch": "smollm3",
+   "gated": false,
+   "downloads": 45397,
+   "kv": {
+    "per_token": 73728,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-11-03"
+  },
+  {
+   "id": "deepseek-r1-distill-qwen-14b",
+   "name": "DeepSeek R1 Distill Qwen 14B",
+   "vendor": "DeepSeek",
+   "family": "DeepSeek R1",
+   "repo": "unsloth/DeepSeek-R1-Distill-Qwen-14B-GGUF",
+   "base": "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+   "released": "2025-01",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": false,
+    "audio": false
+   },
+   "scores": {
+    "chat": 58,
+    "coding": 60,
+    "ru": 48,
+    "vision": 0,
+    "reasoning": 74,
+    "agent": 42
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium",
+    "reasoning"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "why": {
+    "ru": "Рассуждает вслух перед ответом: в математике и сложных задачах заметно сильнее обычных моделей того же размера.",
+    "en": "Thinks out loud before answering: clearly stronger than plain models of the same size at maths and hard problems."
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-14B-Q3_K_M.gguf"
+     ],
+     "size": 7339203744,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf"
+     ],
+     "size": 8988109984,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-14B-Q5_K_M.gguf"
+     ],
+     "size": 10508872864,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-14B-Q6_K.gguf"
+     ],
+     "size": 12124683424,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-14B-Q8_0.gguf"
+     ],
+     "size": 15701597344,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 14770033664,
+   "ctx_max": 131072,
+   "arch": "qwen2",
+   "gated": false,
+   "downloads": 47579,
+   "kv": {
+    "per_token": 196608,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-11-03"
+  },
+  {
+   "id": "deepseek-r1-distill-qwen-32b",
+   "name": "DeepSeek R1 Distill Qwen 32B",
+   "vendor": "DeepSeek",
+   "family": "DeepSeek R1",
+   "repo": "unsloth/DeepSeek-R1-Distill-Qwen-32B-GGUF",
+   "base": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+   "released": "2025-01",
+   "license": "mit",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": true,
+    "tools": false,
+    "audio": false
+   },
+   "scores": {
+    "chat": 66,
+    "coding": 70,
+    "ru": 52,
+    "vision": 0,
+    "reasoning": 80,
+    "agent": 50
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "large",
+    "reasoning"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "why": {
+    "ru": "Серьёзная рассуждающая модель: длинные цепочки рассуждений для математики, логики и разбора сложных задач.",
+    "en": "A serious reasoning model: long chains of thought for maths, logic and hard problems."
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-32B-Q3_K_M.gguf"
+     ],
+     "size": 15935047584,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-32B-Q4_K_M.gguf"
+     ],
+     "size": 19851335584,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-32B-Q5_K_M.gguf"
+     ],
+     "size": 23262156704,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-32B-Q6_K.gguf"
+     ],
+     "size": 26886154144,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "DeepSeek-R1-Distill-Qwen-32B-Q8_0.gguf"
+     ],
+     "size": 34820884384,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 32763876352,
+   "ctx_max": 131072,
+   "arch": "qwen2",
+   "gated": false,
+   "downloads": 53301,
+   "kv": {
+    "per_token": 262144,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-11-03"
+  },
+  {
+   "id": "qwen3-vl-8b",
+   "name": "Qwen3 VL 8B",
+   "vendor": "Alibaba Qwen",
+   "family": "Qwen",
+   "repo": "unsloth/Qwen3-VL-8B-Instruct-GGUF",
+   "base": "Qwen/Qwen3-VL-8B-Instruct",
+   "released": "2025-10",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 62,
+    "coding": 58,
+    "ru": 58,
+    "vision": 80,
+    "reasoning": 60,
+    "agent": 60
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium",
+    "vision"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "why": {
+    "ru": "Специалист по картинкам: описывает фото, читает скриншоты и документы лучше универсальных моделей.",
+    "en": "An image specialist: describes photos and reads screenshots and documents better than general-purpose models."
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Qwen3-VL-8B-Instruct-Q3_K_M.gguf"
+     ],
+     "size": 4124162912,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Qwen3-VL-8B-Instruct-Q4_K_M.gguf"
+     ],
+     "size": 5027785568,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Qwen3-VL-8B-Instruct-Q5_K_M.gguf"
+     ],
+     "size": 5851114336,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Qwen3-VL-8B-Instruct-Q6_K.gguf"
+     ],
+     "size": 6725901152,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Qwen3-VL-8B-Instruct-Q8_0.gguf"
+     ],
+     "size": 8709520224,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 1159030336
+   },
+   "draft": null,
+   "params": 8190735360,
+   "ctx_max": 262144,
+   "arch": "qwen3vl",
+   "gated": false,
+   "downloads": 217692,
+   "kv": {
+    "per_token": 147456,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-11-03"
+  },
+  {
+   "id": "t-lite-2.1",
+   "name": "T-lite 2.1 8B",
+   "vendor": "T-Bank",
+   "family": "T-lite",
+   "repo": "t-tech/T-lite-it-2.1-GGUF",
+   "base": "t-tech/T-lite-it-2.1",
+   "released": "2025-12",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en"
+   ],
+   "caps": {
+    "vision": false,
+    "reasoning": false,
+    "tools": false,
+    "audio": false
+   },
+   "scores": {
+    "chat": 58,
+    "coding": 45,
+    "ru": 80,
+    "vision": 0,
+    "reasoning": 45,
+    "agent": 42
+   },
+   "quants": [
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "medium",
+    "ru"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "why": {
+    "ru": "Сделана под русский язык: пишет по-русски естественно и уверенно, при этом помещается на обычном компьютере.",
+    "en": "Built for Russian: writes it naturally and confidently, while still fitting on an ordinary computer."
+   },
+   "files": {
+    "Q4_K_M": {
+     "files": [
+      "T-lite-it-2.1-Q4_K_M.gguf"
+     ],
+     "size": 5027750240,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "T-lite-it-2.1-Q5_K_M.gguf"
+     ],
+     "size": 5850952544,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "T-lite-it-2.1-Q6_K.gguf"
+     ],
+     "size": 6725604992,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "T-lite-it-2.1-Q8_0.gguf"
+     ],
+     "size": 8708734016,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": null,
+   "draft": null,
+   "params": 8188711936,
+   "ctx_max": 40960,
+   "arch": "qwen3",
+   "gated": false,
+   "downloads": 11656,
+   "kv": {
+    "per_token": 147456,
+    "fixed": 0
+   },
+   "moe": false,
+   "checked": "2026-11-03"
+  },
+  {
+   "id": "qwen3.5-397b-a17b",
+   "name": "Qwen3.5 397B-A17B",
+   "vendor": "Alibaba Qwen",
+   "family": "Qwen",
+   "repo": "unsloth/Qwen3.5-397B-A17B-GGUF",
+   "base": "Qwen/Qwen3.5-397B-A17B",
+   "released": "2026-02",
+   "license": "apache-2.0",
+   "commercial": true,
+   "languages": [
+    "ru",
+    "en",
+    "zh",
+    "es",
+    "fr",
+    "de",
+    "ja",
+    "ko",
+    "ar",
+    "pt",
+    "it"
+   ],
+   "caps": {
+    "vision": true,
+    "reasoning": true,
+    "tools": true,
+    "audio": false
+   },
+   "scores": {
+    "chat": 92,
+    "coding": 90,
+    "ru": 82,
+    "vision": 86,
+    "reasoning": 92,
+    "agent": 90
+   },
+   "quants": [
+    "Q3_K_M",
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "tags": [
+    "huge",
+    "moe",
+    "reasoning"
+   ],
+   "sampling": {
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0
+   },
+   "active_b": 17.0,
+   "moe": true,
+   "why": {
+    "ru": "Флагман для очень мощных машин: максимум качества по всем задачам, но нужен компьютер с сотнями гигабайт памяти.",
+    "en": "The flagship for very powerful machines: the best quality at every task, but it needs a computer with hundreds of gigabytes of memory."
+   },
+   "files": {
+    "Q3_K_M": {
+     "files": [
+      "Q3_K_M/Qwen3.5-397B-A17B-Q3_K_M-00001-of-00005.gguf",
+      "Q3_K_M/Qwen3.5-397B-A17B-Q3_K_M-00002-of-00005.gguf",
+      "Q3_K_M/Qwen3.5-397B-A17B-Q3_K_M-00003-of-00005.gguf",
+      "Q3_K_M/Qwen3.5-397B-A17B-Q3_K_M-00004-of-00005.gguf",
+      "Q3_K_M/Qwen3.5-397B-A17B-Q3_K_M-00005-of-00005.gguf"
+     ],
+     "size": 177409522016,
+     "quant": "Q3_K_M"
+    },
+    "Q4_K_M": {
+     "files": [
+      "Q4_K_M/Qwen3.5-397B-A17B-Q4_K_M-00001-of-00006.gguf",
+      "Q4_K_M/Qwen3.5-397B-A17B-Q4_K_M-00002-of-00006.gguf",
+      "Q4_K_M/Qwen3.5-397B-A17B-Q4_K_M-00003-of-00006.gguf",
+      "Q4_K_M/Qwen3.5-397B-A17B-Q4_K_M-00004-of-00006.gguf",
+      "Q4_K_M/Qwen3.5-397B-A17B-Q4_K_M-00005-of-00006.gguf",
+      "Q4_K_M/Qwen3.5-397B-A17B-Q4_K_M-00006-of-00006.gguf"
+     ],
+     "size": 244093630912,
+     "quant": "Q4_K_M"
+    },
+    "Q5_K_M": {
+     "files": [
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00001-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00002-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00003-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00004-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00005-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00006-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00007-of-00008.gguf",
+      "Q5_K_M/Qwen3.5-397B-A17B-Q5_K_M-00008-of-00008.gguf"
+     ],
+     "size": 293664979584,
+     "quant": "Q5_K_M"
+    },
+    "Q6_K": {
+     "files": [
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00001-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00002-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00003-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00004-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00005-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00006-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00007-of-00008.gguf",
+      "Q6_K/Qwen3.5-397B-A17B-Q6_K-00008-of-00008.gguf"
+     ],
+     "size": 326595345056,
+     "quant": "Q6_K"
+    },
+    "Q8_0": {
+     "files": [
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00001-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00002-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00003-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00004-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00005-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00006-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00007-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00008-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00009-of-00010.gguf",
+      "Q8_0/Qwen3.5-397B-A17B-Q8_0-00010-of-00010.gguf"
+     ],
+     "size": 421507365824,
+     "quant": "Q8_0"
+    }
+   },
+   "mmproj": {
+    "path": "mmproj-F16.gguf",
+    "size": 918166240
+   },
+   "draft": null,
+   "params": 396346350336,
+   "ctx_max": 262144,
+   "arch": "qwen35moe",
+   "gated": false,
+   "downloads": 21442,
+   "kv": {
+    "per_token": 30720,
+    "fixed": 0
+   },
+   "checked": "2026-11-03"
   }
  ]
 }

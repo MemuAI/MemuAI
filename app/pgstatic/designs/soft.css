@@ -9,6 +9,7 @@
   --d-display: var(--s-sans); --d-text: var(--s-sans); --d-small: var(--s-sans); --sans: var(--s-sans);
   --s-surface: color-mix(in srgb, var(--bg-deep) 90%, var(--accent));
   --s-c0: color-mix(in srgb, var(--bg) 94%, var(--accent));
+  --s-field: color-mix(in srgb, var(--bg-deep) 62%, var(--s-surface));
   --s-c1: color-mix(in srgb, color-mix(in srgb, var(--panel) 92%, var(--accent)) 96%, #fff);
   --s-c2: color-mix(in srgb, color-mix(in srgb, var(--panel) 86%, var(--accent)) 92%, #fff);
   --s-c3: color-mix(in srgb, color-mix(in srgb, var(--panel) 80%, var(--accent)) 90%, #fff);
@@ -43,6 +44,7 @@
 :root[data-design="soft"][data-theme="light"] {
   --s-surface: color-mix(in srgb, var(--bg) 86%, var(--accent));
   --s-c0: color-mix(in srgb, var(--bg) 97%, var(--accent));
+  --s-field: var(--panel);
   --s-c1: color-mix(in srgb, var(--panel) 93%, var(--accent));
   --s-c2: color-mix(in srgb, var(--panel) 89%, var(--accent));
   --s-c3: color-mix(in srgb, var(--panel) 84%, var(--accent));
@@ -96,8 +98,8 @@
 :root[data-design="soft"] .topbar.appbar { background: transparent; border: 0; }
 :root[data-design="soft"] :is(.bar-icon, .iconbtn) { border-radius: 999px; }
 :root[data-design="soft"] .appbar .iconbtn.active { background: var(--s-secondary); color: var(--text); }
-:root[data-design="soft"] .chat-search { border-radius: 999px; background: var(--s-c1); border: 0; }
-:root[data-design="soft"] .chat-search:focus-within { background: var(--s-c2); box-shadow: 0 0 0 2px var(--accent); }
+:root[data-design="soft"] .chat-search { border-radius: 999px; background: var(--s-field); border: 0; }
+:root[data-design="soft"] .chat-search:focus-within { background: var(--s-field); box-shadow: 0 0 0 2px var(--accent); }
 :root[data-design="soft"] .dd-btn { border-radius: 999px; font-weight: 650; }
 :root[data-design="soft"] .dd-btn:hover { background: var(--s-hover); }
 :root[data-design="soft"] .context-meter { border-radius: 999px; background: var(--s-c1); border: 0; }
@@ -181,7 +183,7 @@
 :root[data-design="soft"] .mp-card[data-mode="home"]:hover { background: var(--s-c2); box-shadow: var(--s-elev-1); }
 :root[data-design="soft"] :is(.mp-chip) { border-radius: 999px; border: 0; background: var(--s-c2); }
 :root[data-design="soft"] :is(.mp-menu, .mp-modal) { border-radius: 22px; border: 0; }
-:root[data-design="soft"] :is(.docs-search, .docs-find) { border-radius: 999px; background: var(--s-c1); border: 0; }
+:root[data-design="soft"] :is(.docs-search, .docs-find) { border-radius: 999px; background: var(--s-field); border: 1px solid var(--s-outline); }
 :root[data-design="soft"] :is(.docs-page-link, .docs-group-head, .docs-result) { border-radius: 999px; }
 :root[data-design="soft"] .docs-page-link.active { background: var(--s-secondary); color: var(--text); }
 :root[data-design="soft"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 20px; }

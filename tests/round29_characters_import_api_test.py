@@ -294,6 +294,100 @@ class ResolversTest(unittest.TestCase):
         card = lambda request: httpx.Response(200, json={"spec": "chara_card_v2", "data": {"name": "x"}})
         self.assertEqual(self.resolve("https://raw.githubusercontent.com/x/y/main/c.json", card)["type"], "character")
 
+
+class AvatarImportTest(unittest.TestCase):
+    """The avatar must survive the import — with fallbacks, and
+    with a visible reason when it cannot be fetched at all."""
+
+    WEBP = b"RIFF" + b"\x00\x00\x00\x00" + b"WEBP" + b"\x00" * 16
+
+    def resolve(self, text, handler, hosts=ci.DEFAULT_HOSTS):
+        async def go():
+            async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+                return await ci.fetch_import(ci.parse_input(text, hosts), client)
+        with patch("socket.getaddrinfo", side_effect=fake_dns({})), patch.object(ci, "_peer_is_public", lambda response: None):
+            return run(go())
+
+    def test_chub_metadata_blocked_falls_back_to_direct_card_png(self):
+        """api.chub.ai 403 (geo-block) must not kill the import: the card PNG
+        lives on the CDN, which answers where the API does not."""
+        def handler(request):
+            if request.url.host == "api.chub.ai":
+                return httpx.Response(403, text="This service is not available in your country.")
+            self.assertEqual(str(request.url),
+                             "https://avatars.charhub.io/avatars/randbro/aqua-and-marina/chara_card_v2.png")
+            return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+        result = self.resolve("https://chub.ai/characters/randbro/aqua-and-marina", handler)
+        self.assertEqual(result["file"]["mime"], "image/png")
+        self.assertEqual(base64.b64decode(result["file"]["base64"]), PNG)
+        self.assertEqual(result["page"], "https://chub.ai/characters/randbro/aqua-and-marina")
+        # the file IS the avatar for PNG cards (the client parses it itself)
+        self.assertNotIn("avatar_error", result)
+
+    def test_chub_avatar_chain_avatar_url_then_direct_card(self):
+        meta = {"node": {"id": 1, "definition": {"name": "N"},
+                         "max_res_url": "https://avatars.charhub.io/avatars/a/b/gone.png",
+                         "avatar_url": "https://avatars.charhub.io/avatars/a/b/avatar.webp"}}
+
+        def webp_handler(request):
+            if request.url.host == "api.chub.ai":
+                return httpx.Response(200, json=meta)
+            if str(request.url).endswith("avatar.webp"):
+                return httpx.Response(200, content=self.WEBP, headers={"content-type": "image/webp"})
+            return httpx.Response(404)
+        result = self.resolve("a/b", webp_handler)
+        self.assertEqual(result["avatar"]["mime"], "image/webp")
+        self.assertEqual(base64.b64decode(result["avatar"]["base64"]), self.WEBP)
+
+        def direct_handler(request):
+            if request.url.host == "api.chub.ai":
+                return httpx.Response(200, json=meta)
+            if str(request.url).endswith("chara_card_v2.png"):
+                return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+            return httpx.Response(404)
+        result = self.resolve("a/b", direct_handler)
+        self.assertEqual(result["avatar"]["mime"], "image/png")
+        self.assertEqual(base64.b64decode(result["avatar"]["base64"]), PNG)
+
+    def test_chub_avatar_all_failed_reports_error(self):
+        def handler(request):
+            if request.url.host == "api.chub.ai":
+                return httpx.Response(200, json={"node": {"id": 1, "definition": {"name": "N"},
+                                                          "max_res_url": "https://avatars.charhub.io/x.png",
+                                                          "avatar_url": "https://avatars.charhub.io/y.webp"}})
+            return httpx.Response(404)
+        result = self.resolve("a/b", handler)
+        self.assertIsNone(result["avatar"])
+        self.assertEqual(result["avatar_error"], "avatar_not_found")
+
+    def test_avatar_dict_url_and_magic_bytes(self):
+        def pyg(request):
+            if request.url.host == "server.pygmalion.chat":
+                return httpx.Response(200, json={"character": {"spec": "chara_card_v2",
+                    "data": {"name": "Pyg", "avatar": {"url": "https://assets.pygmalion.chat/a.png"}}}})
+            return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+        result = self.resolve("a7ca95a1-0c88-4e23-91b3-149db1e78ab9", pyg)
+        self.assertEqual(base64.b64decode(result["avatar"]["base64"]), PNG)
+
+        def octet(request):
+            if request.url.host == "api.chub.ai":
+                return httpx.Response(200, json={"node": {"id": 1, "definition": {"name": "N"},
+                                                          "avatar_url": "https://avatars.charhub.io/a/b/avatar.webp"}})
+            # a valid WEBP served as a generic binary: accepted by magic bytes
+            return httpx.Response(200, content=self.WEBP, headers={"content-type": "application/octet-stream"})
+        result = self.resolve("a/b", octet)
+        self.assertEqual(result["avatar"]["mime"], "image/webp")
+
+    def test_pygmalion_missing_avatar_reports_error(self):
+        def handler(request):
+            if request.url.host == "server.pygmalion.chat":
+                return httpx.Response(200, json={"character": {"spec": "chara_card_v2",
+                                                               "data": {"name": "Pyg"}}})
+            return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+        result = self.resolve("a7ca95a1-0c88-4e23-91b3-149db1e78ab9", handler)
+        self.assertIsNone(result["avatar"])
+        self.assertEqual(result["avatar_error"], "avatar_missing")
+
 class RoutesTest(unittest.TestCase):
     def setUp(self):
         self._t = tempfile.TemporaryDirectory()

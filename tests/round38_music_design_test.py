@@ -45,7 +45,9 @@ def test_i18n_has_every_appearance_key_in_both_languages():
     assert ru == en and len(ru) > 80
     theme = read("theme.js")
     for key in re.findall(r'L\("([a-z_.]+)"', theme):
-        if "." in key and not key.endswith("."):
+        # E14: L("custom.css_preset_" + k) is a dynamic prefix, not a key —
+        # keys ending in "_" are prefixes, skip them.
+        if "." in key and not key.endswith(".") and not key.endswith("_"):
             assert "ui." + key in ru, key
     for th in re.findall(r'\{ id: "([a-z]+)", h:', theme):
         assert f"ui.theme.{th}" in ru and f"ui.theme.{th}_hint" in ru

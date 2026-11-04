@@ -45,6 +45,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "voices": ["marin", "cedar", "alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse"],
         "default_voice": "marin", "input_rate": 24000, "output_rate": 24000,
         "key_hint": "platform.openai.com → API keys",
+        "transcription_models": ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"],
     },
     "openai-realtime": {
         "label": "OpenAI Realtime", "protocol": "openai-realtime", "dialect": "ga",
@@ -75,6 +76,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "label": "Custom · OpenAI Realtime", "protocol": "openai-realtime", "dialect": "ga",
         "url": "", "models": [], "voices": [], "default_voice": "",
         "input_rate": 24000, "output_rate": 24000, "key_hint": "",
+        "transcription_models": ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"],
     },
     "custom-gemini": {
         "label": "Custom · Gemini Live", "protocol": "gemini-live",
@@ -92,7 +94,9 @@ def catalog() -> List[Dict[str, Any]]:
     return [{"id": key, "label": row["label"], "protocol": row["protocol"],
              "models": list(row["models"]), "voices": list(row["voices"]),
              "default_voice": row["default_voice"], "custom": key.startswith("custom"),
-             "key_hint": row["key_hint"]} for key, row in PROVIDERS.items()]
+             "key_hint": row["key_hint"],
+             "transcription_models": list(row.get("transcription_models") or [])}
+            for key, row in PROVIDERS.items()]
 
 class RealtimeConfigError(ValueError):
     """Понятная пользователю ошибка настройки Live-модели."""
@@ -111,9 +115,14 @@ class LiveConfig:
     backend_model: str = ""
     language: str = ""
     search: bool = True
+    transcription_model: str = ""
 
     @classmethod
     def from_preferences(cls, prefs: Dict[str, Any], instructions: str = "") -> "LiveConfig":
+        if not str(instructions or "").strip():
+            # The Live window does not always send instructions (voice-only start):
+            # fall back to the default instructions from settings.
+            instructions = str(prefs.get("voice_realtime_instructions") or "")
         provider = str(prefs.get("voice_realtime_provider") or DEFAULT_PROVIDER)
         if provider not in PROVIDERS:
             provider = DEFAULT_PROVIDER
@@ -149,7 +158,8 @@ class LiveConfig:
                    if str(prefs.get("voice_realtime_delegation") or "memuai") in DELEGATION else "memuai",
                    backend_model=str(prefs.get("voice_realtime_backend_model") or "").strip()[:200],
                    language="" if language in ("", "auto") else language[:12],
-                   search=prefs.get("voice_realtime_search", True) is not False)
+                   search=prefs.get("voice_realtime_search", True) is not False,
+                   transcription_model=str(prefs.get("voice_realtime_transcription_model") or "").strip()[:200])
 
 SEARCH_TOOLS: List[Dict[str, Any]] = [
     {"name": "web_search",
@@ -399,7 +409,7 @@ class OpenAIRealtimeAdapter(Adapter):
             session: Dict[str, Any] = {
                 "modalities": ["audio", "text"], "instructions": instructions,
                 "input_audio_format": "pcm16", "output_audio_format": "pcm16",
-                "input_audio_transcription": {"model": "whisper-1"},
+                "input_audio_transcription": {"model": self.config.transcription_model or "whisper-1"},
                 "turn_detection": self._turn(),
             }
             if self.config.voice:
@@ -417,7 +427,7 @@ class OpenAIRealtimeAdapter(Adapter):
                 "type": "realtime", "instructions": instructions, "output_modalities": ["audio"],
                 "audio": {
                     "input": {"format": {"type": "audio/pcm", "rate": rate},
-                              "transcription": {"model": "gpt-4o-mini-transcribe"},
+                              "transcription": {"model": self.config.transcription_model or "gpt-4o-mini-transcribe"},
                               "turn_detection": self._turn()},
                     "output": {"format": {"type": "audio/pcm", "rate": self.output_rate}},
                 },

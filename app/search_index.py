@@ -1220,8 +1220,8 @@ class ChatsProvider(Provider):
         return Path(MEMU_DIR) / _profile_data_name("chats.json")
 
     def _prefs_rev(self) -> str:
-        from .pgdata import MEMU_DIR
-        return _stat_rev(Path(MEMU_DIR) / "preferences.json")
+        from .pgdata import preferences_revision
+        return preferences_revision()
 
     def revision(self) -> Any:
         return (str(self._file()), _stat_rev(self._file()), self._prefs_rev())

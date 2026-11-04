@@ -1,4 +1,4 @@
-"""MemuAI window routes for Settings → Remote access → Telegram.
+"""MemuAI window routes for Settings → Messengers → Telegram.
 
 The bot itself runs in MemuAI Proxy; these routes run in the MemuAI window
 process and talk to it only through ``telegram_state.json`` (status heartbeat,

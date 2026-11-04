@@ -161,116 +161,132 @@
     "planning": [
       {
         "id": "rating-changes",
-        "title": "Изменения в рейтингах",
-        "title_en": "Leaderboard changes",
-        "description": "Сообщить, когда в рейтингах появятся изменения по данным наблюдения модуля.",
-        "description_en": "Notify when the leaderboards change according to the module's monitoring.",
+        "title": "Изменения в рейтингах → отчёт",
+        "title_en": "Leaderboard changes → report",
+        "description": "Каждый раз, когда наблюдение отметило новые изменения в рейтингах, — отчёт о лидерах и изменениях.",
+        "description_en": "Each time the monitor noted new leaderboard changes — a report of the leaders and the changes.",
         "trigger": {
           "kind": "threshold",
           "metric": "changes",
           "threshold": 1,
-          "scope": "any"
+          "scope": "any",
+          "mode": "delta"
         },
         "action": {
-          "kind": "notify",
-          "text": "В рейтингах бенчмарков появились изменения — откройте модуль «Бенчмарки», чтобы посмотреть, что поменялось.",
-          "text_en": "benchmarks"
+          "kind": "module",
+          "handler": "benchmarks.leaders_report"
         },
         "settings": [
           {
             "key": "threshold",
             "type": "number",
-            "label": "Изменений не меньше",
-            "label_en": "At least this many changes",
+            "label": "Новых изменений",
+            "label_en": "New changes",
             "default": 1,
             "min": 1,
-            "max": 50
+            "max": 100
           }
         ]
-      },
-      {
-        "id": "weekly-digest",
-        "title": "Сводка рейтингов за неделю",
-        "title_en": "Weekly leaderboard digest",
-        "description": "Раз в неделю попросить модель коротко рассказать о лидерах и изменениях.",
-        "description_en": "Ask the model once a week for a short summary of the leaders and changes.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 10080
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Коротко: кто сейчас лидирует в LMArena и Artificial Analysis и что изменилось в рейтингах за неделю?",
-          "prompt_en": "Briefly: who currently leads LMArena and Artificial Analysis, and what changed in the leaderboards this week?"
-        }
-      },
-      {
-        "id": "changes-three",
-        "title": "Три изменения в рейтингах",
-        "title_en": "Three leaderboard changes",
-        "description": "Сообщить, когда в рейтингах появится сразу три изменения.",
-        "description_en": "Notify when three leaderboard changes appear at once.",
-        "trigger": {
-          "kind": "threshold",
-          "metric": "changes",
-          "threshold": 3,
-          "scope": "any"
-        },
-        "action": {
-          "kind": "notify",
-          "text": "В рейтингах моделей сразу три изменения — откройте модуль и посмотрите, кто поднялся или опустился.",
-          "text_en": "There are three changes in the model leaderboards at once — open the module and see who moved up or down."
-        }
-      },
-      {
-        "id": "changes-eight",
-        "title": "Восемь изменений в рейтингах",
-        "title_en": "Eight leaderboard changes",
-        "description": "Попросить модель рассказать, что изменилось в рейтингах, когда изменений станет восемь.",
-        "description_en": "Ask the model to describe what changed in the leaderboards once there are eight changes.",
-        "trigger": {
-          "kind": "threshold",
-          "metric": "changes",
-          "threshold": 8,
-          "scope": "any"
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Коротко: что изменилось в рейтингах моделей — новые лидеры, заметные подъёмы и падения. Списком.",
-          "prompt_en": "Briefly: what changed in the model leaderboards — new leaders, notable rises and falls. As a list."
-        }
       },
       {
         "id": "daily-leaders",
         "title": "Лидеры рейтингов каждый день",
         "title_en": "Leaderboard leaders every day",
-        "description": "Каждый день напомнить проверить лидеров рейтингов.",
-        "description_en": "Remind every day to check the leaderboard leaders.",
+        "description": "Топ-5 каждого загруженного рейтинга одним отчётом.",
+        "description_en": "The top 5 of every loaded leaderboard in one report.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 1440
         },
         "action": {
-          "kind": "notify",
-          "text": "Загляните в рейтинги: проверьте, кто сегодня лидирует и не сменился ли лидер в интересующих вас категориях.",
-          "text_en": "Check the leaderboards: see who leads today and whether the leader changed in the categories you follow."
-        }
+          "kind": "module",
+          "handler": "benchmarks.leaders_report"
+        },
+        "settings": [
+          {
+            "key": "top",
+            "type": "number",
+            "label": "Мест в таблице",
+            "label_en": "Places per table",
+            "default": 5,
+            "min": 1,
+            "max": 10
+          }
+        ]
       },
       {
         "id": "three-day-arena",
-        "title": "Арены за три дня",
-        "title_en": "Arenas over three days",
-        "description": "Раз в три дня попросить модель рассказать об изменениях на аренах и в рейтингах.",
-        "description_en": "Every three days, ask the model about the changes on the arenas and leaderboards.",
+        "title": "Топ-10 рейтингов каждые три дня",
+        "title_en": "Top 10 of the leaderboards every three days",
+        "description": "Каждые три дня — первые 10 мест каждого рейтинга.",
+        "description_en": "Every three days — the first 10 places of every leaderboard.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 4320
         },
         "action": {
-          "kind": "chat",
-          "prompt": "Что изменилось на аренах и в рейтингах за последние три дня и какие модели стоит попробовать? Коротко, списком.",
-          "prompt_en": "What changed on the arenas and in the leaderboards over the last three days, and which models are worth trying? Briefly, as a list."
-        }
+          "kind": "module",
+          "handler": "benchmarks.leaders_report",
+          "options": {
+            "top": 10
+          }
+        },
+        "settings": [
+          {
+            "key": "top",
+            "type": "number",
+            "label": "Мест в таблице",
+            "label_en": "Places per table",
+            "default": 10,
+            "min": 1,
+            "max": 10
+          }
+        ]
+      },
+      {
+        "id": "weekly-digest",
+        "title": "ИИ-обзор рейтингов за неделю",
+        "title_en": "AI weekly leaderboard review",
+        "description": "ИИ по реальным таблицам объясняет, кто вырос, кто упал и какую модель выбрать.",
+        "description_en": "From the real tables the AI explains who rose, who fell and which model to pick.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "benchmarks.ai_digest"
+        },
+        "settings": []
+      },
+      {
+        "id": "changes-three",
+        "title": "Три изменения → ИИ-обзор",
+        "title_en": "Three changes → AI review",
+        "description": "Когда набралось три новых изменения рейтингов, ИИ делает их обзор.",
+        "description_en": "When three new leaderboard changes piled up, the AI reviews them.",
+        "trigger": {
+          "kind": "threshold",
+          "metric": "changes",
+          "threshold": 3,
+          "scope": "any",
+          "mode": "delta"
+        },
+        "action": {
+          "kind": "module",
+          "handler": "benchmarks.ai_digest"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Новых изменений",
+            "label_en": "New changes",
+            "default": 3,
+            "min": 1,
+            "max": 100
+          }
+        ]
       }
     ]
   }

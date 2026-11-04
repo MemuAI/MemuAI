@@ -85,7 +85,11 @@ def _discover_cli() -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     if not base.is_dir():
         return rows
-    for store in base.glob("*/*/store.db"):
+    try:
+        stores = list(base.glob("*/*/store.db"))
+    except OSError:
+        return rows
+    for store in stores:
         try:
             stat = store.stat()
             con = _connect(store)
@@ -108,9 +112,15 @@ def _discover_cli() -> List[SessionInfo]:
                                 extra={"store": "cli", "folder_hash": store.parent.parent.name}))
     return rows
 
+# F31: cap the rows a single foreign store can contribute (a huge store.db
+# used to be read whole just to show the first lines of a session).
+MAX_CLI_MESSAGES = 100_000
+
+
 def _cli_messages(con: sqlite3.Connection, limit: int = 0) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    for (data,) in con.execute("select data from blobs order by rowid"):
+    sql = "select data from blobs order by rowid limit ?"
+    for (data,) in con.execute(sql, (limit or MAX_CLI_MESSAGES,)):
         if not isinstance(data, (bytes, str)):
             continue
         raw = data.decode("utf-8", "ignore") if isinstance(data, bytes) else data
@@ -136,9 +146,13 @@ def _discover_editor() -> List[SessionInfo]:
     except sqlite3.Error:
         return rows
     try:
-        for key, value in con.execute("select key, value from cursorDiskKV where key like 'composerData:%'"):
+        for key, value in con.execute("select key, value from cursorDiskKV where key like 'composerData:%' limit 400"):
             data = _json(value)
+            # F31: headers must be a list — a string/dict here used to make
+            # len()/iteration silently wrong downstream.
             headers = data.get("fullConversationHeadersOnly") or data.get("conversation") or []
+            if not isinstance(headers, list):
+                headers = []
             if not headers:
                 continue
             composer = str(data.get("composerId") or str(key).split(":", 1)[-1])
@@ -199,7 +213,7 @@ def read(info: SessionInfo) -> ForeignSession:
 
 def _read_cli(con: sqlite3.Connection, session: ForeignSession) -> None:
     calls: Dict[str, Dict[str, str]] = {}
-    for message in _cli_messages(con):
+    for message in _cli_messages(con, limit=MAX_CLI_MESSAGES):
         role = message.get("role")
         content = message.get("content")
         if isinstance(content, str):
@@ -230,6 +244,8 @@ def _read_editor(con: sqlite3.Connection, session: ForeignSession) -> None:
     row = con.execute("select value from cursorDiskKV where key = ?", (f"composerData:{session.info.id}",)).fetchone()
     data = _json(row[0]) if row else {}
     headers = data.get("fullConversationHeadersOnly") or data.get("conversation") or []
+    if not isinstance(headers, list):
+        headers = []
     for header in headers:
         if not isinstance(header, dict):
             continue

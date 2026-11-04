@@ -99,6 +99,48 @@
   Q.on("chat-new", () => { S.cards = []; renderCards(); });
   Q.on("plugins-ready", () => { S.open = true; loadState().then(poll); startTick(); });
 
+  /* Run mode (standard / economy) where commands actually run: a toggle in the
+     window menu plus a link to the full settings. The mode used to live only
+     in Settings → Quick Ask → Commands, three clicks deep, and users could not
+     find it. Global mode only; per-command modes stay in the settings panel. */
+  let modeBtn = null;
+  const modeOf = () => ((S.settings && S.settings.mode) || "standard") === "economy" ? "economy" : "standard";
+  async function toggleMode() {
+    const next = modeOf() === "economy" ? "standard" : "economy";
+    try {
+      await Q.api("/api/assistant/settings", { body: { settings: { mode: next } } });
+      if (!S.settings) S.settings = {};
+      S.settings.mode = next;
+      if (modeBtn) modeBtn.update();
+      Q.toast(next === "economy"
+        ? t("Экономный режим включён — команды тратят меньше токенов", "Economy mode on — commands spend fewer tokens")
+        : t("Стандартный режим — всё как раньше", "Standard mode — everything as before"), "");
+    } catch (e) { Q.toast(e.message || String(e), "err"); }
+  }
+  if (typeof Q.addComposerButton === "function") {
+    modeBtn = Q.addComposerButton({
+      id: "commands-mode", order: 4, placement: "bar", icon: IC.bolt,
+      label: () => t("Экономный режим", "Economy mode"),
+      title: () => modeOf() === "economy"
+        ? t("Экономный режим включён: команды тратят меньше токенов. Нажмите, чтобы вернуться к стандартному.", "Economy mode is on: commands spend fewer tokens. Click to go back to standard.")
+        : t("Стандартный режим: всё как раньше. Нажмите, чтобы включить экономный — команды будут тратить меньше токенов.", "Standard mode: everything as before. Click to switch to economy — commands will spend fewer tokens."),
+      pressed: () => modeOf() === "economy",
+      hidden: () => !S.enabled,
+      onClick: () => { toggleMode(); },
+    });
+  }
+  if (typeof Q.addAction === "function") {
+    Q.addAction({
+      id: "commands-settings", section: () => t("Команды", "Commands"), icon: IC.gear,
+      label: () => t("Настройки команд…", "Command settings…"),
+      sub: () => modeOf() === "economy"
+        ? t("режим: экономный · свои команды", "mode: economy · custom commands")
+        : t("режим: стандартный · свои команды", "mode: standard · custom commands"),
+      hidden: () => !S.enabled,
+      run: () => { Q.api("/api/quick/window", { body: { action: "handoff", handoff: { settings: "quick", settings_sub: "quick-commands" } } }).catch(() => {}); },
+    });
+  }
+
   const PAGE_ASK = /(сам+ари|резюм|перескаж|кратко|суть|главное|о ч[её]м|суммариз|summar|tl;?dr|key points|gist)/i;
   const PAGE_NOUN = /(страниц|стать|вкладк|сайт|\b(?:page|article|tab|site)\b)/i;
   Q.on("submit", (e) => {
@@ -796,7 +838,7 @@
     onLevel: Voice.onLevel,
   };
 
-  window.MemuQuickCommands = { run: runText, action: runAction, after: afterCard, cards: () => S.cards.slice(), refresh: loadState };
+  window.MemuQuickCommands = { run: runText, action: runAction, after: afterCard, cards: () => S.cards.slice(), refresh: loadState, mode: modeOf, toggleMode };
 
   if (typeof Q.settingsSection === "function") {
     Q.settingsSection("commands", (el, ctx) => (window.MemuCommandsSettings ? window.MemuCommandsSettings.mount(el, ctx || {}) : null),

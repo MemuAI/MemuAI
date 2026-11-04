@@ -129,15 +129,20 @@ def _unexpected_error(exc: Exception) -> str:
     return f"Неожиданная внутренняя ошибка ({type(exc).__name__})"
 
 @router.get("/health")
-async def health() -> Dict[str, Any]:
-    by_provider: Dict[str, int] = {}
-    for pid in ("genspark", "kiro", "antigravity", "geminiweb", "grok", "custom", "local"):
-        by_provider[pid] = len(state.usable_accounts(pid))
-    return {
+async def health(request: Request) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
         "status": "ok", "service": "memuai-proxy", "version": APP_VERSION,
-        "proxy_enabled": config_store.settings.proxy_enabled,
-        "accounts_usable": by_provider, "time": int(time.time()),
+        "proxy_enabled": config_store.settings.proxy_enabled, "time": int(time.time()),
     }
+    # F15: per-provider account counters reveal the setup — include them only
+    # for callers presenting a valid hub key (the CLI sends Bearer <token>).
+    # Unauthenticated liveness probes keep working, just without the counters.
+    if _check_auth(request) is None:
+        by_provider: Dict[str, int] = {}
+        for pid in ("genspark", "kiro", "antigravity", "geminiweb", "grok", "zcode", "custom", "local"):
+            by_provider[pid] = len(state.usable_accounts(pid))
+        payload["accounts_usable"] = by_provider
+    return payload
 
 def listed_models() -> List[Dict[str, Any]]:
     """The ids a client sees in /v1/models (also what the public endpoint may offer)."""
@@ -228,6 +233,23 @@ async def get_model(model_id: str, request: Request):
     return {"id": public_id(m.prefix, m.model), "object": "model", "created": 1735689600,
             "owned_by": m.provider}
 
+@router.post("/v1/embeddings")
+async def embeddings(request: Request):
+    deny = _check_auth(request)
+    if deny:
+        return deny
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse(status_code=400, content=_openai_error(
+            "Тело запроса должно быть JSON-объектом", "invalid_request_error", 400,
+            message_en="The request body must be a JSON object"))
+    from .embeddings_api import forward
+    status, payload = await forward(body)
+    return JSONResponse(status_code=status, content=payload)
+
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     return await until_client_disconnects(request, _chat_completions(request))
@@ -258,6 +280,11 @@ async def _chat_completions(request: Request):
         return JSONResponse(status_code=400, content=_openai_error(
             "Каждый элемент 'messages' должен быть объектом", "invalid_request_error", 400,
             message_en="Every item of 'messages' must be an object"))
+    # F16: an unbounded messages array used to travel downstream as-is.
+    if len(messages) > 500:
+        return JSONResponse(status_code=400, content=_openai_error(
+            "Слишком много сообщений в запросе (предел 500)", "invalid_request_error", 400,
+            message_en="Too many messages in the request (limit 500)"))
     model_value = body.get("model")
     if not isinstance(model_value, str) or not model_value.strip():
         return JSONResponse(status_code=400, content=_openai_error(
@@ -288,6 +315,11 @@ async def _chat_completions(request: Request):
             return JSONResponse(status_code=400, content=_openai_error(
                 "Поле 'tools' должно быть массивом объектов", "invalid_request_error", 400,
                 message_en="'tools' must be an array of objects"))
+        # F16: same 128-tool cap as /playground/chat (F26).
+        if len(tools) > 128:
+            return JSONResponse(status_code=400, content=_openai_error(
+                "Слишком много инструментов в запросе (предел 128)", "invalid_request_error", 400,
+                message_en="Too many tools in the request (limit 128)"))
         if body.get("tool_choice") not in (None, "none") and not tools:
             return JSONResponse(status_code=400, content=_openai_error(
                 "tool_choice requires non-empty tools", "invalid_request_error", 400))
@@ -301,15 +333,28 @@ async def _chat_completions(request: Request):
         if isinstance(body.get(key), bool):
             params["web_search"] = body[key]
             break
-    for key in ("temperature", "max_tokens", "top_p"):
+    # M1: unvalidated numbers used to travel downstream as-is ("abc" for
+    # temperature, negative max_tokens) and fail inside providers with a 500.
+    for key, lo, hi in (("temperature", 0.0, 2.0), ("top_p", 0.0, 1.0)):
         if body.get(key) is not None:
-            params[key] = body[key]
+            value = body[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not lo <= float(value) <= hi:
+                return JSONResponse(status_code=400, content=_openai_error(
+                    f"Поле '{key}' должно быть числом от {lo} до {hi}", "invalid_request_error", 400,
+                    message_en=f"'{key}' must be a number between {lo} and {hi}"))
+            params[key] = value
+    for key in ("max_tokens", "max_completion_tokens"):
+        if body.get(key) is not None:
+            value = body[key]
+            if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 1_000_000:
+                return JSONResponse(status_code=400, content=_openai_error(
+                    f"Поле '{key}' должно быть целым числом от 1 до 1000000", "invalid_request_error", 400,
+                    message_en=f"'{key}' must be an integer between 1 and 1000000"))
+            params["max_tokens"] = value
 
     for key, kinds in _PASSTHROUGH_PARAMS:
         if body.get(key) is not None and isinstance(body[key], kinds) and not isinstance(body[key], bool):
             params[key] = body[key]
-    if body.get("max_completion_tokens") is not None:
-        params["max_tokens"] = body["max_completion_tokens"]
     if tools:
         params["tools"] = tools
         params["tools_available"] = True
@@ -352,23 +397,46 @@ async def _chat_completions(request: Request):
         finish_reason = "stop"
         tool_calls: Dict[int, Dict[str, Any]] = {}
         source = chat_service.stream_completion(req_model, messages, params, trace=trace)
+        def _text(value: Any) -> str:
+            # M1: some providers return content as a list of parts (or a
+            # bare string chunk); joining non-strings used to 500 the whole
+            # non-stream completion. Reasoning-only replies (content: null)
+            # are already falsy and skip cleanly.
+            if isinstance(value, str):
+                return value
+            if isinstance(value, list):
+                return "".join(part.get("text", "") if isinstance(part, dict) else str(part)
+                               for part in value if part is not None)
+            return ""
+
         try:
             async for chunk in source:
+                # M1: a provider yielding a bare string (or any non-dict)
+                # used to raise AttributeError -> generic 500. Treat a
+                # string chunk as plain content, ignore anything else.
+                if isinstance(chunk, str):
+                    if chunk:
+                        content_parts.append(chunk)
+                    continue
+                if not isinstance(chunk, dict):
+                    continue
                 if chunk.get("object") == "memuai.event":
                     continue
                 response_id = chunk.get("id") or response_id
-                if chunk.get("usage"):
+                if isinstance(chunk.get("usage"), dict):
                     usage = chunk["usage"]
                     request.state.completion_usage = usage
                 choices = chunk.get("choices") or []
-                if not choices:
+                if not choices or not isinstance(choices[0], dict):
                     continue
                 choice = choices[0]
                 delta = choice.get("delta") or {}
+                if not isinstance(delta, dict):
+                    continue
                 if delta.get("content"):
-                    content_parts.append(delta["content"])
+                    content_parts.append(_text(delta["content"]))
                 if delta.get("reasoning_content"):
-                    reasoning_parts.append(delta["reasoning_content"])
+                    reasoning_parts.append(_text(delta["reasoning_content"]))
                 collect_tool_delta(tool_calls, delta)
                 if choice.get("finish_reason") is not None:
                     finish_reason = str(choice.get("finish_reason") or "stop")
@@ -402,6 +470,8 @@ async def _chat_completions(request: Request):
 
                 message["content"] = None
         trace.status, trace.ms = 200, int((time.time() - started) * 1000)
+        if not isinstance(usage, dict):
+            usage = {}
         trace.prompt_tokens = usage.get("prompt_tokens", 0)
         trace.completion_tokens = usage.get("completion_tokens", 0)
         if config_store.settings.log_requests:
@@ -419,6 +489,12 @@ async def _chat_completions(request: Request):
     async def openai_only(source):
         try:
             async for item in source:
+                if isinstance(item, str):
+                    if item:
+                        yield {"choices": [{"index": 0, "delta": {"content": item}, "finish_reason": None}]}
+                    continue
+                if not isinstance(item, dict):
+                    continue
                 if item.get("object") == "memuai.event":
                     continue
                 yield item
@@ -426,14 +502,29 @@ async def _chat_completions(request: Request):
             await close_quietly(source.aclose)
 
     stream = openai_only(chat_service.stream_completion(req_model, messages, params, trace=trace))
+    # F21: idle timeout for the first chunk and for the SSE pump/consumer
+    # below — a hung upstream used to block this request (and the maintainer
+    # chat) forever. stream_idle_timeout is an *idle* bound, not a total one,
+    # so long legitimate generations are unaffected.
+    idle_timeout = float(config_store.settings.stream_idle_timeout)
     try:
-        first_chunk = await anext(stream)
+        first_chunk = await asyncio.wait_for(anext(stream), timeout=idle_timeout)
         if first_chunk.get("usage"):
             request.state.completion_usage = first_chunk["usage"]
     except asyncio.CancelledError:
         await close_quietly(stream.aclose)
         state.cancel_trace(trace, getattr(request.state, "completion_usage", None))
         raise
+    except asyncio.TimeoutError:
+        await close_quietly(stream.aclose)
+        message = "Провайдер не прислал первый фрагмент ответа вовремя"
+        message_en = "The provider did not send the first response chunk in time"
+        trace.status, trace.error, trace.ms = 502, message, int((time.time() - started) * 1000)
+        trace.error_en = message_en
+        trace.add_stage("finished", {"error": message, "status": 502, "error_en": message_en})
+        state.commit_trace(trace)
+        return JSONResponse(status_code=502, content=_openai_error(
+            message, "upstream_error", 502, message_en=message_en))
     except CompletionError as e:
         message = safe_provider_error(e.message)
         trace.status, trace.error, trace.ms = e.status, message, int((time.time() - started) * 1000)
@@ -509,7 +600,21 @@ async def _chat_completions(request: Request):
 
                         if item.get("usage"):
                             request.state.completion_usage = item["usage"]
-                        await queue.put(item)
+                        # F21: bounded put — a slow/disconnected consumer must
+                        # not stall the pump (and the upstream generator)
+                        # forever on a full queue.
+                        await asyncio.wait_for(queue.put(item), timeout=idle_timeout)
+                except asyncio.TimeoutError:
+                    # Consumer stopped draining: stop the upstream generator
+                    # instead of letting the provider call run in background.
+                    await close_quietly(stream.aclose)
+                    try:
+                        queue.put_nowait(CompletionError(
+                            "Провайдер не отвечает: поток прерван из-за простоя",
+                            502, "upstream_error",
+                            message_en="Upstream stalled: stream aborted after idle timeout"))
+                    except asyncio.QueueFull:
+                        pass  # consumer reports the stall via its own bounded get
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:  # noqa: BLE001 — пробрасываем потребителю
@@ -518,16 +623,31 @@ async def _chat_completions(request: Request):
                     await queue.put(sentinel)
 
             pump_task = asyncio.create_task(pump())
+            stall_deadline = time.monotonic() + idle_timeout
             try:
                 while True:
                     if keepalive > 0:
                         try:
                             item = await asyncio.wait_for(queue.get(), timeout=keepalive)
                         except asyncio.TimeoutError:
+                            if time.monotonic() >= stall_deadline:
+                                raise CompletionError(
+                                    "Провайдер не отвечает: поток прерван из-за простоя",
+                                    502, "upstream_error",
+                                    message_en="Upstream stalled: stream aborted after idle timeout")
                             yield ": keepalive\n\n"
                             continue
                     else:
-                        item = await queue.get()
+                        # F21: bounded get — a dead pump must not leave the
+                        # client hanging on this SSE stream forever.
+                        try:
+                            item = await asyncio.wait_for(queue.get(), timeout=idle_timeout)
+                        except asyncio.TimeoutError:
+                            raise CompletionError(
+                                "Провайдер не отвечает: поток прерван из-за простоя",
+                                502, "upstream_error",
+                                message_en="Upstream stalled: stream aborted after idle timeout")
+                    stall_deadline = time.monotonic() + idle_timeout
                     if item is sentinel:
                         for out in leading.flush():
                             yield encode(out)

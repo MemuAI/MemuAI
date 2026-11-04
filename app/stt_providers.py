@@ -20,6 +20,7 @@ PROVIDERS = {
     "elevenlabs": {"label": "ElevenLabs", "base_url": "https://api.elevenlabs.io", "models": ["scribe_v2", "scribe_v1"], "key_url": "https://elevenlabs.io/app/settings/api-keys", "docs_url": "https://elevenlabs.io/docs/api-reference/speech-to-text/convert"},
     "deepgram": {"label": "Deepgram", "base_url": "https://api.deepgram.com/v1", "models": ["nova-3", "nova-2", "whisper-large"], "key_url": "https://console.deepgram.com/", "docs_url": "https://developers.deepgram.com/docs/pre-recorded-audio"},
     "mistral": {"label": "Mistral Voxtral", "base_url": "https://api.mistral.ai/v1", "models": ["voxtral-mini-transcribe-3", "voxtral-small-transcribe-3-0", "voxtral-mini-latest"], "key_url": "https://console.mistral.ai/api-keys", "docs_url": "https://docs.mistral.ai/studio/audio/overview"},
+    "openrouter": {"label": "OpenRouter", "base_url": "https://openrouter.ai/api/v1", "models": ["openai/whisper-large-v3", "openai/gpt-4o-mini-transcribe", "openai/gpt-4o-transcribe", "mistralai/voxtral-mini-transcribe-3-0", "deepgram/nova-3", "elevenlabs/scribe-v2"], "key_url": "https://openrouter.ai/keys", "docs_url": "https://openrouter.ai/docs/use-cases/speech-to-text"},
     "azure": {"label": "Microsoft Azure Speech", "base_url": "https://YOUR-RESOURCE.cognitiveservices.azure.com", "models": [], "key_url": "https://portal.azure.com/", "docs_url": "https://learn.microsoft.com/azure/ai-services/speech-service/fast-transcription-create"},
     "custom": {"label": "OpenAI-compatible", "base_url": "", "models": [], "key_url": "", "docs_url": ""},
 }

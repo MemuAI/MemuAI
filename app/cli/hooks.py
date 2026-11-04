@@ -38,6 +38,14 @@ class HookOutcome:
     messages: List[str] = field(default_factory=list)
     ran: int = 0
 
+def _fnum(value: Any, default: float) -> float:
+    """F35: a numeric config value that may be a junk string — fall back."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class HookRunner:
     def __init__(self, runtime: "Runtime") -> None:
         self.runtime = runtime
@@ -85,7 +93,9 @@ class HookRunner:
                 if not command:
                     continue
                 outcome.ran += 1
-                code, stdout, stderr = await self._exec(command, body, payload, float(hook.get("timeout") or 60))
+                # F35: a non-numeric timeout in the hook config used to
+                # crash the whole hook run with ValueError.
+                code, stdout, stderr = await self._exec(command, body, payload, _fnum(hook.get("timeout"), 60.0))
                 self._interpret(event, code, stdout, stderr, outcome)
                 if outcome.decision in ("deny", "block") or outcome.stop:
                     return outcome

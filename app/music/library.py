@@ -6,7 +6,9 @@ Imported folders stay where they are (the row keeps an absolute path); downloads
 """
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -66,6 +68,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "playlist_order": [],
     "artist_photos": True,
 }
+LIBRARY_TOKEN_TTL = 7 * 24 * 3600  # wave #7 (D-11): library stream/cover tokens live 7 days
+
 SETTING_CHOICES = {"play_click": ("double", "single"), "lyrics_sync": ("smart", "line", "off")}
 SETTING_RANGES = {"recent_days": (0, 3650), "smart_limit": (10, 500), "normalize_target": (-23, -8), "crossfade": (0, 12),
                   "resume_min": (1, 240), "seek_step": (1, 60), "lyrics_offset_ms": (-2000, 2000)}
@@ -225,6 +229,19 @@ class Library:
             if "device" not in cols:
                 self._db.execute("ALTER TABLE plays ADD COLUMN device TEXT NOT NULL DEFAULT ''")
             self._db.execute("CREATE INDEX IF NOT EXISTS plays_at ON plays(at)")
+            # One listen per (track, moment, device): a phone that retries a
+            # sync must not count the same play twice. Existing databases
+            # may already hold duplicates, so drop them before creating the
+            # unique index -- and never let a damaged table break startup.
+            try:
+                self._db.execute(
+                    "DELETE FROM plays WHERE id NOT IN "
+                    "(SELECT MIN(id) FROM plays GROUP BY track_id, at, device)")
+                self._db.execute("CREATE UNIQUE INDEX IF NOT EXISTS plays_unique "
+                                 "ON plays(track_id, at, device)")
+            except sqlite3.Error as exc:
+                logging.getLogger(__name__).warning("music: plays dedupe skipped: %s", exc)
+                self._db.rollback()
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(tracks)").fetchall()}
             for col, decl in (("gain", "REAL"), ("lufs", "REAL"), ("resume_at", "REAL NOT NULL DEFAULT 0")):
                 if col not in cols:
@@ -250,25 +267,54 @@ class Library:
             return cur.rowcount
 
     def _load_secret(self) -> str:
+        # Wave #7 (D-11): the library secret signs stream/cover URLs, so
+        # its file must not be world-readable (fresh files 0600; an older
+        # looser file is tightened best-effort, Windows ignores the mode).
         path = self.root / "secret.txt"
         try:
             text = path.read_text(encoding="utf-8").strip()
             if len(text) >= 32:
+                with contextlib.suppress(OSError):
+                    os.chmod(path, 0o600)
                 return text
         except OSError:
             pass
         text = secrets.token_hex(24)
-        path.write_text(text, encoding="utf-8")
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, text.encode("utf-8"))
+        finally:
+            os.close(fd)
         return text
 
     def token(self, kind: str, item_id: str) -> str:
+        # Wave #7 (D-11): library tokens used to be eternal HMACs — a
+        # leaked stream/cover URL worked forever. Now ``<expiry>.<mac>``,
+        # valid LIBRARY_TOKEN_TTL (7 days); the desktop UI mints fresh
+        # URLs on demand, so a week is generous and old bare tokens stop
+        # working after this upgrade (they are re-minted, not stored).
         import hashlib
         import hmac
-        return hmac.new(self._secret.encode(), f"{kind}:{item_id}".encode(), hashlib.sha256).hexdigest()[:32]
+        expires = int(time.time()) + LIBRARY_TOKEN_TTL
+        mac = hmac.new(self._secret.encode(), f"{kind}:{item_id}:{expires}".encode(),
+                       hashlib.sha256).hexdigest()[:32]
+        return f"{expires}.{mac}"
 
     def check_token(self, kind: str, item_id: str, token: str) -> bool:
+        import hashlib
         import hmac
-        return bool(token) and hmac.compare_digest(self.token(kind, item_id), str(token))
+        token = str(token or "")
+        if "." not in token:
+            return False  # legacy eternal tokens are no longer accepted
+        expires, _, mac = token.partition(".")
+        try:
+            if int(expires) < int(time.time()):
+                return False
+        except ValueError:
+            return False
+        expected = hmac.new(self._secret.encode(), f"{kind}:{item_id}:{expires}".encode(),
+                            hashlib.sha256).hexdigest()[:32]
+        return bool(mac) and hmac.compare_digest(expected, mac)
 
     def settings(self) -> Dict[str, Any]:
         try:
@@ -349,6 +395,10 @@ class Library:
         data["album_key"] = album_key(data["album"], data["album_artist"] or data["artist"]) if data["album"] else ""
         data.pop("file", None)
         data.pop("source_key", None)
+        # Wave #7 (D-11): the original download URL (YouTube/SoundCloud)
+        # is none of the Mini App's business — the phone plays via the
+        # signed stream URL above. It used to leak through _public().
+        data.pop("source_url", None)
         return data
 
     def stream_url(self, track_id: str, base: str = "") -> str:
@@ -530,10 +580,14 @@ class Library:
             stamp = now
         now = min(stamp, now)
         device = re.sub(r"[^a-z0-9_-]", "", str(device or "").lower())[:20]
-        self._x("INSERT INTO plays (track_id, at, seconds, device) VALUES (?,?,?,?)", (track_id, now, seconds, device))
+        # INSERT OR IGNORE + the unique index above: a retried sync of the
+        # same listen inserts nothing and does not bump the counter again.
+        inserted = self._x("INSERT OR IGNORE INTO plays (track_id, at, seconds, device) VALUES (?,?,?,?)",
+                         (track_id, now, seconds, device))
+        counted = bool(counted and inserted)
         if counted:
             self._x("UPDATE tracks SET plays=plays+1, last_played=MAX(last_played, ?) WHERE id=?", (now, track_id))
-        return {"ok": True, "counted": bool(counted)}
+        return {"ok": True, "counted": counted, "inserted": bool(inserted)}
 
     def list(self, q: str = "", sort: str = "added", filter: str = "", limit: int = 200, offset: int = 0,
              base: str = "", dir: str = "") -> Dict[str, Any]:

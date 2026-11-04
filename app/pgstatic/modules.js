@@ -46,6 +46,7 @@ const MemuModules = (() => {
     music_call: "music",
     learn_call: "learn",
     database_call: "database",
+    utils_call: "utils",
   };
 
   const KNOWN_ICONS = new Set(["text", "chat", "sparkle", "zap", "image", "work", "bot",
@@ -102,6 +103,7 @@ const MemuModules = (() => {
     music: ["Музыкальная библиотека", "Music library", "Библиотека и воспроизведение MemuMusic", "MemuMusic library and playback"],
     learn: ["Учебные материалы", "Learning materials", "Материалы и задания MemuLearn", "MemuLearn materials and exercises"],
     database: ["Базы данных", "Databases", "Выбранные базы SQLite и DuckDB, SQL и подтверждаемые изменения", "Selected SQLite and DuckDB databases, SQL and confirmed changes"],
+    utils: ["Утилиты MemuUtils", "MemuUtils utilities", "Конвертеры, генераторы и инструменты на этом ПК", "Converters, generators and tools on this PC"],
   };
   function permissionName(name) {
     const text = PERMISSION_TEXT[name];
@@ -149,7 +151,7 @@ const MemuModules = (() => {
 
     const names = ["--bg", "--bg-deep", "--panel", "--panel-2", "--border",
       "--control-border", "--text", "--muted", "--accent", "--accent-soft",
-      "--on-accent", "--danger", "--ok", "--radius", "--radius-sm", "--radius-md", "--radius-lg",
+      "--on-accent", "--danger", "--ok", "--field-bg", "--field-border", "--radius", "--radius-sm", "--radius-md", "--radius-lg",
       "--shadow", "--sans", "--serif", "--mono", "--code-bg", "--code-text", "--code-header",
       "--link", "--selection", "--tok-kw", "--tok-type", "--tok-str", "--tok-com", "--tok-num",
       "--tok-fn", "--tok-op", "--tok-lit", "--tok-tag", "--tok-attr", "--tok-prop", "--tok-var",
@@ -178,10 +180,11 @@ const MemuModules = (() => {
   }
 
   const wins = new Map();
-  const closingFrames = new Map();
+  let frameTemplate = null;
   let zTop = 10;
 
   function documentUrl(win, reload) {
+    if (reload && systemCapture && systemCapture.frame === win?.frame) releaseSystemCapture(systemCapture);
     if (win) { win.toolbar = null; renderWinToolbar(win); }
     const id = win ? win.id : "";
     return "/api/pg/modules/" + encodeURIComponent(id) + "/document?chrome=host" + (reload ? "&r=" + Date.now() : "");
@@ -280,6 +283,7 @@ const MemuModules = (() => {
     $$("[data-module-open].module-launch").forEach((button) => {
       button.classList.toggle("is-open", wins.has(button.dataset.moduleOpen));
     });
+    syncOpenFlags();
   }
 
   function popMenu(event, items) {
@@ -328,7 +332,7 @@ const MemuModules = (() => {
   }
 
   function reloadWindow(win) {
-    if (!win) return;
+    if (!win || win.deferred) return;
     if (win.parts.loading) win.parts.loading.hidden = false;
     setStatus(t("Загружаю модуль…", "Loading the module…"), win);
     if (recording && recording.module === win.id) cancelRecording();
@@ -365,8 +369,7 @@ const MemuModules = (() => {
     const next = row.resizable === false;
     try {
       await configure(row.id, { resizable: next });
-      await refresh();
-      if (currentPane === "list" && $("#pane-modules .ms-hub")) renderList($("#pane-modules"));
+      patchModuleRow(row.id);
       note(next ? t("Размер окна можно менять", "The window can be resized")
         : t("Размер окна закреплён", "The window size is locked"), "ok");
     } catch (error) { note(error.message, "err"); }
@@ -386,7 +389,7 @@ const MemuModules = (() => {
       const row = catalog.find((item) => item.id === win.id);
       if (!row || !row.enabled) {
 
-        apiJson("/api/pg/modules/window", { method: "POST", body: { id: win.id, box: currentBox(win), open: false } }).catch(() => {});
+        persistBox(win, { open: false }).catch(() => {});
         closeWindow(win, true);
       }
     });
@@ -621,8 +624,7 @@ const MemuModules = (() => {
     clone.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
     clone.removeAttribute("aria-labelledby");
     delete clone.dataset.bound;
-    const frame = clone.querySelector('[data-win="frame"]');
-    if (frame) frame.src = "about:blank";
+    clone.querySelectorAll("iframe").forEach((frame) => frame.remove());
     $("#module-layer").insertBefore(clone, $("#module-taskbar"));
     return clone;
   }
@@ -685,8 +687,8 @@ const MemuModules = (() => {
       <div class="mhb-tools module-ctl-group" role="group">
         <button type="button" class="module-esc mhb-esc" data-mhb="esc"></button>
         <button type="button" class="mhb-btn" data-mhb="menu" aria-haspopup="menu"></button>
-        <button type="button" class="mhb-btn module-ctl-min" data-mhb="min"><span class="mhb-min-ico"></span><span class="mhb-min-text"></span></button>
-        <button type="button" class="mhb-btn module-ctl-close" data-mhb="close"><span class="mhb-close-ico"></span><span class="mhb-close-text"></span></button>
+        <button type="button" class="mhb-btn module-ctl-min" data-mhb="min"><span class="mhb-min-ico"></span></button>
+        <button type="button" class="mhb-btn module-ctl-close" data-mhb="close"><span class="mhb-close-ico"></span></button>
       </div>`;
     const grow = bar.querySelector(":scope > .grow");
     bar.insertBefore(node, grow || null);
@@ -744,11 +746,9 @@ const MemuModules = (() => {
     const minBtn = node.querySelector('[data-mhb="min"]');
     minBtn.title = labels.min;
     minBtn.setAttribute("aria-label", labels.min);
-    minBtn.querySelector(".mhb-min-text").textContent = labels.minShort;
     const closeBtn = node.querySelector('[data-mhb="close"]');
     closeBtn.title = labels.close;
     closeBtn.setAttribute("aria-label", labels.close);
-    closeBtn.querySelector(".mhb-close-text").textContent = labels.closeShort;
     const actions = node.querySelector(".mhb-actions");
     actions.setAttribute("aria-label", t("Действия модуля", "Module actions"));
     if (TB()) TB().render(actions, spec, (item, value) => pickToolbar(next, item, value));
@@ -790,9 +790,12 @@ const MemuModules = (() => {
 
     if (layer.hidden) { layer.hidden = false; watchChrome(); }
     layoutLayer();
+    const startMinimized = !!(options && options.minimized) && !appMode();
     const win = { id: moduleId, row, el, parts: parts(el), policy: fitToViewport(data.window),
-      savedBox: { width: 0, height: 0 }, minimized: false, snap: "", restore: null };
+      naturalBox: { width: data.window.width, height: data.window.height },
+      savedBox: { width: 0, height: 0 }, minimized: false, deferred: startMinimized, snap: "", restore: null };
     win.frame = win.parts.frame;
+    if (!frameTemplate && win.parts.base && win.frame?.cloneNode) frameTemplate = win.frame.cloneNode(false);
     wins.set(moduleId, win);
     el.hidden = false;
     el.dataset.module = moduleId;
@@ -808,10 +811,11 @@ const MemuModules = (() => {
 
     const others = wins.size - 1;
     if (others > 0 && !(win.policy.x >= 0 && win.policy.y >= 0) && !win.policy.fullscreen) {
-      const area = layerArea();
+      const area = layerArea(), work = workArea();
       const step = 28 * others;
-      applyRect(win, { x: Math.max(0, (area.width - win.policy.width) / 2 + step),
-        y: Math.max(0, (area.height - win.policy.height) / 2 + step) });
+      const baseX = work.width >= win.policy.width + 16 ? work.x + (work.width - win.policy.width) / 2 : (area.width - win.policy.width) / 2;
+      const baseY = work.height >= win.policy.height + 16 ? work.y + (work.height - win.policy.height) / 2 : (area.height - win.policy.height) / 2;
+      applyRect(win, { x: Math.max(0, baseX + step), y: Math.max(0, baseY + step) });
       el.dataset.moved = "";
     } else {
       applyRect(win, win.policy);
@@ -823,13 +827,15 @@ const MemuModules = (() => {
     if (win.parts.loading) win.parts.loading.hidden = false;
     setStatus(t("Загружаю модуль…", "Loading the module…"), win);
     if (recording && recording.module === moduleId) cancelRecording();
-    win.frame.src = documentUrl(win, false);
+    if (!win.deferred) loadWindowFrame(win);
     layer.hidden = false;
     layer.dataset.open = "1";
     document.body.classList.add("module-open");
     focusWindow(win);
     queueLayout();
-    if (!appMode()) persistBox(win, { open: true }).catch(() => {});
+    if (!appMode()) persistBox(win, { open: true, minimized: startMinimized }).catch(() => {});
+    // Restore the taskbar entry at launch. Its document loads only when brought back.
+    if (startMinimized) minimizeWindow(win, { quiet: true });
     if (typeof recordView === "function") recordView({ type: "panel", name: "module:" + moduleId });
 
     const automated = typeof navigator !== "undefined" && navigator && navigator.webdriver === true;
@@ -885,26 +891,33 @@ const MemuModules = (() => {
     el.style.right = "auto";
     el.dataset.centered = moved ? "" : "1";
     el.dataset.moved = moved ? "1" : "";
-    el.style.left = Math.round(moved ? Math.min(x, maxLeft) : Math.max(0, (area.width - width) / 2)) + "px";
-    el.style.top = Math.round(moved ? Math.min(y, maxTop) : Math.max(0, (area.height - height) / 2)) + "px";
+    let left = Math.max(0, (area.width - width) / 2), top = Math.max(0, (area.height - height) / 2);
+    if (!moved) {
+      // centre over the main content when the window fits there, so it does not cover the sidebar
+      const work = workArea();
+      if (work.width >= width + 16) left = work.x + (work.width - width) / 2;
+      if (work.height >= height + 16) top = work.y + (work.height - height) / 2;
+    }
+    el.style.left = Math.round(moved ? Math.min(x, maxLeft) : Math.min(left, maxLeft)) + "px";
+    el.style.top = Math.round(moved ? Math.min(y, maxTop) : Math.min(top, maxTop)) + "px";
   }
 
   function closeWindow(win, instant) {
-    if (!win || !wins.has(win.id)) return Promise.resolve();
+    if (!win || wins.get(win.id) !== win) return Promise.resolve();
     const finish = () => {
-      if (!wins.has(win.id)) return;
+      if (wins.get(win.id) !== win) return;
       wins.delete(win.id);
       cancelModuleStreams(win.id);
       if (recording && recording.module === win.id) cancelRecording();
+      if (systemCapture?.frame === win.frame) releaseSystemCapture(systemCapture);
 
-      if (win.frame && win.frame.contentWindow) {
-        const source = win.frame.contentWindow;
-        closingFrames.set(source, { id: win.id, frame: win.frame, row: win.row });
-        setTimeout(() => closingFrames.delete(source), 3000);
+      if (win.parts.base) {
+        win.el.hidden = true;
+        if (win.frame) win.frame.src = "about:blank";
+      } else {
+        if (win.frame) win.frame.src = "about:blank";
+        win.el.remove();
       }
-      if (win.frame) win.frame.src = "about:blank";
-      if (win.el === $("#module-window")) win.el.hidden = true;
-      else if (win.el.remove) win.el.remove();
       const layer = $("#module-layer");
       if (!wins.size) {
         if (layer) { layer.hidden = true; layer.dataset.open = ""; }
@@ -920,10 +933,11 @@ const MemuModules = (() => {
       if (appMode() && !wins.size && MA()) MA().lastClosed(win.id);
     };
     if (instant || appMode()) { finish(); return Promise.resolve(); }
-    const box = currentBox(win);
+    // Persist through persistBox so a viewport-clipped size never overwrites
+    // the size the user chose (keep_size); the raw box would destroy it.
+    const done = persistBox(win, { open: false }).catch(() => null);
     finish();
-    return apiJson("/api/pg/modules/window", { method: "POST", body: { id: win.id, box, open: false } })
-      .catch(() => null);
+    return done;
   }
 
   function closeReason(win) {
@@ -933,6 +947,7 @@ const MemuModules = (() => {
         : t("В модуле есть несохранённые изменения.", "The module has unsaved changes.");
     }
     if (recording && recording.module === win.id) return t("Идёт запись с микрофона.", "The microphone is recording.");
+    if (systemCapture?.frame === win.frame && systemCapture.recorder) return t("Идёт запись системного звука.", "System audio is recording.");
     if (busyCount.get(win.id)) return t("Модуль ещё работает: ответ или генерация не завершены.", "The module is still working: an answer or a generation has not finished.");
     return "";
   }
@@ -1007,8 +1022,8 @@ const MemuModules = (() => {
     const full = isFullscreen(win);
     const box = {
 
-      width: full ? (win.savedBox.width || win.policy.width || Math.round(rect.width)) : Math.round(rect.width),
-      height: full ? (win.savedBox.height || win.policy.height || Math.round(rect.height)) : Math.round(rect.height),
+      width: full ? (win.savedBox.width || win.policy.width || liveBox(win).width) : liveBox(win).width,
+      height: full ? (win.savedBox.height || win.policy.height || liveBox(win).height) : liveBox(win).height,
       fullscreen: full,
     };
     box.moved = el.dataset.moved === "1";
@@ -1018,26 +1033,39 @@ const MemuModules = (() => {
     return box;
   }
 
-  function snapshotBox(win) {
+  // Layout size of a window, immune to the enter/morph transform animations
+  // (getBoundingClientRect is scaled by them, so a box measured mid-animation
+  // comes out ~0.6% smaller and would be persisted as the window's size).
+  function liveBox(win) {
+    const el = win.el;
+    const rect = el.getBoundingClientRect();
+    return { width: el.offsetWidth || Math.round(rect.width), height: el.offsetHeight || Math.round(rect.height) };
+  }
+
+  function snapshotBox(win, force) {
     if (!win || isFullscreen(win)) return;
-    const rect = win.el.getBoundingClientRect();
-    const live = { width: Math.round(rect.width), height: Math.round(rect.height) };
-    if (clippedByViewport(live, win.policy)) return;
+    const live = liveBox(win);
+    // Never let a viewport clip overwrite the size to restore after leaving
+    // fullscreen; an explicit snapshot (entering fullscreen) always saves.
+    if (!force && clippedByViewport(live, win.policy)) return;
     win.savedBox.width = live.width;
     win.savedBox.height = live.height;
   }
 
   function persistBox(win = wins.get(openId), extra) {
     if (!win || !wins.has(win.id) || appMode()) return Promise.resolve();
-    const rect = win.el.getBoundingClientRect();
-    const live = { width: Math.round(rect.width), height: Math.round(rect.height) };
-    const clipped = !win.el.dataset.resized && clippedByViewport(live, win.policy);
+    const live = liveBox(win);
+    // A viewport clip must never destroy the size the user chose: compare
+    // against the unclipped size (naturalBox), not the already-clipped
+    // policy, and keep the stored size whenever the live size was clipped.
+    const clipped = clippedByViewport(live, win.naturalBox || win.policy);
     snapshotBox(win);
     const box = { ...currentBox(win), keep_size: clipped };
     return apiJson("/api/pg/modules/window", { method: "POST", body: { id: win.id, box, ...(extra || {}) } })
       .then((data) => {
         if (wins.get(win.id) === win && data && data.window) {
           win.policy = { ...fitToViewport(data.window), width: live.width, height: live.height };
+          win.naturalBox = { width: data.window.width, height: data.window.height };
           if (openId === win.id) policy = win.policy;
         }
         return data;
@@ -1045,13 +1073,21 @@ const MemuModules = (() => {
       .catch(() => null);
   }
 
-  function minimizeWindow(win) {
+  // The module bar survives a reload: the server remembers which open windows were minimized.
+  function saveMinimized(win) {
+    if (!win || appMode()) return;
+    apiJson("/api/pg/modules/window", { method: "POST", body: { id: win.id, minimized: !!win.minimized } }).catch(() => {});
+  }
+
+  function minimizeWindow(win, opts) {
     if (!win) return;
 
     if (appMode()) { if (MA()) MA().minimizeNative(); return; }
+    const quiet = !!(opts && opts.quiet);
     win.minimized = true;
     win.el.hidden = true;
-    const firstTime = !uiHint("minimize");
+    if (!quiet) saveMinimized(win);
+    const firstTime = !quiet && !uiHint("minimize");
     if (openId === win.id) {
       const next = topWindow();
       if (next) focusWindow(next);
@@ -1083,16 +1119,26 @@ const MemuModules = (() => {
     }
   }
 
-  function restoreWindow(win) {
-    if (!win) return;
+  function showWindow(win) {
     win.minimized = false;
     win.el.hidden = false;
+    if (win.deferred) {
+      win.deferred = false;
+      loadWindowFrame(win);
+    }
+    saveMinimized(win);
+  }
+
+  function restoreWindow(win) {
+    if (!win) return;
+    showWindow(win);
     focusWindow(win);
   }
 
   const CTRL_ICONS = {
 
-    minimize: '<span class="ui-icon"><svg viewBox="0 0 24 24"><path d="M6 16.5h12"/></svg></span>',
+    minimize: '<span class="ui-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5l6 6 6-6"/></svg></span>',
+    restore: '<span class="ui-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 14.5l6-6 6 6"/></svg></span>',
     close: '<span class="ui-icon"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>',
   };
 
@@ -1111,21 +1157,16 @@ const MemuModules = (() => {
         "Minimize the module — it keeps running on the module bar below")
         : t("Свернуть модуль (Esc) — он продолжит работать на панели модулей внизу",
           "Minimize the module (Esc) — it keeps running on the module bar below"),
-      minShort: t("Свернуть", "Minimize"),
       close: t("Закрыть модуль", "Close the module") + (close ? ` (${close})` : ""),
-      closeShort: t("Закрыть", "Close"),
     };
   }
 
   function labelControls(p) {
     const text = controlLabels();
-    [[p.min, text.min, text.minShort], [p.close, text.close, text.closeShort]].forEach(([button, label, short]) => {
+    [[p.min, text.min], [p.close, text.close]].forEach(([button, label]) => {
       if (!button || typeof button.setAttribute !== "function") return;
       button.title = label;
       button.setAttribute("aria-label", label);
-
-      const word = button.querySelector ? button.querySelector(".module-ctl-text") : null;
-      if (word) word.textContent = short;
 
       if (typeof button.removeAttribute === "function") { button.removeAttribute("data-en-title"); button.removeAttribute("data-en-label"); }
     });
@@ -1289,7 +1330,7 @@ const MemuModules = (() => {
   function toggleFull(win) {
     if (!win) return;
     const full = win.el.dataset.full === "1";
-    if (!full) snapshotBox(win);
+    if (!full) snapshotBox(win, true);
     morph(win, () => {
       if (!full) { unsnap(win, true); applyExpanded(win); }
       win.el.dataset.full = full ? "" : "1";
@@ -1342,7 +1383,7 @@ const MemuModules = (() => {
   }
 
   function placeWindow(win, rect, snapName) {
-    if (win.minimized) { win.minimized = false; win.el.hidden = false; }
+    if (win.minimized) showWindow(win);
     const wasFull = win.el.dataset.full === "1";
     if (wasFull) win.el.dataset.full = "";
     if (!win.snap) {
@@ -1357,6 +1398,7 @@ const MemuModules = (() => {
     win.el.style.height = rect.height + "px";
     win.el.style.left = rect.x + "px";
     win.el.style.top = rect.y + "px";
+    win.naturalBox = { width: rect.width, height: rect.height };
     win.el.style.right = "auto";
     win.el.dataset.moved = "1";
     win.el.dataset.centered = "";
@@ -1379,7 +1421,11 @@ const MemuModules = (() => {
 
   function snapWindow(win, name) {
     if (!win || !SNAPS[name]) return;
-    if (name === "max") { if (win.el.dataset.full !== "1") toggleFull(win); return; }
+    if (name === "max") {
+      if (win.minimized) restoreWindow(win);
+      if (win.el.dataset.full !== "1") toggleFull(win);
+      return;
+    }
     morph(win, () => placeWindow(win, fracRect(SNAPS[name]), name));
     focusWindow(win);
     persistBox(win).catch(() => {});
@@ -1397,7 +1443,7 @@ const MemuModules = (() => {
 
   function arrange(preset) {
     const minimized = [...wins.values()].filter((win) => win.minimized);
-    if (preset !== "focus") minimized.forEach((win) => { win.minimized = false; win.el.hidden = false; });
+    if (preset !== "focus") minimized.forEach(showWindow);
     const list = visibleWindows(true);
     const n = list.length;
     if (!n) return;
@@ -1538,13 +1584,14 @@ const MemuModules = (() => {
     const pill = (win) => {
       const name = titleOf(win.row);
       const active = win.id === openId && !win.minimized;
-      const tip = win.minimized ? t(`${name} — свёрнут, работает. Нажмите, чтобы вернуть`, `${name} — minimized, still running. Click to bring it back`)
+      const tip = win.deferred ? t(`${name} — нажмите, чтобы открыть`, `${name} — click to open`)
+        : win.minimized ? t(`${name} — свёрнут, работает. Нажмите, чтобы вернуть`, `${name} — minimized, still running. Click to bring it back`)
         : active ? t(`${name} — нажмите, чтобы свернуть`, `${name} — click to minimize`) : t(`${name} — показать`, `${name} — show`);
       const closeTip = t(`Закрыть «${name}»`, `Close “${name}”`);
       return `<span class="module-task-pill ${active ? "active" : ""} ${win.minimized ? "minimized" : ""}" data-pill="${esc(win.id)}">
         <button type="button" class="module-task ${active ? "active" : ""} ${win.minimized ? "minimized" : ""}"
           data-task="${esc(win.id)}" title="${esc(tip)}" aria-label="${esc(tip)}" aria-pressed="${win.minimized ? "false" : "true"}">
-          ${moduleIcon(win.row)}<span>${esc(name)}</span>${win.minimized ? `<i class="module-task-badge">${esc(t("свёрнут", "minimized"))}</i>` : ""}</button>
+          ${moduleIcon(win.row)}<span>${esc(name)}</span>${win.minimized ? `<span class="module-task-restore" aria-hidden="true">${CTRL_ICONS.restore}</span>` : ""}</button>
         <button type="button" class="module-task-x" data-task-close="${esc(win.id)}" title="${esc(closeTip)}" aria-label="${esc(closeTip)}">${CTRL_ICONS.close}</button></span>`;
     };
     const many = list.length > 1;
@@ -1760,11 +1807,36 @@ const MemuModules = (() => {
       if (pending) apply();
       shieldFrames(false);
       el.dataset.resized = "1";
+      win.naturalBox = liveBox(win);
       persistBox(win).catch(() => {});
     };
     edge.addEventListener("pointermove", move);
     edge.addEventListener("pointerup", up);
     edge.addEventListener("pointercancel", up);
+  }
+
+  function loadWindowFrame(win) {
+    let frame = win.frame;
+    if (!frame) {
+      frame = frameTemplate.cloneNode(false);
+      if (!win.parts.base) frame.removeAttribute("id");
+      win.frame = win.parts.frame = frame;
+      $('[data-win="body"]', win.el).prepend(frame);
+    }
+    frame.addEventListener("load", () => {
+      if (wins.get(win.id) !== win) return;
+      if (win.parts.loading) win.parts.loading.hidden = true;
+      setStatus(win.toolbar ? win.toolbar.status : "", win, "module");
+      postTo(win, { type: "memu-module-host", action: "theme", payload: hostEnv() });
+      win.lastState = "";
+      syncFullButton(win);
+      const nav = pendingNavigate.get(win.id);
+      if (nav) {
+        pendingNavigate.delete(win.id);
+        setTimeout(() => postTo(win, { type: "memu-module-host", action: "host-event", payload: { name: "navigate", data: nav } }), 60);
+      }
+    });
+    frame.src = documentUrl(win, false);
   }
 
   function bindWindow(win) {
@@ -1777,8 +1849,8 @@ const MemuModules = (() => {
       const button = p[name];
       if (button && !String(button.innerHTML || "").trim() && typeof icon === "function") button.innerHTML = icon(toolIcons[name]);
     });
-    if (p.min && p.min.innerHTML !== undefined) p.min.innerHTML = CTRL_ICONS.minimize + '<span class="module-ctl-text"></span>';
-    if (p.close && p.close.innerHTML !== undefined) p.close.innerHTML = CTRL_ICONS.close + '<span class="module-ctl-text"></span>';
+    if (p.min && p.min.innerHTML !== undefined) p.min.innerHTML = CTRL_ICONS.minimize;
+    if (p.close && p.close.innerHTML !== undefined) p.close.innerHTML = CTRL_ICONS.close;
     if (p.close && p.close.classList) p.close.classList.add("module-ctl-close");
     if (p.min && p.min.classList) p.min.classList.add("module-ctl-min");
     labelControls(p);
@@ -1799,23 +1871,6 @@ const MemuModules = (() => {
       p.esc.setAttribute("aria-label", p.esc.title);
     }
     const current = () => wins.get(el.dataset.module);
-    if (p.frame) {
-      p.frame.addEventListener("load", () => {
-        const w = current();
-        if (!w) return;
-        if (w.parts.loading) w.parts.loading.hidden = true;
-        setStatus(w.toolbar ? w.toolbar.status : "", w, "module");
-        postTo(w, { type: "memu-module-host", action: "theme", payload: hostEnv() });
-        w.lastState = "";
-        syncFullButton(w);
-        const nav = pendingNavigate.get(w.id);
-        if (nav) {
-          pendingNavigate.delete(w.id);
-
-          setTimeout(() => postTo(w, { type: "memu-module-host", action: "host-event", payload: { name: "navigate", data: nav } }), 60);
-        }
-      });
-    }
     el.addEventListener("pointerdown", () => { const w = current(); if (w && w.id !== openId) focusWindow(w); }, true);
     if (p.close) p.close.addEventListener("click", () => requestClose(current()));
     if (p.min) p.min.addEventListener("click", () => minimizeWindow(current()));
@@ -1854,43 +1909,91 @@ const MemuModules = (() => {
     });
   }
 
+  // One code path for fitting every open window to the current viewport,
+  // used by the resize listener and by the monitor/DPI-change listeners.
+  // Centred windows used to be re-centred only: a tall centred window kept
+  // overflowing a smaller viewport, so they are shrunk to fit as well.
+  function fitWindowToViewport(win, area, shrankX, shrankY) {
+    const el = win.el;
+    if (el.dataset.full === "1") { applyExpanded(win); return false; }
+    if (win.minimized) return false;
+    if (win.snap && SNAPS[win.snap]) {
+      const rect = fracRect(SNAPS[win.snap]);
+      Object.assign(el.style, { left: rect.x + "px", top: rect.y + "px", width: rect.width + "px", height: rect.height + "px" });
+      return false;
+    }
+    let changed = false;
+    if (el.dataset.moved !== "1") {
+      const live = liveBox(win);
+      if (live.width > area.width - 8) { el.style.width = Math.max(240, area.width - 16) + "px"; changed = true; }
+      if (live.height > area.height - 8) { el.style.height = Math.max(200, area.height - 16) + "px"; changed = true; }
+      applyRect(win, { center: true });
+    } else {
+      const rect = el.getBoundingClientRect();
+      let left = parseFloat(el.style.left) || 0;
+      let top = parseFloat(el.style.top) || 0;
+      if (shrankX && left + rect.width > area.width) { left = Math.max(0, area.width - rect.width - 8); changed = true; }
+      if (shrankY && top + rect.height > area.height) { top = Math.max(0, area.height - rect.height - 8); changed = true; }
+      if (rect.width > area.width - 8) { el.style.width = Math.max(240, area.width - 16) + "px"; changed = true; }
+      if (rect.height > area.height - 8) { el.style.height = Math.max(200, area.height - 16) + "px"; changed = true; }
+      if (changed) {
+        el.style.left = Math.round(left) + "px";
+        el.style.top = Math.round(top) + "px";
+      }
+    }
+    if (changed) persistBox(win).catch(() => {});
+    return changed;
+  }
+
+  function fitAllWindows() {
+    const shrankX = window.innerWidth < lastKnownViewport.width;
+    const shrankY = window.innerHeight < lastKnownViewport.height;
+    lastKnownViewport = { width: window.innerWidth, height: window.innerHeight };
+    if (!wins.size) return;
+    const area = layerArea();
+    wins.forEach((win) => fitWindowToViewport(win, area, shrankX, shrankY));
+  }
+
+  let dprQuery = null;
+  function onDprChange() {
+    watchDpr();
+    if (wins.size) { layoutLayer(); fitAllWindows(); }
+  }
+  function watchDpr() {
+    try {
+      if (typeof matchMedia !== "function") return;
+      if (dprQuery) {
+        if (dprQuery.removeEventListener) dprQuery.removeEventListener("change", onDprChange);
+        else if (dprQuery.removeListener) dprQuery.removeListener(onDprChange);
+      }
+      dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      if (dprQuery.addEventListener) dprQuery.addEventListener("change", onDprChange);
+      else if (dprQuery.addListener) dprQuery.addListener(onDprChange);
+    } catch (error) { /* DPR watch unsupported */ }
+  }
+
   let layerBound = false;
   function bindLayer() {
     if (layerBound) return;
     layerBound = true;
     lastKnownViewport = { width: window.innerWidth, height: window.innerHeight };
     window.addEventListener("message", onModuleMessage);
-    window.addEventListener("resize", () => {
-      const shrankX = window.innerWidth < lastKnownViewport.width;
-      const shrankY = window.innerHeight < lastKnownViewport.height;
-      lastKnownViewport = { width: window.innerWidth, height: window.innerHeight };
-      if (wins.size) layoutLayer();
-      wins.forEach((win) => {
-        const el = win.el;
-        if (el.dataset.full === "1") { applyExpanded(win); return; }
-        if (win.minimized) return;
-        if (win.snap && SNAPS[win.snap]) {
-
-          const rect = fracRect(SNAPS[win.snap]);
-          Object.assign(el.style, { left: rect.x + "px", top: rect.y + "px", width: rect.width + "px", height: rect.height + "px" });
-          return;
-        }
-        if (el.dataset.moved !== "1") { applyRect(win, { center: true }); return; }
-        const rect = el.getBoundingClientRect();
-        const area = layerArea();
-        let left = parseFloat(el.style.left) || 0;
-        let top = parseFloat(el.style.top) || 0;
-        let changed = false;
-        if (shrankX && left + rect.width > area.width) { left = Math.max(0, area.width - rect.width - 8); changed = true; }
-        if (shrankY && top + rect.height > area.height) { top = Math.max(0, area.height - rect.height - 8); changed = true; }
-        if (rect.width > area.width - 8) { el.style.width = Math.max(240, area.width - 16) + "px"; changed = true; }
-        if (rect.height > area.height - 8) { el.style.height = Math.max(200, area.height - 16) + "px"; changed = true; }
-        if (changed) {
-          el.style.left = Math.round(left) + "px";
-          el.style.top = Math.round(top) + "px";
-          persistBox(win).catch(() => {});
-        }
-      });
+    window.addEventListener("resize", () => { if (wins.size) layoutLayer(); fitAllWindows(); });
+    // A window dragged to another monitor can change size or DPI without a
+    // window resize event reaching the page (pywebview/WebView2): re-fit the
+    // windows on visual-viewport changes, DPI changes and when the window
+    // regains focus or becomes visible again after a monitor move.
+    if (typeof visualViewport !== "undefined" && visualViewport && visualViewport.addEventListener) {
+      visualViewport.addEventListener("resize", () => { if (wins.size) { layoutLayer(); fitAllWindows(); } });
+    }
+    watchDpr();
+    // No viewport-change guard here on purpose: the last fitted viewport can
+    // coincide with the current one after the window moved away and back,
+    // while a window opened in between was never fitted to the smaller
+    // viewport. fitAllWindows is idempotent, so re-fitting is harmless.
+    window.addEventListener("focus", () => { if (wins.size) { layoutLayer(); fitAllWindows(); } });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && wins.size) { layoutLayer(); fitAllWindows(); }
     });
 
     window.addEventListener("keydown", (event) => {
@@ -1971,10 +2074,6 @@ const MemuModules = (() => {
 
     let owner = [...wins.values()].find((win) => win.frame && win.frame.contentWindow
       && event.source === win.frame.contentWindow);
-    if (!owner && closingFrames.has(event.source) && (["save", "log"].includes(data.action)
-        || data.action === "music" && data.payload?.action === "cancel")) {
-      owner = closingFrames.get(event.source);
-    }
     if (!owner) return;
     const frame = owner.frame;
     const replyTo = event.source;
@@ -2089,6 +2188,17 @@ const MemuModules = (() => {
       case "chat_history":
         return await apiJson("/api/pg/modules/" + encodeURIComponent(moduleId) + "/chat");
       case "clipboard": {
+        if (typeof payload.image === "string") {
+          const prefix = "data:image/png;base64,";
+          if (!payload.image.startsWith(prefix) || payload.image.length > 16 * 1024 * 1024) {
+            throw new Error(t("Нужно изображение PNG", "Expected a PNG image"));
+          }
+          const bytes = atob(payload.image.slice(prefix.length));
+          if (!bytes.startsWith("\x89PNG\r\n\x1a\n")) throw new Error(t("Файл PNG повреждён", "The PNG file is invalid"));
+          const png = new Blob([Uint8Array.from(bytes, (char) => char.charCodeAt(0))], { type: "image/png" });
+          await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+          return { ok: true };
+        }
         const text = String(payload.text || "");
         if (typeof copyText === "function") await copyText(text, payload.notify !== false);
         else await navigator.clipboard.writeText(text);
@@ -2142,6 +2252,9 @@ const MemuModules = (() => {
 
         return (await apiJson("/api/pg/learn/call", { method: "POST",
           body: { op: String(payload.op || ""), args: payload.args || {}, module_id: moduleId, lang: en() ? "en" : "ru" } })).result;
+      case "utils_call":
+        return (await apiJson("/api/pg/utils/call", { method: "POST",
+          body: { op: String(payload.op || ""), args: payload.args || {}, module_id: moduleId, lang: en() ? "en" : "ru" } })).result;
       case "net_import":
 
         return await runNetImport(moduleId, payload, row);
@@ -2192,6 +2305,7 @@ const MemuModules = (() => {
         return await apiJson("/api/pg/modules/transcribe", { method: "POST",
           body: { ...payload, module_id: moduleId } });
       case "record":
+        if (payload.source === "system") return await hostSystemCapture(moduleId, row, frame, payload.action, payload);
         return await hostRecord(moduleId, payload);
       case "handoff":
         return await runHandoff(moduleId, payload);
@@ -2216,6 +2330,516 @@ const MemuModules = (() => {
 
   function stopTracks(stream) {
     try { stream.getTracks().forEach((track) => track.stop()); } catch (error) {  }
+  }
+
+  let systemCapture = null;
+  window.addEventListener("pagehide", () => {
+    if (systemCapture) releaseSystemCapture(systemCapture);
+  });
+
+  function releaseSystemCapture(session) {
+
+    if (systemCapture === session) systemCapture = null;
+
+    session.firstFrame?.(false);
+
+    clearTimeout(session.captionTimer);
+
+    for (const recorder of [session.recorder, session.captionRecorder]) {
+
+      if (recorder?.state === "recording") recorder.stop();
+
+    }
+
+    stopTracks(session.stream);
+
+    session.context?.close().catch(() => {});
+
+    if (session.mode === "native") {
+
+      // The helper session is separate from the MediaRecorder: stop the
+
+      // feeder and the readers, then tell the helper to stop mixing.
+
+      try { session.feeder?.stop(); } catch (_) {}
+
+      try { session.streamAbort?.abort(); } catch (_) {}
+
+      try { session.eventsAbort?.abort(); } catch (_) {}
+
+      if (session.sessionId && session.baseUrl) {
+
+        nativeAudioRelease = fetch(`${session.baseUrl}/sessions/${session.sessionId}/stop`, {
+          method: "POST", signal: AbortSignal.timeout(3000),
+        }).catch(() => {});
+
+      }
+
+    }
+
+  }
+
+
+
+  /* Encode native PCM for saving and, during a meeting, for captions. */
+  function attachSystemSession(session, audio, action, send) {
+
+    session.started = Date.now();
+
+    if (action === "start" || action === "preview") {
+
+      const recorder = session.recorder = new MediaRecorder(audio);
+
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+
+      session.finished = new Promise((resolve) => {
+
+        recorder.onstop = () => resolve(new Blob(chunks, { type: recorder.mimeType }));
+
+        recorder.onerror = () => resolve(null);
+
+      });
+
+      recorder.start(1000);
+
+      // A separate recorder gives each caption clip a complete container.
+
+      const nextCaption = () => {
+
+        if (systemCapture !== session || recorder.state !== "recording") return;
+
+        try {
+
+          const clip = session.captionRecorder = new MediaRecorder(audio);
+
+          clip.ondataavailable = (event) => {
+
+            if (event.data.size && recorder.state === "recording") send({ clip: event.data });
+
+          };
+
+          clip.onstop = nextCaption;
+
+          clip.start();
+
+          session.captionTimer = setTimeout(() => { if (clip.state === "recording") clip.stop(); }, 8000);
+
+        } catch (_) { /* recording can still be saved and transcribed */ }
+
+      };
+
+      if (action === "start") nextCaption();
+    }
+  }
+
+  /* Native system-audio capture (WASAPI loopback via the local helper).
+
+   * The status is cached for 30 s: a probe on every wizard step should
+
+   * not restart the helper or hammer the API. A failed probe only means
+
+   * "no native capture" — the web path still works. The probe timeout
+   * is generous on purpose: the first PortAudio initialisation on a
+   * Windows machine can take seconds, and a slow probe must not be
+   * mistaken for a dead helper. */
+
+  let nativeAudioCache = null;
+  let nativeAudioRelease = Promise.resolve();
+
+  // The last native-capture failure, for the MemuMeet diagnostics
+  // section: {at, code, detail}. Silent failures are banned — every
+  // error the host sees is remembered here and shown to the user.
+  let lastNativeError = null;
+
+  function rememberNativeError(code, detail) {
+    lastNativeError = { at: Date.now(), code: String(code || "capture_failed"), detail: String(detail || "") };
+  }
+
+  async function nativeAudioStatus(force = false) {
+
+    const now = Date.now();
+
+    if (!force && nativeAudioCache && now - nativeAudioCache.at < 30000) return nativeAudioCache.data;
+
+    let data = { available: false, reason: "helper_unavailable", backend: "none", devices: [] };
+
+    try {
+
+      const response = await fetch("/api/pg/meet/native-audio/status" + (force ? "?refresh=1" : ""), { signal: AbortSignal.timeout(15000) });
+
+      if (response.ok) data = await response.json();
+
+      else rememberNativeError("helper_unavailable", `HTTP ${response.status}`);
+
+    } catch (error) { rememberNativeError("helper_unavailable", String(error?.message || error)); }
+
+    if (!data.available && data.reason) rememberNativeError(data.reason, data.detail || "");
+
+    data.last_error = lastNativeError;
+
+    nativeAudioCache = { at: now, data };
+
+    return data;
+
+  }
+
+  async function nativeGain(session, device, gain) {
+
+    try {
+
+      await fetch(`${session.baseUrl}/sessions/${session.sessionId}/gain`, {
+
+        method: "POST", headers: { "Content-Type": "application/json" },
+
+        body: JSON.stringify({ device, gain }),
+
+      });
+
+    } catch (_) { /* a lost gain update is not fatal */ }
+
+  }
+
+  function microphonePreview(frames) {
+    if (!frames.length) return null;
+    // The native stream is interleaved 48 kHz, stereo, signed 16-bit PCM.
+    const size = frames.reduce((total, frame) => total + frame.byteLength, 0);
+    const header = new DataView(new ArrayBuffer(44));
+    header.setUint32(0, 0x52494646); // RIFF
+    header.setUint32(4, 36 + size, true);
+    header.setUint32(8, 0x57415645); // WAVE
+    header.setUint32(12, 0x666d7420); // fmt
+    header.setUint32(16, 16, true);
+    header.setUint16(20, 1, true);
+    header.setUint16(22, 2, true);
+    header.setUint32(24, 48000, true);
+    header.setUint32(28, 192000, true);
+    header.setUint16(32, 4, true);
+    header.setUint16(34, 16, true);
+    header.setUint32(36, 0x64617461); // data
+    header.setUint32(40, size, true);
+    return new Blob([header, ...frames], { type: "audio/wav" });
+  }
+
+  /* Reads the helper's PCM stream and feeds it into the Web Audio
+
+   * graph. A dropped connection is retried up to 3 times with growing
+
+   * pauses; the module page hears "reconnecting" and the recording
+
+   * keeps the silence gap instead of dying. */
+
+  async function readNativeStream(session, send) {
+
+    let attempts = 0;
+
+    while (systemCapture === session && !session.ended && attempts <= 3) {
+
+      try {
+
+        const response = await fetch(`${session.baseUrl}/sessions/${session.sessionId}/stream`, { signal: session.streamAbort.signal });
+
+        if (!response.ok) throw new Error(`stream ${response.status}`);
+
+        const reader = response.body.getReader();
+
+        attempts = 0;
+
+        let pending = new Uint8Array(0);
+
+        while (systemCapture === session) {
+
+          const { done, value } = await reader.read();
+
+          if (done) break;
+
+          const merged = new Uint8Array(pending.length + value.length);
+
+          merged.set(pending);
+
+          merged.set(value, pending.length);
+
+          let offset = 0;
+
+          while (offset + 3840 <= merged.length) {
+
+            if (session.firstFrame) {
+              const firstFrame = session.firstFrame;
+              session.firstFrame = null;
+              firstFrame(true);
+            }
+            if (session.previewFrames) {
+              // Retain at most eight seconds even if the module timer is throttled.
+              if (session.previewFrames.length < 400) session.previewFrames.push(merged.slice(offset, offset + 3840));
+            } else {
+              session.feeder.push(new Int16Array(merged.buffer, merged.byteOffset + offset, 1920));
+            }
+
+            offset += 3840;
+
+          }
+
+          pending = merged.slice(offset);
+
+        }
+
+        if (systemCapture !== session) return;
+
+        send({ ended: true });
+
+        return;
+
+      } catch (error) {
+
+        if (systemCapture !== session || session.streamAbort.signal.aborted) return;
+
+        attempts += 1;
+
+        send({ reconnecting: attempts });
+
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
+
+      }
+
+    }
+
+    if (systemCapture === session) { rememberNativeError("helper_unavailable", ""); send({ ended: true, reason: "native-unavailable" }); }
+
+  }
+
+  /* Reads the helper's SSE events: per-device levels, device loss,
+
+   * and the final error/ended. Events are best-effort — the audio
+
+   * stream carries the recording even if this connection drops. */
+
+  async function readNativeEvents(session, send) {
+
+    try {
+
+      const response = await fetch(`${session.baseUrl}/sessions/${session.sessionId}/events`, { signal: session.eventsAbort.signal });
+
+      if (!response.ok) return;
+
+      const parser = window.MemuNativeAudio.createSseParser();
+
+      const reader = response.body.getReader();
+
+      const decoder = new TextDecoder();
+
+      while (systemCapture === session) {
+
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        for (const event of parser.feed(decoder.decode(value, { stream: true }))) {
+
+          let data = {};
+
+          try { data = JSON.parse(event.data); } catch (_) {}
+
+          if (event.type === "level") send({ levels: data.levels || {}, peak: data.peak || 0 });
+
+          else if (event.type === "device-lost") send({ deviceLost: data.device });
+
+          else if (event.type === "error") { rememberNativeError(data.code || "device_lost", data.detail || ""); send({ ended: true, reason: "device-lost", detail: data.detail || "" }); }
+
+          else if (event.type === "ended") send({ ended: true });
+
+        }
+
+      }
+
+    } catch (_) { /* events are best-effort */ }
+
+  }
+
+  async function hostNativeStart(session, action, payload, native) {
+
+    const { frame } = session;
+
+    const send = (data) => {
+
+      if (systemCapture !== session) return;
+
+      frame.contentWindow?.postMessage({ type: "memu-module-host", action: "host-event",
+
+        payload: { name: "system-audio", data } }, "*");
+
+    };
+
+    try {
+
+      session.baseUrl = "/api/pg/meet/native-audio";
+
+      const requested = Array.isArray(payload.devices) ? payload.devices : [];
+      const micPreview = action === "check" && payload.preview === true;
+      let selected;
+      if (micPreview) {
+        // A quick click can arrive before the iframe has the device list.
+        const inputs = native.devices.filter((device) => device.kind === "input");
+        const microphone = inputs.find((device) => device.id === requested[0])
+          || inputs.find((device) => device.is_default) || inputs[0];
+        selected = microphone ? [microphone.id] : [];
+        session.previewFrames = [];
+      } else {
+        selected = requested.filter((id) => native.devices.some((device) => device.id === id));
+        if (payload.strictDevices && selected.length !== requested.length) {
+          releaseSystemCapture(session);
+          return { reason: "no-devices" };
+        }
+        if (!payload.strictDevices && !selected.length) selected = native.devices.filter((device) => device.is_default).map((device) => device.id);
+      }
+
+      if (!selected.length) { releaseSystemCapture(session); return { reason: "no-devices" }; }
+
+      session.devices = selected;
+
+      session.gains = payload.gains || {};
+
+      if (action === "start") {
+        const Context = window.AudioContext || window.webkitAudioContext;
+        if (!Context || !window.MemuNativeAudio) {
+          releaseSystemCapture(session);
+          return { reason: "unsupported" };
+        }
+        const context = session.context = new Context({ sampleRate: 48000 });
+        context.resume().catch(() => {});
+        const destination = context.createMediaStreamDestination();
+        session.feeder = window.MemuNativeAudio.createPcmFeeder(context);
+        session.feeder.node.connect(destination);
+        session.stream = destination.stream;
+      }
+      session.eventsAbort = new AbortController();
+
+      const created = await fetch(`${session.baseUrl}/sessions`, {
+
+        method: "POST", headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(12000),
+
+        body: JSON.stringify({ devices: selected, gains: session.gains }),
+
+      });
+
+      if (!created.ok) {
+        let code = ""; let detail = "";
+        try { const body = await created.json(); code = String(body.code || ""); detail = String(body.error || ""); } catch (_) {}
+        rememberNativeError(code || (created.status === 409 ? "session_busy" : "capture_failed"), detail);
+        releaseSystemCapture(session);
+        if (created.status === 409) return { reason: "busy" };
+        if (code === "invalid_selection") return { reason: "no-devices" };
+        return { reason: "native-unavailable", detail };
+      }
+
+      session.sessionId = (await created.json()).session;
+      if (systemCapture !== session) {
+        await fetch(`${session.baseUrl}/sessions/${session.sessionId}/stop`, {
+          method: "POST", signal: AbortSignal.timeout(3000),
+        }).catch(() => {});
+        return { reason: "cancelled" };
+      }
+
+      readNativeEvents(session, send);
+      if (micPreview) {
+        session.started = Date.now();
+        session.streamAbort = new AbortController();
+        readNativeStream(session, send);
+      } else if (session.feeder) {
+        session.streamAbort = new AbortController();
+        const ready = new Promise((resolve) => {
+          session.firstFrame = (received) => {
+            if (received) attachSystemSession(session, session.stream, "start", send);
+            resolve(received);
+          };
+        });
+        readNativeStream(session, send);
+        let deadline;
+        const received = await Promise.race([ready, new Promise((resolve) => {
+          deadline = setTimeout(() => resolve(false), 2500);
+        })]);
+        clearTimeout(deadline);
+        session.firstFrame = null;
+        if (systemCapture !== session) return { reason: "cancelled" };
+        if (!received) {
+          releaseSystemCapture(session);
+          return { reason: "capture-timeout" };
+        }
+      } else {
+        session.started = Date.now();
+      }
+
+      return { started: session.started, mode: "native", devices: selected };
+
+    } catch (error) {
+
+      rememberNativeError("capture_failed", String(error?.message || error));
+      releaseSystemCapture(session);
+
+      return { reason: "native-unavailable", detail: String(error?.message || error) };
+
+    }
+
+  }
+
+
+  // Only the shipped MemuMeet requests capture in this window. The embedded
+  // document stays sandboxed. Browser activation and the picker still apply.
+  // Two capture modes: "native" (the local WASAPI loopback helper, several
+  // devices at once, no picker) and "web" (getDisplayMedia, one screen).
+  // "auto" (the default) prefers native when it is available and falls
+  // back to web; an explicit "native" that is unavailable reports
+  // "native-unavailable" instead of silently switching modes.
+  async function hostSystemCapture(moduleId, row, frame, action, payload = {}) {
+    if (moduleId !== "meet" || !row.builtin || row.edited) return { reason: "unsupported" };
+    if (action === "probe") {
+      const native = await nativeAudioStatus(!!payload.force && !systemCapture);
+      return { available: native.available, web: false, native };
+    }
+    const current = systemCapture;
+    if (action === "cancel") {
+      if (current?.frame === frame) releaseSystemCapture(current);
+      return {};
+    }
+    if (action === "stop") {
+      if (current?.frame !== frame) return {};
+      if (current.previewFrames) {
+        const audio = microphonePreview(current.previewFrames);
+        releaseSystemCapture(current);
+        return { audio, ms: Date.now() - current.started, mode: current.mode };
+      }
+      if (!current.recorder) return {};
+      if (current.recorder.state === "recording") current.recorder.stop();
+      const audio = await current.finished;
+      const mode = current.mode || "web";
+      releaseSystemCapture(current);
+      return { audio, ms: Date.now() - current.started, mode };
+    }
+    if (action === "gain") {
+      if (current?.mode === "native" && current.frame === frame && payload.device) {
+        await nativeGain(current, payload.device, payload.gain ?? 1);
+      }
+      return {};
+    }
+    if (action !== "check" && action !== "start") return { reason: "unsupported" };
+    if (current) return { reason: "busy" };
+    if (!navigator.userActivation?.isActive) return { reason: "unavailable" };
+    const session = { frame, mode: "native" };
+    systemCapture = session;
+    await nativeAudioRelease;
+    if (systemCapture !== session) return { reason: "cancelled" };
+    const native = await nativeAudioStatus();
+    if (systemCapture !== session) return { reason: "cancelled" };
+    if (!native.available) {
+      releaseSystemCapture(session);
+      return { reason: "native-unavailable", detail: native.reason || "helper_unavailable" };
+    }
+    if (![...wins.values()].some((win) => win.frame === frame)) {
+      releaseSystemCapture(session);
+      return { reason: "cancelled" };
+    }
+    return hostNativeStart(session, action, payload, native);
   }
 
   function cancelRecording() {
@@ -2316,6 +2940,14 @@ const MemuModules = (() => {
     if (width) win.el.style.width = Math.max(rules.min_width, Math.min(rules.max_width, area.width - 16, width)) + "px";
     if (height) win.el.style.height = Math.max(rules.min_height, Math.min(rules.max_height, area.height - 16, height)) + "px";
     if (win.el.dataset.moved !== "1") applyRect(win, { center: true });
+    // The size the module asked for, clamped to its own min/max but not to
+    // the viewport: a later viewport clip must not destroy it, and a
+    // re-request of the same size must keep the stored size.
+    const live = liveBox(win);
+    win.naturalBox = {
+      width: width ? Math.max(rules.min_width, Math.min(rules.max_width, width)) : live.width,
+      height: height ? Math.max(rules.min_height, Math.min(rules.max_height, height)) : live.height,
+    };
     await persistBox(win).catch(() => {});
     const rect = win.el.getBoundingClientRect();
     return { width: Math.round(rect.width), height: Math.round(rect.height) };
@@ -2844,70 +3476,175 @@ const MemuModules = (() => {
     return `<button type="button" class="pbtn ghost" data-modules-tab="${target}">${icon("back")} ${label || t("Мои модули", "My modules")}</button>`;
   }
 
+  /* Module list: compact rows, details open in place. Every control on the
+   * list patches only its own row (no full re-render), so turning a module
+   * on or off is instant even on slow machines; the server answer only
+   * confirms the state, and a failure puts the switch back. */
+  function moduleAccent(row) {
+    const iconBg = Array.isArray(row.icon_bg) ? row.icon_bg[0] : '';
+    if (/^#[0-9a-fA-F]{3,8}$/.test(String(iconBg || ''))) return String(iconBg);
+    let hue = 0;
+    for (const ch of String(row.id || '')) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
+    return `hsl(${hue} 55% 48%)`;
+  }
+
+  function moduleSlotLabel(row) {
+    const slot = slotList().find((item) => item.id === (row.launcher?.slot || 'sidebar')) || {};
+    return en() ? (slot.en || slot.ru || '') : (slot.ru || slot.en || '');
+  }
+
+  function moduleFlags(row) {
+    return [
+      wins.has(row.id) ? `<span class="ms-flag is-open">${t('Открыт', 'Open')}</span>` : '',
+      row.edited ? `<span class="ms-flag">${t('Изменён', 'Edited')}</span>` : '',
+      row.launcher?.hidden ? `<span class="ms-flag">${t('Без кнопки', 'No shortcut')}</span>` : '',
+    ].join('');
+  }
+
+  function moduleMeta(row) {
+    return [t(row.builtin ? 'Встроенный' : 'Свой', row.builtin ? 'Built-in' : 'Custom'), `v${row.version || '1.0'}`, row.author || '', moduleSlotLabel(row)]
+      .filter(Boolean).join(' · ');
+  }
+
+  function inspectorLabel(row) {
+    return t(`Настройки модуля «${titleOf(row)}»`, `${titleOf(row)} settings`);
+  }
+
+  function settingsRow(id) {
+    return $$('#pane-modules [data-ms-row]').find((node) => node.dataset.msRow === id) || null;
+  }
+
+  function syncModuleCounts() {
+    const hub = $('#pane-modules .ms-hub');
+    if (!hub) return;
+    const counts = moduleCounts();
+    const map = { total: counts.total, all: counts.total, enabled: counts.enabled, disabled: counts.total - counts.enabled, custom: counts.custom };
+    $$('[data-ms-count]', hub).forEach((node) => { node.textContent = String(map[node.dataset.msCount] ?? ''); });
+    const meta = $('#ms-list-meta', hub);
+    if (meta) meta.textContent = `${$$('[data-ms-row]', hub).length} ${t('показано', 'shown')} · ${counts.enabled} ${t('включено из', 'enabled of')} ${counts.total}`;
+  }
+
+  /* Puts one row in line with its catalogue entry (or with the state the
+   * user just picked, while the request is still on its way). */
+  function patchModuleRow(id, enabled) {
+    const row = catalog.find((item) => item.id === id);
+    const node = settingsRow(id);
+    if (!row || !node) return;
+    const on = typeof enabled === 'boolean' ? enabled : !!row.enabled;
+    node.classList.toggle('is-on', on);
+    node.classList.toggle('is-disabled', !on);
+    const label = node.querySelector('.ms-enable-label');
+    if (label) label.textContent = t(on ? 'Включён' : 'Выключен', on ? 'Enabled' : 'Disabled');
+    const input = node.querySelector('[data-module-enabled]');
+    if (input && input.checked !== on) input.checked = on;
+    node.querySelectorAll('.ms-launch[data-module-open]').forEach((button) => { button.disabled = !on; });
+    const flags = node.querySelector('[data-ms-flags]');
+    if (flags) flags.innerHTML = moduleFlags(row);
+    const meta = node.querySelector('[data-ms-meta]');
+    if (meta) meta.textContent = moduleMeta(row);
+    const hidden = node.querySelector('[data-module-hidden]');
+    if (hidden) hidden.checked = !!row.launcher?.hidden;
+    const resizable = node.querySelector('[data-module-resizable]');
+    if (resizable) resizable.checked = row.resizable !== false;
+    const slot = node.querySelector('[data-module-slot]');
+    const place = row.launcher?.slot || 'sidebar';
+    if (slot && slot.value !== place) slot.value = place;
+  }
+
+  function syncOpenFlags() {
+    $$('#pane-modules [data-ms-row]').forEach((node) => {
+      const row = catalog.find((item) => item.id === node.dataset.msRow);
+      const flags = node.querySelector('[data-ms-flags]');
+      if (row && flags) {
+        const html = moduleFlags(row);
+        if (flags.innerHTML !== html) flags.innerHTML = html;
+      }
+    });
+  }
+
   function renderList(host) {
     const counts = moduleCounts();
+    const filters = [['all', t('Все', 'All'), counts.total], ['enabled', t('Включённые', 'Enabled'), counts.enabled], ['disabled', t('Выключенные', 'Disabled'), counts.total - counts.enabled], ['custom', t('Свои', 'Custom'), counts.custom]];
     host.innerHTML = `<section class="ms-hub">
-      <header class="ms-head"><div><h2>${t('Модули', 'Modules')}</h2><p>${t('Ваши приложения и инструменты в MemuAI', 'Your apps and tools in MemuAI')}</p></div><button type="button" class="ms-button primary" data-modules-tab="create">${icon('plus')}${t('Создать модуль', 'Create module')}</button></header>
-      <nav class="ms-nav" aria-label="${t('Разделы модулей', 'Module sections')}"><span aria-current="page">${t('Установленные', 'Installed')}<b>${counts.total}</b></span><button type="button" data-modules-tab="catalog">${t('Каталог', 'Catalogue')}</button><span class="ms-nav-spacer"></span><button type="button" data-modules-tab="import">${icon('attach')}${t('Импорт', 'Import')}</button><button type="button" data-open-docs="modules">${icon('info')}<span>${t('Справка', 'Help')}</span></button></nav>
+      <header class="ms-head"><span class="ms-head-icon" aria-hidden="true">${icon('grid')}</span><div class="ms-head-copy"><h2>${t('Модули', 'Modules')}</h2><p>${t('Приложения и инструменты внутри MemuAI. Включайте нужные, открывайте их и настраивайте кнопку запуска.', 'Apps and tools inside MemuAI. Turn on the ones you need, open them and set up their shortcuts.')}</p></div><div class="ms-head-actions"><button type="button" class="ms-button" data-modules-tab="import">${icon('attach')}<span class="ms-label">${t('Импорт', 'Import')}</span></button><button type="button" class="ms-button primary" data-modules-tab="create">${icon('plus')}<span class="ms-label">${t('Создать модуль', 'Create module')}</span></button></div></header>
+      <nav class="ms-nav" aria-label="${t('Разделы модулей', 'Module sections')}"><span aria-current="page">${t('Установленные', 'Installed')}<b data-ms-count="total">${counts.total}</b></span><button type="button" data-modules-tab="catalog">${t('Каталог', 'Catalogue')}</button><span class="ms-nav-spacer"></span><button type="button" data-open-docs="modules">${icon('info')}<span>${t('Справка', 'Help')}</span></button></nav>
       ${catalogError ? `<div class="ms-notice" role="status"><span>${esc(catalogError)}</span><button class="ms-button" data-module-retry>${t('Повторить', 'Retry')}</button></div>` : ''}
-      <div class="ms-toolbar"><label class="ms-search">${icon('search')}<input id="modules-filter" type="search" value="${esc(library.query)}" placeholder="${t('Поиск по модулям', 'Search modules')}" aria-label="${t('Поиск по модулям', 'Search modules')}"></label><div class="ms-filters" role="group" aria-label="${t('Фильтр модулей', 'Module filter')}">${[['all', t('Все', 'All')], ['enabled', t('Включённые', 'Enabled')], ['disabled', t('Выключенные', 'Disabled')], ['custom', t('Свои', 'Custom')]].map(([id, title]) => `<button type="button" data-ms-filter="${id}" aria-pressed="${library.filter === id}">${title}</button>`).join('')}</div></div>
+      <div class="ms-toolbar"><label class="ms-search">${icon('search')}<input id="modules-filter" type="search" value="${esc(library.query)}" placeholder="${t('Поиск по модулям', 'Search modules')}" aria-label="${t('Поиск по модулям', 'Search modules')}" autocomplete="off" spellcheck="false"></label><div class="ms-filters" role="group" aria-label="${t('Фильтр модулей', 'Module filter')}">${filters.map(([id, title, count]) => `<button type="button" data-ms-filter="${id}" aria-pressed="${library.filter === id}"><span>${title}</span><b data-ms-count="${id}">${count}</b></button>`).join('')}</div></div>
       <div class="ms-module-list" id="ms-module-list" aria-label="${t('Установленные модули', 'Installed modules')}"></div>
       <p class="ms-list-meta" id="ms-list-meta" role="status"></p>
-      <details class="ms-global"><summary>${icon('settings')}${t('Общие настройки окон и виджетов', 'Window and widget defaults')}</summary><div id="ms-global-settings"></div></details>
+      <details class="ms-global"><summary><span class="ms-global-icon" aria-hidden="true">${icon('layout')}</span><span class="ms-global-copy"><b>${t('Окна и виджеты модулей', 'Module windows and widgets')}</b><small>${t('Общие настройки: модули как приложения, поведение при закрытии MemuAI, виджеты', 'Shared settings: modules as apps, what happens when MemuAI closes, widgets')}</small></span></summary><div id="ms-global-settings"></div></details>
       ${removedBuiltins.length ? `<details class="ms-removed"><summary>${t('Удалённые встроенные модули', 'Removed built-in modules')} (${removedBuiltins.length})</summary><p>${t('Восстановится исходный модуль. Его удалённые данные не вернутся.', 'Restore the shipped module. Previously deleted data cannot be restored.')}</p><div>${removedBuiltins.map(row => `<button class="ms-button" data-module-restore="${esc(row.id)}">${esc(titleOf(row))} · ${t('Восстановить', 'Restore')}</button>`).join('')}</div></details>` : ''}
     </section>`;
+    const list = $('#ms-module-list', host);
+    const rowNode = (id) => $$('[data-ms-row]', list).find(node => node.dataset.msRow === id);
+    const mountInspector = (node, row) => {
+      const article = document.createElement('article');
+      article.className = 'ms-inspector';
+      article.id = 'ms-inspector';
+      article.setAttribute('aria-label', inspectorLabel(row));
+      article.innerHTML = moduleInspector(row);
+      node.appendChild(article);
+      bindList(article);
+      if (typeof enhanceSelects === 'function') enhanceSelects(article);
+      return article;
+    };
+    /* Opening a row changes only the rows involved: the open one gets its
+     * details, the previous one loses them. Nothing else is rebuilt. */
+    const applyOpen = () => {
+      $$('[data-ms-row]', list).forEach(node => {
+        const id = node.dataset.msRow;
+        const on = library.expanded && library.selected === id;
+        node.classList.toggle('is-open', on);
+        const header = node.querySelector('[data-ms-select]');
+        if (header) {
+          header.setAttribute('aria-pressed', String(on));
+          header.setAttribute('aria-expanded', String(on));
+          if (on) header.setAttribute('aria-controls', 'ms-inspector'); else header.removeAttribute('aria-controls');
+        }
+        node.querySelector('[data-ms-toggle]')?.setAttribute('aria-expanded', String(on));
+        const existing = node.querySelector(':scope > .ms-inspector');
+        if (!on && existing) existing.remove();
+        if (on && !existing) {
+          const row = catalog.find(item => item.id === id);
+          if (row) mountInspector(node, row);
+        }
+      });
+    };
     const toggleSelect = (id) => {
       library.expanded = library.selected === id ? !library.expanded : true;
       library.selected = id;
-      draw();
-      $$('.ms-module[data-ms-select]', host).find(node => node.dataset.msSelect === id)?.focus({ preventScroll: true });
+      applyOpen();
+      rowNode(id)?.querySelector('[data-ms-select]')?.focus({ preventScroll: true });
     };
-    // The card footer "Settings" button must always OPEN the module settings,
-    // never toggle them shut: when the card was already expanded, a toggle
+    // The row's "Settings" button must always OPEN the module settings,
+    // never toggle them shut: when the row was already expanded, a toggle
     // click looked like nothing happened. It also keeps focus on the button
     // that was used, so the header button (whose clipped summary feeds the
-    // overflow tooltip) is not focused and the tooltip does not cover the card.
+    // overflow tooltip) is not focused and the tooltip does not cover the row.
     const openSelect = (id) => {
       library.selected = id;
       library.expanded = true;
-      draw();
-      const row = $$('[data-ms-row]', host).find(node => node.dataset.msRow === id);
+      applyOpen();
+      const row = rowNode(id);
       const target = row?.querySelector('.ms-inspector') || row;
       if (target && typeof target.scrollIntoView === 'function') {
         try { target.scrollIntoView({ block: 'nearest' }); } catch (error) { }
       }
-      $$('[data-ms-toggle]', host).find(node => node.dataset.msToggle === id)?.focus({ preventScroll: true });
+      row?.querySelector('[data-ms-toggle]')?.focus({ preventScroll: true });
     };
     const card = (row) => {
       const selected = library.selected === row.id && library.expanded;
-      const flags = [
-        wins.has(row.id) ? `<span class="ms-flag is-open">${t('Открыт', 'Open')}</span>` : '',
-        row.edited ? `<span class="ms-flag">${t('Изменён', 'Edited')}</span>` : '',
-      ].join('');
-      /* Per-module accent: the icon background's first colour when the
-       * module ships one, else a deterministic hue from the module
-       * id — the card tint, icon and hover border follow it, so each
-       * module is recognisable at a glance instead of grey-on-white. */
-      const iconBg = Array.isArray(row.icon_bg) ? row.icon_bg[0] : '';
-      const modAccent = /^#[0-9a-fA-F]{3,8}$/.test(String(iconBg || '')) ? String(iconBg)
-        : (() => { let h = 0; for (const ch of String(row.id || '')) h = (h * 31 + ch.charCodeAt(0)) % 360; return `hsl(${h} 55% 48%)`; })();
-      const permNames = (row.permissions || []).map((id) => permissionName(id));
-      const permShown = permNames.slice(0, 3);
-      const permExtra = permNames.length > 3 ? ` +${permNames.length - 3}` : '';
-      const slotName = (slotList().find((slot) => slot.id === (row.launcher?.slot || 'sidebar')) || {}).ru;
-      const slotLabel = en() ? ((slotList().find((slot) => slot.id === (row.launcher?.slot || 'sidebar')) || {}).en || '') : (slotName || '');
-      return `<section class="ms-module-row ms-card${selected ? ' is-open' : ''}${row.enabled ? ' is-on' : ' is-disabled'}" data-ms-row="${esc(row.id)}" style="--mod-accent:${esc(modAccent)}">
-        <button type="button" class="ms-module" data-ms-select="${esc(row.id)}" aria-pressed="${selected}" aria-expanded="${selected}"${selected ? ' aria-controls="ms-inspector"' : ''}><span class="ms-module-icon" aria-hidden="true">${moduleIcon(row)}</span><span class="ms-module-copy"><strong>${esc(titleOf(row))}</strong><small>${esc(summaryOf(row)) || t(row.builtin ? 'Встроенный модуль' : 'Пользовательский модуль', row.builtin ? 'Built-in module' : 'Custom module')}</small></span><span class="ms-expand" aria-hidden="true">${icon('chevron-right')}</span></button>
-        <p class="ms-card-meta"><span>v${esc(row.version || '1.0')}</span><span aria-hidden="true">·</span><span>${t(row.builtin ? 'Встроенный' : 'Свой', row.builtin ? 'Built-in' : 'Custom')}</span>${row.author ? `<span aria-hidden="true">·</span><span>${esc(row.author)}</span>` : ''}${slotLabel ? `<span aria-hidden="true">·</span><span>${esc(slotLabel)}</span>` : ''}${flags ? `<span aria-hidden="true">·</span>${flags}` : ''}</p>
-        <p class="ms-card-access"><span class="ms-card-access-label">${t('Доступы', 'Access')}</span><span>${permNames.length ? esc(permShown.join(', ')) + esc(permExtra) : esc(t('Без дополнительных доступов', 'No additional permissions'))}</span><span class="ms-card-access-hint">${esc(t('Подробнее — в настройках ниже', 'Details in the settings below'))}</span></p>
-        <div class="ms-card-foot"><label class="ms-enable"><span class="ms-enable-label">${t(row.enabled ? 'Включён' : 'Выключен', row.enabled ? 'Enabled' : 'Disabled')}</span><span class="module-switch"><input type="checkbox" data-module-enabled="${esc(row.id)}" ${row.enabled ? 'checked' : ''} aria-label="${esc(t('Включить ', 'Enable ') + titleOf(row))}"><i aria-hidden="true"></i></span></label><button type="button" class="ms-button ms-card-settings" data-ms-toggle="${esc(row.id)}" aria-expanded="${selected}">${icon('settings')}<span>${t('Настройки', 'Settings')}</span></button><button type="button" class="ms-button ms-launch" data-module-open="${esc(row.id)}" ${row.enabled ? '' : 'disabled'}>${icon('play')}<span>${t('Открыть', 'Open')}</span></button><button type="button" class="ms-icon-button" data-module-more="${esc(row.id)}" aria-label="${esc(t('Действия: ', 'Actions: ') + titleOf(row))}">${icon('more')}</button></div>
-        ${selected ? `<article class="ms-inspector" id="ms-inspector">${moduleInspector(row)}</article>` : ''}</section>`;
+      const title = titleOf(row);
+      const summary = summaryOf(row) || t(row.builtin ? 'Встроенный модуль' : 'Пользовательский модуль', row.builtin ? 'Built-in module' : 'Custom module');
+      return `<section class="ms-module-row ms-card${selected ? ' is-open' : ''}${row.enabled ? ' is-on' : ' is-disabled'}" data-ms-row="${esc(row.id)}" style="--mod-accent:${esc(moduleAccent(row))}">
+        <div class="ms-line"><button type="button" class="ms-module" data-ms-select="${esc(row.id)}" aria-pressed="${selected}" aria-expanded="${selected}"${selected ? ' aria-controls="ms-inspector"' : ''}><span class="ms-module-icon" aria-hidden="true">${moduleIcon(row)}</span><span class="ms-module-copy"><span class="ms-module-name"><strong>${esc(title)}</strong><span class="ms-flags" data-ms-flags>${moduleFlags(row)}</span></span><small>${esc(summary)}</small></span></button>
+        <div class="ms-line-actions"><label class="ms-enable"><span class="ms-enable-label">${t(row.enabled ? 'Включён' : 'Выключен', row.enabled ? 'Enabled' : 'Disabled')}</span><span class="module-switch"><input type="checkbox" data-module-enabled="${esc(row.id)}" ${row.enabled ? 'checked' : ''} aria-label="${esc(t('Включить ', 'Enable ') + title)}"><i aria-hidden="true"></i></span></label><button type="button" class="ms-button ms-launch" data-module-open="${esc(row.id)}" ${row.enabled ? '' : 'disabled'}>${icon('play')}<span class="ms-label">${t('Открыть', 'Open')}</span></button><button type="button" class="ms-button ms-card-settings" data-ms-toggle="${esc(row.id)}" aria-expanded="${selected}" aria-label="${esc(t('Настройки: ', 'Settings: ') + title)}">${icon('settings')}<span class="ms-label">${t('Настройки', 'Settings')}</span></button><button type="button" class="ms-icon-button" data-module-more="${esc(row.id)}" aria-label="${esc(t('Действия: ', 'Actions: ') + title)}">${icon('more')}</button></div></div>
+        ${selected ? `<article class="ms-inspector" id="ms-inspector" aria-label="${esc(inspectorLabel(row))}">${moduleInspector(row)}</article>` : ''}</section>`;
     };
     const draw = () => {
       const needle = library.query.trim().toLocaleLowerCase();
       const rows = catalog.filter(row => (!needle || [row.id, row.title, row.title_en, row.summary, row.summary_en, row.author].join(' ').toLocaleLowerCase().includes(needle)) && (library.filter !== 'enabled' || row.enabled) && (library.filter !== 'disabled' || !row.enabled) && (library.filter !== 'custom' || !row.builtin));
       if (!rows.some(row => row.id === library.selected)) library.selected = rows[0]?.id || '';
-      const list = $('#ms-module-list', host);
       const groups = [
         { key: 'builtin', title: t('Встроенные модули', 'Built-in modules'), rows: rows.filter(row => row.builtin) },
         { key: 'custom', title: t('Свои модули', 'Your modules'), rows: rows.filter(row => !row.builtin) },
@@ -2915,12 +3652,14 @@ const MemuModules = (() => {
       const emptyState = () => {
         if (catalogError) return `<div class="ms-empty" role="status">${icon('grid')}<h3>${t('Не удалось загрузить модули', 'Could not load the modules')}</h3><p>${t('Список не загрузился. Попробуйте ещё раз.', 'The list did not load. Try again.')}</p><div class="ms-empty-actions"><button class="ms-button" data-module-retry>${t('Повторить', 'Retry')}</button></div></div>`;
         if (needle || library.filter !== 'all') return `<div class="ms-empty">${icon('search')}<h3>${t('Ничего не найдено', 'No modules found')}</h3><p>${t('Попробуйте другой запрос или сбросьте фильтр.', 'Try another search or reset the filter.')}</p><div class="ms-empty-actions"><button class="ms-button" data-ms-reset>${t('Сбросить поиск и фильтр', 'Reset search and filter')}</button><button class="ms-button" data-modules-tab="catalog">${t('Открыть каталог', 'Open catalogue')}</button></div></div>`;
-        return `<div class="ms-empty">${icon('grid')}<h3>${t('Модулей пока нет', 'No modules yet')}</h3><p>${t('Создайте свой модуль или установите готовый из каталога.', 'Create your own module or install one from the catalogue.')}</p><div class="ms-empty-actions"><button class="ms-button primary" data-modules-tab="create">${icon('plus')}${t('Создать модуль', 'Create module')}</button><button class="ms-button" data-modules-tab="catalog">${t('Открыть каталог', 'Open catalogue')}</button></div></div>`;
+        return `<div class="ms-empty">${icon('grid')}<h3>${t('Модулей пока нет', 'No modules yet')}</h3><p>${t('Создайте свой модуль кнопкой «Создать модуль» выше или установите готовый из каталога.', 'Create your own one with “Create module” above or install a ready one from the catalogue.')}</p><div class="ms-empty-actions"><button class="ms-button" data-modules-tab="catalog">${icon('grid')}${t('Открыть каталог', 'Open catalogue')}</button></div></div>`;
       };
       list.innerHTML = rows.length ? groups.map(group => `<section class="ms-group" aria-labelledby="ms-group-${group.key}"><h3 class="ms-group-heading" id="ms-group-${group.key}">${group.title}<b>${group.rows.length}</b></h3><div class="ms-cards">${group.rows.map(card).join('')}</div></section>`).join('') : emptyState();
-      $('#ms-list-meta', host).textContent = `${rows.length} ${t('показано', 'shown')} · ${counts.enabled} ${t('включено из', 'enabled of')} ${counts.total}`;
+      syncModuleCounts();
       bindList(list);
       bindNavigation();
+      const open = $('.ms-inspector', list);
+      if (open && typeof enhanceSelects === 'function') enhanceSelects(open);
       $$('[data-ms-select]', list).forEach(button => button.onclick = () => toggleSelect(button.dataset.msSelect));
       $$('[data-ms-toggle]', list).forEach(button => button.onclick = () => openSelect(button.dataset.msToggle));
       $$('[data-ms-reset]', list).forEach(button => button.onclick = () => {
@@ -2932,6 +3671,7 @@ const MemuModules = (() => {
         draw();
         input?.focus();
       });
+      $$('[data-module-retry]', list).forEach(button => button.onclick = () => { catalogFetched = 0; mountSettings('list'); });
       list.onkeydown = event => {
         if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
         const buttons = $$('.ms-module[data-ms-select]', host), index = buttons.indexOf(document.activeElement);
@@ -2941,8 +3681,9 @@ const MemuModules = (() => {
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + step));
         library.selected = buttons[next].dataset.msSelect;
         library.expanded = true;
-        draw();
-        $$('.ms-module[data-ms-select]', host)[next]?.focus({ preventScroll: true });
+        applyOpen();
+        buttons[next]?.focus({ preventScroll: true });
+        try { buttons[next]?.closest('[data-ms-row]')?.scrollIntoView({ block: 'nearest' }); } catch (error) { }
       };
     };
     const bindNavigation = () => $$('[data-modules-tab]', host).forEach(button => button.onclick = () => mountSettings(button.dataset.modulesTab));
@@ -2960,7 +3701,7 @@ const MemuModules = (() => {
       draw();
     });
     draw();
-    $$('[data-module-retry]', host).forEach(button => button.addEventListener('click', () => { catalogFetched = 0; mountSettings('list'); }));
+    $$('.ms-notice [data-module-retry]', host).forEach(button => button.addEventListener('click', () => { catalogFetched = 0; mountSettings('list'); }));
     const settings = $('#ms-global-settings', host);
     if (MA()) MA().renderSettings(settings);
     if (window.MemuModInt?.renderWidgetSettings) MemuModInt.renderWidgetSettings(settings);
@@ -2972,51 +3713,72 @@ const MemuModules = (() => {
   }
   function moduleInspector(row) {
     const place = row.launcher?.slot || 'sidebar';
-    return `<header class="ms-detail-heading"><h3>${esc(titleOf(row))}</h3><span>${t(row.builtin ? 'Встроенный' : 'Свой', row.builtin ? 'Built-in' : 'Custom')} · v${esc(row.version || '1.0')}${row.author ? ` · ${esc(row.author)}` : ''}</span><div class="ms-actions"><button type="button" class="ms-button" data-module-code="${esc(row.id)}">${icon('code')}${t('Открыть код', 'Open code')}</button><button type="button" class="ms-button" data-module-more="${esc(row.id)}">${icon('more')}${t('Все действия', 'All actions')}</button></div></header>
-      <p class="ms-inspector-lead">${esc(summaryOf(row))} ${esc(t('Здесь — настройки модуля: кнопка запуска, размер окна и доступы. Сам модуль работает в своём окне — кнопка «Открыть» ниже.', 'This module’s settings live here: the launch shortcut, window size and permissions. The module itself runs in its own window — use “Open” below.'))}</p>
-      <div class="ms-detail-grid"><section class="ms-section"><h4>${t('Кнопка модуля', 'Module shortcut')}</h4><label class="ms-field"><span>${t('Расположение', 'Location')}</span><select class="module-slot" data-module-slot="${esc(row.id)}">${slotList().map(slot => `<option value="${slot.id}" ${place === slot.id ? 'selected' : ''}>${t(slot.ru, slot.en)}</option>`).join('')}</select></label><label class="ms-check"><input type="checkbox" data-module-hidden="${esc(row.id)}" ${row.launcher?.hidden ? 'checked' : ''}>${t('Скрыть кнопку', 'Hide shortcut')}</label><label class="ms-check"><input type="checkbox" data-module-resizable="${esc(row.id)}" ${row.resizable === false ? '' : 'checked'}>${t('Разрешить менять размер окна', 'Allow window resizing')}</label></section>
-      <section class="ms-section"><h4>${t('Доступы', 'Permissions')}</h4><ul class="ms-permissions">${(row.permissions || []).map(id => `<li>${icon('check')}<span>${esc(permissionName(id))}</span></li>`).join('') || `<li>${t('Без дополнительных доступов', 'No additional permissions')}</li>`}</ul><p class="ms-explainer">${t('Изменить доступы можно в мастерской кода.', 'Change permissions in the code workbench.')}</p><details class="ms-technical"><summary>${t('Техническая информация', 'Technical details')}</summary><dl><dt>ID</dt><dd>${esc(row.id)}</dd><dt>${t('Источник', 'Source')}</dt><dd>${t(row.builtin ? 'Комплект MemuAI' : 'Пользовательский пакет', row.builtin ? 'Shipped with MemuAI' : 'Custom package')}</dd></dl></details></section></div>`;
+    const perms = row.permissions || [];
+    const count = perms.length;
+    const many = en() ? (count === 1 ? 'permission' : 'permissions') : (count % 10 === 1 && count % 100 !== 11 ? 'доступ' : [2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100) ? 'доступа' : 'доступов');
+    /* The row above already shows the name, so here it is only the
+     * accessible heading of the details; the visible text starts with the
+     * full description and the facts line. */
+    return `<header class="ms-detail-heading"><div class="ms-detail-title"><h3 class="ms-sr">${esc(titleOf(row))}</h3>${summaryOf(row) ? `<p class="ms-inspector-lead">${esc(summaryOf(row))}</p>` : ''}<span data-ms-meta>${esc(moduleMeta(row))}</span></div><div class="ms-actions"><button type="button" class="ms-button" data-module-code="${esc(row.id)}">${icon('code')}${t('Открыть код', 'Open code')}</button><button type="button" class="ms-button" data-module-more="${esc(row.id)}">${icon('more')}${t('Все действия', 'All actions')}</button></div></header>
+      <div class="ms-detail-grid"><section class="ms-section ms-sec-launch"><h4>${icon('layout')}${t('Кнопка запуска', 'Shortcut')}</h4><label class="ms-field"><span>${t('Где показывать', 'Where to show')}</span><select class="module-slot" data-module-slot="${esc(row.id)}" aria-label="${esc(t('Где показывать кнопку', 'Where to show the shortcut'))}">${slotList().map(slot => `<option value="${slot.id}" ${place === slot.id ? 'selected' : ''}>${t(slot.ru, slot.en)}</option>`).join('')}</select></label><label class="ms-opt"><input type="checkbox" data-module-hidden="${esc(row.id)}" ${row.launcher?.hidden ? 'checked' : ''}><span>${t('Скрыть кнопку', 'Hide shortcut')}</span></label><label class="ms-opt"><input type="checkbox" data-module-resizable="${esc(row.id)}" ${row.resizable === false ? '' : 'checked'}><span>${t('Разрешить менять размер окна', 'Allow window resizing')}</span></label></section>
+      <section class="ms-section ms-sec-access"><h4>${icon('shield')}${t('Доступы', 'Permissions')}</h4><p class="ms-card-access">${count ? `<b>${count}</b> ${many}` : esc(t('Без дополнительных доступов', 'No additional permissions'))}</p>${count ? `<ul class="ms-permissions">${perms.map(id => `<li>${icon('check')}<span>${esc(permissionName(id))}</span></li>`).join('')}</ul>` : ''}<p class="ms-explainer">${t('Доступы меняются в мастерской кода.', 'Permissions are changed in the code workbench.')}</p></section>
+      <section class="ms-section ms-sec-facts"><h4>${icon('info')}${t('Сведения', 'Details')}</h4><dl class="ms-facts"><div><dt>${t('Версия', 'Version')}</dt><dd>v${esc(row.version || '1.0')}</dd></div>${row.author ? `<div><dt>${t('Автор', 'Author')}</dt><dd>${esc(row.author)}</dd></div>` : ''}<div><dt>${t('Источник', 'Source')}</dt><dd>${t(row.builtin ? 'Комплект MemuAI' : 'Пользовательский пакет', row.builtin ? 'Shipped with MemuAI' : 'Custom package')}</dd></div><div><dt>ID</dt><dd><code>${esc(row.id)}</code></dd></div></dl></section></div>`;
   }
 
-  function bindList(host) {
-    const hub = host.closest(".ms-hub");
-    const update = async (control, id, patch) => {
-      const row = control.closest("[data-ms-row]");
-      if (row) { row.classList.add("is-busy"); row.setAttribute("aria-busy", "true"); }
-      control.disabled = true;
+  /* Binds the row and details controls inside `scope`. A change is shown at
+   * once and sent in the background: the row is not rebuilt and does not
+   * dim, so there is no flash and no re-layout of the whole list. While
+   * several changes of one module are in flight only the last answer is
+   * applied; an error restores the saved state and explains why. */
+  const pendingModuleChanges = new Map();
+  function bindList(scope) {
+    const send = async (control, id, patch, optimistic) => {
+      const node = control.closest('[data-ms-row]');
+      pendingModuleChanges.set(id, (pendingModuleChanges.get(id) || 0) + 1);
+      if (optimistic) optimistic(node);
+      const slow = node ? setTimeout(() => node.classList.add('is-saving'), 350) : 0;
+      let failed = null;
       try { await configure(id, patch); }
-      catch (error) { note(error.message, "err"); }
+      catch (error) { failed = error; }
       finally {
-        control.disabled = false;
-        if (row) { row.classList.remove("is-busy"); row.removeAttribute("aria-busy"); }
-        if (hub?.isConnected && currentPane === "list") await mountSettings("list");
+        clearTimeout(slow);
+        const left = (pendingModuleChanges.get(id) || 1) - 1;
+        if (left > 0) pendingModuleChanges.set(id, left); else pendingModuleChanges.delete(id);
+        if (!left) {
+          node?.classList.remove('is-saving');
+          patchModuleRow(id);
+          syncModuleCounts();
+        }
+        if (failed) note(failed.message || String(failed), 'err');
       }
     };
-    $$("[data-module-enabled]", host).forEach(control => {
-      control.onchange = () => update(control, control.dataset.moduleEnabled, { enabled: control.checked });
+    $$('[data-module-enabled]', scope).forEach(control => {
+      control.onchange = () => send(control, control.dataset.moduleEnabled, { enabled: control.checked }, () => {
+        patchModuleRow(control.dataset.moduleEnabled, control.checked);
+      });
     });
-    $$("[data-module-hidden]", host).forEach(control => {
-      control.onchange = () => update(control, control.dataset.moduleHidden, { hidden: control.checked });
+    $$('[data-module-hidden]', scope).forEach(control => {
+      control.onchange = () => send(control, control.dataset.moduleHidden, { hidden: control.checked });
     });
-    $$("[data-module-resizable]", host).forEach(control => {
-      control.onchange = () => update(control, control.dataset.moduleResizable, { resizable: control.checked });
+    $$('[data-module-resizable]', scope).forEach(control => {
+      control.onchange = () => send(control, control.dataset.moduleResizable, { resizable: control.checked });
     });
-    $$("[data-module-slot]", host).forEach(control => {
-      control.onchange = () => update(control, control.dataset.moduleSlot, { slot: control.value });
+    $$('[data-module-slot]', scope).forEach(control => {
+      control.onchange = () => send(control, control.dataset.moduleSlot, { slot: control.value });
     });
-    $$("[data-module-open]", host).forEach((button) => {
+    $$('[data-module-open]', scope).forEach((button) => {
       button.onclick = () => open(button.dataset.moduleOpen);
     });
-    $$("[data-module-code]", host).forEach((button) => {
+    $$('[data-module-code]', scope).forEach((button) => {
       button.onclick = () => editCode(button.dataset.moduleCode);
     });
-    $$("[data-module-more]", host).forEach((button) => {
+    $$('[data-module-more]', scope).forEach((button) => {
       button.onclick = (event) => {
         const row = catalog.find((item) => item.id === button.dataset.moduleMore);
         if (row) moreMenu(event, row);
       };
     });
-    $$("[data-modules-tab]", host).forEach((button) => {
+    $$('[data-modules-tab]', scope).forEach((button) => {
       button.onclick = () => mountSettings(button.dataset.modulesTab);
     });
   }
@@ -3127,7 +3889,7 @@ const MemuModules = (() => {
     try {
       await apiJson("/api/pg/modules/persist", { method: "POST", body: { id: row.id, clear: true } });
       const opened = wins.get(row.id);
-      if (opened && opened.frame) opened.frame.src = documentUrl(opened, true);
+      if (opened && opened.frame && !opened.deferred) opened.frame.src = documentUrl(opened, true);
       note(t("Сохранённые поля очищены", "Saved fields cleared"), "ok");
     } catch (error) { note(error.message, "err"); }
   }
@@ -3143,7 +3905,7 @@ const MemuModules = (() => {
     try {
       await apiJson("/api/pg/modules/reset", { method: "POST", body: { id: row.id } });
       const opened = wins.get(row.id);
-      if (opened && opened.frame) opened.frame.src = documentUrl(opened, true);
+      if (opened && opened.frame && !opened.deferred) opened.frame.src = documentUrl(opened, true);
       note(t("Код возвращён к заводскому", "Code reset to shipped"), "ok");
       await mountSettings("list");
     } catch (error) { note(error.message, "err"); }
@@ -3519,14 +4281,14 @@ const MemuModules = (() => {
     fillCode(source);
     if (codeState.draft && codeState.draft.id === codeState.id) {
       const draft = codeState.draft;
-      $("#mw-html").value = draft.html; $("#mw-css").value = draft.css; $("#mw-js").value = draft.js;
-      $("#mw-i18n").value = draft.i18n; $("#mw-locale").value = draft.default_locale;
-      $("#mw-title").value = en() ? draft.title_en : draft.title;
-      $("#mw-summary").value = en() ? draft.summary_en : draft.summary;
-      $("#mw-instructions").value = draft.bridge.instructions || "";
-      $("#mw-width").value = draft.window.default_width; $("#mw-height").value = draft.window.default_height;
-      $("#mw-size-mode").value = draft.window.size_mode; $("#mw-fixed").checked = draft.window.fixed;
-      $("#mw-resizable").checked = draft.window.resizable; $("#mw-persist").value = draft.persist.join(", ");
+      mwSet("#mw-html", draft.html); mwSet("#mw-css", draft.css); mwSet("#mw-js", draft.js);
+      mwSet("#mw-i18n", draft.i18n); mwSet("#mw-locale", draft.default_locale);
+      mwSet("#mw-title", en() ? draft.title_en : draft.title);
+      mwSet("#mw-summary", en() ? draft.summary_en : draft.summary);
+      mwSet("#mw-instructions", draft.bridge.instructions || "");
+      mwSet("#mw-width", draft.window.default_width); mwSet("#mw-height", draft.window.default_height);
+      mwSet("#mw-size-mode", draft.window.size_mode); mwCheck("#mw-fixed", draft.window.fixed);
+      mwCheck("#mw-resizable", draft.window.resizable); mwSet("#mw-persist", draft.persist.join(", "));
       $$("[data-perm]").forEach((box) => { box.checked = draft.permissions.includes(box.dataset.perm); });
       codeState.draft = null;
       markDirty(true);
@@ -3540,23 +4302,30 @@ const MemuModules = (() => {
     }
   }
 
-  function fillCode(source) {
-    $("#mw-html").value = source.html || "";
-    $("#mw-css").value = source.css || "";
-    $("#mw-js").value = source.js || "";
-    $("#mw-i18n").value = source.i18n && Object.keys(source.i18n).length ? JSON.stringify(source.i18n, null, 2) : "";
-    $("#mw-locale").value = source.default_locale || "ru";
+  // B-SYN-F5.2: $("#mw-html").value throws when the workbench is not
+  // mounted (e.g. the user left Settings mid-save). Optional chaining
+  // cannot be an assignment target, so these helpers guard explicitly.
+  function mwSet(selector, value) { const el = $(selector); if (el) el.value = value; }
+  function mwGet(selector) { return $(selector)?.value || ""; }
+  function mwCheck(selector, value) { const el = $(selector); if (el) el.checked = !!value; }
 
-    $("#mw-title").value = en() ? (source.title_en || source.title || "") : (source.title || "");
-    $("#mw-summary").value = en() ? (source.summary_en || source.summary || "") : (source.summary || "");
-    $("#mw-instructions").value = (source.bridge || {}).instructions || "";
+  function fillCode(source) {
+    mwSet("#mw-html", source.html || "");
+    mwSet("#mw-css", source.css || "");
+    mwSet("#mw-js", source.js || "");
+    mwSet("#mw-i18n", source.i18n && Object.keys(source.i18n).length ? JSON.stringify(source.i18n, null, 2) : "");
+    mwSet("#mw-locale", source.default_locale || "ru");
+
+    mwSet("#mw-title", en() ? (source.title_en || source.title || "") : (source.title || ""));
+    mwSet("#mw-summary", en() ? (source.summary_en || source.summary || "") : (source.summary || ""));
+    mwSet("#mw-instructions", (source.bridge || {}).instructions || "");
     const win = source.window || {};
-    $("#mw-width").value = win.default_width || 760;
-    $("#mw-height").value = win.default_height || 540;
-    $("#mw-size-mode").value = win.size_mode === "authored" ? "authored" : "user";
-    $("#mw-fixed").checked = !!win.fixed;
-    $("#mw-resizable").checked = win.resizable !== false;
-    $("#mw-persist").value = (source.persist || []).join(", ");
+    mwSet("#mw-width", win.default_width || 760);
+    mwSet("#mw-height", win.default_height || 540);
+    mwSet("#mw-size-mode", win.size_mode === "authored" ? "authored" : "user");
+    mwCheck("#mw-fixed", !!win.fixed);
+    mwCheck("#mw-resizable", win.resizable !== false);
+    mwSet("#mw-persist", (source.persist || []).join(", "));
     $$("[data-perm]").forEach((box) => {
       box.checked = (source.permissions || []).includes(box.dataset.perm);
     });
@@ -3726,12 +4495,13 @@ const MemuModules = (() => {
 
   function fillMissingKeys() {
     const area = $("#mw-i18n");
+    if (!area) return;
     let tables = {};
     try { tables = area.value.trim() ? JSON.parse(area.value) : {}; }
     catch (error) { return note(t("Сначала исправьте JSON переводов: ", "Fix the translations JSON first: ") + error.message, "err"); }
     if (!tables || typeof tables !== "object" || Array.isArray(tables)) tables = {};
     if (!Object.keys(tables).length) { tables.ru = {}; tables.en = {}; }
-    const keys = usedTranslationKeys($("#mw-html").value, $("#mw-js").value);
+    const keys = usedTranslationKeys(mwGet("#mw-html"), mwGet("#mw-js"));
     let added = 0;
     Object.keys(tables).forEach((locale) => {
       const table = tables[locale] && typeof tables[locale] === "object" ? tables[locale] : (tables[locale] = {});
@@ -3789,22 +4559,22 @@ const MemuModules = (() => {
   function currentCode() {
     return {
       id: codeState.id,
-      html: $("#mw-html").value,
-      css: $("#mw-css").value,
-      js: $("#mw-js").value,
-      i18n: $("#mw-i18n").value,
-      default_locale: $("#mw-locale").value.trim() || "ru",
-      ...localizedTitles($("#mw-title").value, $("#mw-summary").value),
-      persist: $("#mw-persist").value.split(",").map((item) => item.trim()).filter(Boolean),
+      html: mwGet("#mw-html"),
+      css: mwGet("#mw-css"),
+      js: mwGet("#mw-js"),
+      i18n: mwGet("#mw-i18n"),
+      default_locale: mwGet("#mw-locale").trim() || "ru",
+      ...localizedTitles(mwGet("#mw-title"), mwGet("#mw-summary")),
+      persist: mwGet("#mw-persist").split(",").map((item) => item.trim()).filter(Boolean),
       permissions: $$("[data-perm]").filter((box) => box.checked).map((box) => box.dataset.perm),
       window: {
-        default_width: Number($("#mw-width").value) || 760,
-        default_height: Number($("#mw-height").value) || 540,
-        fixed: $("#mw-fixed").checked,
-        resizable: $("#mw-resizable").checked,
-        size_mode: $("#mw-size-mode").value,
+        default_width: Number(mwGet("#mw-width")) || 760,
+        default_height: Number(mwGet("#mw-height")) || 540,
+        fixed: $("#mw-fixed")?.checked || false,
+        resizable: $("#mw-resizable")?.checked || false,
+        size_mode: mwGet("#mw-size-mode"),
       },
-      bridge: { ...((codeState.source || {}).bridge || {}), instructions: $("#mw-instructions").value },
+      bridge: { ...((codeState.source || {}).bridge || {}), instructions: mwGet("#mw-instructions") },
     };
   }
 
@@ -3835,7 +4605,7 @@ const MemuModules = (() => {
       await refresh();
       updatePreview(true);
       const opened = wins.get(body.id);
-      if (opened && opened.frame) opened.frame.src = documentUrl(opened, true);
+      if (opened && opened.frame && !opened.deferred) opened.frame.src = documentUrl(opened, true);
     } catch (error) {
       setProblems([{ level: "warn", field: "", ru: error.message, en: error.message }]);
       note(error.message, "err");
@@ -4007,7 +4777,7 @@ const MemuModules = (() => {
 
     const rows = catalog.filter((item) => item.open && item.enabled).slice(0, 6);
     for (const row of rows) {
-      if (!wins.has(row.id)) await open(row.id);
+      if (!wins.has(row.id)) await open(row.id, row.minimized ? { minimized: true } : undefined);
     }
   }
 
@@ -4083,7 +4853,7 @@ const MemuModules = (() => {
     windowTitle: (moduleId) => { const win = wins.get(moduleId); return win ? titleOf(win.row) : ""; },
     windowState: (moduleId) => {
       const win = wins.get(moduleId || openId);
-      return win ? { id: win.id, minimized: !!win.minimized, state: win.el.dataset.state || "floating",
+      return win ? { id: win.id, minimized: !!win.minimized, deferred: !!win.deferred, state: win.el.dataset.state || "floating",
         unsaved: !!win.unsaved, busy: busyCount.get(win.id) || 0 } : null;
     },
   };

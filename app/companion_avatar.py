@@ -458,7 +458,10 @@ class Library:
         if not meta:
             raise ModelError("not_found", "Модель не найдена", "Model not found")
         meta["name"] = (str(name or "").strip() or meta["name"])[:80]
-        (folder / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+        # F28: atomic write — the old direct write_text could leave a torn
+        # meta.json behind on a crash.
+        from .storage import save_json
+        save_json(str(folder / "meta.json"), meta, backup=False)
         return public_model(meta)
 
     def delete(self, model_id: str) -> bool:

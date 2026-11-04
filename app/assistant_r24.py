@@ -387,8 +387,10 @@ def bind(eng: Any) -> None:
         async def complete(prompt: str) -> str:
             return await eng._ask_ai(prompt + ("\n\nОтвечай по-русски." if lang != "en" else "\n\nAnswer in English."), lang, system=TOOL_SYSTEM)
         try:
+            # Economy: at most 4 transcript chunks (see youtube_analysis.analyze).
             res = await yt.analyze(url, complete, mode=str(params.get("mode") or "brief"), lang=lang,
-                                   question=str(params.get("question") or ""))
+                                   question=str(params.get("question") or ""),
+                                   max_chunks=4 if eng.economy() else 12)
         except yt.TranscriptUnavailable as exc:
             raise ActionError(exc.text(lang), exc.code)
         tinfo = res["transcript"]

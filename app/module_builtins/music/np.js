@@ -119,6 +119,13 @@ const NP = (() => {
     if (tab === "queue") renderQueue();
   }
 
+  /* A streamed track («Listen» without downloading, id "online:…") has no library row:
+   * the lyrics calls carry its title, artist, album and duration. */
+  function lyArgs(tr, extra) {
+    const base = { id: tr.id };
+    if (tr.online_url) Object.assign(base, { title: tr.title || "", artist: tr.artist || "", album: tr.album || "", duration: tr.duration || 0, url: tr.online_url });
+    return Object.assign(base, extra || {});
+  }
   async function loadLyrics(tr, force) {
     const token = ++lyricToken;
     const box = $("#lyrics-inner");
@@ -126,7 +133,7 @@ const NP = (() => {
     editing = false; renderBar();
     box.style.transform = ""; box.innerHTML = [72, 56, 64, 44].map((w) => `<div class="mm-skel mm-lyric-skel" style="width:${w}%"></div>`).join("");
     const timeout = new Promise((ok) => setTimeout(() => ok("timeout"), 16000));
-    const res = await Promise.race([API.soft("lyrics.get", force ? { id: tr.id, force: true } : { id: tr.id }, null), timeout]);
+    const res = await Promise.race([API.soft("lyrics.get", lyArgs(tr, force ? { force: true } : null), null), timeout]);
     if (token !== lyricToken) return;
     if (res === "timeout") { lyrics.state = "timeout"; renderLyrics(); return; }
     setLyrics(tr.id, res);
@@ -148,7 +155,8 @@ const NP = (() => {
     if (!current) return;
     if (!roman) { current.synced = current.original.synced; current.plain = current.original.plain; renderLyrics(true); refreshRomanBar(); return; }
     try {
-      const res = await API.call("lyrics.romanize", { id: current.id, language: "auto" });
+      const tr = Player.current();
+      const res = await API.call("lyrics.romanize", tr && tr.id === current.id ? lyArgs(tr, { language: "auto" }) : { id: current.id, language: "auto" });
       if (token !== romanToken || lyrics !== current || !roman) return;
       current.synced = res.synced; current.plain = res.plain; renderLyrics(true); refreshRomanBar();
     } catch (error) {
@@ -206,7 +214,7 @@ const NP = (() => {
     const tr = Player.current(); if (!tr || !lyrics) return;
     const token = ++lyricToken;
     try {
-      const res = await API.call("lyrics.choose", { id: tr.id, ...args });
+      const res = await API.call("lyrics.choose", lyArgs(tr, args));
       if (token === lyricToken && Player.current()?.id === tr.id && lyrics?.id === tr.id) setLyrics(tr.id, res);
     } catch (error) { toast(String(error.message || error)); }
   }
@@ -226,7 +234,7 @@ const NP = (() => {
     clearTimeout(offsetTimers.get(id));
     offsetTimers.set(id, setTimeout(async () => {
       offsetTimers.delete(id);
-      const result = await API.soft("lyrics.offset", { id, offset }, null);
+      const result = await API.soft("lyrics.offset", lyArgs(tr, { offset }), null);
       if (!result) toast(t("error.save"));
     }, 400));
   }
@@ -319,7 +327,7 @@ const NP = (() => {
     form.dataset.saving = "true";
     $$("button", form).forEach(button => { button.disabled = true; });
     try {
-      const res = await API.call("lyrics.set", { id: tr.id, text: String(text) });
+      const res = await API.call("lyrics.set", lyArgs(tr, { text: String(text) }));
       if (!res) throw new Error(t("error.save"));
       if (Player.current()?.id === tr.id && form.isConnected) { editing = false; setLyrics(tr.id, res); }
       toast(t("lyrics.saved"));
@@ -459,15 +467,24 @@ const NP = (() => {
   return { open, close, isOpen, setColors, applyCalm, restyle, onState, onTrack, syncLyrics, nudge, onSleep, relabel, reloadLyrics, tab: () => tab };
 })();
 
+/* The clipboard API can be missing or blocked in an embedded web view: fall back to the host bridge when it has one. */
+const lyricsClipboardHost = () => (typeof Memu !== "undefined" ? Memu : typeof App !== "undefined" ? App : null);
 async function lyricsClipboardRead() {
   try { if (navigator.clipboard?.readText) return await navigator.clipboard.readText(); } catch (_) {}
-  if (typeof Memu !== "undefined" && typeof Memu.paste === "function") return await Memu.paste();
+  const host = lyricsClipboardHost();
+  if (host && typeof host.paste === "function") return await host.paste();
   throw new Error("clipboard unavailable");
 }
 async function lyricsClipboardWrite(value) {
   try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(value); return; } } catch (_) {}
-  if (typeof Memu !== "undefined" && typeof Memu.copy === "function") { await Memu.copy(value); return; }
-  throw new Error("clipboard unavailable");
+  const host = lyricsClipboardHost();
+  if (host && typeof host.copy === "function") { await host.copy(value); return; }
+  const area = document.createElement("textarea");
+  area.value = value; area.setAttribute("readonly", ""); area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+  document.body.appendChild(area); area.select();
+  const ok = document.execCommand && document.execCommand("copy");
+  area.remove();
+  if (!ok) throw new Error("clipboard unavailable");
 }
 
 // WebView2 disables its native menu in production. Keep editing commands available there too.

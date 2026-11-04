@@ -77,6 +77,10 @@ html, body {
   min-height: 100vh;
 }
 ::selection { background: color-mix(in srgb, var(--accent) 38%, transparent); }
+/* Text can be selected and copied (the desktop window allows it); navigation and controls stay unselectable. */
+:where(button, [role="button"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"], summary, label.switch,
+  [draggable="true"], .sidebar, .sg-nav, svg, img) { -webkit-user-select: none; user-select: none; }
+:where(input, textarea, select, [contenteditable]:not([contenteditable="false"]), .selectable) { -webkit-user-select: text; user-select: text; }
 
 button { font: inherit; cursor: pointer; }
 input, select, textarea { font: inherit; color: var(--text); }
@@ -684,6 +688,8 @@ body.modal-open { overflow: hidden; }
 .oauth-status { margin-top: 12px; padding: 11px 14px; border-radius: 10px; background: var(--bg-soft); border: 1px solid var(--border); font-size: 13px; color: var(--muted); }
 .oauth-status.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
 .oauth-status.err { border-color: color-mix(in srgb, var(--err) 40%, transparent); color: var(--err); }
+.oauth-link { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.oauth-link a { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .field-action { display: flex; align-items: flex-end; }
 .field-action .btn { width: 100%; justify-content: center; min-height: 36px; }
 .nav-backdrop { display: none; }
@@ -1258,6 +1264,16 @@ body.marquee-on { user-select: none; -webkit-user-select: none; cursor: default;
 .det-prov #det-prov-result:empty { display: none; }
 .det-judge { margin-bottom: 16px; padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); }
 .det-judge p { margin: 4px 0 0; font-size: 13px; }
+.cli-app-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 4px; cursor: pointer; }
+.cli-app-toggle .switch { margin-top: 1px; }
+.cli-app-toggle > span:last-child { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.cli-app-toggle small { color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.field label.det-web-toggle { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 0; cursor: pointer; font-weight: 400; }
+.det-web-toggle .switch { margin-top: 1px; }
+.det-web-toggle > span:last-child { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--text); }
+.det-web-toggle small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.det-sources ol { margin: 6px 0 4px; padding-left: 20px; font-size: 13px; }
+.det-sources li { margin: 2px 0; overflow-wrap: anywhere; }
 .det-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .det-facts .stat-val { font-size: 16px; overflow-wrap: anywhere; }
 .det-note { font-size: 13px; margin: 6px 0; color: var(--muted); }

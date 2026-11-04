@@ -363,11 +363,31 @@ def cmd_chat(argv: List[str], out: Out) -> int:
         params["temp"] = True
     return dispatch_link(build_link("chat/new", params), out)
 
+def _space_own_prefs(memu: Path) -> dict:
+    """Own settings of the active workspace (spaces/<id>/preferences.json of the active profile)."""
+    try:
+        try:
+            profiles = json.loads((memu / "profiles.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            profiles = {}
+        pid = str(profiles.get("active_id") or "default") if isinstance(profiles, dict) else "default"
+        root = memu if pid == "default" else memu / "profiles" / pid
+        state = json.loads((root / "spaces.json").read_text(encoding="utf-8"))
+        sid = str(state.get("active_id") or "standard") if isinstance(state, dict) else "standard"
+        if sid == "standard" or not sid.startswith("s-") or not sid[2:].isalnum():
+            return {}
+        own = json.loads((root / "spaces" / sid / "preferences.json").read_text(encoding="utf-8"))
+        return own if isinstance(own, dict) else {}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
 def default_model(token: str) -> str:
     if os.environ.get("MEMU_MODEL"):
         return os.environ["MEMU_MODEL"]
     try:
         prefs = json.loads((data_dir() / "memuai" / "preferences.json").read_text(encoding="utf-8"))
+        if isinstance(prefs, dict):
+            prefs = {**prefs, **_space_own_prefs(data_dir() / "memuai")}
         if isinstance(prefs, dict) and prefs.get("default_model"):
             return str(prefs["default_model"])
     except (OSError, ValueError):

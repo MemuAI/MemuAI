@@ -55,6 +55,26 @@
     google_maps: "Google Maps", youtube: "YouTube", youtube_music: "YouTube Music", "2gis": "2GIS", wifi: "Wi-Fi", nightlight: "night light",
     default_apps: "default apps", new_chat: "new chat", quick_settings: "Quick Ask settings", side_by_side: "side by side" };
 
+  /* The mode switch lives inside this plugin panel, so the settings search
+     would never see it: its rows are .mcs-row, not .sx-row. Register an extra
+     search entry through the public kit API, so «экономный», «режим команд»
+     and «стандартный» jump straight to the mode select. */
+  let modeSearchRegistered = false;
+  function registerModeSearch() {
+    if (modeSearchRegistered) return;
+    const kit = typeof window !== "undefined" ? window.MemuSettingsKit : null;
+    if (!kit || typeof kit.registerSearch !== "function") return;
+    modeSearchRegistered = true;
+    kit.registerSearch([{
+      page: "quick", sub: "quick-commands",
+      label_ru: "Режим выполнения команд", label_en: "Command run mode",
+      desc_ru: "Стандартный — всё как раньше. Экономный — те же команды, но модель получает меньше текста и тратит меньше токенов.",
+      desc_en: "Standard runs everything as before. Economy runs the same commands, but the model gets less text and spends fewer tokens.",
+      keywords: "экономный economy режим команд standard стандартный экономия токены tokens",
+      anchor: '[data-set="mode"]',
+    }]);
+  }
+
   function mount(el, ctx = {}) {
     const en = ctx.en !== undefined ? !!ctx.en : (document.documentElement.lang === "en");
     const t = (ru, enText) => (en ? enText : ru);
@@ -63,11 +83,21 @@
     const S = { cfg: null, draft: null, editing: -1, voiceCatalog: null, voiceStatus: null, imageModels: [], audit: null, open: { actions: false, audit: false, more: false, models: false }, saveTimer: 0, dlTimer: 0, pendingPatch: {} };
 
     el.classList.add("mcs-root");
+    registerModeSearch();
     el.innerHTML = `<div class="mcs-loading">${t("Загрузка…", "Loading…")}</div>`;
+
+    // A partial reply (an old server, a failed sub-request) must not break the whole panel.
+    function normCfg(c) {
+      const cfg = c && typeof c === "object" ? c : {};
+      if (!cfg.settings || typeof cfg.settings !== "object") cfg.settings = {};
+      for (const k of ["commands", "catalog"]) if (!Array.isArray(cfg[k])) cfg[k] = [];
+      for (const k of ["categories", "hotkeys", "layouts"]) if (!cfg[k] || typeof cfg[k] !== "object") cfg[k] = {};
+      return cfg;
+    }
 
     async function load() {
       try {
-        S.cfg = await call("/api/assistant/config?lang=" + L);
+        S.cfg = normCfg(await call("/api/assistant/config?lang=" + L));
       } catch (e) {
         el.innerHTML = `<div class="mcs-empty">${t("Команды ассистента недоступны: ", "Assistant commands are unavailable: ")}${esc(e.message)}</div>`;
         return;
@@ -95,7 +125,7 @@
       const body = S.pendingPatch; S.pendingPatch = {};
       if (!Object.keys(body).length) return;
       try {
-        const data = await call("/api/assistant/settings", { settings: body }); S.cfg.settings = data.settings;
+        const data = await call("/api/assistant/settings", { settings: body }); if (data && data.settings && typeof data.settings === "object") S.cfg.settings = data.settings;
         if (body.voice && (ctx.part === "voice" || !ctx.part)) { await loadVoiceStatus(false); patchVoiceStatus(); }
       } catch (e) { toast(e.message, "err"); }
     }
@@ -186,10 +216,24 @@
       return hinted("ai_router", mode, [["auto", t("Когда фраза похожа на команду", "When a phrase looks like a command")],
           ["always", t("Для всех коротких фраз", "For every short phrase")], ["off", t("Выключено", "Off")]],
           t("Понимать команды с помощью ИИ", "Understand commands with AI"),
-          t("если фраза не распознана мгновенно, быстрая модель за один короткий запрос выбирает действие («закрой инси» → INCY); не команда — обычный ответ", "when a phrase is not recognised instantly, a fast model picks the action in one short request (“close insy” → INCY); not a command — a normal answer"))
+          t("если фраза не распознана сразу, быстрая модель за один короткий запрос выбирает действие («закрой инси» → INCY); не команда — обычный ответ", "when a phrase is not recognised right away, a fast model picks the action in one short request (“close insy” → INCY); not a command — a normal answer"))
         + (mode === "off" ? "" : hinted("router_model", s.router_model || "", [["", t("Модель быстрого доступа", "The Quick Ask model")], ...models.map((m) => [m, m])],
           t("Модель для команд", "Model for commands"), t("лучше быстрая модель без размышлений (flash, mini, haiku)", "a fast non-reasoning model works best (flash, mini, haiku)"))
           + num("router_timeout", s.router_timeout || 4, 1, 15, t("Ждать ответа ИИ не дольше", "Wait for the AI at most"), "", t("с", "s")));
+    }
+    function modeRows(s) {
+      const mode = s.mode || "standard";
+      const models = (S.chatModels || []).slice();
+      if (s.router_model_eco && !models.includes(s.router_model_eco)) models.unshift(s.router_model_eco);
+      return hinted("mode", mode, [["standard", t("Стандартный", "Standard")],
+          ["economy", t("Экономный", "Economy")]],
+          t("Режим выполнения команд", "Command run mode"),
+          t("Стандартный — всё как раньше. Экономный — те же команды, но модель получает меньше текста: короче список действий, без лишних подробностей. Чуть быстрее и заметно меньше токенов; на обычных командах разницы не будет.",
+            "Standard runs everything as before. Economy runs the same commands, but the model gets less text: a shorter action list, no extra details. A bit faster and noticeably fewer tokens; for everyday commands you will not notice a difference"))
+        + (mode === "economy" ? hinted("router_model_eco", s.router_model_eco || "", [["", t("Та же, что и обычно", "Same as usual")], ...models.map((m) => [m, m])],
+          t("Модель для экономного режима", "Model for economy mode"),
+          t("распознавание команд — это просто выбор действия из списка, поэтому тут можно взять модель подешевле; на ответах это не скажется",
+            "recognising a command is just picking an action from a list, so a cheaper model works here; it does not affect the answers")) : "");
     }
 
     const controlKey = (node) => (node && node.dataset && node.dataset.set ? { set: node.dataset.set, sub: node.dataset.sub || "" } : null);
@@ -245,6 +289,7 @@
           ${sw("local_match", s.local_match, t("Мгновенные команды без модели", "Instant commands without a model"), t("локальное распознавание частых фраз на русском и английском", "local recognition of common Russian and English phrases"))}
           ${sw("model_tools", s.model_tools, t("Модель может выполнять действия", "The model may perform actions"), t("действия — инструмент модели; опасные всё равно ждут вашего подтверждения", "actions are a model tool; dangerous ones still wait for your confirmation"))}
           ${routerRows(s)}
+          ${modeRows(s)}
         </section>`,
         custom: `<section class="mcs-sec" data-mcs="custom">
           <div class="mcs-sec-head"><h3>${t("Свои команды", "Custom commands")}</h3>
@@ -300,7 +345,7 @@
           ${select("reminder_channel", s.reminder_channel, [["local", t("Этот компьютер", "This computer")], ["telegram", "Telegram"], ["both", t("Компьютер и Telegram", "Computer and Telegram")]], t("Напоминания по умолчанию", "Default reminder channel"))}
           <div class="mcs-note ${S.cfg.telegram && S.cfg.telegram.ok ? "ok" : ""}">${S.cfg.telegram && S.cfg.telegram.ok
             ? t("Telegram-бот подключён: «напомни в телеграме в 15:00 …» отправит планировщик MemuAI Proxy (задача видна в «Планировании»).", "The Telegram bot is paired: “remind me in Telegram at 3 pm …” is sent by the MemuAI Proxy scheduler (visible in Planning).")
-            : t("Telegram-бот не подключён — напоминания в Telegram недоступны (Настройки → Telegram).", "The Telegram bot is not paired — Telegram reminders are unavailable (Settings → Telegram).")}</div>
+            : t("Telegram-бот не подключён — напоминания в Telegram недоступны (Настройки → Мессенджеры → Telegram).", "The Telegram bot is not paired — Telegram reminders are unavailable (Settings → Messengers → Telegram).")}</div>
         </section>`,
         services: `<section class="mcs-sec" data-mcs="services">
           <h3>${t("Сервисы", "Services")}</h3>
@@ -354,6 +399,7 @@
     function partCommandsHtml(s) {
       const offPlatform = S.cfg.platform !== "win32";
       return `<section class="mcs-sec mcs-card" data-mcs="main">
+          ${modeRows(s)}
           ${sw("enabled", s.enabled, t("Команды", "Commands"), t("«открой телеграм», «громкость 30», «таймер 10 минут»", "“open Telegram”, “volume 30”, “timer 10 minutes”"))}
           ${sw("local_match", s.local_match, t("Мгновенно, без модели", "Instant, without a model"), t("частые фразы на русском и английском распознаются на компьютере", "common Russian and English phrases are recognised locally"))}
           ${sw("model_tools", s.model_tools, t("Модель может выполнять действия", "The model may perform actions"), t("опасные всё равно ждут вашего подтверждения", "dangerous ones still wait for your confirmation"))}
@@ -428,8 +474,11 @@
           <div class="mcs-cmd-main"><b>${esc(c.name)}</b>
             <span class="mcs-cmd-meta">${(c.triggers || []).slice(0, 4).map((x) => `<em>«${esc(x)}»</em>`).join(" ")}${c.hotkey ? ` <kbd>${esc(c.hotkey)}</kbd>${state && !state.ok && state.code !== "unsupported" ? ` <span class="mcs-bad">${esc(state.error || t("клавиша занята", "hotkey busy"))}</span>` : ""}` : ""}
             · ${t("шагов", "steps")}: ${c.steps.length}</span></div>
+          <select class="mcs-cmd-mode" data-cmd-mode="${esc(c.id)}" aria-label="${esc(t("Режим команды «", "Run mode for “") + c.name + t("»", "”"))}">
+            ${[["inherit", t("Общий режим", "Use default")], ["standard", t("Стандартный", "Standard")], ["economy", t("Экономный", "Economy")]].map(([id, name]) => `<option value="${id}" ${(c.mode || "inherit") === id ? "selected" : ""}>${esc(name)}</option>`).join("")}
+          </select>
           <button type="button" class="mcs-btn" data-act="run" data-i="${i}">${t("Запустить", "Run")}</button>
-          <button type="button" class="mcs-btn" data-act="edit" data-i="${i}">${t("Изменить", "Edit")}</button>
+          <button type="button" class="mcs-btn" data-act="edit" data-i="${i}">${t("Настройки", "Settings")}</button>
           <button type="button" class="mcs-btn mcs-danger" data-act="delete" data-i="${i}" aria-label="${t("Удалить", "Delete")}">✕</button></div>`;
       }).join("")}</div>`;
     }
@@ -533,6 +582,7 @@
           <textarea data-d="triggers" rows="3">${esc((d.triggers || []).join("\n"))}</textarea></label>
         <label class="mcs-field"><span>${t("Описание", "Description")}</span><input type="text" data-d="description" value="${esc(d.description || "")}" maxlength="300"></label>
         ${sw("trusted", d.trusted, t("Не спрашивать подтверждение для шагов «с подтверждением»", "Don't ask before “confirm” steps"), t("опасные шаги (выключение и т. п.) всё равно требуют подтверждения", "dangerous steps (shutdown etc.) always ask"), "draft")}
+        ${select("mode", d.mode || "inherit", [["inherit", t("Как в общих настройках", "As in general settings")], ["standard", t("Стандартный", "Standard")], ["economy", t("Экономный", "Economy")]], t("Режим выполнения", "Run mode"), "draft")}
         <h4>${t("Шаги", "Steps")}</h4>
         <ol class="mcs-steps">${(d.steps || []).map((step, si) => `<li class="mcs-step">
           <div class="mcs-step-head"><select data-step-type="${si}">${STEP_TYPES.map((x) => `<option value="${x}" ${x === step.type ? "selected" : ""}>${esc({ action: t("Действие", "Action"), wait: t("Пауза", "Wait"), say: t("Сказать", "Say"), notify: t("Уведомление", "Notification"), ask_ai: t("Спросить ИИ", "Ask AI"), layout: t("Раскладка окон", "Window layout") }[x])}</option>`).join("")}</select>
@@ -564,13 +614,20 @@
         if (target.type === "number" || target.type === "range") value = Number(value);
         if (sub === "draft") { S.draft[target.dataset.set] = value; return; }
         if (sub) { set()[sub] = { ...set()[sub], [target.dataset.set]: value }; savePatch({ [sub]: { ...(S.pendingPatch[sub] || {}), [target.dataset.set]: value } }); if (sub === "voice" && /provider/.test(target.dataset.set)) render(); }
-        else { set()[target.dataset.set] = value; savePatch({ [target.dataset.set]: value }); if (target.dataset.set === "ai_router") render(); }
+        else { set()[target.dataset.set] = value; savePatch({ [target.dataset.set]: value }); if (target.dataset.set === "ai_router" || target.dataset.set === "mode") render(); }
         if (target.type === "range") { const em = target.parentElement.querySelector("em"); if (em) em.textContent = value + "%"; }
         return;
       }
       if (target.dataset.cmdToggle) {
         call("/api/assistant/commands", { op: "toggle", id: target.dataset.cmdToggle, enabled: target.checked })
           .then((d) => { S.cfg.commands = d.commands; S.cfg.hotkeys = d.hotkeys || S.cfg.hotkeys; render(); }).catch((err) => toast(err.message, "err"));
+        return;
+      }
+      if (target.dataset.cmdMode) {
+        target.disabled = true;
+        call("/api/assistant/commands", { op: "mode", id: target.dataset.cmdMode, mode: target.value, lang: L })
+          .then((d) => { S.cfg.commands = d.commands; })
+          .catch((err) => toast(err.message, "err")).finally(render);
         return;
       }
       if (target.dataset.actionOn) {
@@ -678,10 +735,10 @@
           const name = window.prompt(t("Название раскладки:", "Layout name:"), t("работа", "work"));
           if (!name) return;
           await call("/api/assistant/layout", { op: "capture", name, save: true, lang: L, reshow: false });
-          S.cfg = await call("/api/assistant/config?lang=" + L); render();
+          S.cfg = normCfg(await call("/api/assistant/config?lang=" + L)); render();
           toast(t("Раскладка сохранена", "Layout saved"), "");
         }
-        else if (act === "layout-delete") { await call("/api/assistant/layout", { op: "delete", name: btn.dataset.name }); S.cfg = await call("/api/assistant/config?lang=" + L); render(); }
+        else if (act === "layout-delete") { await call("/api/assistant/layout", { op: "delete", name: btn.dataset.name }); S.cfg = normCfg(await call("/api/assistant/config?lang=" + L)); render(); }
         else if (act === "layout-restore") { const d = await call("/api/assistant/layout", { op: "restore", name: btn.dataset.name, lang: L }); toast(t(`Окон на месте: ${d.report.placed} из ${d.report.total}`, `${d.report.placed} of ${d.report.total} windows placed`), ""); }
         else if (act === "export") {
           const d = await call("/api/assistant/commands", { op: "export" });

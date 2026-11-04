@@ -52,7 +52,7 @@ WIDGET_SLOTS = ("quick.ring", "quick.card", "chat.composer", "main.dock", "chat.
 WIDGET_KINDS = ("equalizer", "nowplaying", "miniplayer", "dock", "cards")
 WIDGET_SOURCES = ("music.player",)
 SETTING_TYPES = ("bool", "choice", "text", "color")
-LIMITS = {"panels": 8, "commands": 28, "widgets": 6, "settings": 12, "phrases": 8, "planning": 6, "planning_settings": 4}
+LIMITS = {"panels": 8, "commands": 28, "widgets": 6, "settings": 12, "phrases": 8, "planning": 12, "planning_settings": 6}
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
 _FILE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]{0,120}\.(?:html|js|css|md)$")
 _LOCK = threading.RLock()
@@ -97,28 +97,33 @@ def _settings(raw: Any, errors: List[str], where: str) -> List[Dict[str, Any]]:
         out.append(row)
     return out
 
-def _schema(raw: Any, errors: List[str], where: str) -> Dict[str, Any]:
-    """A small JSON schema of command arguments: an object of string/number/boolean/enum properties."""
+def _schema(raw: Any, errors: List[str], where: str, builtin: bool = False) -> Dict[str, Any]:
+    """A small JSON schema of command arguments: an object of string/number/boolean/enum properties. Built-in modules
+    may also use ``type: "object"`` (a JSON object argument, e.g. utility options) and a longer ``maxLength`` for
+    strings (texts to convert); third-party strings stay at 500 characters at most."""
     if raw in (None, {}):
         return {"type": "object", "properties": {}, "required": []}
     if not isinstance(raw, dict) or not isinstance(raw.get("properties", {}), dict):
         errors.append(f"{where}: args должен быть JSON-схемой объекта / args must be an object schema")
         return {"type": "object", "properties": {}, "required": []}
     props: Dict[str, Any] = {}
-    for key, spec in list(raw.get("properties", {}).items())[:8]:
+    kinds = ("string", "number", "integer", "boolean", "object") if builtin else ("string", "number", "integer", "boolean")
+    for key, spec in list(raw.get("properties", {}).items())[:(10 if builtin else 8)]:
         if not _ID_RE.match(str(key)) or not isinstance(spec, dict):
             errors.append(f"{where}: аргумент {key!r} некорректен / bad argument")
             continue
-        kind = spec.get("type") if spec.get("type") in ("string", "number", "integer", "boolean") else "string"
-        row = {"type": kind, "description": _text(spec.get("description"), 200)}
+        kind = spec.get("type") if spec.get("type") in kinds else "string"
+        row = {"type": kind, "description": _text(spec.get("description"), 300 if builtin else 200)}
         if isinstance(spec.get("enum"), list):
             row["enum"] = [str(v)[:60] for v in spec["enum"][:16]]
+        if kind == "string" and str(spec.get("maxLength") or "").isdigit():
+            row["maxLength"] = max(1, min(int(spec["maxLength"]), 200_000 if builtin else 500))
         props[str(key)] = row
     required = [str(k) for k in (raw.get("required") or []) if str(k) in props]
     return {"type": "object", "properties": props, "required": required}
 
-PLANNING_METRICS = ("messages", "tokens", "items", "due", "changes", "bytes")
-PLANNING_ACTION_KINDS = ("notify", "chat", "scenario")
+PLANNING_METRICS = ("messages", "tokens", "items", "due", "changes", "bytes", "pending")
+PLANNING_ACTION_KINDS = ("notify", "chat", "scenario", "module")
 
 
 def _planning_settings(raw: Any, errors: List[str], where: str) -> List[Dict[str, Any]]:
@@ -137,14 +142,19 @@ def _planning_settings(raw: Any, errors: List[str], where: str) -> List[Dict[str
                                "label": _text(item.get("label") or item["key"], 80),
                                "label_en": _text(item.get("label_en") or item.get("label") or item["key"], 80)}
         if kind == "number":
-            lo = int(item.get("min") or 1) if str(item.get("min") or "").lstrip("-").isdigit() else 1
-            hi = int(item.get("max") or 1_000_000) if str(item.get("max") or "").isdigit() else 1_000_000
+            # «0» is a meaningful minimum (e.g. "0 — all chats"): it must not
+            # collapse to 1 the way a bare ``item.get("min") or 1`` did.
+            raw_min, raw_max = item.get("min"), item.get("max")
+            lo = int(raw_min) if str(raw_min if raw_min is not None else "").lstrip("-").isdigit() else 1
+            lo = max(0, lo)
+            hi = int(raw_max) if str(raw_max if raw_max is not None else "").isdigit() else 1_000_000
             default = item.get("default")
             try:
                 default = float(default)
             except (TypeError, ValueError):
                 default = float(lo)
-            row.update(default=max(lo, min(hi, int(round(default)))), min=max(1, lo), max=max(lo, hi))
+            hi = max(lo, hi)
+            row.update(default=max(lo, min(hi, int(round(default)))), min=lo, max=hi)
         elif kind == "bool":
             row["default"] = item.get("default", False) is not False
         else:
@@ -182,6 +192,8 @@ def _planning(raw: Any, errors: List[str]) -> List[Dict[str, Any]]:
                 continue
             clean_trigger = {"kind": "threshold", "metric": metric, "threshold": threshold,
                              "scope": "per_chat" if str(trigger.get("scope")) == "per_chat" else "any"}
+            if str(trigger.get("mode") or "") == "delta":
+                clean_trigger["mode"] = "delta"
         action = item.get("action") if isinstance(item.get("action"), dict) else {}
         action_kind = str(action.get("kind") or "notify").lower()
         if action_kind not in PLANNING_ACTION_KINDS:
@@ -208,6 +220,22 @@ def _planning(raw: Any, errors: List[str]) -> List[Dict[str, Any]]:
                 clean_action["prompt_en"] = prompt_en
             if _text(action.get("model"), 300):
                 clean_action["model"] = _text(action.get("model"), 300)
+        elif action_kind == "module":
+            name = _text(action.get("handler"), 80)
+            from . import module_actions
+            if not module_actions.known(name):
+                errors.append(f"planning.{pid}: обработчик {name!r} неизвестен / unknown handler")
+                continue
+            clean_action["handler"] = name
+            options = action.get("options") if isinstance(action.get("options"), dict) else {}
+            clean_action["options"] = {str(k)[:40]: v for k, v in list(options.items())[:12]
+                                       if re.fullmatch(r"[a-z][a-z0-9_]{0,40}", str(k)) and isinstance(v, (str, int, float, bool))}
+            text = _text(action.get("text"), 600)
+            if text:
+                clean_action["text"] = text
+            text_en = _text(action.get("text_en"), 600)
+            if text_en:
+                clean_action["text_en"] = text_en
         else:
             try:
                 from .plan_scenarios import normalize_scenario
@@ -291,10 +319,12 @@ def normalize_contributes(raw: Any, *, builtin: bool = False, errors: Optional[L
             "id": cid, "title": _text(item.get("title") or cid, 60), "title_en": _text(item.get("title_en") or item.get("title") or cid, 60),
             "description": _text(item.get("description"), 300),
             "description_en": _text(item.get("description_en") or item.get("description"), 300),
-            "args": _schema(item.get("args"), errors, f"commands.{cid}"),
+            "args": _schema(item.get("args"), errors, f"commands.{cid}", builtin),
             "phrases": [_text(p, 80) for p in (item.get("phrases") or [])[:LIMITS["phrases"]] if _text(p, 80)],
             "phrases_en": [_text(p, 80) for p in (item.get("phrases_en") or [])[:LIMITS["phrases"]] if _text(p, 80)],
             "danger": bool(item.get("danger")),
+            # built-in only: the chat sends the latest attached files along (a converter works on them)
+            "files": bool(item.get("files")) and builtin,
             "run": {"handler": handler} if handler else {"open": True},
         })
     if commands:
@@ -302,6 +332,8 @@ def normalize_contributes(raw: Any, *, builtin: bool = False, errors: Optional[L
     skill = raw.get("skill")
     if isinstance(skill, str) and _file(skill).endswith(".md"):
         out["skill"] = {"file": _file(skill)}
+    elif isinstance(skill, dict) and skill.get("handler") and builtin:
+        out["skill"] = {"handler": _text(skill.get("handler"), 60)}  # a built-in module builds its notes live
     elif isinstance(skill, dict) and (skill.get("text") or skill.get("text_en")):
         out["skill"] = {"text": str(skill.get("text") or "")[:6000], "text_en": str(skill.get("text_en") or skill.get("text") or "")[:6000]}
     elif skill:
@@ -423,6 +455,19 @@ def find(module_id: str, *, root: Optional[Path] = None) -> Optional[Dict[str, A
     return next((row for row in contributions(root) if row["module"] == module_id), None)
 
 
+def _with_handler(action: Dict[str, Any]) -> Dict[str, Any]:
+    """Adds ``handler_info`` (AI use, what it writes) to a ``kind: module`` action for the UI."""
+    act = action.get("action") or {}
+    if act.get("kind") == "module":
+        from . import module_actions
+        meta = module_actions.HANDLERS.get(str(act.get("handler") or ""))
+        if meta:
+            action["handler_info"] = {"ai": meta["ai"], "writes": meta["writes"], "title": meta["title"],
+                                      "title_en": meta["title_en"], "description": meta["description"],
+                                      "description_en": meta["description_en"]}
+    return action
+
+
 def planning_actions(root: Optional[Path] = None, *, include_disabled: bool = True) -> List[Dict[str, Any]]:
     """Declared planning actions of all modules, enabled or not.
 
@@ -437,7 +482,7 @@ def planning_actions(root: Optional[Path] = None, *, include_disabled: bool = Tr
             continue
         rows.append({"module": row["module"], "title": row["title"], "title_en": row["title_en"],
                      "icon": row["icon"], "accent": row["accent"], "enabled": row["enabled"],
-                     "actions": [dict(action, enabled=False, requires_consent=True)
+                     "actions": [_with_handler(dict(action, enabled=False, requires_consent=True))
                                  for action in row["planning"]]})
     return rows
 
@@ -518,8 +563,8 @@ def public(root: Optional[Path] = None, lang: str = "ru") -> Dict[str, Any]:
                         "panels": [{k: p[k] for k in ("id", "title", "title_en", "summary", "summary_en", "icon", "size", "height", "settings")}
                                    for p in row["panels"]],
                         "planning": row.get("planning", []),
-                        "commands": [{k: c[k] for k in ("id", "title", "title_en", "description", "description_en", "args",
-                                                        "phrases", "phrases_en", "danger")} for c in row["commands"]],
+                        "commands": [{k: c.get(k) for k in ("id", "title", "title_en", "description", "description_en", "args",
+                                                            "phrases", "phrases_en", "danger", "files")} for c in row["commands"]],
                         "widgets": widgets})
     return {"modules": modules}
 
@@ -619,8 +664,24 @@ def panel_data(module_id: str, panel_id: str, args: Any = None, *, lang: str = "
     return fn(args if isinstance(args, dict) else {}, {"lang": lang, "en": en, "root": root, "module": row,
                                                         "tr": (lambda ru, e: e if en else ru)})
 
+SkillHandler = Callable[[Dict[str, Any], bool], str]
+SKILL_HANDLERS: Dict[str, SkillHandler] = {}
+
+def skill_handler(name: str):
+    """Registers the live notes of a built-in module (``contributes.skill = {"handler": name}``)."""
+    def wrap(fn: SkillHandler) -> SkillHandler:
+        SKILL_HANDLERS[name] = fn
+        return fn
+    return wrap
+
 def _skill_text(row: Dict[str, Any], en: bool) -> str:
     skill = row.get("skill") or {}
+    if skill.get("handler"):
+        fn = SKILL_HANDLERS.get(skill["handler"])
+        try:
+            return str(fn(row, en) or "").strip()[:40000] if fn else ""  # a built-in list the person sized (MemuUtils)
+        except Exception:  # noqa: BLE001 - broken notes never break the prompt
+            return ""
     if skill.get("file"):
         try:
             return (Path(row["folder"]) / skill["file"]).read_text(encoding="utf-8")[:6000].strip()
@@ -638,26 +699,105 @@ def command_line(row: Dict[str, Any], cmd: Dict[str, Any], en: bool) -> str:
     return (f"- {row['module']}.{cmd['id']} {{{args}}} — {desc or cmd['title']}"
             + (f" (e.g. «{'», «'.join(phrases[:3])}»)" if phrases else "") + (" [asks the user to confirm]" if cmd["danger"] else ""))
 
-def skill_prompt(root: Optional[Path] = None, *, lang: str = "ru", surface: str = "chat") -> str:
-    """The module commands block for the system prompt (empty when no enabled module has commands)."""
+_HEADER = ("Enabled MemuAI modules can be controlled with the tool module_command {module, command, args}. Use it when the user "
+           "asks for one of these actions (play music, open a character…) — do the action instead of explaining how. "
+           "The result card is shown to the user automatically: answer in one short sentence afterwards, do not repeat it.")
+_CALL = ("Write the call in the usual hidden ```memuai-tool``` JSON block: [{\"tool\":\"module_command\",\"args\":"
+         "{\"module\":\"music\",\"command\":\"play\",\"args\":{\"query\":\"Imagine Dragons Believer\"}}}]")
+
+# Words that point a request at a built-in module: the chat adds that module's full command list and notes only then
+# (prompt budget). Third-party modules get keys from their id, titles, command titles and phrases (``_auto_keys``).
+BUILTIN_KEYS: Dict[str, Tuple[str, ...]] = {
+    "music": ("музык", "трек", "песн", "плейлист", "альбом", "исполнител", "радио", "громкост", "включи", "поставь", "пауз",
+              "очеред", "лайк", "music", "track", "song", "playlist", "album", "artist", "radio", "volume", "play", "pause",
+              "shuffle", "queue", "skip"),
+    "meet": ("встреч", "созвон", "совещан", "митинг", "запис", "субтитр", "транскрип", "протокол", "meet", "call",
+             "record", "caption", "transcri", "minutes"),
+    "characters": ("персонаж", "ролев", "character", "roleplay", "role-play", "sillytavern", "tavern"),
+    "api-models": ("модел", "openrouter", "нейросет", "model", "pricing", "цен", "стоит", "вышл", "релиз", "release"),
+    "benchmarks": ("бенчмарк", "рейтинг", "лидер", "арен", "лучш", "benchmark", "leaderboard", "arena", "leader", "best",
+                   "livebench", "simplebench", "eq-bench"),
+    "learn": ("карточ", "повтор", "курс", "учеб", "выучи", "экзамен", "flashcard", "review", "course", "anki", "learn",
+              "study", "exam"),
+    "translator": ("перевод", "переведи", "переводчик", "translat"),
+    "memudb": ("sql", "баз", "таблиц", "database", "table", "query"),
+    # MemuUtils: converters and formats — the utility list joins the prompt only for such requests (token budget)
+    "utils": ("утилит", "memuutils", "конверт", "преобраз", "сожм", "сжат", "сжим", "уменьш", "pdf", "qr", "штрихкод", "barcode",
+              "png", "jpg", "jpeg", "webp", "heic", "avif", "gif", "svg", "ico", "mp3", "mp4", "wav", "flac", "ogg", "m4a", "webm",
+              "mkv", "mov", "docx", "xlsx", "csv", "json", "yaml", "xml", "toml", "base64", "хеш", "hash", "md5", "sha", "uuid",
+              "парол", "password", "convert", "compress", "resize", "водян", "watermark", "обрез", "crop", "exif", "метадан",
+              "metadata", "транслит", "regex", "регуляр", "jwt", "cron", "timestamp", "whois", "dns", "ping", "ssl", "диск", "disk",
+              "процесс", "process", "выключ", "shutdown", "кодиров", "encod", "декод", "decod", "формат", "format", "сконверт",
+              "переконверт", "извлеки", "extract", "склей", "merge", "раздели", "split", "поверн", "rotate", "субтитр", "subtitle"),
+}
+_KEY_STOP = {"open", "show", "start", "the", "this", "that", "with", "from", "into", "what", "which", "make", "turn", "give",
+             "открой", "покажи", "начни", "сделай", "дай", "какие", "какой", "что", "это", "мне", "мои", "мой"}
+
+def _auto_keys(row: Dict[str, Any]) -> List[str]:
+    words: List[str] = [row["module"], str(row.get("title") or ""), str(row.get("title_en") or "")]
+    for cmd in row["commands"]:
+        words += [cmd.get("title") or "", cmd.get("title_en") or ""]
+        words += [re.sub(r"\{[a-z_][a-z0-9_]*\}", " ", phrase) for phrase in cmd["phrases"] + cmd["phrases_en"]]
+    keys: List[str] = []
+    for word in re.findall(r"[^\W\d_][\w-]{2,}", " ".join(words).lower()):
+        if word in _KEY_STOP:
+            continue
+        stem = word[:max(4, min(7, len(word) - 2))]
+        if stem not in keys:
+            keys.append(stem)
+    return keys[:40]
+
+def skill_keys(row: Dict[str, Any]) -> List[str]:
+    """The lower-case word stems that make a request "about" this module (see ``skill_details``)."""
+    keys = list(BUILTIN_KEYS.get(row["module"], ())) if row.get("builtin") else []
+    for key in _auto_keys(row):
+        if key not in keys:
+            keys.append(key)
+    return keys[:60 + (len(BUILTIN_KEYS.get(row["module"], ())) if row.get("builtin") else 0)]
+
+def _module_section(row: Dict[str, Any], en: bool) -> List[str]:
+    lines = [f"\n{row['title_en'] if en else row['title']} (module {row['module']}):"]
+    lines.extend(command_line(row, cmd, en) for cmd in row["commands"])
+    text = _skill_text(row, en)
+    if text:
+        lines.append(text)
+    return lines
+
+def skill_prompt(root: Optional[Path] = None, *, lang: str = "ru", surface: str = "chat", details: bool = True) -> str:
+    """The module commands block for the system prompt (empty when no enabled module has commands).
+
+    ``details=False`` is the compact chat form: one line of command names per module; the full command list and the
+    module notes come from ``skill_details`` only when the request is about that module, and the command ``help`` of
+    any module returns them on demand."""
     en = lang == "en"
     rows = [row for row in contributions(root) if row["commands"]]
     if not rows:
         return ""
-    lines = ["<module_commands>",
-             "Enabled MemuAI modules can be controlled with the tool module_command {module, command, args}. Use it when the user "
-             "asks for one of these actions (play music, open a character…) — do the action instead of explaining how. "
-             "The result card is shown to the user automatically: answer in one short sentence afterwards, do not repeat it.",
-             "Write the call in the usual hidden ```memuai-tool``` JSON block: [{\"tool\":\"module_command\",\"args\":"
-             "{\"module\":\"music\",\"command\":\"play\",\"args\":{\"query\":\"Imagine Dragons Believer\"}}}]"]
+    if not details:
+        lines = ["<module_commands>", _HEADER, _CALL,
+                 "Below are only the command names. The arguments and rules of a module are added when the request is "
+                 "about it; when they are missing, call its command \"help\" first (no card is shown)."]
+        for row in rows:
+            names = ", ".join(cmd["id"] + ("*" if cmd["danger"] else "") for cmd in row["commands"])
+            lines.append(f"- {row['title_en'] if en else row['title']} ({row['module']}): {names}")
+        if any(cmd["danger"] for row in rows for cmd in row["commands"]):
+            lines.append("* asks the user to confirm.")
+        lines.append("</module_commands>")
+        return "\n".join(lines)
+    lines = ["<module_commands>", _HEADER, _CALL]
     for row in rows:
-        lines.append(f"\n{row['title_en'] if en else row['title']} (module {row['module']}):")
-        lines.extend(command_line(row, cmd, en) for cmd in row["commands"])
-        text = _skill_text(row, en)
-        if text:
-            lines.append(text)
+        lines.extend(_module_section(row, en))
     lines.append("</module_commands>")
     return "\n".join(lines)
+
+def skill_details(root: Optional[Path] = None, *, lang: str = "ru") -> List[Dict[str, Any]]:
+    """Per module: ``{module, keys, text}`` — the full command list with the module notes for the compact prompt."""
+    en = lang == "en"
+    return [{"module": row["module"], "keys": skill_keys(row), "text": "\n".join(_module_section(row, en)).strip()}
+            for row in contributions(root) if row["commands"]]
+
+def help_text(row: Dict[str, Any], en: bool) -> str:
+    return "\n".join(_module_section(row, en)).strip()
 
 def alias_tool(name: str, args: Any = None, root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """Round 39 (r39-integ): a model that names the module command as the tool («music_play», «music.play», «music:next»)
@@ -708,8 +848,16 @@ def _check_args(cmd: Dict[str, Any], args: Any) -> Dict[str, Any]:
                 raise CommandError(f"{key}: ожидается число / a number is expected")
         elif spec["type"] == "boolean":
             value = value is True or str(value).lower() in ("1", "true", "yes", "да")
+        elif spec["type"] == "object":
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    raise CommandError(f"{key}: ожидается JSON-объект / a JSON object is expected")
+            if not isinstance(value, dict) or len(json.dumps(value, ensure_ascii=False)) > 20000:
+                raise CommandError(f"{key}: ожидается JSON-объект / a JSON object is expected")
         else:
-            value = str(value)[:500]
+            value = str(value)[:int(spec.get("maxLength") or 500)]
             if spec.get("enum") and value not in spec["enum"]:
                 raise CommandError(f"{key}: одно из {spec['enum']} / one of {spec['enum']}")
         out[key] = value
@@ -718,15 +866,35 @@ def _check_args(cmd: Dict[str, Any], args: Any) -> Dict[str, Any]:
         raise CommandError(f"Не хватает аргументов: {', '.join(missing)} / Missing arguments: {', '.join(missing)}")
     return out
 
+FILES_LIMIT = 12
+FILES_BYTES = 80 * 1024 * 1024
+
+def _clean_files(files: Any) -> List[Dict[str, str]]:
+    """Attached chat files for a ``files: true`` command: ``[{name, data}]`` (data URLs), bounded."""
+    out, total = [], 0
+    for item in (files if isinstance(files, list) else [])[:FILES_LIMIT]:
+        if not isinstance(item, dict) or not isinstance(item.get("data"), str) or not item["data"]:
+            continue
+        total += len(item["data"])
+        if total > FILES_BYTES * 4 // 3 + 4096:
+            break
+        turn = item.get("turn")
+        out.append({"name": _text(item.get("name") or "file", 200) or "file", "data": item["data"],
+                    "turn": int(turn) if isinstance(turn, int) and 0 <= turn < 1000 else 0})
+    return out
+
 async def run_command(module_id: str, command: str, args: Any = None, *, lang: str = "ru", confirmed: bool = False,
-                      surface: str = "chat", root: Optional[Path] = None, base: str = "") -> Dict[str, Any]:
-    """Run ``module.command``. Returns ``{ok, text, card?, client?, needs_confirm?}`` — never raises for user errors."""
+                      surface: str = "chat", root: Optional[Path] = None, base: str = "", files: Any = None) -> Dict[str, Any]:
+    """Run ``module.command``. Returns ``{ok, text, card?, client?, needs_confirm?}`` — never raises for user errors.
+    ``files`` — the chat's latest attachments, passed only to built-in ``files: true`` commands."""
     en = lang == "en"
     tr = (lambda ru, e: e if en else ru)  # noqa: E731
     row = find(str(module_id or ""), root=root)
     if row is None:
         return {"ok": False, "error": tr(f"Модуль «{module_id}» не включён или не добавляет команд",
                                          f"The module “{module_id}” is off or adds no commands")}
+    if str(command or "").strip().lower() in ("help", "?", "commands") and not any(c["id"] == "help" for c in row["commands"]):
+        return {"ok": True, "module": row["module"], "command": "help", "text": help_text(row, en)}
     cmd = next((c for c in row["commands"] if c["id"] == str(command or "")), None)
     if cmd is None:
         known = ", ".join(c["id"] for c in row["commands"])
@@ -747,7 +915,8 @@ async def run_command(module_id: str, command: str, args: Any = None, *, lang: s
     fn = HANDLERS.get(cmd["run"]["handler"])
     if fn is None:
         return {"ok": False, "error": tr("Обработчик команды недоступен", "The command handler is unavailable")}
-    ctx = {"lang": lang, "en": en, "tr": tr, "module": row, "root": _root(root), "surface": surface, "base": base}
+    ctx = {"lang": lang, "en": en, "tr": tr, "module": row, "root": _root(root), "surface": surface, "base": base,
+           "confirmed": bool(confirmed), "files": _clean_files(files) if cmd.get("files") else []}
     try:
         result = await fn(clean, ctx)
     except (KeyError, ValueError, CommandError) as exc:

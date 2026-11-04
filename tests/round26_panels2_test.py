@@ -20,7 +20,7 @@ def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
 class StaleSettingsPathsTest(unittest.TestCase):
-    """The settings pages are «Голос и Live» / «Voice & Live», «Telegram», «Системные промпты» (app.js P(...))."""
+    """The settings pages are «Голос и Live» / «Voice & Live», «Мессенджеры», «Системные промпты» (app.js P(...))."""
 
     FILES = ("pgstatic/quick/plugins/commands-settings.js", "pgstatic/quick/plugins/commands.js",
              "pgstatic/quick-settings.js", "pgstatic/telegram-settings.js", "telegram_bot.py",
@@ -29,7 +29,7 @@ class StaleSettingsPathsTest(unittest.TestCase):
     def test_page_names_exist(self):
         app = read("pgstatic/app.js")
         self.assertIn('"Голос и Live", "Voice & Live"', app)
-        self.assertIn('"Telegram", "Telegram"', app)
+        self.assertIn('"Мессенджеры", "Messengers"', app)
         self.assertIn('"Системные промпты", "System prompts"', app)
 
     def test_no_stale_names_in_user_strings(self):

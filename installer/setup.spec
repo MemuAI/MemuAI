@@ -35,7 +35,7 @@ a = Analysis(
     pathex=[str(ROOT)],
     binaries=binaries,
     datas=datas,
-    hiddenimports=["clr", "clr_loader", "pythonnet", "bottle", "proxy_tools",
+    hiddenimports=["clr", "clr_loader", "pythonnet", "bottle",
                    "webview.platforms.winforms", "webview.platforms.edgechromium"],
     hookspath=[],
     runtime_hooks=[],

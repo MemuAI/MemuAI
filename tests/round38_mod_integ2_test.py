@@ -181,7 +181,8 @@ class StaticTest(unittest.TestCase):
                 subprocess.run([node, "--check", str(ROOT / name)], check=True)
         app_js = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
         self.assertIn("MemuModInt.cardsHtml(m, i)", app_js)
-        self.assertIn("MemuModInt.runTool(call, { message: assistant })", app_js)
+        # chat attachments go along so a module tool (MemuUtils) can work on the files of this chat
+        self.assertIn("MemuModInt.runTool(call, { message: assistant, files: () => chatAttachmentFiles(source) })", app_js)
         for spec in ("MemuAI.spec", "MemuAIProxy.spec", "build.py"):
             self.assertIn("app.module_integration_data", (ROOT / spec).read_text(encoding="utf-8"))
         for name in files[:3]:

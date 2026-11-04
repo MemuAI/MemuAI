@@ -380,39 +380,93 @@ def _kind_of(body: bytes, content_type: str) -> str:
         return "webp"
     return ""
 
-async def _avatar(client, url: Any) -> Optional[Dict[str, Any]]:
-    """A best-effort avatar (public HTTPS image or a data: URL). Failures only mean «no picture»."""
-    text = str(url or "").strip()
+def _avatar_url_of(value: Any) -> str:
+    """An avatar reference may be a plain URL string or a small object
+    (``{"url": ...}`` / ``{"avatar_url": ...}``) — both shapes occur in the
+    wild (Pygmalion's export uses a string, some cards a dict)."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("url", "avatar_url", "avatarUrl", "href", "src"):
+            found = value.get(key)
+            if isinstance(found, str) and found.strip():
+                return found.strip()
+    return ""
+
+def _image_kind(body: bytes) -> str:
+    """Image type by magic bytes, regardless of what the server claims in
+    ``Content-Type`` (some CDNs answer ``application/octet-stream``)."""
+    if body.startswith(PNG_SIGNATURE):
+        return "image/png"
+    if body[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if body[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if body[:4] == b"RIFF" and body[8:12] == b"WEBP":
+        return "image/webp"
+    return ""
+
+async def _avatar(client, url: Any, errors: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+    """A best-effort avatar (public HTTPS image or a data: URL). Failures only mean «no picture»,
+    but the reason is recorded in ``errors`` (when given) instead of vanishing silently —
+    the caller reports it as ``avatar_error`` so the person sees why the character has no avatar."""
+    text = _avatar_url_of(url)
     if text.startswith("data:image/"):
         header, _, payload = text.partition(",")
         try:
             data = base64.b64decode(payload, validate=False) if ";base64" in header else urllib.parse.unquote_to_bytes(payload)
         except (ValueError, TypeError):
+            if errors is not None:
+                errors.append("avatar_bad_data")
             return None
         if 0 < len(data) <= AVATAR_LIMIT:
             return _file("avatar", header[5:].split(";", 1)[0], data)
+        if errors is not None:
+            errors.append("avatar_too_large")
         return None
     if not text.lower().startswith("https://"):
+        if errors is not None:
+            errors.append("avatar_missing")
         return None
     try:
         body, content_type, _ = await safe_fetch(client, text, limit=AVATAR_LIMIT, label="avatar",
                                                  headers={"Accept": "image/*"})
-    except ImportError_:
+    except ImportError_ as exc:
+        if errors is not None:
+            errors.append("avatar_" + str(exc.code or "failed"))
         return None
-    if not (content_type.startswith("image/") or body.startswith(PNG_SIGNATURE)):
+    kind = _image_kind(body)
+    if not (content_type.startswith("image/") or kind):
+        if errors is not None:
+            errors.append("avatar_not_image")
         return None
-    return _file("avatar", content_type if content_type.startswith("image/") else "image/png", body)
+    return _file("avatar", content_type if content_type.startswith("image/") else kind, body)
+
+def _chub_card_url(creator: str, project: str) -> str:
+    """Direct card PNG on the Chub CDN, documented by every SillyTavern-style
+    Chub client: ``avatars.charhub.io/avatars/<creator>/<slug>/chara_card_v2.png``.
+    The CDN answers even where the metadata API is geo-blocked, so this is the
+    avatar (and card) fallback when ``api.chub.ai`` refuses the request."""
+    return ("https://avatars.charhub.io/avatars/%s/%s/chara_card_v2.png"
+            % (urllib.parse.quote(creator, safe=""), urllib.parse.quote(project, safe="")))
 
 async def _chub_character(client, ident: str) -> Dict[str, Any]:
     creator, project = ident.split("/", 1)
     url = "https://api.chub.ai/api/characters/%s/%s?full=true" % (urllib.parse.quote(creator, safe=""),
                                                                     urllib.parse.quote(project, safe=""))
-    body, _, _ = await safe_fetch(client, url, headers={"Accept": "application/json"}, limit=JSON_LIMIT, label="Chub")
+    try:
+        body, _, _ = await safe_fetch(client, url, headers={"Accept": "application/json"}, limit=JSON_LIMIT, label="Chub")
+    except ImportError_:
+        # The metadata API is geo-blocked from some networks (403 «not available
+        # in your country») while the CDN still serves the card: fall back to
+        # the card PNG itself — it carries the full V2 definition, and the
+        # client parses PNG cards natively. The PNG doubles as the avatar.
+        return await _chub_character_from_card(client, ident, creator, project)
     meta = _json_of(body, "Chub")
     node = meta.get("node") if isinstance(meta, dict) else None
     definition = node.get("definition") if isinstance(node, dict) else None
     if not isinstance(definition, dict):
-        raise ImportError_("not_found", "Chub: персонаж не найден", "Chub: character not found", 404)
+        return await _chub_character_from_card(client, ident, creator, project)
     extensions = definition.get("extensions") if isinstance(definition.get("extensions"), dict) else {}
     extensions = {**extensions}
     extensions.setdefault("chub", {"id": node.get("id"), "full_path": node.get("fullPath") or ident})
@@ -435,11 +489,29 @@ async def _chub_character(client, ident: str) -> Dict[str, Any]:
     }}
     if isinstance(definition.get("embedded_lorebook"), dict):
         card["data"]["character_book"] = definition["embedded_lorebook"]
-    avatar = await _avatar(client, node.get("max_res_url") or node.get("avatar_url"))
+    avatar_errors: List[str] = []
+    avatar = None
+    for candidate in (node.get("max_res_url"), node.get("avatar_url"),
+                      _chub_card_url(creator, project)):
+        avatar = await _avatar(client, candidate, avatar_errors)
+        if avatar is not None:
+            break
     name = card["data"]["name"]
-    return {"type": "character", "name": name, "file": _file(_safe_name(name, ".json"), "application/json",
-                                                            json.dumps(card, ensure_ascii=False).encode("utf-8")),
-            "avatar": avatar, "page": f"https://chub.ai/characters/{ident}"}
+    result: Dict[str, Any] = {"type": "character", "name": name,
+                              "file": _file(_safe_name(name, ".json"), "application/json",
+                                            json.dumps(card, ensure_ascii=False).encode("utf-8")),
+                              "avatar": avatar, "page": f"https://chub.ai/characters/{ident}"}
+    if avatar is None:
+        result["avatar_error"] = avatar_errors[-1] if avatar_errors else "avatar_failed"
+    return result
+
+async def _chub_character_from_card(client, ident: str, creator: str, project: str) -> Dict[str, Any]:
+    """Chub import without the metadata API: the card PNG from the CDN.
+    The PNG embeds the V2 definition, so the client gets the character and
+    its picture in one file; the same PNG is the avatar."""
+    data, content_type, _ = await safe_fetch(client, _chub_card_url(creator, project),
+                                             limit=CARD_LIMIT, label="Chub")
+    return _card_file(data, content_type, project, "Chub", f"https://chub.ai/characters/{ident}")
 
 async def _chub_lorebook(client, ident: str) -> Dict[str, Any]:
     _, creator, project = ident.split("/", 2)
@@ -479,12 +551,18 @@ async def _pygmalion(client, ident: str) -> Dict[str, Any]:
     if not isinstance(character, dict):
         raise ImportError_("not_found", "Pygmalion: персонаж не найден", "Pygmalion: character not found", 404)
     data = character.get("data") if isinstance(character.get("data"), dict) else {}
-    avatar = await _avatar(client, data.get("avatar"))
+    avatar_errors: List[str] = []
+    avatar = await _avatar(client, data.get("avatar"), avatar_errors)
+    if avatar is None:
+        avatar = await _avatar(client, character.get("avatar"), avatar_errors)
     name = data.get("name") or ident
-    return {"type": "character", "name": name,
-            "file": _file(_safe_name(name, ".json"), "application/json",
-                          json.dumps(character, ensure_ascii=False).encode("utf-8")),
-            "avatar": avatar, "page": f"https://pygmalion.chat/character/{ident}"}
+    result: Dict[str, Any] = {"type": "character", "name": name,
+                              "file": _file(_safe_name(name, ".json"), "application/json",
+                                            json.dumps(character, ensure_ascii=False).encode("utf-8")),
+                              "avatar": avatar, "page": f"https://pygmalion.chat/character/{ident}"}
+    if avatar is None:
+        result["avatar_error"] = avatar_errors[-1] if avatar_errors else "avatar_failed"
+    return result
 
 async def _aicc(client, ident: str) -> Dict[str, Any]:
     author, card = ident.split("/", 1)
@@ -530,10 +608,15 @@ async def _perchance(client, ident: str) -> Dict[str, Any]:
         if first and first.get("content"):
             data["first_mes"] = str(first["content"])
     card = {"spec": "chara_card_v2", "spec_version": "2.0", "data": data}
-    return {"type": "character", "name": data["name"],
-            "file": _file(_safe_name(data["name"], ".json"), "application/json",
-                          json.dumps(card, ensure_ascii=False).encode("utf-8")),
-            "avatar": await _avatar(client, avatar_url), "page": f"https://perchance.org/ai-character-chat?data={ident}"}
+    avatar_errors: List[str] = []
+    avatar = await _avatar(client, avatar_url, avatar_errors)
+    result: Dict[str, Any] = {"type": "character", "name": data["name"],
+                              "file": _file(_safe_name(data["name"], ".json"), "application/json",
+                                            json.dumps(card, ensure_ascii=False).encode("utf-8")),
+                              "avatar": avatar, "page": f"https://perchance.org/ai-character-chat?data={ident}"}
+    if avatar is None:
+        result["avatar_error"] = avatar_errors[-1] if avatar_errors else "avatar_failed"
+    return result
 
 async def _generic(client, url: str) -> Dict[str, Any]:
     data, content_type, final = await safe_fetch(client, url, limit=CARD_LIMIT, label=urllib.parse.urlsplit(url).hostname or "")

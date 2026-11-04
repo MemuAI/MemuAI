@@ -438,7 +438,8 @@ class Wiring(unittest.TestCase):
         self.assertIn("quick-bus.js?v=1.0-r28", (static / "quick" / "index.html").read_text(encoding="utf-8"))
         manifest = json.loads((static / "quick" / "plugins" / "index.json").read_text(encoding="utf-8"))
         canvas = next(p for p in manifest["plugins"] if p["id"] == "canvas")
-        self.assertRegex(canvas["v"], r"-r(28|29|3\d)$")
+        # E13: canvas pins a bare semver ("4.1") since 5.0, not "-rNN".
+        self.assertRegex(canvas["v"], r"(-r(28|29|3\d)|\d+\.\d+)$")
         for spec in ("build.py", "MemuAI.spec"):
             text = (ROOT / spec).read_text(encoding="utf-8")
             self.assertIn("app.quick_layer", text, spec)

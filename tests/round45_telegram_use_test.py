@@ -26,7 +26,7 @@ class Arguments(unittest.TestCase):
         self.assertEqual(arguments.parse(command, "50 AI Telegram News")["chat"], "AI Telegram News")
         self.assertEqual(arguments.parse(command, '50 "AI Telegram News"')["chat"], "AI Telegram News")
         self.assertEqual(arguments.parse(command, "50")["chat"], "")
-        for text in ("", "many", "0", "-10", "1001", "50.5"):
+        for text in ("", "many", "0", "-10", "2001", "50.5"):
             with self.subTest(text=text), self.assertRaises(arguments.ArgumentError): arguments.parse(command, text)
 
     def test_legacy_summary_upgrades_without_changing_custom_prompt(self):
@@ -127,6 +127,41 @@ class Runtime(unittest.IsolatedAsyncioTestCase):
             recognize.assert_awaited_once(); complete.assert_not_awaited()
             self.assertTrue(recognize.call_args.kwargs["telegram_use"])
         self.assertEqual(self.client.edit_message.call_args.args[2],"raw transcription")
+    async def test_two_outgoing_voice_replies_wait_for_their_turn(self):
+        prefs = config.load()
+        prefs["commands"][1]["cooldown_seconds"] = 1
+        prefs["commands"][1]["max_per_hour"] = 2
+        config.save({"commands": prefs["commands"], "max_parallel": 1})
+        def reply(command_id, audio_id):
+            event = self.event("!//voice")
+            event.message.id = command_id
+            event.message.reply_to_msg_id = audio_id
+            event.message.get_reply_message = AsyncMock(return_value=message(audio_id))
+            return event
+
+        first, second = reply(10, 100), reply(11, 101)
+        started = asyncio.Event()
+        release = asyncio.Event()
+        async def transcribe(audio, *_args, **_kwargs):
+            if audio.id == 100:
+                started.set()
+                await release.wait()
+            return {"text": f"transcript {audio.id}"}
+
+        with patch.object(self.runtime, "media", AsyncMock(side_effect=transcribe)) as media:
+            await self.runtime._on_event(first)
+            await asyncio.wait_for(started.wait(), 2)
+            await self.runtime._on_event(second)
+            await self.runtime._on_event(second)  # A duplicate update may arrive while waiting.
+            release.set()
+            await asyncio.wait_for(self.settle(), 4)
+            await self.runtime._on_event(reply(12, 102))
+            await self.settle()
+        self.assertEqual([call.args[0].id for call in media.await_args_list], [100, 101])
+        self.assertEqual([call.args[1:3] for call in self.client.edit_message.await_args_list],
+                         [(10, "transcript 100"), (11, "transcript 101")])
+        first_at, second_at = self.runtime._rates[(42, "!//voice")]
+        self.assertGreaterEqual(second_at - first_at, 1)
     async def test_same_hash_and_proxy_autosave_does_not_disconnect_or_drop_session(self):
         config.secrets().set("proxy","socks5://localhost:1080")
         config.secrets().set("session","fake-session")

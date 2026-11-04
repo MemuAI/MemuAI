@@ -39,12 +39,18 @@ async def scan(ctx: Context, only: Optional[str] = None) -> Dict[str, Dict[str, 
     project = ctx.runtime.root
     keys = [only] if only else list(foreign.SOURCES)
     try:
-        items = await asyncio.gather(*(asyncio.to_thread(configs.scan, key, project) for key in keys))
-        sessions = await asyncio.gather(*(asyncio.to_thread(foreign.discover, key, 800) for key in keys))
+        items = await asyncio.gather(*(asyncio.to_thread(configs.scan, key, project) for key in keys),
+                                       return_exceptions=True)
+        sessions = await asyncio.gather(*(asyncio.to_thread(foreign.discover, key, 800) for key in keys),
+                                        return_exceptions=True)
     finally:
         ctx.ui.status_text = ""
     found: Dict[str, Dict[str, Any]] = {}
     for key, rows, sess in zip(keys, items, sessions):
+        # F31: with return_exceptions=True a failed source yields an
+        # exception object, not a list — treat it as "nothing found".
+        rows = rows if isinstance(rows, list) else []
+        sess = sess if isinstance(sess, list) else []
         if rows or sess:
             found[key] = {"items": rows, "sessions": sess}
     return found

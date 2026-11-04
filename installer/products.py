@@ -92,6 +92,7 @@ class Product:
 
     packages: Tuple[Tuple[str, str], ...] = ()
 
+    post_install: Tuple[Tuple[str, str, str], ...] = ()
     pre_uninstall: Tuple[Tuple[str, str, str], ...] = ()
 
     url_protocols: Tuple[Tuple[str, str, str, str], ...] = ()
@@ -193,6 +194,7 @@ SUITE = Product(
     comments={"en": "Personal AI chat, Work, agents, and a local OpenAI-compatible API",
               "ru": "Персональный AI-чат, Work, агенты и локальный OpenAI-совместимый API"},
     packages=(("memunote", r"Packages\MemuNote.zip"), ("memufiles", r"Packages\MemuFiles.zip")),
+    post_install=(("memunote", r"MemuNote\MemuNote.exe", "--sync-explorer-menu"),),
     pre_uninstall=(("memunote", r"MemuNote\MemuNote.exe", "--unregister-open-with"),
 
                    ("memufiles", r"MemuFiles\MemuFiles.exe", "--restore-explorer")),

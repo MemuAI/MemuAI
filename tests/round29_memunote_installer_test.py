@@ -67,6 +67,7 @@ class MemuNoteSetupTest(unittest.TestCase):
         result = self.install("3.1", ["proxy", "memuai", "memucode"])
         self.assertTrue(result["ok"], result)
         self.assertNotIn("memunote", result["components"])
+        self.assertNotIn(("run", "MemuNote.exe", ("--sync-explorer-menu",)), self.os.calls)
         self.assertFalse((self.app / "MemuNote").exists())
         with zipfile.ZipFile(self.zip_path()) as archive:
             names = archive.namelist()
@@ -89,6 +90,7 @@ class MemuNoteSetupTest(unittest.TestCase):
         link = json.loads((self.base / "pc" / "StartMenu" / "MemuAI" / "MemuNote.lnk").read_text(encoding="utf-8"))
         self.assertTrue(link["target"].endswith("MemuNote.exe"))
         self.assertEqual(link["app_id"], "MemuAI.MemuNote")
+        self.assertIn(("run", "MemuNote.exe", ("--sync-explorer-menu",)), self.os.calls)
 
     def test_proxy_only_edition_gets_no_package(self) -> None:
         result = self.install("3.1", ["proxy", "memunote"])
@@ -108,6 +110,15 @@ class MemuNoteSetupTest(unittest.TestCase):
         result = eng.install(defaults)
         self.assertTrue(result["ok"], result)
         self.assertEqual((self.app / "MemuNote" / "MemuNote.exe").read_bytes(), b"memunote-3.2")
+        self.assertIn(("run", "MemuNote.exe", ("--sync-explorer-menu",)), self.os.calls)
+
+    def test_deselect_runs_uninstall_hook_before_removing_editor(self) -> None:
+        self.install("3.1", ["proxy", "memuai", "memunote"])
+        self.os.calls.clear()
+        self.install("3.2", ["proxy", "memuai"])
+        self.assertIn(("run", "MemuNote.exe", ("--unregister-open-with",)), self.os.calls)
+        self.assertNotIn(("run", "MemuNote.exe", ("--sync-explorer-menu",)), self.os.calls)
+        self.assertFalse((self.app / "MemuNote").exists())
 
     def test_uninstall_unregisters_open_with_and_removes_packages(self) -> None:
         self.install("3.1", ["proxy", "memuai", "memunote"])

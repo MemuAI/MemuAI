@@ -759,3 +759,5 @@ async def learn_due(args, ctx):
             "card": {"kind": "list", "module": "learn", "title": tr("Повторить сегодня", "Review today"), "subtitle": head, "items": items,
                      "actions": [{"icon": "open", "label": tr("Начать повторение", "Start reviewing"), "open": True, "detail": {"route": "review"}}]
                      if total else [{"icon": "open", "label": tr("Открыть MemuLearn", "Open MemuLearn"), "open": True}]}}
+
+from .utils_kit import chat as _utils_chat  # noqa: E402,F401  (MemuUtils: registers utils.* handlers and the live skill)

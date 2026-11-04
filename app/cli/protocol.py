@@ -45,6 +45,18 @@ MAX_CALLS_PER_ROUND = 16
 
 _OPENER = re.compile(r"```[ \t]*memuai-tool\b[^\n]*\n?", re.I)
 _TOOL_CALL_TAG = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.S | re.I)
+# Some models write the block as a tag instead of a fence: <memuai-tool>[…]</memuai-tool>.
+_MEMUAI_TAG = re.compile(r"<memuai[-_]tool>\s*(.*?)\s*</memuai[-_]tool>", re.S | re.I)
+# Bare protocol tags a model leaves behind next to real calls (an empty «</memuai-tool>», a DSML closer).
+_STRAY_TAGS = re.compile(r"</?\s*memuai[-_]tool\s*>|</?\s*[｜|]\s*DSML\s*[｜|][^<>\n]{0,80}>", re.I)
+
+
+def strip_stray(text: str) -> str:
+    """The text without bare protocol tags; everything else is left as it was."""
+    source = str(text or "")
+    if "memuai" not in source.lower() and "dsml" not in source.lower():
+        return source
+    return re.sub(r"\n{3,}", "\n\n", _STRAY_TAGS.sub("", source))
 _INVOKE = re.compile(r"<invoke\s+name=\"([^\"]+)\"\s*>(.*?)</invoke>", re.S | re.I)
 _PARAM = re.compile(r"<parameter\s+name=\"([^\"]+)\"\s*>(.*?)</parameter>", re.S | re.I)
 _FUNCTION_CALLS = re.compile(r"</?(?:antml:)?function_calls>", re.I)
@@ -820,6 +832,8 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
         return ""
 
     cleaned = _TOOL_CALL_TAG.sub(tag_call, cleaned)
+    if "memuai" in cleaned.lower():
+        cleaned = _MEMUAI_TAG.sub(tag_call, cleaned)
 
     def invoke_call(match: re.Match) -> str:
         args = {name: _xml_value(value, name) for name, value in _PARAM.findall(match.group(2))}
@@ -848,6 +862,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
         for row in foreign[:MAX_CALLS_PER_ROUND - len(calls)]:
             calls.append(ParsedCall(name=row["tool"], args=row["args"], raw_name=row["tool"]))
     cleaned = _strip_content_blocks(cleaned)
+    cleaned = strip_stray(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return ParseResult(cleaned, calls, errors, repairs, cut_off)
 

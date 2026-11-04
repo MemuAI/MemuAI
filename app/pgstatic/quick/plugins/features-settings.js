@@ -27,7 +27,7 @@
       return status.ok ? chip(tr("Работает", "Active"), "ok") : chip(status.error || tr("Не зарегистрировано", "Not registered"), "warn");
     }
     function html() {
-      const d = state.data, s = d.settings, st = d.status || {}, hk = st.hotkeys || {};
+      const d = shape(state.data), s = d.settings, st = d.status || {}, hk = st.hotkeys || {};
       const nativeNote = d.native ? "" : note(tr("Окно выделения, запись буфера обмена, плавающие стикеры и глобальные сочетания работают в приложении MemuAI для Windows. Здесь они только настраиваются.",
         "The region overlay, clipboard recording, floating stickers and global hotkeys work in the MemuAI Windows app. Here they are only configured."), "info");
       const region = section({ id: "qx-set-region", title: tr("Область экрана", "Screen region"), keywords: "region screen ocr область экрана распознать текст скриншот",
@@ -87,8 +87,14 @@
         <label>${esc(tr("Текст или инструкция модели", "Text or an instruction for the model"))}<textarea class="ptexta sx-textarea" id="qx-set-ed-text" rows="4">${esc(sn.text || "")}</textarea></label>
         <div class="qx-set-actions"><span class="qx-set-err" id="qx-set-ed-err"></span><button type="button" class="pbtn ghost sx-btn-sm" id="qx-set-ed-cancel">${esc(tr("Отмена", "Cancel"))}</button><button type="button" class="pbtn sx-btn-sm" id="qx-set-ed-save">${esc(tr("Сохранить", "Save"))}</button></div></div>`;
     }
+    // A partial answer (older backend, a proxy error page parsed as {}) must not break the whole settings page.
+    function shape(data) {
+      const d = data && typeof data === "object" ? data : {};
+      return { ...d, settings: d.settings && typeof d.settings === "object" ? d.settings : {},
+        status: d.status && typeof d.status === "object" ? d.status : {}, snippets: Array.isArray(d.snippets) ? d.snippets : [] };
+    }
     async function load() {
-      try { state.data = await ctx.api("/api/quick/features?lang=" + (en ? "en" : "ru")); }
+      try { state.data = shape(await ctx.api("/api/quick/features?lang=" + (en ? "en" : "ru"))); }
       catch (e) { body.innerHTML = note(esc(tr("Не удалось загрузить настройки: ", "Could not load the settings: ") + e.message), "warn"); return; }
       draw();
     }

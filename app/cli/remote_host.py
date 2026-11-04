@@ -166,8 +166,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not root.is_dir():
         print(f"memucode remote-host: folder not found: {root}", file=sys.stderr)
         return 2
-    from .remote import tgapp_allows
-    if not tgapp_allows():
+    from .remote import remote_allows
+    if not remote_allows():
         print("memucode remote-host: the Mini App or its MemuCode control is off", file=sys.stderr)
         return 3
     os.chdir(root)
@@ -190,7 +190,7 @@ async def _host(root: Path, args: argparse.Namespace) -> int:
     from prompt_toolkit.output import DummyOutput
     from .i18n import set_language
     from .main import _startup, _trust
-    from .remote import attach, detach, tgapp_allows
+    from .remote import attach, detach, remote_allows
     from .runtime import Runtime
     from .settings import Settings
     from .tui.app import TerminalUI
@@ -221,7 +221,7 @@ async def _host(root: Path, args: argparse.Namespace) -> int:
             await asyncio.sleep(5)
             host = terminal._remote_host
             now = time.monotonic()
-            if not tgapp_allows():
+            if not remote_allows():
                 off_since = off_since or now
                 if now - off_since > 60:
                     terminal.exit(0)

@@ -194,7 +194,7 @@ function miniTable(id) {
   const data = prepared(id);
   const key = loadingKeyFor(id);
   if (!data) {
-    if (state.errors[key]) return `<div class="bm-mini-err">${esc(state.errors[key])}</div>`;
+    if (state.errors[key]) return `<div class="bm-mini-err" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.2M12 16.2v.3"/></svg><span>${esc(state.errors[key])}</span><button type="button" class="bm-mini-retry" data-retry="${esc(id)}">${esc(t("retry"))}</button></div>`;
     return `<div class="bm-skeleton">${"<i></i>".repeat(5)}</div>`;
   }
   const rows = data.rows.filter((row) => !row.baseline).slice(0, 5);

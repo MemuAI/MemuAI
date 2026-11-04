@@ -19,6 +19,7 @@
       "icon": "chat",
       "pages": [
         "chats",
+        "spaces",
         "search",
         "models",
         "composer",
@@ -34,6 +35,7 @@
         "memory",
         "reflect",
         "agents",
+        "skills",
         "teams",
         "voice",
         "context"
@@ -72,11 +74,13 @@
         "quick-commands",
         "quick-explorer",
         "memunote",
+        "memufiles",
         "panels",
         "profiles",
         "notifications",
         "telegram",
         "telegram-miniapp",
+        "messengers",
         "integrations",
         "transfer",
         "sync"

@@ -86,13 +86,14 @@ def bridge_methods() -> Dict[str, str]:
         "music.coverUrl": "music_call",
         "learn.call": "learn_call",
         "database.call": "database_call",
+        "utils.call": "utils_call",
         "integration.list": "integration",
         "integration.set": "integration",
         "appbar.set": "appbar",
         "appbar.state": "",
         "appbar.on": "",
     })
-    for name in ("id", "version", "manifest", "saved", "env", "lang", "i18n", "record", "call", "t", "toolbar", "appbar", "integration", "learn", "database"):
+    for name in ("id", "version", "manifest", "saved", "env", "lang", "i18n", "record", "call", "t", "toolbar", "appbar", "integration", "learn", "database", "utils"):
         methods.setdefault(name, "")
     return methods
 
@@ -646,7 +647,7 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     granted = set(normalized.get("permissions") or []) if normalized else set()
     code = _strip_js_comments_and_strings(js)
     needs = method_permissions()
-    used_methods = sorted(set(re.findall(r"\bMemu(?:AI)?\.(record\.\w+|store\.\w+|toolbar\.\w+|appbar\.\w+|integration\.\w+|music\.\w+|learn\.\w+|database\.\w+|\w+)\s*\(", code)) |
+    used_methods = sorted(set(re.findall(r"\bMemu(?:AI)?\.(record\.\w+|store\.\w+|toolbar\.\w+|appbar\.\w+|integration\.\w+|music\.\w+|learn\.\w+|database\.\w+|utils\.\w+|\w+)\s*\(", code)) |
                           set("call:" + m for m in re.findall(r"\bMemu\.call\(\s*[\"'](\w+)", js)))
     missing: Dict[str, List[str]] = {}
     for method in used_methods:

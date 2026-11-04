@@ -1,7 +1,7 @@
 .qbd-strip { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 2px 12px 6px; padding: 6px 6px 6px 10px;
   border: 1px solid var(--qa-chip-line, var(--qa-line, rgba(127,127,127,.25))); border-radius: 12px; background: var(--qa-chip, transparent);
   font: 12.5px/1.3 var(--sans); color: var(--text); }
-.qbd-ico { flex: none; font-size: 14px; }
+.qbd-ico { flex: none; display: inline-flex; color: var(--muted); }
 .qbd-name { min-width: 0; flex: 0 1 auto; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .qbd-meta { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
 .qbd-modes { flex: none; display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; border: 1px solid var(--qa-line, rgba(127,127,127,.25)); }

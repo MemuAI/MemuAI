@@ -24,7 +24,7 @@ from app.module_integration import normalize_contributes, validate_contributes  
 
 MANIFESTS = sorted((ROOT / "app" / "module_builtins").glob("*/manifest.json"))
 EXPECTED = {"translator", "studio", "design", "benchmarks", "catalog", "api-models",
-            "characters", "music", "learn", "memudb", "meet"}
+            "characters", "music", "learn", "memudb", "meet", "utils"}
 
 
 class ContributionsTest(unittest.TestCase):
@@ -40,14 +40,14 @@ class ContributionsTest(unittest.TestCase):
             clean = normalize_contributes(data.get("contributes"), builtin=True)
             actions = clean.get("planning", [])
             self.assertGreaterEqual(len(actions), 5, module_id)
-            self.assertLessEqual(len(actions), 6, module_id)
+            self.assertLessEqual(len(actions), 12, module_id)
             ids = [a["id"] for a in actions]
             self.assertEqual(len(set(ids)), len(ids), module_id)
             for action in actions:
                 # Off by default: a manifest can never arm a planning action.
                 self.assertIs(action["enabled"], False, module_id)
                 self.assertIn(action["trigger"]["kind"], ("threshold", "periodic"))
-                self.assertIn(action["action"]["kind"], ("notify", "chat", "scenario"))
+                self.assertIn(action["action"]["kind"], ("notify", "chat", "scenario", "module"))
                 if action["trigger"]["kind"] == "threshold":
                     self.assertGreaterEqual(action["trigger"]["threshold"], 1)
                 settings = {s["key"]: s for s in action["settings"]}

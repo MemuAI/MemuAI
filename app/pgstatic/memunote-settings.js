@@ -81,8 +81,8 @@
   }
   function heroHtml() {
     const pkg = st && st.package && st.package.present ? st.package : null;
-    let sub = L("Лёгкий ИИ-блокнот MemuAI: вкладки, огромные файлы, Markdown с таблицами, документы Word, PDF и CSV. ИИ работает через MemuAI Proxy, а без него MemuNote остаётся быстрым редактором.",
-      "The light AI notepad of MemuAI: tabs, huge files, Markdown with tables, Word documents, PDF and CSV. AI works through MemuAI Proxy; without it MemuNote is a fast editor.");
+    let sub = L("Блокнот MemuAI: вкладки, большие файлы, Markdown с таблицами, документы Word, PDF и CSV. ИИ работает через MemuAI Proxy, а без него MemuNote остаётся быстрым редактором.",
+      "The MemuAI notepad: tabs, large files, Markdown with tables, Word documents, PDF and CSV. AI works through MemuAI Proxy; without it MemuNote is a fast editor.");
     let foot = "";
     if (st && st.dev) foot = L("Режим исходников: MemuNote запускается командой «python memunote.py».", "Source checkout: MemuNote starts with \"python memunote.py\".");
     else if (st && st.installed && st.path) foot = esc(st.path);
@@ -99,7 +99,7 @@
   }
   function featuresHtml() {
     const items = [
-      ["bolt", L("Огромные файлы", "Huge files"), L("Логи и дампы на сотни мегабайт открываются за секунды.", "Logs and dumps of hundreds of megabytes open in seconds.")],
+      ["bolt", L("Большие файлы", "Large files"), L("Логи и дампы на сотни мегабайт открываются за секунды.", "Logs and dumps of hundreds of megabytes open in seconds.")],
       ["tabs", L("Вкладки и сеансы", "Tabs and sessions"), L("Разделение окна, восстановление после сбоя, кодировки, поиск с регулярками.", "Split view, crash recovery, encodings, regex search.")],
       ["md", "Markdown", L("Таблицы, стили, просмотр рядом; .txt превращается в .md по вашему согласию.", "Tables, styles, side-by-side preview; a .txt becomes .md when you agree.")],
       ["doc", L("Документы", "Documents"), L("DOCX, ODT и RTF как в Word; PDF, CSV-таблицы, JSON и код.", "DOCX, ODT and RTF like in Word; PDF, CSV tables, JSON and code.")],
@@ -112,9 +112,13 @@
     const K = kit();
     if (!st || !st.installed || st.dev || !K) return "";
     const ow = st.open_with || {};
+    const explorer = st.explorer_menu || {};
+    const explorerLabel = L("«Открыть в MemuNote» в Проводнике", "\"Open in MemuNote\" in File Explorer");
     const control = ow.supported ? K.toggle("mn-open-with", !!ow.enabled, 'data-mn-toggle="open-with"') : `<span class="sx-desc">${esc(L("Только в Windows", "Windows only"))}</span>`;
+    const explorerControl = explorer.supported ? K.toggle("mn-explorer-menu", !!explorer.enabled, `data-mn-toggle="explorer-menu" aria-label="${esc(explorerLabel)}"`) : `<span class="sx-desc">${esc(L("Только в Windows", "Windows only"))}</span>`;
     return K.section({ id: "settings-memunote-options", title: L("Интеграция с Windows", "Windows integration"), body:
-      K.row({ label: L("В меню «Открыть с помощью»", "In the \"Open with\" menu"), desc: L("Необязательно. MemuNote появится в «Открыть с помощью» только для текста, Markdown, данных и документов (.txt, .md, .log, .csv, .json, .docx, .pdf…). Программой по умолчанию он не становится, ваши программы не меняются; скрипты и программы (.bat, .cmd, .ps1, .exe…) не затрагиваются.", "Optional. MemuNote appears in \"Open with\" for text, Markdown, data and document files only (.txt, .md, .log, .csv, .json, .docx, .pdf…). It never becomes the default program and your default apps stay as they are; scripts and programs (.bat, .cmd, .ps1, .exe…) are never touched."), control }) });
+      K.row({ label: explorerLabel, desc: L("Команда для поддерживаемых файлов. В Windows 11 находится в «Показать дополнительные параметры» (Shift+F10).", "A command for supported files. In Windows 11, find it under \"Show more options\" (Shift+F10)."), control: explorerControl })
+      + K.row({ label: L("В меню «Открыть с помощью»", "In the \"Open with\" menu"), desc: L("Необязательно. MemuNote появится в «Открыть с помощью» только для текста, Markdown, данных и документов (.txt, .md, .log, .csv, .json, .docx, .pdf…). Программой по умолчанию он не становится, ваши программы не меняются; скрипты и программы (.bat, .cmd, .ps1, .exe…) не затрагиваются.", "Optional. MemuNote appears in \"Open with\" for text, Markdown, data and document files only (.txt, .md, .log, .csv, .json, .docx, .pdf…). It never becomes the default program and your default apps stay as they are; scripts and programs (.bat, .cmd, .ps1, .exe…) are never touched."), control }) });
   }
 
   const form = window.MemuAppSettings ? MemuAppSettings.create({ app: "memunote", idp: "mnset-", name: "MemuNote", toast: (text, kind) => toast(text, kind) }) : null;
@@ -202,9 +206,25 @@
       el.dataset.bound = "1";
       el.addEventListener("click", (e) => { const b = e.target.closest("[data-mn]"); if (b && !b.disabled) act(b.dataset.mn); });
       el.addEventListener("change", async (e) => {
-        const t = e.target.closest("[data-mn-toggle=open-with]"); if (!t) return;
-        try { await call("/api/pg/memunote/open-with", { enable: t.checked }); toast(t.checked ? L("MemuNote добавлен в «Открыть с помощью»", "MemuNote added to \"Open with\"") : L("MemuNote убран из «Открыть с помощью»", "MemuNote removed from \"Open with\"")); }
-        catch (err) { t.checked = !t.checked; toast(err.message, "error"); }
+        const toggle = e.target.closest("[data-mn-toggle]");
+        if (!toggle) return;
+        const endpoint = toggle.dataset.mnToggle;
+        const explorer = endpoint === "explorer-menu";
+        if (!explorer && endpoint !== "open-with") return;
+        toggle.disabled = true;
+        try {
+          const state = await call("/api/pg/memunote/" + endpoint, { enable: toggle.checked });
+          st[explorer ? "explorer_menu" : "open_with"] = state;
+          toggle.checked = state.enabled;
+          toast(explorer
+            ? (state.enabled ? L("Команда добавлена в меню Проводника", "Command added to the File Explorer menu") : L("Команда удалена из меню Проводника", "Command removed from the File Explorer menu"))
+            : (state.enabled ? L("MemuNote добавлен в «Открыть с помощью»", "MemuNote added to \"Open with\"") : L("MemuNote убран из «Открыть с помощью»", "MemuNote removed from \"Open with\"")));
+        } catch (err) {
+          toggle.checked = !toggle.checked;
+          toast(err.message, "error");
+        } finally {
+          toggle.disabled = false;
+        }
       });
     }
     load();

@@ -104,6 +104,10 @@ MemuAI windows never appear on the screenshot — neither Quick Ask nor the main
 
 Turn on **Attach a screenshot on open** to have the screen under the cursor attached right away. You can also paste an image with ++Ctrl+V++ or drop a file onto the window. A dropped text file (code, notes, a log, CSV — up to 400 KB) becomes context for the next question.
 
+## PC file search
+
+Open **Actions → PC file search**. Enter a name, wildcard or [file description](doc:memufiles) such as `black image` or `pdf containing "invoice"`. Click an example below the empty field to try it. For color or content searches, add a folder filter such as `in:"Downloads"` to narrow the search. The results indicate when only some files were checked.
+
 ## Web search
 
 It works like in the main chat and uses the source from **Settings → Web search**. When a question clearly needs fresh data (weather, exchange rates, news), the search runs at once, and weather, time and currency rates appear as a ready card even before the model answers. The globe button turns search off for the current window.

@@ -1,9 +1,10 @@
-"""Round 31 (design-main): the full design audit of the main MemuAI window — fixes and the new tour / tips / «?» help.
+"""The design checks of the main MemuAI window — fixes, tips and the «?» help.
 
 Static part (always runs):
-* tour.js / tour.css / polish-r31.css are hooked into index.html after app.js / after the designs, with cache versions;
-* every English string of tour.js has no Cyrillic, every Russian one has an English pair; no emoji glyphs in tour.js;
-* app.js: «/plan» has a Russian title, the app menu has «Тур по интерфейсу», Settings → General mounts the tips section,
+* help-tips.js / help-tips.css / polish-r31.css are hooked into index.html after app.js / after the designs, with cache versions;
+  the old interface tour (tour.js / tour.css) is gone — the first-run introduction lives in onboarding.js;
+* every English string of help-tips.js has no Cyrillic, every Russian one has an English pair; no emoji glyphs in help-tips.js;
+* app.js: «/plan» has a Russian title, the app menu has «Знакомство с MemuAI», Settings → General mounts the tips section,
   no 📄/📂/💻 emoji in message file chips / the Work file list / the preview device buttons;
 * tooltip.js does not show a hint over a control whose menu is open; polish-r31.css holds the folder / app-menu fixes.
 
@@ -11,9 +12,9 @@ Browser part (real servers + headless Chromium; skipped without Playwright / Chr
 * chats inside a sidebar folder are no wider than the sidebar (they used to overflow and be cut without «…»);
 * the ⋯ app menu fits in a 1280×720 window and reaches its last item («Справка»);
 * markdown tables honour «|---:|» (right-aligned numeric columns);
-* the tour walks through its steps with the keyboard and closes on Esc, the welcome card and the hints show on demand,
+* «Знакомство с MemuAI» in the «?» menu starts the setup conversation; the hints show on demand,
   the «?» menu opens / closes, Settings → General has «Подсказки и обучение» and its switch turns hints off;
-* automatic welcome / hints never appear in an automated browser (navigator.webdriver) — they must not break other tests;
+* automatic hints / the first-run wizard never appear in an automated browser (navigator.webdriver) — they must not break other tests;
 * the error strip of a failed answer offers «Повторить» and «Другая модель».
 
     python -m pytest tests/round31_design_main_test.py -q
@@ -47,38 +48,43 @@ def read(name: str) -> str:
 class StaticHooks(unittest.TestCase):
     def test_files_are_hooked_with_cache_versions(self):
         html = read("index.html")
-        for ref in ("/tour.js?v=", "/tour.css?v=", "/polish-r31.css?v="):
+        for ref in ("/help-tips.js?v=", "/help-tips.css?v=", "/polish-r31.css?v="):
             self.assertIn(ref, html)
-        self.assertLess(html.index("/app.js?v="), html.index("/tour.js?v="))
+        self.assertNotIn("/tour.js", html)
+        self.assertNotIn("/tour.css", html)
+        self.assertFalse((STATIC / "tour.js").exists())
+        self.assertLess(html.index("/app.js?v="), html.index("/help-tips.js?v="))
+        self.assertLess(html.index("/onboarding.js?v="), html.index("/help-tips.js?v="))
         self.assertLess(html.index("/designs/brutal.css"), html.index("/polish-r31.css?v="))
-        self.assertLess(html.index("/settings.css?v="), html.index("/tour.css?v="))
-        self.assertLess(html.index("/tour.css?v="), html.index('id="memu-user-theme"'))
+        self.assertLess(html.index("/settings.css?v="), html.index("/help-tips.css?v="))
+        self.assertLess(html.index("/help-tips.css?v="), html.index('id="memu-user-theme"'))
 
-    def test_tour_strings_have_both_languages(self):
-        src = read("tour.js")
+    def test_help_strings_have_both_languages(self):
+        src = read("help-tips.js")
         pairs = re.findall(r'\bL2?\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"', src)
         pairs += re.findall(r"\bL2?\(\s*`((?:[^`\\]|\\.)*)`\s*,\s*`((?:[^`\\]|\\.)*)`", src)
-        self.assertGreater(len(pairs), 40)
+        self.assertGreater(len(pairs), 30)
         for ru, en in pairs:
             self.assertFalse(CYR.search(en), f"Cyrillic in the English string: {en[:80]}")
             self.assertTrue(CYR.search(ru) or ru == en or not re.search(r"[A-Za-z]{3}", ru) or ru in ("Do For You", "MemuNote"), f"not Russian: {ru[:80]}")
-        self.assertFalse(EMOJI.search(src), "emoji in tour.js (no emoji font in WebView2 → «▯»)")
+        self.assertFalse(EMOJI.search(src), "emoji in help-tips.js (no emoji font in WebView2 → «▯»)")
 
-    def test_tour_css_uses_tokens_only(self):
-        css = read("tour.css") + read("polish-r31.css")
+    def test_help_css_uses_tokens_only(self):
+        css = read("help-tips.css") + read("polish-r31.css")
         self.assertFalse(re.search(r"#[0-9a-fA-F]{6}\b", css), "six-digit colours: use theme tokens")
-        self.assertIn("prefers-reduced-motion", read("tour.css"))
-        self.assertIn('data-motion="off"', read("tour.css"))
+        self.assertIn("prefers-reduced-motion", read("help-tips.css"))
+        self.assertIn('data-motion="off"', read("help-tips.css"))
 
     def test_app_js_hooks_and_fixes(self):
         app = read("app.js")
         self.assertIn('["/plan", { ru: "Режим плана", en: "Plan mode" }', app)
         self.assertNotIn('"Plan mode включён"', app)
-        self.assertIn('["Тур по интерфейсу", "", "tour"]', app)
-        self.assertIn('tour:"Interface tour"', app)
-        self.assertIn('window.MemuTour?.start()', app)
-        self.assertIn('settingsSlot("tour", () => MemuTour.settingsHtml({ K, L2 }))', app)
-        self.assertIn('settingsSlot("tour.bind", () => MemuTour.bindSettings())', app)
+        self.assertIn('["Знакомство с MemuAI", "", "onboarding"]', app)
+        self.assertIn('onboarding:"Getting started"', app)
+        self.assertIn('globalThis.MemuOnboarding?.restart()', app)
+        self.assertIn('settingsSlot("help", () => MemuHelp.settingsHtml({ K, L2 }))', app)
+        self.assertIn('settingsSlot("help.bind", () => MemuHelp.bindSettings())', app)
+        self.assertNotIn("MemuTour", app)
         self.assertNotIn('">📄 ${esc(a.name', app)
         self.assertNotIn('📂 ${memeText("Выбрать папку"', app)
         self.assertNotIn('f.dir ? "📁" : "📄"', app)
@@ -160,10 +166,10 @@ class LiveWindow(unittest.TestCase):
         page.wait_for_selector("#app-menu-pop.visible")
         res = page.evaluate("""() => { const m = document.querySelector('#app-menu-pop'); const r = m.getBoundingClientRect();
             m.scrollTop = m.scrollHeight; const last = [...m.querySelectorAll('button')].pop().getBoundingClientRect();
-            return { bottom: r.bottom, vh: innerHeight, lastBottom: last.bottom, tour: !!m.querySelector('[data-app-action="tour"]') }; }""")
+            return { bottom: r.bottom, vh: innerHeight, lastBottom: last.bottom, intro: !!m.querySelector('[data-app-action="onboarding"]') }; }""")
         self.assertLessEqual(res["bottom"], res["vh"])
         self.assertLessEqual(res["lastBottom"], res["vh"])
-        self.assertTrue(res["tour"])
+        self.assertTrue(res["intro"])
 
     def test_markdown_table_alignment(self):
         page = self.open()
@@ -184,33 +190,20 @@ class LiveWindow(unittest.TestCase):
     def test_no_automatic_popups_in_automation(self):
         page = self.open()
         page.wait_for_timeout(3500)
-        self.assertEqual(page.locator(".memu-welcome, .memu-hint, .memu-tour-bubble").count(), 0)
+        self.assertEqual(page.locator(".memu-hint, .onb-back, .msg-setup").count(), 0)
         self.assertEqual(page.locator("#btn-help").count(), 1)
 
-    def test_tour_keyboard_and_close(self):
+    def test_help_menu_starts_the_introduction(self):
+        self.addCleanup(lambda: self.http.post(self.servers.pg + "/api/pg/preferences", json={"onboarding_stage": "done", "onboarding_v5_done": True}))
         page = self.open()
-        page.evaluate("MemuTour.start()")
-        page.wait_for_selector(".memu-tour-bubble")
-        first = page.inner_text(".memu-tour-bubble .tour-title")
-        page.keyboard.press("ArrowRight")
-        page.wait_for_timeout(150)
-        second = page.inner_text(".memu-tour-bubble .tour-title")
-        self.assertNotEqual(first, second)
-        box = page.evaluate("""() => { const r = document.querySelector('.memu-tour-bubble').getBoundingClientRect();
-            return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }""")
-        self.assertTrue(box)
-        for _ in range(12):
-            if not page.locator(".memu-tour-bubble").count():
-                break
-            page.click(".memu-tour-bubble [data-tour='next']")
-            page.wait_for_timeout(80)
-        self.assertEqual(page.locator(".memu-tour-bubble, .memu-tour-spot, .memu-tour-block").count(), 0)
-        page.evaluate("MemuTour.start()")
-        page.wait_for_selector(".memu-tour-bubble")
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(300)
-        self.assertEqual(page.locator(".memu-tour-bubble, .memu-tour-block").count(), 0)
-        self.assertEqual(page.evaluate("MemuTour.state().welcome"), "done")
+        page.click("#btn-help")
+        page.wait_for_selector(".memu-help-menu [data-help='onboarding']")
+        page.click(".memu-help-menu [data-help='onboarding']")
+        page.wait_for_selector(".msg-setup .onb-card", timeout=15000)
+        self.assertEqual(page.locator(".memu-help-menu").count(), 0)
+        self.assertEqual(page.evaluate("pref('onboarding_stage', '')"), "setup")
+        self.assertTrue(page.evaluate("MemuOnboarding.active()"))
+        self.assertEqual(page.evaluate("typeof window.MemuTour"), "undefined")
 
     def test_help_menu_hints_and_settings(self):
         page = self.open()
@@ -224,14 +217,14 @@ class LiveWindow(unittest.TestCase):
 
         page.evaluate("showSchedule(true)")
         page.wait_for_selector("#pln-root [data-act='new']")
-        self.assertTrue(page.evaluate("MemuTour.hint('plan', true)"))
+        self.assertTrue(page.evaluate("MemuHelp.hint('plan', true)"))
         res = page.evaluate("""() => { const h = document.querySelector('.memu-hint').getBoundingClientRect();
             const a = document.querySelector('#pln-root [data-act="new"]').getBoundingClientRect();
             return { inside: h.left >= 0 && h.right <= innerWidth && h.top >= 0 && h.bottom <= innerHeight, near: Math.abs(h.top - a.bottom) < 40 || Math.abs(a.top - h.bottom) < 40 }; }""")
         self.assertTrue(res["inside"])
         self.assertTrue(res["near"])
         page.click(".memu-hint .mh-off")
-        self.assertTrue(page.evaluate("MemuTour.state().off"))
+        self.assertTrue(page.evaluate("MemuHelp.state().off"))
         page.evaluate("closePanel()")
 
         page.evaluate("() => { showSettings(true); }")
@@ -241,9 +234,11 @@ class LiveWindow(unittest.TestCase):
         self.assertFalse(page.is_checked("#st-tips"))
         page.click("#st-tips-reset")
         self.assertTrue(page.is_checked("#st-tips"))
-        self.assertFalse(page.evaluate("MemuTour.state().off"))
+        self.assertFalse(page.evaluate("MemuHelp.state().off"))
+        self.assertEqual(page.locator("#settings-tips #st-intro-start").count(), 1)
+        self.assertEqual(page.locator("#settings-tips #st-intro-questions").count(), 0)
 
-    def test_english_tour_has_no_cyrillic(self):
+    def test_english_help_has_no_cyrillic(self):
         self.http.post(self.servers.pg + "/api/pg/preferences", json={"language": "en"})
         self.addCleanup(lambda: self.http.post(self.servers.pg + "/api/pg/preferences", json={"language": "ru"}))
         page = self.open(lang="en")
@@ -251,16 +246,11 @@ class LiveWindow(unittest.TestCase):
         page.wait_for_selector(".memu-help-menu")
         text = page.inner_text(".memu-help-menu")
         page.keyboard.press("Escape")
-        page.evaluate("MemuTour.welcome(true)")
-        text += page.inner_text(".memu-welcome")
-        page.click(".memu-welcome [data-w='go']")
-        for _ in range(10):
-            if not page.locator(".memu-tour-bubble").count():
-                break
-            text += page.inner_text(".memu-tour-bubble")
-            page.keyboard.press("ArrowRight")
-            page.wait_for_timeout(80)
-        self.assertGreater(len(text), 300)
+        page.evaluate("showSchedule(true)")
+        page.wait_for_selector("#pln-root [data-act='new']")
+        page.evaluate("MemuHelp.hint('plan', true)")
+        text += page.inner_text(".memu-hint")
+        self.assertGreater(len(text), 200)
         self.assertFalse(CYR.search(text), CYR.findall(text)[:5])
 
 if __name__ == "__main__":

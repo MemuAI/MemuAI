@@ -8,13 +8,12 @@ Alt+Space was never pressed.
 ``quick_ask_warm`` (Settings → Quick Access):
 
 * ``always`` — as before: ready at start, never released (instant Alt+Space).
-* ``auto``   — default: ready at start (instant), released after
-  ``AUTO_RELEASE_MIN`` minutes hidden; the next Alt+Space creates it again
-  (about a second once) and it stays warm again.
+* ``auto``   — default: created on the first use and released after
+  ``AUTO_RELEASE_MIN`` minutes hidden. Reopening during that time is instant.
 * ``never``  — created on the first Alt+Space, released ``SAVE_RELEASE_MIN``
   minutes after it was hidden (least memory, the first opening is slower).
 
-Pinned or visible windows are never released.  NOT verified on Windows.
+Pinned or visible windows are never released.
 """
 from __future__ import annotations
 
@@ -22,7 +21,7 @@ from typing import Any, Dict, Optional
 
 CHOICES = ("always", "auto", "never")
 DEFAULT = "auto"
-AUTO_RELEASE_MIN = 30
+AUTO_RELEASE_MIN = 5
 SAVE_RELEASE_MIN = 2
 
 CHECK_EVERY = 60.0
@@ -32,7 +31,7 @@ def policy(prefs: Optional[Dict[str, Any]]) -> str:
     return value if value in CHOICES else DEFAULT
 
 def warm_at_start(prefs: Optional[Dict[str, Any]]) -> bool:
-    return policy(prefs) != "never"
+    return policy(prefs) == "always"
 
 def release_after(prefs: Optional[Dict[str, Any]]) -> Optional[float]:
     """Seconds a hidden window may stay before its renderer is released; ``None`` = keep."""

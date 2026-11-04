@@ -108,6 +108,11 @@ class Job:
     checkpoint_at: float = 0.0
     handle: Optional["asyncio.Task"] = None
     token: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
+    kind: str = ""
+    role: str = ""
+    agent_prompt: str = ""
+    allowed: Optional[List[str]] = None
+    color: str = ""
 
     def tools(self) -> List[str]:
         names = list(READ_TOOLS)
@@ -119,6 +124,9 @@ class Job:
                 names += CODE_RUN_TOOLS
         if self.web:
             names += WEB_TOOLS
+        if self.allowed is not None:
+            # A MemuCode agent type (or the main model) narrowed the set; access still decides what is possible.
+            names = [name for name in names if name in self.allowed]
         return names
 
     def public(self, *, report: bool = False) -> Dict[str, Any]:
@@ -128,8 +136,15 @@ class Job:
             "rounds": self.rounds, "tools": len(self.steps),
             "last": self.steps[-1]["label"] if self.steps else "",
             "seconds": round((self.finished or time.time()) - self.started, 1),
-            "delivered": self.delivered, "can_write": self.access == "full",
+            "delivered": self.delivered, "can_write": self.access == "full" and any(
+                name in WRITE_TOOLS for name in self.tools()),
         }
+        if self.kind:
+            row["agent"] = self.kind
+        if self.role:
+            row["role"] = self.role
+        if self.color:
+            row["color"] = self.color
         if self.checkpoint_at:
             row["checkpoint_at"] = self.checkpoint_at
         if self.error:
@@ -171,7 +186,8 @@ class AgentPool:
         self.jobs[session] = [job for job in rows if id(job) not in drop]
 
     def spawn(self, session: str, *, title: str, task: str, model: str, access: str = "ask", code: bool = False,
-              web: bool = False, project_id: str = "", limit: int = MAX_PARALLEL) -> Job:
+              web: bool = False, project_id: str = "", limit: int = MAX_PARALLEL, kind: str = "", role: str = "",
+              agent_prompt: str = "", allowed: Optional[List[str]] = None, color: str = "") -> Job:
         task = str(task or "").strip()
         if not task:
             raise ValueError("An agent needs a task: describe what it must do and what to report.")
@@ -185,7 +201,9 @@ class AgentPool:
             raise ValueError("Too many agents were started in this chat; finish the work yourself.")
         job = Job(id=len(rows) + 1, session=session, title=str(title or "").strip()[:80] or f"Agent {len(rows) + 1}",
                   task=task[:12_000], model=model, access="full" if access == "full" else "ask", code=bool(code),
-                  web=bool(web), project_id=project_id)
+                  web=bool(web), project_id=project_id, kind=str(kind or "")[:48], role=str(role or "").strip()[:600],
+                  agent_prompt=str(agent_prompt or "").strip()[:20_000], allowed=list(allowed) if allowed is not None else None,
+                  color=str(color or "")[:16])
         rows.append(job)
         job.handle = asyncio.ensure_future(self._run(job))
         job.handle.add_done_callback(lambda _task, job=job: _settle(job))
@@ -207,10 +225,14 @@ class AgentPool:
 
     async def _loop(self, job: Job) -> str:
         names = job.tools()
-        system = (SYSTEM_PROMPT + "\n\nTools:\n" + "\n".join("• " + TOOL_HELP[name] for name in names)
-                  + ("\n\nYou may read and search only: file changes and commands are not available to you here. "
-                     "If the assignment needs a change, describe it precisely in the report."
-                     if job.access != "full" else ""))
+        role = ""
+        if job.agent_prompt:
+            role += f"\n\n<agent_role type=\"{job.kind or 'agent'}\">\n{job.agent_prompt}\n</agent_role>"
+        if job.role:
+            role += f"\nYour role in this team: {job.role}"
+        system = (SYSTEM_PROMPT + role + "\n\nTools:\n" + "\n".join("• " + TOOL_HELP[name] for name in names)
+                  + ("\n\nFile changes and commands are unavailable. Describe any required change in the report."
+                     if not any(name in WRITE_TOOLS or name in CODE_RUN_TOOLS for name in names) else ""))
         messages: List[Dict[str, Any]] = [
             {"role": "system", "content": system},
             {"role": "user", "content": f"<assignment title=\"{job.title}\">\n{job.task}\n</assignment>"},
@@ -313,18 +335,43 @@ class AgentPool:
         self.jobs.pop(session, None)
 
     async def tool(self, name: str, args: Dict[str, Any], *, session: str, model: str, access: str, code: bool,
-                   web: bool, project_id: str, limit: int) -> Dict[str, Any]:
-        """``agent_*`` tools of the main model. Errors come back as ``{"error": …}`` for the model to read."""
+                   web: bool, project_id: str, limit: int,
+                   agents: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """``agent_*`` tools of the main model. Errors come back as ``{"error": …}`` for the model to read.
+
+        ``agents`` — the MemuCode agent types (``code_agents.load``): ``agent_spawn`` then takes ``agent`` (the
+        type, like the CLI's ``subagent_type``), ``role`` and ``tools``; without it (Work) agents are generic."""
         try:
             if name == "agent_spawn":
-                job = self.spawn(session, title=str(args.get("title") or args.get("name") or ""),
+                spec: Dict[str, Any] = {}
+                kind = str(args.get("agent") or args.get("subagent_type") or args.get("type") or "").strip().lower()
+                if agents is not None:
+                    from .code_agents import normalize_name, window_tools
+                    kind = normalize_name(kind) or "general-purpose"
+                    spec = agents.get(kind) or {}
+                    if not spec:
+                        return {"tool": name, "error": f"Unknown agent type {kind!r}. Available: "
+                                + ", ".join(sorted(agents))}
+                    allowed = window_tools(spec.get("tools"))
+                    wanted = args.get("tools")
+                    if isinstance(wanted, list):
+                        narrower = window_tools([str(item) for item in wanted]) or []
+                        allowed = narrower if allowed is None else [item for item in allowed if item in narrower]
+                else:
+                    kind, allowed = "", None
+                job = self.spawn(session, title=str(args.get("title") or args.get("name") or args.get("description") or ""),
                                  task=str(args.get("task") or args.get("prompt") or ""),
                                  model=str(args.get("model") or "").strip() or model, access=access, code=code, web=web,
-                                 project_id=project_id, limit=limit)
-                return {"tool": name, "id": job.id, "title": job.title, "status": "running", "model": job.model,
-                        "can_write": job.access == "full",
-                        "note": "The agent works in the background. Keep doing your own part now; collect its report "
-                                "with agent_wait when you need it or have nothing else to do."}
+                                 project_id=project_id, limit=limit, kind=kind, role=str(args.get("role") or ""),
+                                 agent_prompt=str(spec.get("prompt") or ""), allowed=allowed,
+                                 color=str(spec.get("color") or ""))
+                row = {"tool": name, "id": job.id, "title": job.title, "status": "running", "model": job.model,
+                       "can_write": job.public()["can_write"],
+                       "note": "The agent works in the background. Keep doing your own part now; collect its report "
+                               "with agent_wait when you need it or have nothing else to do."}
+                if job.kind:
+                    row["agent"] = job.kind
+                return row
             if name == "agent_status":
                 return {"tool": name, "agents": self.list(session)}
             if name == "agent_wait":

@@ -53,9 +53,10 @@ class Round36PerfUi(unittest.TestCase):
 
     def test_cache_versions_bumped(self):
         html = read("index.html")
-        for tag in ('src="/diagram-zoom.js?v=1.1-r36"', 'src="/diagrams.js?v=1.2-r36"',
-                    'src="/panels-layout.js?v=3.6-r36"', 'href="/appearance.css?v=1.8-r36"'):
+        for tag in ('src="/diagram-zoom.js?v=1.1-r36"', 'src="/diagrams.js?v=5.0-r79"'):
             self.assertIn(tag, html)
+        self.assertRegex(html, r'src="/panels-layout\.js\?v=(?:3\.6-r36|\d+\.\d+-r(?:3[7-9]|[4-9]\d))"')
+        self.assertRegex(html, r'href="/appearance\.css\?v=(?:1\.8-r36|\d+\.\d+-r(?:3[7-9]|[4-9]\d))"')
 
 if __name__ == "__main__":
     unittest.main()

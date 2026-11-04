@@ -4,7 +4,7 @@ import { t } from "./i18n.js";
 import { S, api, ndjson, $, h, esc, icon, fileIcon, fmtSize, fmtDate, joinPath, baseName, parentPath, samePath,
   extOf, stemOf, typeOf, IMAGE_EXT, thumbUrl, showError, debounce } from "./core.js";
 import { kindMatch, renderKindBar } from "./feat40.js";
-import { noteHead, shellHint } from "./feat41.js";
+import { noteHead, shellHint, archiveRename } from "./feat41.js";
 
 let collator = null;
 
@@ -370,6 +370,11 @@ export class Pane {
     const mode = this.mode === "search" ? "search" : this.mode === "trash" ? "trash" : "dir";
     const saved = loadCols()[mode] || {};
     let cols = DEFAULT_COLS[mode].filter(([k]) => k === "name" || !this.hiddenCols.has(k) || mode !== "dir").map(([k, w]) => [k, saved[k] || w]);
+    if (mode === "dir") {
+      const st = this.app.settings || {};
+      if (st.columns_size === false) cols = cols.filter(([k]) => k !== "s");
+      if (st.columns_date === false) cols = cols.filter(([k]) => k !== "m");
+    }
 
     const avail = this.fv ? this.fv.clientWidth - 14 : 0;
     if (avail > 0) {
@@ -951,6 +956,7 @@ export class Pane {
     const name = state.input.value.trim();
     if (!name || name === state.item.n) { this.reloadDeferred(); return; }
     this.reloadAfterRename = false;
+    if (this.head && this.head.archive && this.mode === "dir") { archiveRename(this.app, this, state.item, name); return; }
     try {
       const res = await api("rename", { path: state.item.path, name });
       this.pendingSelect = [res.path];

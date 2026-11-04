@@ -406,7 +406,7 @@ class UiTest(unittest.TestCase):
             self.assertIn(needle, js)
         for needle in (".mem2-concepts", ".mem2-diary-head", ".mem2-reason.r-conflict"):
             self.assertIn(needle, css)
-        self.assertIn("/memory.js?v=1.1-r40", html)
+        self.assertIn("/memory.js?v=5.0-r80", html)
         self.assertIn("/memory.css?v=1.2-r40", html)
         node = shutil.which("node")
         if node:

@@ -451,9 +451,21 @@ img{max-width:100%;height:auto;border-radius:6px}
     }
   }
   async function svgFromData(src) {
+    // B-XSS-C1: the SVG here comes from model output (data:image/svg+xml in
+    // a message). Parsing it via innerHTML executes <script>,
+    // <foreignObject> and on* handlers in the main document. Parse it as
+    // XML and strip anything executable instead.
     const text = src.includes(";base64,") ? atob(src.split(",")[1]) : decodeURIComponent(src.split(",")[1] || "");
-    const box = document.createElement("div"); box.innerHTML = text; document.body.appendChild(box);
-    const svg = box.querySelector("svg"); setTimeout(() => box.remove(), 0);
+    const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+    const svg = doc.querySelector("svg");
+    if (!svg) return null;
+    svg.querySelectorAll("script, foreignObject, animate, set, iframe, object, embed, link, style").forEach((el) => el.remove());
+    svg.querySelectorAll("*").forEach((el) => {
+      [...el.attributes].forEach((attr) => {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith("on") || /^(href|xlink:href)$/.test(name) && /^\s*javascript:/i.test(attr.value)) el.removeAttribute(attr.name);
+      });
+    });
     return svg;
   }
 

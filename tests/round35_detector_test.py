@@ -173,10 +173,12 @@ class NewerQuizAndCatalogueTest(unittest.TestCase):
 
     def test_new_models_are_in_the_catalogue(self) -> None:
         for model, expected in (("tooken-claude-sonnet-5-5", "claude-sonnet-5-5"), ("or-anthropic/claude-haiku-5.5", "claude-haiku-5-5"),
-                                ("tooken-gpt-6.1-sol", "gpt-6-1"), ("gpt-6-sol", "gpt-6"), ("claude-sonnet-5", "claude-sonnet-5"),
+                                ("tooken-gpt-6.1-sol", "gpt-6-1-sol"), ("gpt-6-sol", "gpt-6-sol"), ("tooken-gpt-6.1", "gpt-6-1"),
+                                ("gpt-6", "gpt-6"), ("claude-sonnet-5", "claude-sonnet-5"),
                                 ("genspark-claude-opus-5-5", "claude-opus-5-5")):
             self.assertEqual((detector.expected_model(model) or {}).get("id"), expected, model)
-        self.assertEqual(set(detector.score_specific_model(["I am GPT-6.1 Sol"])), {"gpt-6-1"})
+        self.assertEqual(set(detector.score_specific_model(["I am GPT-6.1 Sol"])), {"gpt-6-1-sol"})
+        self.assertEqual(set(detector.score_specific_model(["I am GPT-6.1"])), {"gpt-6-1"})
 
 class ReferencePagesTest(unittest.TestCase):
     """Round 36: the Claude Opus 5.5 references were removed at the user's request (see round36_proxy_test.py)."""

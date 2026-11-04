@@ -1,6 +1,6 @@
 
 
-import { esc, icon, t, api, I18N } from "./core.js";
+import { esc, icon, t, api, I18N, showMenu, copyText, kbd, toast } from "./core.js";
 import { Workbook, colName, parseRange, shiftFormula, valueOf, display, cellRef, FUNCTIONS } from "./formula.js";
 
 (function loadCss() {
@@ -126,6 +126,9 @@ export class SheetGrid extends SheetData {
     this.scroll.addEventListener("copy", (e) => this.onCopy(e, false));
     this.scroll.addEventListener("cut", (e) => this.onCopy(e, true));
     this.scroll.addEventListener("paste", (e) => this.onPaste(e));
+    this.scroll.addEventListener("contextmenu", (e) => this.contextMenu(e));
+    this.colIn.addEventListener("contextmenu", (e) => this.contextMenu(e, "col"));
+    this.rowIn.addEventListener("contextmenu", (e) => this.contextMenu(e, "row"));
     $(".sg-corner").onclick = () => { const d = this.dims(); this.select({ r1: 0, c1: 0, r2: d.rows - 1, c2: d.cols - 1, ar: 0, ac: 0 }); };
     this.colIn.addEventListener("pointerdown", (e) => this.onHeadPointer(e, "col"));
     this.rowIn.addEventListener("pointerdown", (e) => this.onHeadPointer(e, "row"));
@@ -282,6 +285,7 @@ export class SheetGrid extends SheetData {
     ed.focus(); ed.setSelectionRange(start + text.length, start + text.length);
   }
   onHeadPointer(e, kind) {
+    if (e.button !== 0) return;
     const rz = e.target.closest("[data-rz]");
     if (rz && kind === "col") { this.resizeCol(e, +rz.dataset.rz); return; }
     const el = e.target.closest(kind === "col" ? "[data-c]" : "[data-r]"); if (!el) return;
@@ -444,20 +448,33 @@ export class SheetGrid extends SheetData {
   }
 
   block() { const { r1, c1, r2, c2 } = this.sel; const rows = []; for (let r = r1; r <= r2; r++) { const row = []; for (let c = c1; c <= c2; c++) row.push(this.source(r, c)); rows.push(row); } return rows; }
+  clipText() {
+    const { r1, c1, r2, c2 } = this.sel; const s = this.sheet;
+    const shown = []; for (let r = r1; r <= r2; r++) { const row = []; for (let c = c1; c <= c2; c++) row.push(this.formula(r, c) ? this.wb.text(s, r, c) : this.raw(r, c)); shown.push(row.join("\t")); }
+    return shown.join("\n");
+  }
   onCopy(e, cut) {
     if (this.editing) return;
     e.preventDefault();
-    const { r1, c1, r2, c2 } = this.sel; const s = this.sheet;
-    const shown = []; for (let r = r1; r <= r2; r++) { const row = []; for (let c = c1; c <= c2; c++) row.push(this.formula(r, c) ? this.wb.text(s, r, c) : this.raw(r, c)); shown.push(row.join("\t")); }
-    const text = shown.join("\n");
+    const text = this.clipText();
     e.clipboardData.setData("text/plain", text);
-    SheetGrid.clip = { text, rows: this.block(), r: r1, c: c1 };
+    SheetGrid.clip = { text, rows: this.block(), r: this.sel.r1, c: this.sel.c1 };
+    if (cut && this.editable) this.clearSel();
+  }
+  // Copy and cut from the right-click menu, where no clipboard event is under way.
+  copySel(cut) {
+    const text = this.clipText();
+    SheetGrid.clip = { text, rows: this.block(), r: this.sel.r1, c: this.sel.c1 };
+    copyText(text).then((ok) => { if (ok === false) toast(t("cm_copy_failed"), { kind: "error" }); });
     if (cut && this.editable) this.clearSel();
   }
   onPaste(e) {
     if (this.editing || !this.editable) return;
     e.preventDefault();
-    const text = e.clipboardData.getData("text/plain"); if (!text) return;
+    this.pasteText(e.clipboardData.getData("text/plain"));
+  }
+  pasteText(text) {
+    if (!text || this.editing || !this.editable) return;
     const own = SheetGrid.clip && SheetGrid.clip.text === text.replace(/\r\n/g, "\n").replace(/\n$/, "") ? SheetGrid.clip : null;
     const rows = own ? own.rows : text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n").map((l) => l.split("\t"));
     const { r1, c1 } = this.sel; const out = [];
@@ -470,6 +487,53 @@ export class SheetGrid extends SheetData {
     this.select({ r1, c1, r2: r1 + rows.length - 1, c2: c1 + Math.max(...rows.map((r) => r.length)) - 1, ar: r1, ac: c1 });
   }
   fillDown() { const { r1, c1, r2, c2 } = this.sel; if (r2 > r1) this.fill({ r1, c1, r2: r1, c2 }, { r1, c1, r2, c2 }); }
+  // Right click on a cell or on a row/column header: picks it unless it is inside the selection, then the menu.
+  contextMenu(e, head) {
+    if (this.editor && e.target === this.editor) return;
+    e.preventDefault();
+    this.commitEdit();
+    const d = this.dims(), lastR = Math.max(d.rows, 1) - 1, lastC = Math.max(d.cols, 1) - 1, s = this.sel;
+    if (head) {
+      const el = e.target.closest(head === "col" ? "[data-c]" : "[data-r]");
+      if (el) {
+        const i = +(head === "col" ? el.dataset.c : el.dataset.r);
+        const inside = head === "col" ? i >= s.c1 && i <= s.c2 && s.r1 === 0 && s.r2 >= lastR : i >= s.r1 && i <= s.r2 && s.c1 === 0 && s.c2 >= lastC;
+        if (!inside) this.select(head === "col" ? { r1: 0, r2: lastR, c1: i, c2: i, ar: 0, ac: i } : { r1: i, r2: i, c1: 0, c2: lastC, ar: i, ac: 0 }, false);
+      }
+    } else {
+      const p = this.hit(e);
+      if (p && !(p.r >= s.r1 && p.r <= s.r2 && p.c >= s.c1 && p.c <= s.c2)) this.selectCell(p.r, p.c);
+    }
+    this.focusGrid();
+    this.menu({ x: e.clientX, y: e.clientY });
+  }
+  menu(at) {
+    const { r1, c1, r2, c2 } = this.sel, edit = this.editable, multi = r1 !== r2 || c1 !== c2;
+    const ref = multi ? `${cellRef(r1, c1)}:${cellRef(r2, c2)}` : cellRef(r1, c1);
+    const go = (fn) => () => { this.focusGrid(); fn(); };
+    const items = [];
+    if (edit) items.push({ label: t("cut"), icon: "cut", kbd: kbd("Ctrl+X"), run: go(() => this.copySel(true)) });
+    items.push({ label: t("copy"), icon: "copy", kbd: kbd("Ctrl+C"), run: go(() => this.copySel(false)) });
+    if (edit) items.push({ label: t("paste"), icon: "paste", kbd: kbd("Ctrl+V"), run: async () => {
+      let text = "";
+      try { text = await navigator.clipboard.readText(); } catch { toast(t("paste_blocked")); return; }
+      this.focusGrid(); this.pasteText(text);
+    } });
+    items.push("-");
+    if (edit) items.push(
+      { label: t("cm_edit_cell"), icon: "pen", kbd: "F2", disabled: multi, run: () => this.startEdit(null) },
+      { label: t("cm_clear_cells"), icon: "eraser", kbd: "Del", run: go(() => this.clearSel()) },
+      { label: t("cm_fill_down"), kbd: kbd("Ctrl+D"), disabled: r2 <= r1, run: go(() => this.fillDown()) },
+      "-",
+      { label: t("undo"), icon: "undo", kbd: kbd("Ctrl+Z"), disabled: !this.undoStack.length, run: go(() => this.undo()) },
+      { label: t("redo"), icon: "redo", kbd: kbd("Ctrl+Y"), disabled: !this.redoStack.length, run: go(() => this.redo()) },
+      "-");
+    items.push(
+      { label: t("cm_copy_ref", { ref }), icon: "link", run: () => copyText(ref).then(() => toast(t("copied"), { kind: "ok", ms: 1400 })) },
+      { label: t("sg_select_all"), icon: "selectAll", kbd: kbd("Ctrl+A"), run: go(() => { const d = this.dims(); this.select({ r1: 0, c1: 0, r2: Math.max(0, d.rows - 1), c2: Math.max(0, d.cols - 1), ar: 0, ac: 0 }, false); }) },
+    );
+    showMenu(items, at);
+  }
   fillDrag(e) {
     e.preventDefault(); e.stopPropagation();
     const src = { ...this.sel }; let target = src;

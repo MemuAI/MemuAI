@@ -33,7 +33,7 @@ export function bar(panel, box, snap) {
   const mode = panel.bigdocMode === "whole" ? "whole" : "ask";
   const pages = info ? `${info.approx_pages ? "≈" : ""}${info.pages} ${tr("стр.", "pages")}` : tr("большой документ", "big document");
   box.insertAdjacentHTML("beforeend", `<span class="mnbd-bar" role="radiogroup" title="${esc(tr("Документ больше окна контекста: вопросы идут через поиск по всему файлу", "The document is bigger than the context window: questions go through a search of the whole file"))}">
-    <span class="mnbd-pages">📄 ${esc(pages)}</span>
+    <span class="mnbd-pages"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>${esc(pages)}</span>
     <button role="radio" aria-checked="${mode === "ask"}" class="${mode === "ask" ? "on" : ""}" data-mnbd="ask">${esc(tr("Спросить", "Ask"))}</button>
     <button role="radio" aria-checked="${mode === "whole"}" class="${mode === "whole" ? "on" : ""}" data-mnbd="whole">${esc(tr("Весь документ", "Whole document"))}</button></span>`);
   box.querySelectorAll("[data-mnbd]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); panel.bigdocMode = b.dataset.mnbd; panel.renderScope(); });

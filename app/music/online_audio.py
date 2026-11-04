@@ -54,6 +54,8 @@ async def stream(token, request, cors=False):
     headers = {'User-Agent': 'Mozilla/5.0'}
     if request.headers.get('range'):
         headers['Range'] = request.headers['range']
+    if request.headers.get('if-range'):
+        headers['If-Range'] = request.headers['if-range']
     client = httpx.AsyncClient(timeout=httpx.Timeout(30, read=60), follow_redirects=False)
     url = entry[0]
     try:

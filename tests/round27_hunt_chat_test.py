@@ -117,7 +117,7 @@ class SystemPromptWithoutPrompt(unittest.TestCase):
             "workspaces: { items: [{ id: 'p1', name: 'Proj' }], active_id: 'p1' } };\n"
             "const pref = (k, d) => d, internalPromptText = () => '', MEM_PROMPT = 'MEM', getSkills = () => [];\n"
             "const isProjectMode = (m) => m === 'work' || m === 'code', promptData = (v) => String(v);\n"
-            f"const workAccessMode = () => {json.dumps(access)}, WORK_TOOLS_PROMPT = 'WORK_TOOLS', EDIT_TOOLS_PROMPT = 'EDIT_TOOLS';\n"
+            f"const codeAccessLevel = () => {json.dumps(access)}, workAccessMode = () => {json.dumps(access)}, WORK_TOOLS_PROMPT = 'WORK_TOOLS', EDIT_TOOLS_PROMPT = 'EDIT_TOOLS';\n"
             "const CODE_MODE_PROMPT = 'CODE_MODE', codeSkillsPrompt = () => '', mcpPromptBlock = () => '';\n"
             "const WORK_EXECUTION_FALLBACK = 'WORK_EXECUTION';\n"
             "const browserSkillModel = () => false, computerUseSkillModel = () => false, currentModel = () => 'm';\n"

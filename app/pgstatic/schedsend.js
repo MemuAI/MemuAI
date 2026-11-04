@@ -929,6 +929,7 @@
   }
 
   function start() {
+    if (document.documentElement.dataset.moduleApp) return;
 
     try {
       window.MemuHotkeys?.register?.([{ id: "schedule_send", group: "chat", scope: "chat", keys: ["Ctrl+Shift+Enter"], custom: true,

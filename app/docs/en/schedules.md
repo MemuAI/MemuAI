@@ -1,33 +1,37 @@
 ---
 title: Planning
-summary: Jobs MemuAI does on its own — on time, on an event and only under your conditions: an AI answer, a reminder, Do For You, a Quick Access command, MemuCode, Work.
+summary: Jobs MemuAI does on its own — on time, on an event and only under your conditions: an AI answer, a reminder, Do For You, a Quick Access command, MemuCode, Work, Telegram automations.
 ---
 
 # Planning
 
 A scheduled task is a job MemuAI does by itself at the right moment. For example: collect a news digest every morning, remind you to take a break at 16:00 — but only if Dota 2 is running, make a day plan when the computer starts, check an order status in the browser every Monday.
 
-![The Planning window](docs-img/en/schedules.webp "Planning: create a task from a sentence, and the task list with each next run")
+![The Planning window](docs-img/en/schedules.webp "Planning: a new task in words, and the task list with each next run")
 
-Everything is in the **Planning** section of the sidebar.
+Everything is in the **Planning** section of the sidebar. Its tabs: **Tasks**, **Telegram** (automations for your personal account), **Modules**, **Scenarios**, **Variables** and **Journal**.
 
 ## How a task is built
 
-Every task is a **rule made of four blocks**. You see them in the section's help card and in the builder:
+Every task is a **rule made of four blocks**. The wizard goes through them step by step, and the last step is the **Review** of the whole rule:
 
-| Block | What it sets | Example |
+| Step | What it sets | Example |
 | --- | --- | --- |
-| **1. When** | a time, days, an interval or an event; any of them starts the task | every day at 16:00; when dota2.exe starts |
-| **2. Only if** | conditions checked right before running (optional) | a program is running; MemuAI is open |
-| **3. Do** | what to run and where to report the result | a reminder to Telegram |
+| **1. What to do** | what to run and where to report the result | a reminder to Telegram |
+| **2. When to run** | a time, days, an interval or an event; any of them starts the task | every day at 16:00; when dota2.exe starts |
+| **3. Only if** | conditions checked right before running (optional) | a program is running; MemuAI is open |
 | **4. Until** | dates and limits (optional) | until October 31; at most 10 times |
 
 Under each task MemuAI writes the rule in plain words: “Every day at 16:00, only if dota2.exe is running” — and when the next run is or what the task is waiting for.
 
 ## How to create a task
 
-- **In words.** Type a sentence into **Create from a sentence**, for example “tomorrow from 6 to 10 every half hour while MemuAI is open, collect AI news”, and press **Draft**. The model drafts the rule and MemuAI shows the summary, the next runs and warnings. Press **Create the task** or **Edit in the builder**.
-- **In the builder** — **New task** → a blank rule or a template. The blocks are put together with the mouse; the summary and the next runs are always visible at the bottom.
+While there are no tasks, the first screen offers three ways to start: **Describe in words**, **Pick a template** and **Build step by step**. The **New task** button offers the same in its menu.
+
+- **In words.** Type a sentence into **Describe the task in words** (above the task list — **A new task in words**), for example “tomorrow from 6 to 10 every half hour while MemuAI is open, collect AI news”, and press **Draft**. The model drafts the rule and MemuAI shows the summary, the next runs and warnings. Press **Create the task** or **Edit in the builder**.
+- **Step by step** — **New task → Build step by step**. The wizard leads through **What to do → When to run → Only if → Until → Review**; optional steps can be skipped, and the step list on the left jumps back to any step. The rule in plain words is always visible at the bottom. **Review** shows the summary, the next runs and warnings; **Create the task** (Ctrl+Enter) saves it. An existing task opens right at **Review**, which also has **Save and test** — save and do a test run at once.
+- **From a template** — **New task → Pick a template**: a digest, a gaming break, weather, calendar, retry on failure and more. The template opens in the wizard — just adjust the details.
+- **Telegram automation** — **New task → Telegram automation** or the **Telegram** tab (see [below](#telegram-automations)).
 - **In chat.** “Send me the weather forecast every day at 9:00”. The model shows a suggestion card; the task appears only after you press **Add**.
 - **With the command** `/schedule Name | prompt | every N min`.
 - **From Quick Access** (Alt+Space) — “schedule an AI news digest every weekday at 9:00” (more below).
@@ -118,7 +122,7 @@ The task text may use `{{date}}`, `{{time}}`, `{{weekday}}`, `{{run_count}}`, `{
 
 The **Check the conditions now** button shows every condition: whether it holds and why (3 °C now, today is a pre-holiday day, sunset at 17:42).
 
-**Ready-made scenarios.** **New task → Scenario gallery**: a weekly wrap-up on the last workday, “take an umbrella”, “rain started”, frost warning, an evening review after sunset, a report on the last workday of the month, a reminder before a holiday, retry on failure and more. A scenario opens in the builder — just pick the city and adjust the text.
+**Ready-made scenarios.** **New task → Pick a template**: a weekly wrap-up on the last workday, “take an umbrella”, “rain started”, frost warning, an evening review after sunset, a report on the last workday of the month, a reminder before a holiday, retry on failure and more. A template opens in the wizard — just pick the city and adjust the text.
 
 **On the phone.** In the [Mini App](doc:telegram-miniapp) tap a task → **Conditions and check**: switch each condition on or off, set **NOT**, flip “all / any” and check the conditions now. New conditions are added in MemuAI on the computer.
 
@@ -153,7 +157,7 @@ The **Check the conditions now** button shows every condition: whether it holds 
 
 ## Task list and history
 
-Each task in the list has a switch (pause), **▶ Run now** — a test run that skips the conditions and does not use up the run limit, **History**, **Edit** and the **⋯** menu (duplicate, discuss in chat, delete).
+Each task in the list has a switch (pause), **▶ Run now** — a test run that skips the conditions and does not use up the run limit, **Edit** and the **⋯** menu (run history, duplicate, discuss in chat, delete). The latest runs are shown right on the card — click one to open the history.
 
 The status under a task tells what is happening: “Next run: today at 16:00”, “Waiting until: dota2.exe is running”, “Waiting for the event”, “Paused”, “Finished”.
 
@@ -168,7 +172,7 @@ When a task has run, MemuAI can tell you:
 | Channel | Where to turn it on |
 | --- | --- |
 | Windows notification | **Settings → Notifications** |
-| Telegram | in the task; the bot is set up in **Settings → Telegram** |
+| Telegram | in the task; the bot is set up in **Settings → Messengers → Telegram** |
 | Email | the “Email” option in the task; delivery is set up in **Settings → Integrations → Email for scheduled tasks** |
 
 Details — [Notifications and remote access](doc:notifications). Tasks can be viewed, switched and run from the phone in the [Mini App](doc:telegram-miniapp).
@@ -190,8 +194,29 @@ The task's **⋯** menu has **Discuss in chat**: a new chat opens with the task 
 
 ## Telegram Use and the Chrome extension
 
-Under **Do → Telegram Use / Chrome**, choose a tool and enter its arguments. Read personal-account messages, send a reply, read a page or manage tabs. Simple arguments have form fields; nested objects and lists can be edited as JSON.
+In the **What to do** step, choose **Telegram or Chrome**, then an action and its fields. Actions have plain names: **Check the connection**, **Find chats**, **Read chat messages**, **Search messages**, **Send a message**, **List tabs**, **Read a page** and more — each with a short description. Read personal-account messages, send a reply, read a page or manage tabs. Simple arguments have form fields, yes/no ones are checkboxes (for example **Silent**); nested objects and lists can be edited as JSON. With several Telegram Use accounts connected, the action has a **Telegram account** field.
 
-For read the last 50 messages → summarize → send to Saved Messages, choose **Steps**: add **Telegram Use / Chrome**, **Ask a model**, then another integration step. The first result is `{{step1.result}}`; the model answer is `{{step2.result}}`. Pass these to later steps using the existing variables and conditions.
+For read the last 50 messages → summarize → send to Saved Messages, choose **Steps**: add **Telegram or Chrome**, **Ask a model**, then another integration step. For jobs like this, [Telegram automations](#telegram-automations) are handier. The first result is `{{step1.result}}`; the model answer is `{{step2.result}}`. Pass these to later steps using the existing variables and conditions.
 
 These actions need the **MemuAI window open**, the integration connected and reading enabled. A task you save authorizes scheduled reading; sending/deleting messages or changing tabs requires a separate scheduled-write permission. Runs do not ask for interactive approval: a disabled permission ends the task with a clear error. A test run reads available data and only previews sending/deleting messages or changing tabs. If unattended Chrome DFY needs a sign-in, code or other missing user input, the run finishes with an error instead of waiting for a form.
+
+## Telegram automations
+
+The **Telegram** tab holds rules for your [Telegram Use personal account](doc:integrations): **when** something happens in your chats, MemuAI **does the job** by itself. For example: “when Anna sends a voice message — reply with the transcript”, “a new channel post — a summary to Saved Messages”, “every morning — a digest of unread chats”.
+
+A rule is built in the wizard **When → Where → What to do → Where to send → Conditions → Review** (scheduled rules have fewer steps: a digest asks **Which chats**, there are no **Conditions**):
+
+| Step | Options |
+| --- | --- |
+| **When** | a new message, text, a voice or video message, a photo, a video, a file, any media, a link, a channel post, a mention of you, keywords, on a schedule |
+| **Where** | chosen chats (the account's chat list with search), all private chats, groups, channels or all chats |
+| **What to do** | transcribe a voice message, answer with AI, summarize, run a `!//…` command, forward, send a text, notify, mark as read, react; on a schedule — a chat digest, a text or an AI-written text |
+| **Where to send** | as a reply in the same chat, to Saved Messages, to another chat, to a MemuAI chat or as a notification |
+| **Conditions** | from whom, keywords and excluded words, whether your own messages count, hours and weekdays, a pause between runs, at most N runs per hour and per day |
+
+**Commands without sending the command.** **Run a command** runs your Telegram Use command (for example `!//voice`) as if you had typed it, but only the result goes to the chat — the command itself never appears. So “a voice message from Anna → reply with the `!//voice` result” works without extra messages.
+
+The list describes each rule in plain words; every rule has a switch, **Test**, **Edit** and the **⋯** menu (run log, duplicate, delete). **Test** is a dry run on the latest matching message: the result is shown in the test-run window, and nothing is sent, marked as read or reacted to in Telegram. The **log** shows the latest runs, skips and errors. Ready-made ideas help to start: “Voice → the !//voice command”, “Channel summaries to Saved”, “Night auto-reply”, “Morning chat digest” and more.
+
+> [!NOTE]
+> Automations work while the MemuAI window is open and the account is connected. Your message edits, `!//` commands and the automations' own results never start a rule, so there are no endless loops. An AI answer may skip a message when your instructions say it needs no reply. With several accounts connected, a rule picks its account and replies as that account.

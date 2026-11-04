@@ -112,6 +112,8 @@
   transition: opacity var(--m-dur-1) var(--m-ease-out), transform var(--m-dur-2) var(--m-spring), scale var(--m-dur-2) var(--m-spring);
 }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip[data-side="above"] { transform-origin: 50% 100%; }
+:root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip[data-side="right"] { transform-origin: 0 50%; }
+:root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip[data-side="left"] { transform-origin: 100% 50%; }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip.visible { scale: 1; }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .side {
   transition: width var(--m-dur-4) var(--m-ease-std), min-width var(--m-dur-4) var(--m-ease-std),
@@ -191,6 +193,35 @@
   to { clip-path: circle(var(--m-vt-r, 150vmax) at var(--m-vt-x, 90%) var(--m-vt-y, 0)); }
 }
 
+}
+@media (prefers-reduced-motion: no-preference) {
+/* Pages and windows that just opened (MemuMotion.enter): sections and cards rise in a short stagger. */
+:root:not([data-motion="off"]) body:not(.reduce-motion) .m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option) {
+  animation: m-rise-in var(--m-dur-4) var(--m-spring-soft) backwards;
+  animation-delay: calc(var(--m-e, 0) * var(--m-stagger) * 1.6);
+}
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(2) { --m-e: 1; }
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(3) { --m-e: 2; }
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(4) { --m-e: 3; }
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(5) { --m-e: 4; }
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(6) { --m-e: 5; }
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(7) { --m-e: 6; }
+.m-enter :is(.sx-section, .sk-card, .ms-card, .mp-tpl, .mp-set-item, .design-option):nth-child(n+8) { --m-e: 7; }
+/* A new attachment pops into the composer (only once: re-renders for progress keep it still). */
+:root:not([data-motion="off"]) body:not(.reduce-motion) .attach-chip.m-fresh {
+  transform-origin: 20% 50%;
+  animation: m-pop-in var(--m-dur-3) var(--m-spring) backwards;
+}
+/* Copied / saved: the button squeezes and the check mark is drawn. */
+:root:not([data-motion="off"]) body:not(.reduce-motion) .m-confirmed { animation: m-copied var(--m-dur-4) var(--m-spring); }
+:root:not([data-motion="off"]) body:not(.reduce-motion) .m-confirmed svg :is(path, polyline) {
+  stroke-dasharray: 24; animation: m-draw var(--m-dur-4) var(--m-ease-out) both;
+}
+/* The scroll-to-latest arrow gets a soft nudge while new text arrives below. */
+@keyframes m-nudge { 0%, 100% { translate: 0 0; } 50% { translate: 0 2px; } }
+:root:not([data-motion="off"]):not([data-motion="reduced"]) body:not(.reduce-motion) .jump-latest.has-new:not([hidden]) svg {
+  animation: m-nudge 1.4s var(--m-ease-std) infinite;
+}
 }
 :root.m-paused .m-ambient, :root.m-paused .m-ambient::before, :root.m-paused .m-ambient::after { animation-play-state: paused !important; }
 :root[data-motion="reduced"] .m-ambient, :root[data-motion="reduced"] .m-ambient::before, :root[data-motion="reduced"] .m-ambient::after { animation: none !important; }

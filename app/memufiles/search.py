@@ -23,6 +23,9 @@ import re
 import time
 from typing import Any, Callable, Dict, Iterator, List, Optional
 
+from ..file_description import parse_description
+from ..fsindex_query import QueryError, date_range
+
 log = logging.getLogger("memufiles.search")
 
 KIND_EXT = {
@@ -57,7 +60,8 @@ def parse_size(text: str) -> Optional[int]:
 
 class Query:
     def __init__(self, text: str) -> None:
-        self.raw = text or ""
+        self.description = parse_description(text or "")
+        self.raw = self.description.base
         self.words: List[str] = []
         self.globs: List[str] = []
         self.exts: set = set()
@@ -66,15 +70,19 @@ class Query:
         self.max_size: Optional[int] = None
         self.after: Optional[float] = None
         self.before: Optional[float] = None
-        self.content: str = ""
+        self.content: str = self.description.content
         self.folders_only = False
         self.files_only = False
         for token in re.findall(r'(\w+:"[^"]*"|"[^"]*"|\S+)', self.raw):
             low = token.lower()
             key, _, value = low.partition(":")
             value_raw = token.split(":", 1)[1].strip('"') if ":" in token else ""
-            if key == "ext" and value:
-                self.exts |= {"." + v.lstrip(".") for v in value.split(",") if v}
+            if low == "folder:":
+                self.folders_only = True
+            elif low == "file:":
+                self.files_only = True
+            elif key == "ext" and value:
+                self.exts |= {"." + v.lstrip(".") for v in re.split(r"[;,|]", value) if v}
             elif key in ("kind", "type", "тип") and value:
                 if value in ("folder", "папка", "dir"):
                     self.folders_only = True
@@ -90,6 +98,11 @@ class Query:
                         self.min_size = number
                     else:
                         self.max_size = number
+            elif key == "dm" and value:
+                try:
+                    self.after, self.before = date_range(value)
+                except QueryError:
+                    pass
             elif key in ("modified", "date", "изменён", "изменен", "дата") and value:
                 now = time.time()
                 spans = {"today": 86400, "сегодня": 86400, "week": 7 * 86400, "неделя": 7 * 86400,
@@ -122,7 +135,7 @@ class Query:
     def empty(self) -> bool:
         return not (self.words or self.globs or self.exts or self.kinds or self.min_size is not None
                     or self.max_size is not None or self.after or self.before or self.content
-                    or self.folders_only or self.files_only)
+                    or self.folders_only or self.files_only or self.description.inspect)
 
     def name_matches(self, name: str, is_dir: bool) -> bool:
         low = name.lower()
@@ -158,7 +171,7 @@ class Query:
             return False
         if self.after and mtime < self.after:
             return False
-        if self.before and mtime > self.before:
+        if self.before and mtime >= self.before:
             return False
         return True
 
@@ -199,20 +212,24 @@ def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int 
             continue
         with handle:
             for entry in handle:
+                if cancel() or time.monotonic() - started > deadline:
+                    return
                 name = entry.name
                 try:
                     is_dir = entry.is_dir(follow_symlinks=False)
                 except OSError:
                     continue
                 hidden = name.startswith(".")
-                if os.name == "nt" and not hidden:
+                attributes = 0
+                if os.name == "nt":
                     try:
-                        hidden = bool(getattr(entry.stat(follow_symlinks=False), "st_file_attributes", 0) & 2)
+                        attributes = getattr(entry.stat(follow_symlinks=False), "st_file_attributes", 0)
+                        hidden = hidden or bool(attributes & 2)
                     except OSError:
                         pass
                 if hidden and not show_hidden:
                     continue
-                if is_dir and os.path.normcase(name) not in _SKIP_DIRS_NORM:
+                if is_dir and not attributes & 0x400 and os.path.normcase(name) not in _SKIP_DIRS_NORM:
                     queue.append(entry.path)
                 if not query.name_matches(name, is_dir):
                     continue
@@ -224,9 +241,8 @@ def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int 
                     pass
                 if not query.stat_matches(size, mtime, is_dir):
                     continue
-                if query.content:
-                    if is_dir or os.path.splitext(name)[1].lower() not in TEXT_EXT or not content_matches(entry.path, query.content):
-                        continue
+                if query.description.inspect and (is_dir or not query.description.matches(entry.path)):
+                    continue
                 yield _row(entry.path, name, is_dir, size, mtime)
                 found += 1
                 if found >= limit:
@@ -310,6 +326,8 @@ def to_index_query(text: str) -> str:
 
 def index_search(query: Query, roots: Optional[List[str]], limit: int) -> Optional[List[Dict[str, Any]]]:
     """Ask app.fsindex; None when it is missing, still building or failing (the caller walks instead)."""
+    if query.description.inspect:
+        return None
     module = _fsindex()
     if module is None:
         return None

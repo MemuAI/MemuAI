@@ -46,6 +46,10 @@ Outside the mode, dragging between places works too and shows a notification wit
 
 Panel places take no room for scrollbars: a thin thumb appears at the edge on hover or scrolling, can be dragged with the mouse and fades out after a second, and the list edges fade softly when there is more to scroll.
 
+### In an agentic workspace
+
+An [agentic workspace](doc:spaces#agentic-workspace) has no start screen — the conversation with the companion takes its place. So the “Below the message box” place is called **Beside the conversation** there and becomes a dock to the right of the conversation, and “Above the greeting” becomes **Above the conversation**. The dock's **Look and layout** menu picks its view: **Cards on the right**, **A slim rail of chips** or **Chips above the conversation**; **Fold into a rail** on the dock does the same in one click. In a narrow window the dock moves from cards to the rail and to chips on top by itself, and the conversation is not squeezed. Dragging, layout mode and highlighted places work for the dock too.
+
 ## Adding a panel
 
 1. Click **＋ Panel** above the home-screen cards (or in the sidebar “Panels” group).
@@ -53,6 +57,8 @@ Panel places take no room for scrollbars: a thin thumb appears at the edge on ho
 3. Or ask in a normal chat: “make a panel with the bitcoin price” or “a panel with Rust news every morning” — the model calls the panels tool and a preview appears right in the answer.
 
 The card appears **already filled**: built-in sources answer within seconds. When a build takes longer (a news feed, a custom AI panel) the card shows its stages — “Planning sources → Reading sources → Merging duplicates → Ranking significance and credibility → Writing a short digest” — and fills in as soon as everything is ready.
+
+**Recently removed.** A deleted panel is not gone at once: the notification has an **Undo** button, and the panel goes to the “Recently removed” list, which keeps the last 12. The six newest are shown at the bottom of the **＋ Panel** gallery, the whole list is in **Settings → Panels**. **Restore** puts the panel back in its places with its settings and refreshes its data right away; **×** in settings deletes it forever. You can also ask in chat: “bring back the bitcoin price panel”.
 
 ## What to show
 
@@ -134,4 +140,4 @@ Cards follow the selected MemuAI design (Classic, Aurora, Focus, Grid, Glass, So
 
 ## Where it is stored
 
-The current profile’s panels are in `memuai/panels.json` in the data folder, tasks and notes in `panels-local.json`, pasted tokens separately in `panels-secrets.json`. Up to 40 panels. More about the data folder — [Where data is stored](doc:data).
+The current profile’s panels are in `memuai/panels.json` in the data folder (every [workspace](doc:spaces) except the standard one has its own `panels.json` in its `spaces\<id>\` folder), tasks and notes in `panels-local.json`, pasted tokens separately in `panels-secrets.json`. Up to 40 panels. More about the data folder — [Where data is stored](doc:data).

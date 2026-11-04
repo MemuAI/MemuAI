@@ -15,6 +15,7 @@
   --g-mono: "Grid Mono", "Cascadia Code", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   --g-chrome: var(--bg-deep);
   --g-canvas: var(--bg);
+  --g-field: var(--g-canvas);
   --g-line: color-mix(in srgb, var(--text) 13%, transparent);
   --g-line-soft: color-mix(in srgb, var(--text) 7.5%, transparent);
   --g-line-strong: color-mix(in srgb, var(--text) 24%, transparent);
@@ -39,6 +40,7 @@
   --mc-radius: 3px; --mc-line: var(--g-line); --mc-soft: var(--g-line-soft);
 }
 :root[data-design="grid"][data-theme="light"] {
+  --g-field: var(--panel);
   --g-line: color-mix(in srgb, var(--text) 14%, transparent);
   --g-line-soft: color-mix(in srgb, var(--text) 8%, transparent);
   --g-pop-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), 0 8px 22px -14px rgba(20, 20, 30, .28);
@@ -469,7 +471,8 @@
 :root[data-design="grid"] .table-wrap :is(th, td) + :is(th, td), :root[data-design="grid"] .body table :is(th, td) + :is(th, td) { border-left: 1px solid var(--g-line-soft); }
 :root[data-design="grid"] .table-wrap tr:last-child td { border-bottom: 0; }
 :root[data-design="grid"] .table-wrap tr:nth-child(even) td, :root[data-design="grid"][data-theme="light"] .table-wrap tr:nth-child(even) td { background: transparent; }
-:root[data-design="grid"] .table-wrap tr:hover td { background: var(--g-hover); }
+:root[data-design="grid"] .table-wrap tr:hover { --tw-row-hover: var(--g-hover); }
+:root[data-design="grid"] .table-wrap tr:nth-child(n) td { background: var(--tw-row-hover, transparent); }
 :root[data-design="grid"] .msg-tools { gap: 0; margin-top: 8px; min-height: 24px; }
 :root[data-design="grid"] .msg-tool { min-width: 26px; height: 24px; padding: 0 5px; border-radius: var(--g-r-sm); color: var(--muted); }
 :root[data-design="grid"] .msg-tool .ui-icon { width: 14px; height: 14px; }
@@ -535,7 +538,7 @@
 :root[data-design="grid"] .settings-body .td { font-size: 12px; line-height: 1.6; }
 :root[data-design="grid"] .hintbox { border-radius: var(--g-r); border: 1px solid var(--g-line); border-left: 2px solid var(--accent); background: transparent; }
 :root[data-design="grid"] .pinput, :root[data-design="grid"] .ptexta {
-  border-radius: var(--g-r); border: 1px solid color-mix(in srgb, var(--control-border) 55%, var(--g-line)); background: var(--g-canvas); box-shadow: none;
+  border-radius: var(--g-r); border: 1px solid color-mix(in srgb, var(--control-border) 55%, var(--g-line)); background: var(--field-bg, var(--g-field)); box-shadow: none;
 }
 :root[data-design="grid"] .ptexta { font-family: var(--g-mono); font-size: 12.5px; }
 :root[data-design="grid"] .pinput:focus, :root[data-design="grid"] .ptexta:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
@@ -639,7 +642,7 @@
 }
 :root[data-design="grid"] .side, :root[data-design="grid"] .main, :root[data-design="grid"] .topbar.appbar { border-radius: 0; }
 :root[data-design="grid"] .settings-body .pretty-select-button {
-  min-height: 30px !important; padding: 0 10px !important; background: var(--g-canvas) !important;
+  min-height: 30px !important; padding: 0 10px !important; background: var(--field-bg, var(--g-field)) !important;
   border: 1px solid color-mix(in srgb, var(--control-border) 55%, var(--g-line)) !important; font: 500 12.5px/1 var(--g-sans);
   box-shadow: none !important;
 }
@@ -687,7 +690,7 @@
 :root[data-design="grid"] .stats-hero-lbl { font: 600 9.5px/1.3 var(--g-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 :root[data-design="grid"] .docs-shell { background: var(--panel); }
 :root[data-design="grid"] .docs-side { background: var(--g-chrome); border-right: 1px solid var(--g-line); }
-:root[data-design="grid"] .docs-search { margin: 10px; height: 30px; border-radius: var(--g-r); border: 1px solid var(--g-line); background: var(--g-canvas); }
+:root[data-design="grid"] .docs-search { margin: 10px; height: 30px; border-radius: var(--g-r); border: 1px solid var(--g-line); background: var(--field-bg, var(--g-field)); }
 :root[data-design="grid"] .docs-search:focus-within { border-color: var(--accent); box-shadow: none; }
 :root[data-design="grid"] .docs-search input { font: 500 12px/1 var(--g-mono); }
 :root[data-design="grid"] .docs-group-head { border-radius: var(--g-r-sm); font: 600 10px/1.3 var(--g-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); padding: 10px 8px 6px; justify-content: flex-start; text-align: left; }

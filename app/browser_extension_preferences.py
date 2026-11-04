@@ -24,6 +24,9 @@ def update_models(body):
     if not changes and pin is None:
         raise ValueError("Нет изменений моделей")
 
+    own_model = "default_model" in changes and pgdata._space_prefs_path() is not None
+    model = changes.pop("default_model") if own_model else None
+
     def merge(raw):
         data = pgdata._normalize_preferences(raw)
         data.update(changes)
@@ -31,6 +34,9 @@ def update_models(body):
             values = list(data.get("pinned_models") or [])
             data["pinned_models"] = list(dict.fromkeys([*values, pin])) if body["pinned"] else [value for value in values if value != pin]
         return True, pgdata._normalize_preferences(data)
-    saved = mutate_json(pgdata.MEMU_DIR / "preferences.json", {}, merge, backup=False,
-                        validator=lambda value: isinstance(value, dict), repair_invalid=True)
+    if changes or pin is not None:
+        mutate_json(pgdata.MEMU_DIR / "preferences.json", {}, merge, backup=False,
+                    validator=lambda value: isinstance(value, dict), repair_invalid=True)
+    # A non-standard workspace keeps its own default model.
+    saved = pgdata.save_preferences({"default_model": model}) if own_model else pgdata.load_preferences()
     return {"default_model": saved.get("default_model") or "", "pinned_models": saved.get("pinned_models") or []}

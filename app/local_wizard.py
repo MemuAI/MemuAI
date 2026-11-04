@@ -60,6 +60,102 @@ QUANT_NOTE = {
     "Q8_K_XL": ("без потерь качества", "no quality loss"),
     "MXFP4": ("родной формат модели от OpenAI — без потерь", "the model's native OpenAI format — lossless"),
 }
+
+# Plain-language guide to quantisation: one short line per quant, plus what it is
+# and which to pick. Shown in the wizard where the user picks a quant, not as a wall
+# of text. ``gb_per_b`` is the rough file size per billion parameters, measured on
+# the catalogue (Qwen3.5 9B: Q3 0.52, Q4 0.63, Q5 0.73, Q6 0.83, Q8 1.06 GB/B).
+QUANT_GUIDE = {
+    "Q2_K": {"gb_per_b": 0.35,
+             "title": ("Q2 — совсем крошечный", "Q2 — the tiniest"),
+             "text": ("Модель ужата раз в пять и заметно глупеет. Только для самых слабых машин, где иначе ничего не запускается.",
+                      "The model is squeezed fivefold and clearly gets dumber. Only for the weakest machines, where nothing else runs at all.")},
+    "Q3_K_M": {"gb_per_b": 0.5,
+               "title": ("Q3 — самый маленький из разумных", "Q3 — the smallest sensible one"),
+               "text": ("Заметно теряет в точности, зато влезает почти куда угодно. Берите, только если памяти впритык.",
+                        "Clearly loses accuracy, but fits almost anywhere. Take it only when memory is really tight.")},
+    "Q3_K_XL": {"gb_per_b": 0.5,
+                "title": ("Q3 XL — чуть точнее обычного Q3", "Q3 XL — a bit more accurate than plain Q3"),
+                "text": ("Как Q3, но динамическое сжатие бережёт важные слои — чуть точнее при том же размере.",
+                         "Like Q3, but dynamic compression spares the important layers — a bit more accurate at the same size.")},
+    "Q4_0": {"gb_per_b": 0.6,
+             "title": ("Q4 — старый формат", "Q4 — the older format"),
+             "text": ("При том же размере чуть хуже Q4_K_M. Берите Q4_K_M, если он есть.",
+                      "Slightly worse than Q4_K_M at the same size. Take Q4_K_M when it is available.")},
+    "Q4_K_S": {"gb_per_b": 0.6,
+               "title": ("Q4 S — чуть сильнее ужатый", "Q4 S — squeezed a little harder"),
+               "text": ("Почти как Q4_K_M, но экономит ещё немного места.",
+                        "Almost like Q4_K_M, but saves a bit more space.")},
+    "Q4_K_M": {"gb_per_b": 0.6,
+               "title": ("Q4 — золотая середина", "Q4 — the sweet spot"),
+               "text": ("~97 % качества при четверти размера оригинала. Если сомневаетесь — берите этот.",
+                        "About 97% of the quality at a quarter of the original size. When in doubt, take this one.")},
+    "Q4_K_XL": {"gb_per_b": 0.6,
+                "title": ("Q4 XL — чуть точнее обычного Q4", "Q4 XL — a bit more accurate than plain Q4"),
+                "text": ("Динамическая точность: чуть качественнее Q4_K_M, места занимает почти столько же.",
+                         "Dynamic precision: slightly better than Q4_K_M, takes almost the same space.")},
+    "Q5_K_M": {"gb_per_b": 0.7,
+               "title": ("Q5 — почти оригинал", "Q5 — nearly the original"),
+               "text": ("~98,5 % качества. Хороший выбор, когда памяти хватает с запасом.",
+                        "About 98.5% quality. A good pick when there is memory to spare.")},
+    "Q5_K_XL": {"gb_per_b": 0.7,
+                "title": ("Q5 XL — чуть точнее обычного Q5", "Q5 XL — a bit more accurate than plain Q5"),
+                "text": ("Почти оригинал, чуть точнее обычного Q5.",
+                         "Nearly the original, slightly more accurate than plain Q5.")},
+    "Q6_K": {"gb_per_b": 0.85,
+             "title": ("Q6 — практически оригинал", "Q6 — practically the original"),
+             "text": ("Разница с оригиналом видна только в тестах. Берите, если памяти много и хочется максимум.",
+                      "The difference from the original only shows in benchmarks. Take it when there is plenty of memory and you want the best.")},
+    "Q6_K_XL": {"gb_per_b": 0.85,
+                "title": ("Q6 XL — чуть точнее обычного Q6", "Q6 XL — a bit more accurate than plain Q6"),
+                "text": ("Практически неотличимо от оригинала, чуть точнее обычного Q6.",
+                         "Practically indistinguishable from the original, slightly more accurate than plain Q6.")},
+    "Q8_0": {"gb_per_b": 1.05,
+             "title": ("Q8 — без потерь", "Q8 — no quality loss"),
+             "text": ("Качество как у оригинала, но вдвое тяжелее Q4. Имеет смысл только на мощной машине с запасом памяти.",
+                      "Original quality, but twice as heavy as Q4. Worth it only on a powerful machine with memory to spare.")},
+    "Q8_K_XL": {"gb_per_b": 1.05,
+                "title": ("Q8 XL — без потерь", "Q8 XL — no quality loss"),
+                "text": ("Без потерь качества, чуть точнее обычного Q8.",
+                         "No quality loss, slightly more accurate than plain Q8.")},
+    "MXFP4": {"gb_per_b": 0.55,
+              "title": ("MXFP4 — родной формат модели", "MXFP4 — the model's native format"),
+              "text": ("Качество как у оригинала при размере чуть больше Q4.",
+                       "Original quality at a size just above Q4.")},
+    "BF16": {"gb_per_b": 2.0,
+             "title": ("BF16 — оригинал без сжатия", "BF16 — the original, uncompressed"),
+             "text": ("Максимальное качество и максимальный размер. Для обычных компьютеров не подходит.",
+                      "Maximum quality and maximum size. Not for ordinary computers.")},
+    "F16": {"gb_per_b": 2.0,
+            "title": ("F16 — оригинал без сжатия", "F16 — the original, uncompressed"),
+            "text": ("Максимальное качество и максимальный размер, как BF16. Для обычных компьютеров не подходит.",
+                     "Maximum quality and maximum size, like BF16. Not for ordinary computers.")},
+}
+QUANT_WHAT = (
+    "Квантование — это ужатие модели: её веса хранятся не с полной точностью, а с округлением. "
+    "Чем сильнее ужатие, тем меньше файл и тем быстрее работа — но тем заметнее модель теряет в точности ответов. "
+    "Q4 — обычный выбор: модель вчетверо меньше оригинала, а качество падает всего на пару процентов.",
+    "Quantisation squeezes a model: its weights are stored rounded instead of exact. "
+    "Stronger squeezing means a smaller file and faster work — but the answers lose accuracy. "
+    "Q4 is the usual pick: a quarter of the original size, with quality down only a couple of percent.")
+QUANT_PICKS = [
+    ("Памяти впритык, видеокарты нет — Q3 и модель поменьше",
+     "Memory is tight, no GPU — Q3 and a smaller model"),
+    ("Обычный компьютер с видеокартой 8–12 ГБ — Q4_K_M",
+     "An ordinary computer with an 8–12 GB GPU — Q4_K_M"),
+    ("Памяти с запасом — Q5_K_M или Q6_K",
+     "Memory to spare — Q5_K_M or Q6_K"),
+    ("Нужен максимум качества, памяти очень много — Q8_0",
+     "Maximum quality wanted, lots of memory — Q8_0"),
+]
+
+def quant_guide(english: bool = False) -> Dict[str, Any]:
+    """The quantisation guide in one language: what it is, which to pick, one line per quant."""
+    lang = 1 if english else 0
+    return {"what": QUANT_WHAT[lang],
+            "picks": [pair[lang] for pair in QUANT_PICKS],
+            "quants": [{"quant": quant, "title": info["title"][lang], "text": info["text"][lang],
+                        "gb_per_b": info["gb_per_b"]} for quant, info in QUANT_GUIDE.items()]}
 USE_LABEL = {
     "chat": ("общение", "conversation"), "coding": ("код", "coding"), "ru": ("русский язык", "Russian"),
     "vision": ("картинки", "images"), "reasoning": ("рассуждения", "reasoning"), "agent": ("агенты и инструменты", "agents and tools"),
@@ -351,7 +447,9 @@ def speed(entry: Dict[str, Any], size: int, context: int, placement: str, share:
     if placement == "none" or not size:
         return 0.0
     fraction = active_fraction(entry)
-    read = size * fraction + kv_bytes(entry, context // 2) * 0.5
+    # KV grows while the context fills, so the average over a session is the cache
+    # at half the context — no extra discount: the * 0.5 here once halved it again.
+    read = size * fraction + kv_bytes(entry, context // 2)
 
     efficiency = 0.78 if fraction >= 1 else 0.45
     gpu_bw = budget["gpu_bw"] * 1e9 * efficiency
@@ -485,7 +583,8 @@ def evaluate(entry: Dict[str, Any], goals: Dict[str, Any], profile: Dict[str, An
                 break
             context //= 2
         if not chosen:
-            options.append({"quant": quant, "size": size, "placement": "none", "need": int(size * 1.02 + 0.5 * GB)})
+            options.append({"quant": quant, "size": size, "placement": "none",
+                            "need": int(size * 1.02 + mmproj + draft + kv_bytes(entry, 2048) + 0.5 * GB)})
             continue
         context, need, placement, share = chosen
         tps = speed(entry, size, context, placement, share, profile, budget)
@@ -687,7 +786,8 @@ def recommend(goals: Optional[Dict[str, Any]] = None, profile: Optional[Dict[str
             "more": results[goals["limit"]:], "excluded": excluded,
             "catalog": {"version": catalog.get("version", ""), "origin": catalog.get("origin", ""),
                         "count": len(catalog.get("models") or [])},
-            "summary": summary(profile, budget, top, english=False), "summary_en": summary(profile, budget, top, english=True)}
+            "summary": summary(profile, budget, top, english=False), "summary_en": summary(profile, budget, top, english=True),
+            "quant_guide": quant_guide(False), "quant_guide_en": quant_guide(True)}
 
 def summary(profile: Dict[str, Any], budget: Dict[str, Any], top: List[Dict[str, Any]], english: bool) -> str:
     L = (lambda ru, en: en) if english else (lambda ru, en: ru)

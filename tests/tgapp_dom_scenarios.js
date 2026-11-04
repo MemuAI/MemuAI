@@ -173,11 +173,11 @@
       const ids1 = $$(".pn-card", view).map((c) => c.dataset.panel);
       const stored = JSON.parse(localStorage.getItem("memu_tg_panels_order") || "null");
       out.push({ name: "panels: down button swaps order and persists it", pass: ids1[1] === ids0[0] && Array.isArray(stored) && stored[1] === ids0[0], details: "before=" + ids0.join(",") + " after=" + ids1.join(",") + " stored=" + JSON.stringify(stored) });
-      const view2 = document.createElement("div"); view2.className = "view root"; $("#views").appendChild(view2);
-      window.MemuTgPanels.render(view2, helpers); await sleep(300);
-      const ids2 = $$(".pn-card", view2).map((c) => c.dataset.panel);
+      clearInterval(helpers.timers.panels);
+      window.MemuTgPanels.render(view, helpers); await sleep(300);
+      const ids2 = $$(".pn-card", view).map((c) => c.dataset.panel);
       out.push({ name: "panels: saved order survives re-render", pass: ids2.join(",") === ids1.join(","), details: ids2.join(",") });
-      const cards = $$(".pn-card", view2);
+      const cards = $$(".pn-card", view);
       const handle = cards[0] && $(".pn-drag", cards[0]);
       if (handle) {
         const dt = new DataTransfer();
@@ -186,18 +186,17 @@
         cards[2].dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
         handle.dispatchEvent(new DragEvent("dragend", { bubbles: true, cancelable: true, dataTransfer: dt }));
         await sleep(150);
-        const ids3 = $$(".pn-card", view2).map((c) => c.dataset.panel);
+        const ids3 = $$(".pn-card", view).map((c) => c.dataset.panel);
         out.push({ name: "panels: drag moves the card", pass: ids3[0] !== ids1[0], details: "before=" + ids1.join(",") + " after=" + ids3.join(",") });
       } else out.push({ name: "panels: drag handle exists", pass: false, details: "" });
-      view2.remove();
     }
     window.__fx.panelsFail = true;
-    const view3 = document.createElement("div"); view3.className = "view root"; $("#views").appendChild(view3);
-    window.MemuTgPanels.render(view3, helpers); await sleep(300);
-    const retry = $("[data-pn-retry]", view3);
-    out.push({ name: "panels: load error shows a retry control, no crash", pass: !!retry, details: view3.textContent.slice(0, 80) });
-    if (retry) { window.__fx.panelsFail = false; retry.click(); await sleep(350); out.push({ name: "panels: retry reloads the panels", pass: $$(".pn-card", view3).length >= 4, details: "cards=" + $$(".pn-card", view3).length }); }
-    view.remove(); view3.remove();
+    clearInterval(helpers.timers.panels);
+    window.MemuTgPanels.render(view, helpers); await sleep(300);
+    const retry = $("[data-pn-retry]", view);
+    out.push({ name: "panels: load error shows a retry control, no crash", pass: !!retry, details: view.textContent.slice(0, 80) });
+    if (retry) { window.__fx.panelsFail = false; retry.click(); await sleep(350); out.push({ name: "panels: retry reloads the panels", pass: $$(".pn-card", view).length >= 4, details: "cards=" + $$(".pn-card", view).length }); }
+    view.remove();
     Object.values(helpers.timers).forEach(clearInterval);
     return out;
   }

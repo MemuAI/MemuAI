@@ -17,7 +17,7 @@
 .am-settings>.am-bar { gap:18px 28px; margin-bottom:12px; }
 .am-settings label { display:inline-flex; align-items:center; gap:8px; margin:0; }
 .am-settings .am-actions { margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
-.am-settings select { padding:7px 10px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--bg); font:inherit; }
+.am-settings select { padding:7px 10px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--field-bg, var(--bg)); font:inherit; }
 .am-section-head { display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap; margin:26px 2px 12px; }
 .am-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:12px; margin-bottom:20px; }
 .am-card { min-width:0; padding:16px; border:1px solid var(--border); border-radius:15px; background:var(--panel); transition:border-color .18s,box-shadow .18s; }
@@ -33,7 +33,7 @@
 .am-source-monogram { flex:none; display:grid; place-items:center; width:34px; height:34px; border-radius:11px; background:var(--am-soft); color:var(--accent); font-weight:700; }
 .am-source-body { padding-top:18px; margin-top:16px; border-top:1px solid var(--border); }
 .am-card label:not(.am-source-toggle) { display:block; margin:14px 0; line-height:1.4; }
-.am-card input:not([type=checkbox]),.am-card select,.am input[type=search] { box-sizing:border-box; width:100%; padding:10px 12px; margin-top:7px; border:1px solid var(--border); border-radius:10px; color:var(--text); background:var(--bg); font:inherit; min-width:0; }
+.am-card input:not([type=checkbox]),.am-card select,.am input[type=search] { box-sizing:border-box; width:100%; padding:10px 12px; margin-top:7px; border:1px solid var(--border); border-radius:10px; color:var(--text); background:var(--field-bg, var(--bg)); font:inherit; min-width:0; }
 .am input[type=checkbox] { accent-color:var(--accent); flex:none; margin:0; width:14px; height:14px; }
 .am button { display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:9px 13px; border:1px solid var(--border); border-radius:10px; background:var(--am-soft); color:var(--text); font:inherit; font-size:.88em; cursor:pointer; line-height:1.25; transition:background .15s,border-color .15s; }
 .am button:hover { background:color-mix(in srgb,var(--accent) 10%,var(--am-soft)); border-color:color-mix(in srgb,var(--accent) 40%,var(--border)); }

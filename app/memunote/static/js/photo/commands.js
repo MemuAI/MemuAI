@@ -1,9 +1,10 @@
 
 
 import { esc, t, toast, modal, prompt, confirm, kbd, api, assetUrl } from "../core.js";
-import { newCanvas, ctx2d, cloneCanvas, isVector, renderVector, vectorBounds, uidL } from "./doc.js";
+import { newCanvas, ctx2d, cloneCanvas, isVector, renderVector, vectorBounds, uidL, hasFx, cloneFx } from "./doc.js";
+import { fxDialog, frameDialog, fxSummary } from "./extras.js";
 import { SAVE_FORMATS, saveDocument, formatOfPath, framesOf, canvasFromB64, canvasToBlob, extOf } from "./io.js";
-import { parseHex, histogram, invertMask, colorRange, growMask, curveLut } from "./pixels.js";
+import { parseHex, histogram, invertMask, colorRange, growMask, curveLut, runOp, LOOK_NAMES } from "./pixels.js";
 import { picon } from "./icons.js";
 import { contentBounds } from "./transform.js";
 import { TOOLS } from "./tools.js";
@@ -25,6 +26,15 @@ export const SPECS = {
   noise: [S("amount", 1, 100, 12), { k: "mono", bool: true, v: true }], denoise: [S("radius", 1, 3, 1)], pixelate: [S("size", 2, 200, 12)],
   vignette: [S("amount", 0, 100, 50), S("size", 5, 100, 60)], emboss: [S("strength", 0.2, 4, 1, 0.1)], oilPaint: [S("radius", 1, 6, 3), S("levels", 4, 40, 20)],
   invert: null, autoLevels: null, edges: null, grayscale: null,
+  shadowsHighlights: [S("shadows", -100, 100, 35), S("highlights", -100, 100, 0), S("radius", 2, 120, 30)],
+  clarity: [S("amount", -100, 100, 30), S("radius", 2, 80, 20)], dehaze: [S("amount", -100, 100, 30)],
+  channelMixer: [S("rr", -200, 200, 100), S("rg", -200, 200, 0), S("rb", -200, 200, 0), S("gr", -200, 200, 0), S("gg", -200, 200, 100), S("gb", -200, 200, 0), S("br", -200, 200, 0), S("bg", -200, 200, 0), S("bb", -200, 200, 100), { k: "mono", bool: true, v: false }],
+  gradientMap: [{ k: "from", color: true, v: "#1e1b4b" }, { k: "to", color: true, v: "#fbbf77" }, S("amount", 0, 100, 100), { k: "reverse", bool: true, v: false }],
+  photoFilter: [{ k: "color", color: true, v: "#ec8a00" }, S("density", 1, 100, 25), { k: "preserve", bool: true, v: true }],
+  splitToning: [S("shadowHue", 0, 360, 210), S("shadowSat", 0, 100, 35), S("highlightHue", 0, 360, 40), S("highlightSat", 0, 100, 30), S("balance", -100, 100, 0)],
+  zoomBlur: [S("amount", 1, 100, 25), S("cx", 0, 100, 50), S("cy", 0, 100, 50)], tiltShift: [S("position", 0, 100, 55), S("band", 2, 90, 22), S("radius", 1, 60, 10)],
+  chromatic: [S("distance", 0, 40, 4, 0.5)], halftone: [S("size", 3, 60, 8), S("angle", 0, 90, 45), { k: "colored", bool: true, v: false }],
+  sketch: [S("radius", 1, 40, 10), S("strength", 10, 200, 100)], look: "look",
 };
 const PREVIEW_MAX = 2_500_000;
 
@@ -59,8 +69,10 @@ async function runOnLayer(ed, l, name, params, scale = 1) {
   const out = newCanvas(w, h); ctx2d(out).putImageData(new ImageData(new Uint8ClampedArray(res.buffer), w, h), 0, 0);
   return out;
 }
+export const lookLabel = (p) => `${t("ph_adj_look")}: ${t("ph_look_" + (p?.name || "vivid"))}${p?.amount < 100 ? ` ${Math.round(p.amount)}%` : ""}`;
 export async function applyOp(ed, name, params = {}, l = null, label = null) {
   l = l || layerForPixels(ed); if (!l) return false;
+  if (name === "look" && !label) label = lookLabel(params);
   ed.busy(true, t("ph_adj_" + name));
   try {
     const out = await runOnLayer(ed, l, name, params);
@@ -72,7 +84,7 @@ export async function applyOp(ed, name, params = {}, l = null, label = null) {
   } finally { ed.busy(false); }
 }
 
-function adjustDialog(ed, name) {
+function adjustDialog(ed, name, initial) {
   const spec = SPECS[name];
   const l = layerForPixels(ed); if (!l) return;
   if (spec === null || spec === undefined) return applyOp(ed, name, {}, l);
@@ -83,6 +95,9 @@ function adjustDialog(ed, name) {
   let body = "";
   if (spec === "levels") Object.assign(params, { inBlack: 0, gamma: 1, inWhite: 255, outBlack: 0, outWhite: 255, channel: "rgb" });
   if (spec === "curves") Object.assign(params, { points: [[0, 0], [255, 255]], channel: "rgb" });
+  if (spec === "look") { const saved = localStorage.getItem("mn_photo_look"); Object.assign(params, { name: LOOK_NAMES.includes(initial) ? initial : LOOK_NAMES.includes(saved) ? saved : "vivid", amount: 100 }); }
+  if (spec === "look") body = `<div class="ph-looks" role="listbox">${LOOK_NAMES.map((n) => `<button class="ph-look ${n === params.name ? "on" : ""}" data-look="${n}" role="option" aria-selected="${n === params.name}"><canvas width="96" height="72"></canvas><span>${esc(t("ph_look_" + n))}</span></button>`).join("")}</div>`
+    + `<label class="ph-drow"><span>${esc(t("ph_p_amount"))}</span><input type="range" min="0" max="100" step="1" value="100" data-p="amount"><input class="ph-num" type="number" min="0" max="100" step="1" value="100" data-p="amount"></label>`;
   if (Array.isArray(spec)) body = spec.map((s) => s.bool ? `<label class="ph-dchk"><input type="checkbox" data-p="${s.k}" ${s.v ? "checked" : ""}> ${esc(t("ph_p_" + s.k))}</label>`
     : s.color ? `<label class="ph-drow"><span>${esc(t("ph_p_" + s.k))}</span><input type="color" data-p="${s.k}" value="${params[s.k]}"></label>`
     : `<label class="ph-drow"><span>${esc(t("ph_p_" + s.k))}</span><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.v}" data-p="${s.k}"><input class="ph-num" type="number" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.v}" data-p="${s.k}"></label>`).join("");
@@ -124,13 +139,27 @@ function adjustDialog(ed, name) {
   const close = (apply) => {
     if (closed) return; closed = true; clearTimeout(timer); dlg.remove(); document.removeEventListener("keydown", key, true);
     ed.doc.live = null; ed.layerChanged();
-    if (apply) applyOp(ed, name, params, l).catch((e) => ed.error(e));
+    if (apply) applyOp(ed, name, params, l, name === "look" ? lookLabel(params) : null).catch((e) => ed.error(e));
   };
   const key = (e) => { if (!dlg.isConnected) return; if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(false); } else if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") { e.preventDefault(); e.stopPropagation(); close(true); } };
   document.addEventListener("keydown", key, true);
   dlg.querySelector("[data-x]").onclick = () => close(false); dlg.querySelector("[data-cancel]").onclick = () => close(false); dlg.querySelector("[data-ok]").onclick = () => close(true);
   dlg.querySelector("[data-preview]").onchange = preview;
-  dlg.querySelector("[data-reset]").onclick = () => { close(false); adjustDialog(ed, name); };
+  dlg.querySelector("[data-reset]").onclick = () => { close(false); adjustDialog(ed, name, initial); };
+  if (spec === "look") {
+    dlg.classList.add("wide");
+    const tiles = [...dlg.querySelectorAll("[data-look]")];
+    tiles.forEach((b) => (b.onclick = () => { params.name = b.dataset.look; try { localStorage.setItem("mn_photo_look", params.name); } catch {  } tiles.forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", String(x === b)); }); soon(); }));
+    const k = Math.min(1, 144 / Math.max(l.canvas.width, l.canvas.height)), sm = newCanvas(Math.max(1, l.canvas.width * k), Math.max(1, l.canvas.height * k)), smx = ctx2d(sm, { willReadFrequently: true });
+    smx.imageSmoothingQuality = "high"; smx.drawImage(l.canvas, 0, 0, sm.width, sm.height);
+    const base = smx.getImageData(0, 0, sm.width, sm.height); let i = 0;
+    const next = () => {
+      const b = tiles[i++]; if (!b || closed) return;
+      try { const out = runOp("look", { width: base.width, height: base.height, data: new Uint8ClampedArray(base.data) }, { name: b.dataset.look, amount: 100 }); const c = b.querySelector("canvas"); c.width = base.width; c.height = base.height; c.getContext("2d").putImageData(new ImageData(out.data, base.width, base.height), 0, 0); } catch (e) { console.warn(e); }
+      setTimeout(next, 0);
+    };
+    setTimeout(next, 0);
+  }
 
   const head = dlg.querySelector(".ph-dlg-head"); head.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; head.setPointerCapture(e.pointerId); const r = dlg.getBoundingClientRect(), sr = ed.stage.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top; head.onpointermove = (ev) => { dlg.style.left = Math.max(0, ev.clientX - sr.left - ox) + "px"; dlg.style.top = Math.max(0, ev.clientY - sr.top - oy) + "px"; dlg.style.right = "auto"; }; head.onpointerup = () => (head.onpointermove = null); });
   preview();
@@ -373,6 +402,19 @@ export const RUN = {
   },
 
   adjust: (ed, name) => adjustDialog(ed, name),
+  looks: (ed, n) => adjustDialog(ed, "look", n),
+  layerStyle: (ed, focus) => fxDialog(ed, focus),
+  clearLayerStyle(ed) { const d = ed.doc, l = d.active; if (!l || !hasFx(l.fx)) { toast(t("ph_fx_none")); return; } if (l.locked) { toast(t("ph_layer_locked")); return; } d.begin(t("ph_fx_clear")); delete l.fx; d.commit(); },
+  copyLayerStyle(ed) { const l = ed.doc.active; if (!l || !hasFx(l.fx)) { toast(t("ph_fx_none")); return; } ed.fxClip = cloneFx(l.fx); toast(t("ph_fx_copied"), { kind: "ok", ms: 1400 }); },
+  pasteLayerStyle(ed) { const d = ed.doc, l = d.active; if (!l || !ed.fxClip) return; if (l.locked) { toast(t("ph_layer_locked")); return; } d.begin(t("ph_fx_paste")); l.fx = cloneFx(ed.fxClip); d.commit(`${t("ph_fx_paste")} (${fxSummary(l.fx)})`); },
+  rasterizeLayerStyle(ed) {
+    const d = ed.doc, l = d.active; if (!l || l.type === "group" || !hasFx(l.fx)) { toast(t("ph_fx_none")); return; } if (l.locked) { toast(t("ph_layer_locked")); return; }
+    d.begin(t("ph_fx_rasterize")); const c = d.layerPixelsWithFx(l);
+    if (isVector(l)) { l.type = "raster"; delete l.text; delete l.shape; delete l.svg; }
+    d.swap(l, c); l.x = 0; l.y = 0; l.mask = null; delete l.fx; d.commit();
+  },
+  frame: (ed) => frameDialog(ed, canvasSize),
+  compare: (ed) => ed.compareToggle(),
   autoTone: (ed) => applyOp(ed, "autoLevels", {}), desaturate: (ed) => applyOp(ed, "grayscale", {}), invert: (ed) => applyOp(ed, "invert", {}),
   lastFilter: (ed) => { if (ed.lastFilter) applyOp(ed, ed.lastFilter.name, ed.lastFilter.params); else toast(t("ph_no_last_filter")); },
   async imageSize(ed) {
@@ -413,7 +455,7 @@ export const RUN = {
   ungroup(ed) { const d = ed.doc, f = d.find(d.activeId); if (!f || f.layer.type !== "group") return; d.begin(t("ph_ungroup")); f.list.splice(f.index, 1, ...f.layer.children); d.activeId = f.layer.children[f.layer.children.length - 1]?.id || null; d.commit(); },
   duplicateLayer(ed) {
     const d = ed.doc, f = d.find(d.activeId); if (!f) return;
-    const dup = (l) => { const o = { ...l, id: uidL(), name: l.name + " " + t("ph_copy_suffix") }; if (l.canvas) o.canvas = cloneCanvas(l.canvas); if (l.mask) o.mask = cloneCanvas(l.mask); if (l.text) o.text = { ...l.text }; if (l.shape) o.shape = { ...l.shape, points: l.shape.points?.map((p) => [...p]) }; if (l.svg) o.svg = { ...l.svg }; if (l.children) o.children = l.children.map((c) => ({ ...dup(c), name: c.name })); return o; };
+    const dup = (l) => { const o = { ...l, id: uidL(), name: l.name + " " + t("ph_copy_suffix") }; if (l.canvas) o.canvas = cloneCanvas(l.canvas); if (l.mask) o.mask = cloneCanvas(l.mask); if (l.text) o.text = { ...l.text }; if (l.fx) o.fx = JSON.parse(JSON.stringify(l.fx)); if (l.shape) o.shape = { ...l.shape, points: l.shape.points?.map((p) => [...p]) }; if (l.svg) o.svg = { ...l.svg }; if (l.children) o.children = l.children.map((c) => ({ ...dup(c), name: c.name })); return o; };
     d.begin(t("ph_duplicate_layer")); const c = dup(f.layer); f.list.splice(f.index + 1, 0, c); d.activeId = c.id; d.commit();
   },
   deleteLayer(ed) { const d = ed.doc; if (!d.activeId) return; if (d.flat().length <= 1) { toast(t("ph_last_layer")); return; } d.begin(t("ph_delete_layer")); d.removeLayer(d.activeId); d.target = "layer"; d.commit(); },
@@ -567,7 +609,7 @@ async function exportDialog(ed, exportOnly) {
 }
 
 function item(ed, label, cmd, k, extra = {}) { return { label: t(label), kbd: k ? kbd(k) : "", run: typeof cmd === "function" ? cmd : () => ed.cmd(cmd), ...extra }; }
-const ADJ_MENU = ["brightnessContrast", "levels", "curves", "exposure", "-", "vibrance", "hueSaturation", "colorBalance", "temperature", "blackWhite", "sepia", "-", "invert", "posterize", "threshold", "replaceColor"];
+const ADJ_MENU = ["brightnessContrast", "levels", "curves", "exposure", "shadowsHighlights", "-", "clarity", "dehaze", "-", "vibrance", "hueSaturation", "colorBalance", "temperature", "photoFilter", "-", "blackWhite", "sepia", "splitToning", "gradientMap", "channelMixer", "-", "invert", "posterize", "threshold", "replaceColor"];
 const ADJ_KEYS = { levels: "Ctrl+L", curves: "Ctrl+M", hueSaturation: "Ctrl+U", colorBalance: "Ctrl+B", invert: "Ctrl+I" };
 function menu(ed, id) {
   const d = ed.doc, has = !!d, l = d?.active, sel = !!d?.selection;
@@ -576,13 +618,15 @@ function menu(ed, id) {
   if (id === "edit") return [item(ed, "ph_undo", "undo", "Ctrl+Z", dis(!d?.history.length)), item(ed, "ph_redo", "redo", "Ctrl+Shift+Z", dis(!d?.future.length)), "-", item(ed, "ph_cut", "cut", "Ctrl+X", dis(false)), item(ed, "ph_copy", "copy", "Ctrl+C", dis(false)), item(ed, "ph_copy_merged", "copyMerged", "Ctrl+Shift+C", dis(false)), item(ed, "ph_paste", "paste", "Ctrl+V", dis(false)), item(ed, "ph_paste_in_place", "pasteInPlace", "Ctrl+Shift+V", dis(!ed.clip)), item(ed, "ph_clear", "clear", "Del", dis(false)), "-",
     item(ed, "ph_fill", "fillDialog", "Shift+F5", dis(false)), item(ed, "ph_content_aware", "contentAwareFill", "", dis(!sel)), item(ed, "ph_stroke_sel", "strokeDialog", "", dis(!sel)), "-", item(ed, "ph_free_transform", "freeTransform", "Ctrl+T", dis(false)),
     { label: t("ph_transform"), disabled: !has, sub: [item(ed, "ph_xf_h", "flipLayerH"), item(ed, "ph_xf_v", "flipLayerV"), item(ed, "ph_xf_cw", "rotateLayerCW"), item(ed, "ph_xf_ccw", "rotateLayerCCW"), item(ed, "ph_xf_180", "rotateLayer180")] }];
-  if (id === "image") return [{ label: t("ph_adjustments"), disabled: !has, sub: ADJ_MENU.map((k) => (k === "-" ? "-" : item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k), ADJ_KEYS[k]))) }, item(ed, "ph_auto_tone", "autoTone", "Ctrl+Shift+Alt+L", dis(false)), item(ed, "ph_desaturate", "desaturate", "Ctrl+Shift+U", dis(false)), "-",
+  if (id === "image") return [{ label: t("ph_adjustments"), disabled: !has, sub: ADJ_MENU.map((k) => (k === "-" ? "-" : item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k), ADJ_KEYS[k]))) }, item(ed, "ph_looks", "looks", "", dis(false)), item(ed, "ph_auto_tone", "autoTone", "Ctrl+Shift+Alt+L", dis(false)), item(ed, "ph_desaturate", "desaturate", "Ctrl+Shift+U", dis(false)), "-",
     item(ed, "ph_image_size", "imageSize", "Ctrl+Alt+I", dis(false)), item(ed, "ph_canvas_size", "canvasSizeDialog", "Ctrl+Alt+C", dis(false)),
     { label: t("ph_rotate_canvas"), disabled: !has, sub: [item(ed, "ph_rot_cw", "rotateCW"), item(ed, "ph_rot_ccw", "rotateCCW"), item(ed, "ph_rot_180", "rotate180"), item(ed, "ph_rot_any", "rotateArbitrary"), "-", item(ed, "ph_flip_canvas_h", "flipCanvasH"), item(ed, "ph_flip_canvas_v", "flipCanvasV")] },
-    item(ed, "ph_crop_to_sel", "cropToSelection", "", dis(!sel)), item(ed, "ph_trim", "trim", "", dis(false)), "-", item(ed, "ph_flatten", "flatten", "", dis(false))];
+    item(ed, "ph_crop_to_sel", "cropToSelection", "", dis(!sel)), item(ed, "ph_trim", "trim", "", dis(false)), item(ed, "ph_frame_dots", "frame", "", dis(false)), "-", item(ed, "ph_flatten", "flatten", "", dis(false))];
   if (id === "layer") return [item(ed, "ph_new_layer", "newLayer", "Ctrl+Shift+N", dis(false)), item(ed, "ph_new_group", "newGroup", "", dis(false)), item(ed, "ph_fill_layer", "newFillLayer", "", dis(false)), item(ed, "ph_duplicate_layer", "duplicateLayer", "", dis(!l)), item(ed, "ph_delete_layer", "deleteLayer", "", dis(!l)), item(ed, "ph_rename_layer", "layerProps", "", dis(!l)), "-",
     item(ed, "ph_layer_via_copy", "layerViaCopy", "Ctrl+J", dis(!l)), item(ed, "ph_layer_via_cut", "layerViaCut", "Ctrl+Shift+J", dis(!l || !sel)), item(ed, "ph_group_layers", "groupLayers", "Ctrl+G", dis(!l)), item(ed, "ph_ungroup", "ungroup", "Ctrl+Shift+G", dis(l?.type !== "group")), "-",
     { label: t("ph_layer_mask"), disabled: !l, sub: [item(ed, "ph_mask_reveal", () => ed.cmd("addMask", "reveal")), item(ed, "ph_mask_hide", () => ed.cmd("addMask", "hide")), item(ed, "ph_mask_selection", () => ed.cmd("addMask", "selection"), "", { disabled: !sel }), "-", item(ed, "ph_toggle_mask", "toggleMask", "", { disabled: !l?.mask }), item(ed, "ph_invert_mask", "invertMaskCmd", "", { disabled: !l?.mask }), item(ed, "ph_apply_mask", "applyMask", "", { disabled: !l?.mask }), item(ed, "ph_delete_mask", "deleteMask", "", { disabled: !l?.mask })] },
+    { label: t("ph_layer_style"), disabled: !l, sub: [item(ed, "ph_layer_style_dots", "layerStyle", "", { disabled: !l }), "-", ...["shadow", "glow", "stroke", "overlay"].map((k) => item(ed, "ph_fx_" + k, () => ed.cmd("layerStyle", k), "", { disabled: !l, checked: !!l?.fx?.[k]?.on })), "-",
+      item(ed, "ph_fx_copy", "copyLayerStyle", "", { disabled: !hasFx(l?.fx) }), item(ed, "ph_fx_paste", "pasteLayerStyle", "", { disabled: !l || !ed.fxClip }), item(ed, "ph_fx_clear", "clearLayerStyle", "", { disabled: !hasFx(l?.fx) }), item(ed, "ph_fx_rasterize", "rasterizeLayerStyle", "", { disabled: !hasFx(l?.fx) || l?.type === "group" })] },
     item(ed, "ph_sel_from_layer", "selectionFromLayer", "Ctrl+Click", dis(!l)), item(ed, "ph_rasterize", "rasterize", "", dis(!isVector(l))), "-",
     { label: t("ph_arrange"), disabled: !l, sub: [item(ed, "ph_bring_front", () => ed.cmd("arrange", "front"), "Ctrl+Shift+]"), item(ed, "ph_bring_forward", () => ed.cmd("arrange", "forward"), "Ctrl+]"), item(ed, "ph_send_backward", () => ed.cmd("arrange", "backward"), "Ctrl+["), item(ed, "ph_send_back", () => ed.cmd("arrange", "back"), "Ctrl+Shift+[")] },
     item(ed, "ph_merge_down", "mergeDown", "Ctrl+E", dis(!l)), item(ed, "ph_merge_visible", "mergeVisible", "Ctrl+Shift+E", dis(false)), item(ed, "ph_flatten", "flatten", "", dis(false))];
@@ -590,12 +634,13 @@ function menu(ed, id) {
     item(ed, "ph_select_subject", "selectSubject", "", dis(false)), item(ed, "ph_ai_select", "aiSelect", "", dis(false)), item(ed, "ph_color_range", "colorRangeDialog", "", dis(false)), "-",
     ...["grow", "shrink", "feather", "border"].map((k) => item(ed, "ph_sel_" + k, () => ed.cmd("modifySel", k), k === "feather" ? "Shift+F6" : "", dis(!sel)))];
   if (id === "filter") return [item(ed, "ph_last_filter", "lastFilter", "Ctrl+F", dis(!ed.lastFilter)), "-",
-    { label: t("ph_f_blur"), disabled: !has, sub: ["gaussianBlur", "boxBlur", "motionBlur"].map((k) => item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k))) },
+    { label: t("ph_f_blur"), disabled: !has, sub: ["gaussianBlur", "boxBlur", "motionBlur", "zoomBlur", "tiltShift"].map((k) => item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k))) },
     { label: t("ph_f_sharpen"), disabled: !has, sub: ["sharpen", "unsharpMask"].map((k) => item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k))) },
     { label: t("ph_f_noise"), disabled: !has, sub: ["noise", "denoise"].map((k) => item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k))) },
-    { label: t("ph_f_stylize"), disabled: !has, sub: ["emboss", "edges", "oilPaint", "pixelate", "vignette"].map((k) => item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k))) }];
+    { label: t("ph_f_stylize"), disabled: !has, sub: ["emboss", "edges", "oilPaint", "pixelate", "vignette", "halftone", "sketch", "chromatic"].map((k) => item(ed, "ph_adj_" + k, () => ed.cmd("adjust", k))) }];
   if (id === "view") return [item(ed, "ph_zoom_in", "zoomIn", "Ctrl+=", dis(false)), item(ed, "ph_zoom_out", "zoomOut", "Ctrl+-", dis(false)), item(ed, "ph_fit", "fit", "Ctrl+0", dis(false)), item(ed, "ph_zoom_100", "zoom100", "Ctrl+Alt+0", dis(false)), "-",
     item(ed, "ph_rulers", "rulers", "Ctrl+R", { checked: ed.showRulers }), item(ed, "ph_grid", "grid", "Ctrl+'", { checked: ed.showGrid }), item(ed, "ph_grid_size", "gridSize", ""), item(ed, "ph_guides", "guides", "Ctrl+;", { checked: ed.showGuides }), item(ed, "ph_new_guide", "newGuide", "", dis(false)), item(ed, "ph_clear_guides", "clearGuides", "", dis(!d?.guides.length)), "-",
+    item(ed, "ph_compare", "compare", "\\", { checked: !!ed.compare, disabled: !has }), "-",
     item(ed, "ph_panels", "togglePanels", "Tab", { checked: ed.sideOpen }), item(ed, "ph_shortcuts", () => showShortcuts(ed), "F1")];
   if (id === "ai") return ed.ai.menuItems();
   return null;
@@ -607,7 +652,7 @@ function context(ed, p) {
     ...(hit && hit.id !== ed.doc.activeId ? [{ label: t("ph_select_layer", { name: hit.name }), run: () => { ed.doc.activeId = hit.id; ed.refreshPanels(); } }, "-"] : []),
     item(ed, "ph_undo", "undo", "Ctrl+Z", { disabled: !ed.doc.history.length }),
     "-", item(ed, sel ? "ph_deselect" : "ph_select_all", sel ? "deselect" : "selectAll", sel ? "Ctrl+D" : "Ctrl+A"), ...(sel ? [item(ed, "ph_inverse", "inverse", "Ctrl+Shift+I"), item(ed, "ph_layer_via_copy", "layerViaCopy", "Ctrl+J"), item(ed, "ph_content_aware", "contentAwareFill"), item(ed, "ph_crop_to_sel", "cropToSelection")] : [item(ed, "ph_select_subject", "selectSubject")]),
-    "-", item(ed, "ph_copy", "copy", "Ctrl+C"), item(ed, "ph_paste", "paste", "Ctrl+V"), item(ed, "ph_free_transform", "freeTransform", "Ctrl+T"),
+    "-", item(ed, "ph_copy", "copy", "Ctrl+C"), item(ed, "ph_paste", "paste", "Ctrl+V"), item(ed, "ph_free_transform", "freeTransform", "Ctrl+T"), item(ed, "ph_layer_style_dots", "layerStyle", "", { disabled: !ed.doc.active }),
     "-", { label: t("ph_ai_ask_here"), icon: "sparkle", run: () => ed.ai.ask(t("ph_ai_what_here", { x: Math.round(p.x), y: Math.round(p.y) })) },
   ];
 }
@@ -615,7 +660,7 @@ function showShortcuts(ed) {
   const rows = [["V", "ph_tool_move"], ["M", "ph_tool_marquee"], ["L", "ph_tool_lasso"], ["W", "ph_tool_quicksel"], ["C", "ph_tool_crop"], ["I", "ph_tool_eyedropper"], ["J", "ph_tool_heal"], ["B", "ph_tool_brush"], ["S", "ph_tool_clone"], ["E", "ph_tool_eraser"], ["G", "ph_tool_gradient"], ["R", "ph_tool_blur"], ["O", "ph_tool_dodge"], ["T", "ph_tool_text"], ["U", "ph_tool_shape"], ["H / Space", "ph_tool_hand"], ["Z", "ph_tool_zoom"],
     ["Shift+letter", "ph_sc_cycle"], ["[ / ]", "ph_sc_size"], ["{ / }", "ph_sc_hardness"], ["1…0", "ph_sc_opacity"], ["X", "ph_swap_colors"], ["D", "ph_sc_default_colors"], ["Alt+Click", "ph_sc_alt"], ["Shift", "ph_sc_shift"],
     ["Ctrl+Z / Ctrl+Shift+Z", "ph_sc_undo"], ["Ctrl+A / Ctrl+D", "ph_sc_select"], ["Ctrl+Shift+I", "ph_inverse"], ["Ctrl+T", "ph_free_transform"], ["Ctrl+J", "ph_layer_via_copy"], ["Ctrl+E", "ph_merge_down"], ["Ctrl+G", "ph_group_layers"], ["Ctrl+Shift+N", "ph_new_layer"],
-    ["Ctrl+L / M / U / B / I", "ph_sc_adjust"], ["Ctrl+Shift+U", "ph_desaturate"], ["Ctrl+Alt+I / C", "ph_sc_sizes"], ["Ctrl+0 / Ctrl+Alt+0", "ph_sc_zoom"], ["Ctrl+R", "ph_rulers"], ["Ctrl+'", "ph_grid"], ["Del", "ph_clear"], ["Shift+F5", "ph_fill"], ["Tab", "ph_panels"], ["Enter / Esc", "ph_sc_commit"]];
+    ["Ctrl+L / M / U / B / I", "ph_sc_adjust"], ["Ctrl+Shift+U", "ph_desaturate"], ["Ctrl+Alt+I / C", "ph_sc_sizes"], ["Ctrl+0 / Ctrl+Alt+0", "ph_sc_zoom"], ["Ctrl+R", "ph_rulers"], ["Ctrl+'", "ph_grid"], ["Del", "ph_clear"], ["Shift+F5", "ph_fill"], ["Tab", "ph_panels"], ["\\", "ph_compare"], ["Enter / Esc", "ph_sc_commit"]];
   modal({ title: t("ph_shortcuts"), wide: true, body: `<div class="shortcuts">${rows.map(([k, l]) => `<div><kbd>${esc(kbd(k))}</kbd><span>${esc(t(l))}</span></div>`).join("")}</div>`, buttons: [{ label: t("ph_close"), primary: true, value: true }] });
 }
 

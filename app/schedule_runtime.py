@@ -36,7 +36,7 @@ from .schedule_sampler import SAMPLER, empty, merge_needs
 
 log = logging.getLogger("memuai.schedule_runtime")
 
-RUNTIME_KINDS = ("notify", "dfy", "command", "memucode", "integration", "team")
+RUNTIME_KINDS = ("notify", "dfy", "command", "memucode", "integration", "team", "module")
 BASE_SLEEP = 30.0
 SAMPLED_SLEEP = 15.0
 WAKE_POLL = 2.0
@@ -542,6 +542,7 @@ async def _team(task: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
         require_confirmation=False,
         available_models=avail,
         mode="work" if task.get("mode") == "work" else "chat",
+        source="schedule",
     )
     try:
         res = await runtime_obj.run()
@@ -564,9 +565,44 @@ async def _team(task: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
         except Exception as exc:
             log.warning("Scheduled team run %s could not be persisted: %s", runtime_obj.id, _short(exc))
 
+def module_run_settings(task: Dict[str, Any]) -> Dict[str, Any]:
+    """Trigger settings + the task's own options, as one dict for the handler."""
+    trigger = task.get("module_trigger") if isinstance(task.get("module_trigger"), dict) else {}
+    settings: Dict[str, Any] = dict(trigger.get("settings") or {})
+    if trigger.get("metric"):
+        settings.setdefault("metric", trigger["metric"])
+    if trigger.get("threshold"):
+        settings.setdefault("threshold", trigger["threshold"])
+    settings.update(task.get("module_options") or {})
+    if task.get("model"):
+        settings.setdefault("model", task["model"])
+    return settings
+
+
+async def _module(task: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
+    """``kind: module`` — a real action of a built-in module (app/module_actions.py)."""
+    from . import module_actions
+    lang = _lang()
+    meta = RUN_META.get() or {}
+    state = task.get("module_trigger_state") if isinstance(task.get("module_trigger_state"), dict) else {}
+    # Only a run fired by the trigger hands over the chats that crossed it; a manual
+    # run lets the handler pick everything above the threshold that is not done yet.
+    pending = [str(x) for x in state.get("pending") or []] if not meta.get("test") and state.get("pending") else []
+    result = await module_actions.run_module_action(
+        str(task.get("module_id") or ""), str(task.get("module_handler") or ""), lang=lang,
+        task={k: task.get(k) for k in ("id", "name", "model", "lang") if k in task},
+        settings=module_run_settings(task), pending=pending)
+    data = {k: v for k, v in (result.get("data") or {}).items() if isinstance(v, (str, int, float, bool)) or v is None}
+    return bool(result.get("ok")), str(result.get("text") or ""), {
+        "kind": "module", "module": str(task.get("module_id") or ""), "handler": str(task.get("module_handler") or ""),
+        "files": [str(f) for f in result.get("files") or []][:30], "module_data": data}
+
+
 async def run_action(task: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
     kind = str(task.get("kind") or "")
     try:
+        if kind == "module":
+            return await _module(task)
         if kind == "notify":
             return await _notify_only(task)
         if kind == "team":

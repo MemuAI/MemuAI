@@ -109,6 +109,9 @@
 .ds-hint:empty { display: none; }
 kbd { font-size: .92em; padding: 0 5px; }
 .ds-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+/* Project type + model: the model picker needs the full width of the
+ * sidebar to show a readable name, so this pair stacks. */
+.ds-grid2.ds-grid-stack { grid-template-columns: 1fr; }
 .ds-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ds-brief { min-height: 128px; }
 .ds-mono { font-family: var(--mono); font-size: .8em; line-height: 1.55; }

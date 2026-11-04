@@ -146,21 +146,23 @@ class FilesApp:
         return "en" if memuai_preferences().get("language") == "en" else "ru"
 
     def theme(self) -> Dict[str, Any]:
+        """Mode, colour tokens, design and folder colour (``appearance.py``: MemuAI's look unless chosen here)."""
         prefs = memuai_preferences()
-        mode = settings_store.load().get("theme", "auto")
-        if mode not in ("dark", "light"):
-            mode = "light" if prefs.get("theme") == "light" else "dark"
-        tokens: Dict[str, str] = {}
+        settings = settings_store.load()
         try:
-            from .. import themes
-            tokens = themes.resolve_tokens(mode, str(prefs.get(f"surface_{mode}") or ""),
-                                           str(prefs.get("accent_color") or ""))
+            from . import appearance
+            look = appearance.resolve(settings, prefs)
         except Exception as exc:  # noqa: BLE001
-            log.debug("theme tokens unavailable: %s", exc)
-        safe = {k: v for k, v in tokens.items()
+            log.debug("appearance unavailable: %s", exc)
+            mode = settings.get("theme", "auto")
+            if mode not in ("dark", "light"):
+                mode = "light" if prefs.get("theme") == "light" else "dark"
+            look = {"mode": mode, "tokens": {}, "palette": "auto", "accent": "auto", "design": "classic",
+                    "design_setting": "auto", "folders": "classic"}
+        safe = {k: v for k, v in (look.get("tokens") or {}).items()
                 if re.fullmatch(r"--[\w-]{1,40}", k) and isinstance(v, str) and len(v) < 200 and "<" not in v
                 and ";" not in v and "}" not in v}
-        return {"mode": mode, "tokens": safe, "font_scale": prefs.get("font_scale", 100)}
+        return {**look, "tokens": safe, "font_scale": prefs.get("font_scale", 100)}
 
 def _version() -> str:
     try:
@@ -193,8 +195,12 @@ def _themed_html(data: bytes, app: "FilesApp") -> bytes:
     except Exception:  # noqa: BLE001
         return data
     css = "".join(f"{k}:{v};" for k, v in tokens.items() if '"' not in v and "\\" not in v)
-    fallback = "" if tokens else ' class="fallback-tokens"'
-    head = f'<html lang="{lang}" data-theme="{mode}"{fallback}>'
+    fallback = "" if tokens.get("--bg") else ' class="fallback-tokens"'
+    look = ""
+    for attr, value in (("design", theme.get("design")), ("folders", theme.get("folders"))):
+        if isinstance(value, str) and re.fullmatch(r"[a-z]{1,16}", value):
+            look += f' data-{attr}="{value}"'
+    head = f'<html lang="{lang}" data-theme="{mode}"{look}{fallback}>'
     out = data.replace(b'<html lang="ru" data-theme="dark">', head.encode("utf-8"), 1)
     if css:
         out = out.replace(b"</head>", f'<style id="mf-theme">:root{{{css}}}</style>\n</head>'.encode("utf-8"), 1)
@@ -241,10 +247,24 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"ok": False, "error": message, **extra}, status)
 
     def _body(self, limit: int = MAX_JSON) -> bytes:
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ValueError("bad content length") from None
         if length < 0 or length > limit:
             raise ValueError("request too large")
-        return self.rfile.read(length) if length else b""
+        if not length:
+            return b""
+        # F34: chunked read (see memunote/server.py _body).
+        chunks: List[bytes] = []
+        remaining = length
+        while remaining > 0:
+            block = self.rfile.read(min(1024 * 1024, remaining))
+            if not block:
+                break
+            chunks.append(block)
+            remaining -= len(block)
+        return b"".join(chunks)
 
     def _json_body(self) -> Dict[str, Any]:
         raw = self._body()
@@ -401,6 +421,11 @@ class Handler(BaseHTTPRequestHandler):
         if "open_archives" in body:
             _sync_archive_assoc()
         self._json({"ok": True, "settings": value, "lang": self.app.lang(), "theme": self.app.theme()})
+
+    def api_appearance(self, method: str) -> None:
+        """Palettes (with swatches for both modes), accents, designs and folder colours for the pickers."""
+        from . import appearance
+        self._json({"ok": True, **appearance.catalog(self.app.lang(), memuai_preferences()), "theme": self.app.theme()})
 
     def api_settings_schema(self, method: str) -> None:
         from . import settings_schema
@@ -631,7 +656,8 @@ class Handler(BaseHTTPRequestHandler):
     def api_ops_submit(self, method: str) -> None:
         body = self._json_body()
         kind = str(body.get("kind") or "")
-        if kind not in ("copy", "move", "trash", "delete", "extract", "compress", "download", "vpaste", "arcadd"):
+        if kind not in ("copy", "move", "trash", "delete", "extract", "compress", "download", "vpaste", "arcadd",
+                        "arcedit", "arctest", "arcconvert"):
             raise FsError("bad_kind", kind)
         if kind == "vpaste":
             dest = clean_path(body.get("dest"))
@@ -657,9 +683,45 @@ class Handler(BaseHTTPRequestHandler):
             for path in sources:
                 fsops.ensure_mutable(path)
         args = {k: v for k, v in (body.get("args") or {}).items()
-                if k in ("copy_suffix", "on_conflict", "label", "members", "strip", "password", "format", "level", "inner")}
+                if k in ("copy_suffix", "on_conflict", "label", "members", "strip", "password", "format", "level", "inner",
+                         "actions", "source_password")}
+        if kind.startswith("arc"):
+            self._check_arc_op(kind, sources, dest, args)
         op = self.app.queue.submit(kind, sources, dest, **args)
         self._json({"ok": True, "op": op.snapshot()})
+
+    @staticmethod
+    def _check_arc_op(kind: str, sources: List[str], dest: str, args: Dict[str, Any]) -> None:
+        """Archive operations are checked up front (a bad request is a 400, not a failed operation)."""
+        from . import archive, archive_edit
+        if kind in ("arcedit", "arcadd"):
+            if not dest or not os.path.isfile(dest) or not archive.is_archive_name(dest):
+                raise FsError("not_an_archive", dest)
+            fsops.ensure_mutable(dest)
+            if not archive_edit.editable(dest):
+                raise FsError("archive_readonly", dest)
+            if kind == "arcedit":
+                args["actions"] = archive_edit.clean_actions(args.get("actions"))
+        else:
+            if len(sources) != 1 or not os.path.isfile(sources[0]) or not archive.is_archive_name(sources[0]):
+                raise FsError("not_an_archive", sources[0] if sources else "")
+            if kind == "arcconvert":
+                if str(args.get("format") or "zip") not in archive.FORMATS:
+                    raise FsError("bad_format", str(args.get("format")))
+                if not dest or archive.split(dest) or not os.path.isdir(os.path.dirname(dest)):
+                    raise FsError("bad_destination", dest)
+                fsops.ensure_mutable(dest)
+
+    def api_arc_comment(self, method: str) -> None:
+        from . import archive_edit
+        if method == "GET":
+            self._json({"ok": True, **archive_edit.get_comment(clean_path(self._query().get("path")))})
+            return
+        body = self._json_body()
+        path = clean_path(body.get("path"))
+        fsops.ensure_mutable(path)
+        self._json({"ok": True, **archive_edit.set_comment(path, str(body.get("comment") or ""))})
+        self.app.events.push({"type": "changed", "paths": [os.path.dirname(path)]})
 
     def api_ops_control(self, method: str) -> None:
         body = self._json_body()
@@ -689,13 +751,30 @@ class Handler(BaseHTTPRequestHandler):
         body = json.loads(self._body(64 * 1024 * 1024) or b"{}")
         dest = clean_path(body.get("dest"))
         fsops.ensure_mutable(dest)
+        def _num(raw: Any) -> int:
+            # F34: a non-numeric size/mtime used to raise ValueError.
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                return 0
+
         items = []
         for raw in (body.get("items") or [])[:200000]:
             if isinstance(raw, dict) and raw.get("rel"):
-                items.append({"rel": str(raw["rel"])[:1024], "size": max(0, int(raw.get("size") or 0)),
-                              "mtime": max(0, int(raw.get("mtime") or 0)), "dir": bool(raw.get("dir"))})
+                items.append({"rel": str(raw["rel"])[:1024], "size": max(0, _num(raw.get("size"))),
+                              "mtime": max(0, _num(raw.get("mtime"))), "dir": bool(raw.get("dir"))})
         if not items:
             raise FsError("nothing_selected")
+        # F34: refuse before any file is written if the declared total
+        # cannot fit on the destination disk.
+        import shutil
+        total = sum(it["size"] for it in items if not it["dir"])
+        try:
+            free = shutil.disk_usage(dest).free
+        except OSError:
+            free = 0
+        if free and total > max(0, free - 100 * 1024 * 1024):
+            raise FsError("not_enough_space")
         tops = list(dict.fromkeys(it["rel"].replace("\\", "/").strip("/").split("/")[0] for it in items))
         op = self.app.queue.submit("upload", [os.path.join(dest, name) for name in tops], dest, items=items,
                                    label=str(body.get("label") or "")[:200])
@@ -859,7 +938,7 @@ class Handler(BaseHTTPRequestHandler):
             source = "walk"
             rows = None
 
-            if (scope == "everywhere" or root) and search.index_ready():
+            if not query.description.inspect and (scope == "everywhere" or root) and search.index_ready():
                 rows = search.index_search(query, roots, limit)
                 if rows is not None:
                     source = "index"

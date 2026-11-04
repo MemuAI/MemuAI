@@ -67,7 +67,9 @@ def discover(key: str, limit: int = 400) -> List[SessionInfo]:
         return []
     try:
         return source.module.discover(limit)
-    except (OSError, ReadError):
+    except Exception:
+        # F31: one damaged foreign store used to take the whole /import
+        # listing down (a bad type inside a reader is not OSError/ReadError).
         return []
 
 def discover_all(limit: int = 400) -> List[SessionInfo]:

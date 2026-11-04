@@ -174,6 +174,7 @@ SETTING_NOTES: Dict[str, str] = {
     "tool_protocol": "auto | native | text", "permission_mode": "default mode at start (/mode)",
     "permission_sync": "share the mode between windows", "permissions": "allow / deny / ask rules (/permissions)",
     "max_turns": "tool rounds per request before asking (80)", "subagents": "ask | auto | off",
+    "tool_timeout_seconds": "longest wait for one tool call in seconds (default 300, 0 = no limit, up to 3600)",
     "auto_compact": "summarise the history automatically", "auto_compact_threshold": "% of the window (85)",
     "context_budget": "tokens after which old large tool results are folded (40000; 0 = by window share)",
     "context_window": "override the model's window (0 = known value)",

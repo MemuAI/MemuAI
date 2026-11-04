@@ -52,7 +52,7 @@
           const note = document.createElement("p");
           note.className = "mp-tg-note";
           note.innerHTML = BELL + (s.ready ? t(" — присылать обновления панели в Telegram (без повторов и спама; тихие часы бота учитываются).", " — send this panel's updates to Telegram (no duplicates or spam; the bot's quiet hours apply).")
-            : t(" — обновления панелей в Telegram: сначала включите и привяжите бота (Настройки → Telegram).", " — panel updates in Telegram: switch on and pair the bot first (Settings → Telegram)."));
+            : t(" — обновления панелей в Telegram: сначала включите и привяжите бота (Настройки → Мессенджеры → Telegram).", " — panel updates in Telegram: switch on and pair the bot first (Settings → Messengers → Telegram)."));
           list.after(note);
         }
         list.querySelectorAll(".mp-set-item[data-panel-id]").forEach((item) => {
@@ -80,7 +80,11 @@
       }
     }
   });
-  function start() { observer.observe(document.body, { childList: true, subtree: true }); load(true).then(() => schedule()); }
+  function start() {
+    if (document.documentElement.dataset.moduleApp) return;
+    observer.observe(document.body, { childList: true, subtree: true });
+    load(true).then(() => schedule());
+  }
   if (document.body) start(); else document.addEventListener("DOMContentLoaded", start);
   window.MemuPanelsTelegram = { refresh: () => load(true).then(() => schedule()) };
 })();

@@ -151,7 +151,9 @@ const MemuToolDetails = (() => {
       }
       case "code_run": case "code_terminal": return { glyph: "terminal", title: L("Команда", "Command"), subject: d.command || a.command ? `<code>${e(cut(d.command || a.command, 90))}</code>` : "", html: true };
       case "project_tree": case "work_tree": return { glyph: "folder", title: L("Структура проекта", "Project structure"), subject: "" };
-      case "agent_spawn": return { glyph: "users", title: L("Запущен агент", "Started an agent"), subject: quote(a.title || a.task || "") };
+      case "agent_spawn": return { glyph: "users", title: L("Запущен агент", "Started an agent"), subject: quote(a.title || a.task || "") + (a.agent && a.agent !== "general-purpose" ? ` · ${cut(a.agent, 40)}` : "") };
+      case "agent_wait": return { glyph: "users", title: L("Ожидание агентов", "Waited for agents"), subject: "" };
+      case "agent_cancel": return { glyph: "users", title: L("Агенты остановлены", "Stopped agents"), subject: a.id !== undefined ? quote("#" + a.id) : "" };
       case "agent_status": case "agent_result": return { glyph: "users", title: L("Агент", "Agent"), subject: quote(a.id || "") };
       default: break;
     }

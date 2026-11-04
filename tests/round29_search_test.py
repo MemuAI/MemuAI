@@ -400,7 +400,7 @@ class FrontendHookTests(unittest.TestCase):
         app = (STATIC / "app.js").read_text(encoding="utf-8")
         self.assertIn("MemuSearch.toggle()", app)
         self.assertIn('action === "search") { if (window.MemuSearch) MemuSearch.open()', app)
-        self.assertIn("openFile }", (STATIC / "memucode.js").read_text(encoding="utf-8").replace(",\n    openFile }", "openFile }").replace("\n", " ").replace("    ", " ").replace(", openFile", "openFile"))
+        self.assertRegex((STATIC / "memucode.js").read_text(encoding="utf-8"), r"return \{[^}]*\bopenFile\b")
         pg = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
         self.assertIn("search_api.register(app)", pg)
         for name in ("MemuAI.spec", "build.py"):

@@ -1,0 +1,18 @@
+# Test dependencies for the MemuAI test suite (see E18).
+# Install: python -m pip install -r tests/requirements-test.txt
+# Optional UI/browser tests skip gracefully when their extras are missing.
+pytest>=8
+fastapi>=0.110
+uvicorn
+httpx
+curl_cffi
+websockets
+pillow
+psutil
+pyyaml
+prompt_toolkit
+rich
+telethon
+duckdb
+playwright
+jsdom

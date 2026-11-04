@@ -396,6 +396,12 @@ class Runtime:
                 data = {}
         except (OSError, ValueError):
             data = {}
+        try:
+            # The active workspace keeps its own models and behaviour on top of the shared settings.
+            from ..spaces import overlay_preferences
+            data = overlay_preferences(data)
+        except Exception:
+            pass
         self._prefs = (time.time(), data)
         return data
 

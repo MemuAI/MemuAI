@@ -9,6 +9,8 @@ import { readText, longestLine, docBlob, LONG_LINE } from "./bigtext.js";
 import { BookView, NotebookView, JsonTree, xmlFormat, xmlError, notebookToMarkdown, notebookToScript } from "./formatviews.js";
 import { SheetGrid, SheetData } from "./sheetgrid.js";
 import { MarkdownPreview, CsvTable, PdfView, ImageView, HtmlPreview, DocEditor, docFind, renderMarkdown } from "./views.js";
+import { MediaView, FontView, EmailView } from "./fileviews.js";
+import { fieldContextMenu, isTextField, viewContextMenu } from "./docmenu.js";
 import { AI, refreshStatus, onAIStatus, ChatPanel, inlineCommand, requestGhost, COMMANDS, aiExcerpt } from "./ai.js";
 import { SlidesView, slidesOwnsKey, newDeckDialog } from "./slides/view.js";
 
@@ -17,6 +19,7 @@ import { spellExtension, spellWordAt, suggestions as spellSuggestions, addToDict
 import { codeComplete, langKey } from "./codecomplete.js";
 import { RunPanel, isRunnable } from "./runpanel.js";
 import "./toolbar-fit.js";
+import { applyLook, lookChanged, lookDiffers, lookMenus, loadCatalog, bindAppearance } from "./appearance.js";
 
 const MN = (window.MN = { settings: {}, tabs: [], panes: [], active: "left", recent: [], closed: [], boot: null });
 
@@ -34,6 +37,7 @@ async function boot() {
   MN.boot = data; MN.settings = data.settings; MN.recent = data.recent || []; MN.sep = data.sep || "\\";
   I18N.lang = data.lang; document.documentElement.lang = data.lang;
   applyTheme(data.theme);
+  setTimeout(() => loadCatalog().catch(() => {}), 1500);
   buildShell();
   MN.run = new RunPanel(runHooks());
   applySettings();
@@ -61,17 +65,14 @@ async function boot() {
   window.addEventListener("focus", () => reloadSettings());
   window.addEventListener("beforeunload", () => { saveSession.flush(); });
   document.addEventListener("keydown", globalKeys, true);
+  document.addEventListener("contextmenu", fallbackMenu);
   document.addEventListener("dragover", (e) => e.preventDefault());
   document.addEventListener("drop", (e) => e.preventDefault());
   document.body.classList.add("ready");
 }
 
 function applyTheme(theme) {
-  MN.theme = theme;
-  const root = document.documentElement;
-  root.dataset.theme = theme.mode;
-  for (const [k, v] of Object.entries(theme.tokens || {})) root.style.setProperty(k, v);
-  if (!theme.tokens?.["--bg"]) root.classList.add("fallback-tokens"); else root.classList.remove("fallback-tokens");
+  applyLook(MN, theme);
   api("window", { cmd: "theme", mode: theme.mode }).catch(() => {});
 }
 
@@ -83,15 +84,47 @@ function applySettings() {
   root.style.setProperty("--doc-zoom", s.zoom / 100);
   document.body.classList.toggle("no-toolbar", !s.show_toolbar);
   document.body.classList.toggle("no-statusbar", !s.show_statusbar);
-  document.body.classList.toggle("compact-tabs", !!s.compact_tabs);
+  document.body.classList.toggle("compact-tabs", !!s.compact_tabs || s.tab_style === "compact");
+  root.style.setProperty("--side-w", `${Math.min(600, Math.max(160, +s.sidebar_width || 264))}px`);
+  root.dataset.tabstyle = s.tab_style || "classic";
+  document.body.classList.toggle("no-tabbar", !s.show_tab_bar);
+  document.body.classList.toggle("sidebar-right", s.sidebar_side === "right");
+  document.body.classList.toggle("md-preview-left", s.md_preview_side === "left");
   for (const tab of MN.tabs) {
     if (tab.indent?.manual) continue;
     if (!tab.indent?.detected) tab.indent = { tab_size: s.tab_size, indent_with_tabs: s.indent_with_tabs };
     else if (tab.indent.indent_with_tabs) tab.indent.tab_size = s.tab_size;
   }
   for (const p of MN.panes) reconfigurePane(p);
-  for (const tab of MN.tabs) tab.doc?.setZoom(s.zoom);
+  for (const tab of MN.tabs) { tab.doc?.setZoom(s.zoom); tab.doc?.setSpellcheck(s.spell_check); }
+  layoutTabs();
+  applyCustomCss(s.custom_css);
+  renderTabs();
   updateStatus();
+}
+// Move the tab strip into the side column for the "vertical" tab style, back to the
+// top bar for the rest. The node itself moves, so its listeners and scroll state move with it.
+function layoutTabs() {
+  const tabsEl = $("#tabs"), side = $("#tablist-side");
+  if (!tabsEl || !side) return;
+  const vertical = MN.settings.tab_style === "vertical";
+  if (vertical) { if (tabsEl.parentElement !== side) side.appendChild(tabsEl); }
+  else { const topbar = document.querySelector(".topbar"); if (tabsEl.parentElement !== topbar) topbar.insertBefore(tabsEl, $("#btn-new")); }
+}
+// The user's own CSS, applied to this window only. textContent (never innerHTML), so the
+// text cannot break out of the <style> element; the server already strips @import and
+// outside url() on save.
+function applyCustomCss(css) {
+  let st = document.getElementById("mn-custom-css");
+  if (!css) { st?.remove(); return; }
+  if (!st) { st = document.createElement("style"); st.id = "mn-custom-css"; document.head.appendChild(st); }
+  st.textContent = css;
+}
+function tabMeta(tab) {
+  const parts = [];
+  if (tab.size) parts.push(fmtBytes(tab.size));
+  if (tab.mtime) parts.push(new Date(tab.mtime * 1000).toLocaleDateString(document.documentElement.lang === "en" ? "en-GB" : "ru-RU", { day: "2-digit", month: "short" }));
+  return parts.join(" · ");
 }
 
 async function reloadSettings() {
@@ -101,7 +134,7 @@ async function reloadSettings() {
   const before = MN.settings;
   MN.settings = r.settings;
   const th = await api("theme").catch(() => null);
-  if (th && (before.theme !== r.settings.theme || before.language !== r.settings.language)) applyTheme(th.theme);
+  if (th && (lookDiffers(before, r.settings) || before.language !== r.settings.language)) applyTheme(th.theme);
   applySettings();
   if (before.ai_enabled !== r.settings.ai_enabled || before.proxy_url !== r.settings.proxy_url || before.ai_model !== r.settings.ai_model) refreshStatus(true);
   if (th && th.lang !== I18N.lang) { I18N.lang = th.lang; document.documentElement.lang = th.lang; rebuildChrome(); }
@@ -112,7 +145,7 @@ async function saveSettings(patch) {
   const r = await api("settings", patch);
   const langChanged = r.lang !== I18N.lang;
   MN.settings = r.settings;
-  if (patch.theme !== undefined) applyTheme(r.theme);
+  if (lookChanged(patch)) applyTheme(r.theme);
   applySettings();
   if (langChanged) { I18N.lang = r.lang; document.documentElement.lang = r.lang; rebuildChrome(); }
   return r.settings;
@@ -133,6 +166,7 @@ function buildShell() {
   <div class="toolbar" id="toolbar" role="toolbar"></div>
   <div class="banner-host" id="banners"></div>
   <main class="workspace">
+    <div class="tablist-side" id="tablist-side"></div>
     <aside class="sidebar" id="sidebar" hidden></aside>
     <div class="panes" id="panes"><section class="pane" id="pane-left" data-pane="left"></section><div class="pane-gutter" hidden></div><section class="pane" id="pane-right" data-pane="right" hidden></section></div>
     <div class="ai-gutter" hidden></div>
@@ -217,9 +251,11 @@ function newTab(opts = {}) {
 function renderTabs() {
   const host = $("#tabs"); if (!host) return;
   const active = activePane()?.tabId, other = MN.panes.find((p) => p.id !== MN.active)?.tabId;
-  host.innerHTML = MN.tabs.map((tab) => `<div class="tab ${tab.id === active ? "active" : ""} ${tab.id === other ? "other" : ""} ${tab.dirty ? "dirty" : ""} ${tab.pinned ? "pinned" : ""}" role="tab" draggable="true" data-id="${tab.id}" title="${esc(tab.path || tab.name)}" aria-selected="${tab.id === active}">
-      ${icon(kindIcon(tab.kind, tab.langName && tab.kind === "text" && tab.langName !== "Plain text"))}<span class="tab-name">${esc(tab.name)}</span>
-      <button class="tab-x" data-x="${tab.id}" aria-label="${esc(t("close_tab"))}">${tab.pinned ? icon("pin") : icon("close")}</button><span class="tab-dot"></span></div>`).join("");
+  host.innerHTML = MN.tabs.map((tab) => { const meta = tab.path && MN.settings.tab_meta ? tabMeta(tab) : "";
+    const sub = MN.settings.tab_style === "preview" ? `<span class="tab-sub">${esc(meta || tab.path || "")}</span>` : "";
+    return `<div class="tab ${tab.id === active ? "active" : ""} ${tab.id === other ? "other" : ""} ${tab.dirty ? "dirty" : ""} ${tab.pinned ? "pinned" : ""}" role="tab" draggable="true" data-id="${tab.id}" title="${esc(meta ? `${tab.name} — ${meta}` : (tab.path || tab.name))}" aria-selected="${tab.id === active}">
+      ${icon(kindIcon(tab.kind, tab.langName && tab.kind === "text" && tab.langName !== "Plain text"))}<span class="tab-label"><span class="tab-name">${esc(tab.name)}</span>${sub}</span>
+      <button class="tab-x" data-x="${tab.id}" aria-label="${esc(t("close_tab"))}">${tab.pinned ? icon("pin") : icon("close")}</button><span class="tab-dot"></span></div>`; }).join("");
   host.querySelectorAll(".tab").forEach((el) => {
     el.addEventListener("pointerdown", (e) => { if (e.button === 0 && !e.target.closest(".tab-x")) activate(el.dataset.id); });
     el.addEventListener("auxclick", (e) => { if (e.button === 1) { e.preventDefault(); closeTab(el.dataset.id); } });
@@ -511,7 +547,7 @@ function docOf(tab) {
 }
 export function textOf(tab) {
   if (DOC_KINDS.has(tab.kind)) return tab.doc ? tab.doc.text() : "";
-  if (tab.kind === "sheet" || tab.kind === "book" || tab.kind === "slides") return tab.comp?.text ? tab.comp.text() : "";
+  if (tab.kind === "sheet" || tab.kind === "book" || tab.kind === "slides" || tab.kind === "email") return tab.comp?.text ? tab.comp.text() : "";
   const d = docOf(tab); return d ? d.toString() : String(tab.initialText || "");
 }
 function viewOf(tab) { const p = MN.panes.find((q) => q.view && q.view.__tab === tab.id && q.tabId === tab.id && !q.editorHost.hidden); return p?.view || null; }
@@ -553,15 +589,18 @@ function buildComponent(p, tab) {
     tab.doc = new DocEditor(box, tab, { spellcheck: MN.settings.spell_check, zoom: MN.settings.zoom,
       onChange: () => { markDirty(tab, true); scheduleRecovery(tab); updateStatusSoon(); outlineChanged(); },
       onSelection: () => updateStatusSoon(),
-      onImage: (insert) => pickImage(insert) });
+      onImage: (insert) => pickImage(insert),
+      menu: () => docMenuHooks(tab) });
   } else if (tab.kind === "pdf") {
     if (tab.comp instanceof PdfView) { box.append(tab.comp.el); return; }
     tab.comp = new PdfView(box, tab);
     tab.comp.onExtract = async () => { const text = await tab.comp.text(); newTab({ text, name: tab.name.replace(/\.pdf$/i, "") + ".txt" }); };
     tab.comp.onExport = (fmt) => exportPdfText(tab, fmt);
     tab.comp.onAsk = () => { toggleAI(true); MN.chat?.focus(t("ai_pdf_question")); };
+    tab.comp.menuHooks = () => ({ ...aiReadHooks(), ask: AI.online && MN.settings.ai_enabled ? tab.comp.onAsk : null });
     tab.comp.onChange = () => markDirty(tab, tab.comp.dirty);
     tab.comp.onSave = () => saveTab(tab);
+    tab.comp.onSaveCopy = (bytes, name) => savePdfCopy(tab, bytes, name);
   } else if (tab.kind === "slides") {
     if (tab.comp instanceof SlidesView) { box.append(tab.comp.el); return; }
     tab.comp = new SlidesView(box, tab, slidesHooks(tab));
@@ -589,6 +628,12 @@ function buildComponent(p, tab) {
     tab.comp = new SheetGrid(box, tab, { onChange: (dirty) => markDirty(tab, dirty) });
   } else if (tab.kind === "book") {
     tab.comp = new BookView(box, tab);
+  } else if (tab.kind === "media") {
+    tab.comp = new MediaView(box, tab);
+  } else if (tab.kind === "font") {
+    tab.comp = new FontView(box, tab);
+  } else if (tab.kind === "email") {
+    tab.comp = new EmailView(box, tab, { onRaw: () => reopenAsText(tab), onSave: (bytes, name) => saveBytesAs(tab, bytes, name) });
   } else {
     box.innerHTML = `<div class="empty-state">${icon("warn", "big")}<h3>${esc(t(tab.kind === "legacy" ? "legacy_title" : "binary_title"))}</h3>
       <p>${esc(t(tab.kind === "legacy" ? "legacy_text" : "binary_text", { ext: extname(tab.path) }))}</p>
@@ -660,7 +705,7 @@ async function loadTab(tab, opts = {}) {
     toast(t("file_missing_recovered", { name: tab.name }), { kind: "error" });
     return;
   }
-  Object.assign(tab, { kind: opts.forceText ? (info.kind === "binary" || info.kind === "legacy" ? "text" : info.kind) : info.kind, mtime: info.mtime, size: info.size, readOnly: !!info.readonly && false, name: info.name });
+  Object.assign(tab, { kind: opts.forceText ? (["binary", "legacy", "email"].includes(info.kind) ? "text" : info.kind) : info.kind, mtime: info.mtime, size: info.size, readOnly: !!info.readonly && false, name: info.name });
   tab.fileReadOnly = !!info.readonly;
   if (DOC_KINDS.has(tab.kind)) {
     tab.html = info.html; tab.meta = info.meta;
@@ -669,7 +714,8 @@ async function loadTab(tab, opts = {}) {
   }
   if (tab.kind === "sheet") { tab.sheets = info.sheets || []; tab.sheetEditable = !!info.editable && /\.(xlsx|xlsm)$/i.test(tab.path || ""); tab.looks = info.looks || []; tab.plainText = null; return; }
   if (tab.kind === "book") { tab.book = { html: info.html, title: info.title, author: info.author, chapters: info.chapters }; return; }
-  if (["pdf", "image", "legacy", "slides"].includes(tab.kind) || (tab.kind === "binary" && !opts.forceText)) return;
+  if (tab.kind === "email") { tab.email = info.email || {}; return; }
+  if (["pdf", "image", "legacy", "slides", "media", "font"].includes(tab.kind) || (tab.kind === "binary" && !opts.forceText)) return;
   tab.encoding = info.encoding; tab.webEncoding = info.web_encoding || ""; tab.bom = info.bom; tab.eol = info.eol === "mixed" ? info.eol_major || MN.settings.default_eol : info.eol; tab.mixedEol = info.eol === "mixed";
   tab.large = info.size > MN.settings.large_file_mb * 1048576;
   if (info.damaged) toast(t("utf8_damaged", { n: info.damaged }), { ms: 8000 });
@@ -748,6 +794,7 @@ async function fileDialog(mode, opts = {}) {
 }
 const OPEN_FILTERS = () => [
   t("filter_all_supported") + " (*.txt;*.md;*.markdown;*.docx;*.odt;*.rtf;*.pdf;*.pptx;*.odp;*.csv;*.tsv;*.json;*.log;*.xlsx;*.ods;*.epub;*.fb2;*.ipynb;*.xml;*.yaml;*.yml;*.ini;*.html;*.htm;*.css;*.js;*.ts;*.py;*.java;*.c;*.cpp;*.h;*.cs;*.go;*.rs;*.sql;*.sh;*.bat;*.ps1;*.png;*.jpg;*.jpeg;*.gif;*.webp;*.svg;*.bmp;*.ico;*.avif;*.tif;*.tiff;*.psd;*.memuimg;*.heic)",
+  t("filter_media") + " (*.mp3;*.wav;*.ogg;*.flac;*.m4a;*.opus;*.mp4;*.webm;*.mov;*.mkv)", t("filter_fonts") + " (*.ttf;*.otf;*.woff;*.woff2)", t("filter_mail") + " (*.eml)",
   t("ph_filter_images") + " (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.ico;*.avif;*.svg;*.tif;*.tiff;*.psd;*.tga;*.heic;*.memuimg)",
   t("filter_text") + " (*.txt;*.log;*.ini;*.cfg;*.conf)", "Markdown (*.md;*.markdown)", t("filter_docs") + " (*.docx;*.odt;*.rtf)", "PDF (*.pdf)", t("filter_slides") + " (*.pptx;*.pptm;*.ppsx;*.potx;*.odp)", t("filter_data") + " (*.csv;*.tsv;*.json;*.xml;*.yaml;*.yml)", t("filter_all") + " (*.*)"];
 async function openDialog() {
@@ -856,6 +903,25 @@ async function savePdfAs(tab) {
   } catch (e) { tab.path = old; toast(t("save_failed") + ": " + e.message, { kind: "error", ms: 9000 }); return false; }
 }
 
+function savePdfCopy(tab, bytes, name) { return saveBytesAs(tab, bytes, name, { filters: ["PDF (*.pdf)"], ext: ".pdf", type: "application/pdf" }); }
+// Bytes made in the page (pages cut out of a PDF, a mail attachment) written to a file the user picks.
+async function saveBytesAs(tab, bytes, name, opts = {}) {
+  const ext = opts.ext ?? extname(name);
+  const paths = await fileDialog("save", { directory: tab.path ? dirname(tab.path) : "", filename: name, filters: opts.filters || [(ext ? ext.slice(1).toUpperCase() + ` (*${ext})` : t("filter_all") + " (*.*)"), t("filter_all") + " (*.*)"], multiple: false });
+  let path = paths?.[0]; if (!path) return false;
+  if (ext && opts.ext && extname(path) !== ext) path += ext;
+  if (tab.path && path === tab.path) { toast(t("save_failed") + ": " + t("pdf_copy_same"), { kind: "error", ms: 6000 }); return false; }
+  try {
+    const type = opts.type || "application/octet-stream";
+    const q = new URLSearchParams({ path, mtime: "0", force: "1" });
+    const r = await api("save_binary?" + q, new Blob([bytes], { type }), { raw: true, type });
+    if (!r.ok) throw new Error(r.error || "save failed");
+    addRecent(path);
+    toast(t("pdf_copy_saved", { name: basename(path) }), { kind: "ok", ms: 6000, action: { label: t("open"), run: () => openPath(path) } });
+    return true;
+  } catch (e) { toast(t("save_failed") + ": " + e.message, { kind: "error", ms: 9000 }); return false; }
+}
+
 async function saveSlidesAs(tab) {
   if (/\.odp$/i.test(tab.path || "")) toast(t("sl_odp_save"), { ms: 5000 });
   const stem = (tab.path ? basename(tab.path) : tab.name).replace(/\.\w+$/, "");
@@ -876,7 +942,7 @@ function slidesHooks(tab) {
   return {
     onChange: () => markDirty(tab, !!tab.comp?.dirty),
     saveDialog: async ({ filename, filters }) => (await fileDialog("save", { directory: tab.path ? dirname(tab.path) : "", filename, filters, multiple: false }))?.[0] || null,
-    openDocs: () => MN.tabs.filter((x) => x !== tab && x.kind !== "slides" && !["image", "legacy", "binary"].includes(x.kind)).map((x) => ({ id: x.id, name: x.name })),
+    openDocs: () => MN.tabs.filter((x) => x !== tab && x.kind !== "slides" && !["image", "legacy", "binary", "media", "font"].includes(x.kind)).map((x) => ({ id: x.id, name: x.name })),
     docText: async (id) => { const x = tabById(id); if (!x) return ""; if (!x.loaded) await ensureLoaded(x).catch(() => {}); return textOf(x) || (x.html ? x.html.replace(/<[^>]+>/g, " ") : ""); },
   };
 }
@@ -1536,7 +1602,7 @@ function updateStatus() {
     parts.push(`<span class="st">${esc(sel ? t("st_words_sel", { n: countWords(sel), all: countWords(text) }) : t("st_words", { n: countWords(text).toLocaleString() }))}</span>`);
     parts.push(`<span class="st">${esc(t("st_chars", { n: text.length.toLocaleString() }))}</span>`);
     parts.push(`<span class="st">${esc(tab.kind.toUpperCase())}</span>`);
-  } else if (tab) parts.push(`<span class="st">${esc({ sheet: t("kind_sheet"), book: t("kind_book"), notebook: t("kind_notebook"), slides: t("kind_slides") }[tab.kind] || tab.kind.toUpperCase())}${tab.size ? " · " + fmtBytes(tab.size) : ""}</span>`);
+  } else if (tab) parts.push(`<span class="st">${esc({ sheet: t("kind_sheet"), book: t("kind_book"), notebook: t("kind_notebook"), slides: t("kind_slides"), media: t(/\.(mp4|m4v|webm|mov|ogv|mkv)$/i.test(tab.name) ? "kind_video" : "kind_audio"), font: t("kind_font"), email: t("kind_email") }[tab.kind] || tab.kind.toUpperCase())}${tab.size ? " · " + fmtBytes(tab.size) : ""}</span>`);
   parts.push(`<button class="st" data-st="zoom" title="${esc(t("zoom"))}">${MN.settings.zoom}%</button>`);
   bar.innerHTML = parts.join("");
   bar.onclick = (e) => { const b = e.target.closest("[data-st]"); if (b) statusAction(b.dataset.st, b); };
@@ -1615,7 +1681,8 @@ function appMenu(anchor) {
 }
 function kindByExt(p) { const e = extname(p); if ([".md", ".markdown"].includes(e)) return "markdown"; if ([".docx", ".odt", ".rtf"].includes(e)) return "docx"; if (e === ".pdf") return "pdf"; if ([".csv", ".tsv"].includes(e)) return "csv"; if (e === ".json") return "json"; if (e === ".log") return "log";
   if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".ico", ".avif", ".svg", ".tif", ".tiff", ".psd", ".memuimg", ".heic"].includes(e)) return "image";
-  if ([".xlsx", ".xlsm", ".ods"].includes(e)) return "sheet"; if ([".epub", ".fb2"].includes(e)) return "book"; if (e === ".ipynb") return "notebook"; if ([".pptx", ".pptm", ".ppsx", ".potx", ".odp"].includes(e)) return "slides"; return "text"; }
+  if ([".xlsx", ".xlsm", ".ods"].includes(e)) return "sheet"; if ([".epub", ".fb2"].includes(e)) return "book"; if (e === ".ipynb") return "notebook"; if ([".pptx", ".pptm", ".ppsx", ".potx", ".odp"].includes(e)) return "slides";
+  if (/^\.(mp3|wav|ogg|oga|flac|m4a|aac|opus|weba|mp4|m4v|webm|mov|ogv|mkv)$/.test(e)) return "media"; if (/^\.(ttf|otf|woff2?)$/.test(e)) return "font"; if (e === ".eml") return "email"; return "text"; }
 function editItems(v) {
   const dis = !v;
   return [
@@ -1657,17 +1724,72 @@ function viewItems() {
     S("toolbar", "show_toolbar"), S("statusbar", "show_statusbar"),
     "-",
     { label: t("theme"), icon: MN.theme.mode === "dark" ? "moon" : "sun", sub: [["auto", "theme_auto"], ["dark", "theme_dark"], ["light", "theme_light"]].map(([v, k]) => ({ label: t(k), checked: s.theme === v, run: () => saveSettings({ theme: v }) })) },
+    ...lookMenus(MN, saveSettings),
+    { label: t("ap_more"), icon: "color", run: () => openSettings("appearance") },
     { label: t("zoom_in"), kbd: kbd("Ctrl+="), run: () => zoom(10) }, { label: t("zoom_out"), kbd: kbd("Ctrl+-"), run: () => zoom(-10) }, { label: t("zoom_reset"), kbd: kbd("Ctrl+0"), run: () => zoom(0) },
     { label: t("fullscreen"), kbd: "F11", run: () => api("window", { cmd: "fullscreen" }) },
   ];
 }
+// AI actions at the top of the editor's and the document's right-click menu.
+function aiEditItems(sel) {
+  if (!(AI.online && MN.settings.ai_enabled)) return [];
+  return [{ label: t("ai_command") + "…", icon: "sparkle", kbd: kbd("Ctrl+J"), run: () => aiInline() },
+    ...(sel ? [{ label: t("ai_improve"), icon: "wand", run: () => runAICommand("improve") }, { label: t("ai_grammar"), icon: "check", run: () => runAICommand("grammar") }, { label: t("ai_explain"), icon: "info", run: () => runAICommand("explain") },
+      { label: t("ai_translate"), icon: "translate", sub: COMMANDS.find((c) => c.id === "translate").params.map((p) => ({ label: t("lang_" + p), run: () => runAICommand("translate", p) })) }] : [{ label: t("ai_continue"), icon: "play", run: () => runAICommand("continue") }]), "-"];
+}
+function imageFileName(tab, ext) {
+  const stem = (tab?.path ? basename(tab.path) : tab?.name || "").replace(/\.[^.]+$/, "") || t("fmt_image");
+  return `${stem} (${t("fmt_image").toLowerCase()}).${ext}`;
+}
+function saveImageHook(tab) {
+  return (bytes, ext, type) => saveBytesAs(tab || { path: "" }, bytes, imageFileName(tab, ext), { ext: "." + ext, type, filters: [ext.toUpperCase() + ` (*.${ext})`, t("filter_all") + " (*.*)"] });
+}
+// What the DOCX/ODT/RTF editor's right-click menu needs from the app.
+function docMenuHooks(tab) {
+  return {
+    spell: !!MN.settings.spell_check,
+    aiItems: (sel) => aiEditItems(sel),
+    find: () => openFind(),
+    webSearch: AI.online ? (q) => webSearch(q) : null,
+    saveImage: saveImageHook(tab),
+  };
+}
+// Right clicks nothing else handled: text fields, previews, books, mail, AI answers, the file list.
+// The desktop window has no browser menu of its own, so these would otherwise do nothing.
+function fallbackMenu(e) {
+  if (e.defaultPrevented) return;
+  const el = e.target instanceof Element ? e.target : e.target?.parentElement; if (!el) return;
+  if (el.closest(".menu, .modal, [data-own-menu]") && !isTextField(el)) { if (el.closest(".menu")) e.preventDefault(); return; }
+  const field = isTextField(el) ? el : el.closest("input, textarea, [contenteditable]");
+  if (field && isTextField(field)) { fieldContextMenu(e, field); return; }
+  const item = el.closest("#sidebar .fs-item");
+  if (item) { fileItemMenu(e, item); return; }
+  viewContextMenu(e, { saveImage: saveImageHook(activeTab()), ...aiReadHooks() });
+}
+// "Explain" and "search the web" for text selected in a read-only view (PDF, preview, book, mail).
+function aiReadHooks() {
+  return {
+    explain: AI.online && MN.settings.ai_enabled ? (text) => { toggleAI(true); MN.chat?.ask("explain", text); } : null,
+    webSearch: AI.online ? (q) => webSearch(q) : null,
+  };
+}
+function fileItemMenu(e, item) {
+  const path = item.title; if (!path) return;
+  e.preventDefault();
+  const dir = item.classList.contains("dir");
+  showMenu([
+    { label: t(dir ? "cm_open_folder" : "open"), icon: dir ? "folderOpen" : "file", run: () => item.click() },
+    ...(dir ? [] : [{ label: t("open_in_split"), icon: "split", run: async () => { const tab = await openPath(path, { activate: false }); if (tab) { toggleSplit(true); activate(tab.id, "right"); } } }]),
+    "-",
+    { label: t("copy_path"), icon: "copy", run: () => copyText(path).then(() => toast(t("copied"), { kind: "ok", ms: 1400 })) },
+    { label: t("cm_copy_name"), icon: "fileText", run: () => copyText(basename(path)).then(() => toast(t("copied"), { kind: "ok", ms: 1400 })) },
+    { label: t("reveal"), icon: "folderOpen", run: () => api("reveal", { path }) },
+  ], { x: e.clientX, y: e.clientY });
+}
 function editorMenu(at, prefix = []) {
   const tab = activeTab(); const v = viewOf(tab); if (!v) return;
   const sel = !v.state.selection.main.empty;
-  showMenu([...prefix,
-    ...(AI.online && MN.settings.ai_enabled ? [{ label: t("ai_command") + "…", icon: "sparkle", kbd: kbd("Ctrl+J"), run: () => aiInline() },
-      ...(sel ? [{ label: t("ai_improve"), icon: "wand", run: () => runAICommand("improve") }, { label: t("ai_grammar"), icon: "check", run: () => runAICommand("grammar") }, { label: t("ai_explain"), icon: "info", run: () => runAICommand("explain") },
-        { label: t("ai_translate"), icon: "translate", sub: COMMANDS.find((c) => c.id === "translate").params.map((p) => ({ label: t("lang_" + p), run: () => runAICommand("translate", p) })) }] : [{ label: t("ai_continue"), icon: "play", run: () => runAICommand("continue") }]), "-"] : []),
+  showMenu([...prefix, ...aiEditItems(sel),
     { label: t("cut"), kbd: kbd("Ctrl+X"), disabled: !sel, run: () => { copyText(selectionText()); v.dispatch(v.state.replaceSelection("")); } },
     { label: t("copy"), kbd: kbd("Ctrl+C"), disabled: !sel, run: () => copyText(selectionText()) },
     { label: t("paste"), kbd: kbd("Ctrl+V"), run: async () => { try { const s = await navigator.clipboard.readText(); v.dispatch(v.state.replaceSelection(s)); } catch { toast(t("paste_blocked")); } } },
@@ -1736,7 +1858,7 @@ function commandItems() {
     ["sidebar", "sidebar", "Ctrl+B", () => toggleSidebar()], ["ai_panel", "sparkle", "Ctrl+Shift+L", () => toggleAI()], ["ai_command", "sparkle", "Ctrl+J", () => aiInline()],
     ["settings", "settings", "Ctrl+,", openSettings], ["print", "print", "Ctrl+P", () => printTab()], ["shortcuts", "keyboard", "F1", showShortcuts],
     ["zoom_in", "zoomIn", "Ctrl+=", () => zoom(10)], ["zoom_out", "zoomOut", "Ctrl+-", () => zoom(-10)], ["zoom_reset", "search", "Ctrl+0", () => zoom(0)],
-    ["theme_toggle", "moon", "", () => saveSettings({ theme: MN.theme.mode === "dark" ? "light" : "dark" })], ["md_convert_cmd", "markdown", "", () => tab && convertToMarkdown(tab)],
+    ["theme_toggle", "moon", "", () => saveSettings({ theme: MN.theme.mode === "dark" ? "light" : "dark" })], ["ap_cmd", "color", "", () => openSettings("appearance")], ["md_convert_cmd", "markdown", "", () => tab && convertToMarkdown(tab)],
     ["web_search", "globe", "", () => webSearch(selectionText())], ["md_format_table", "table", "", () => mdAction("formatTable")], ["insert_datetime", "clock", "F5", () => v && insertDateTime(v)],
     ["reveal", "folderOpen", "", () => tab?.path && api("reveal", { path: tab.path })], ["copy_path", "copy", "", () => tab?.path && copyText(tab.path)],
 
@@ -1819,17 +1941,25 @@ function globalKeys(e) {
   if (e.key === "Escape") closeMenus();
 }
 
-function openSettings() {
+function openSettings(section = "") {
   const s = MN.settings;
   const tog = (key, label, hint = "") => `<label class="srow"><span><b>${esc(t(label))}</b>${hint ? `<small>${esc(t(hint))}</small>` : ""}</span><input type="checkbox" class="switch" data-k="${key}" ${s[key] ? "checked" : ""}></label>`;
   const sel = (key, label, options, hint = "") => `<label class="srow"><span><b>${esc(t(label))}</b>${hint ? `<small>${esc(t(hint))}</small>` : ""}</span><select class="input sm" data-k="${key}">${options.map(([v, l]) => `<option value="${esc(v)}" ${String(s[key]) === String(v) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
   const num = (key, label, min, max, step = 1, hint = "") => `<label class="srow"><span><b>${esc(t(label))}</b>${hint ? `<small>${esc(t(hint))}</small>` : ""}</span><input type="number" class="input sm num" data-k="${key}" value="${s[key]}" min="${min}" max="${max}" step="${step}"></label>`;
   const sections = {
     general: [t("set_general"), "settings", sel("language", "set_language", [["auto", t("follow_memuai")], ["ru", "Русский"], ["en", "English"]])
-      + sel("theme", "theme", [["auto", t("theme_auto")], ["dark", t("theme_dark")], ["light", t("theme_light")]])
       + tog("restore_session", "set_restore", "set_restore_hint") + tog("recovery", "set_recovery", "set_recovery_hint")
       + sel("autosave", "set_autosave", [["off", t("autosave_off")], ["focus", t("autosave_focus")], ["delay", t("autosave_delay")]]) + num("autosave_delay", "set_autosave_delay", 500, 60000, 500)
-      + tog("show_toolbar", "toolbar") + tog("show_statusbar", "statusbar") + tog("compact_tabs", "set_compact_tabs")],
+      + tog("show_toolbar", "toolbar") + tog("show_statusbar", "statusbar") + tog("compact_tabs", "set_compact_tabs")
+      + sel("tab_style", "set_tab_style", [["classic", t("tab_style_classic")], ["compact", t("tab_style_compact")], ["icons", t("tab_style_icons")], ["preview", t("tab_style_preview")], ["vertical", t("tab_style_vertical")]], "set_tab_style_hint")
+      + tog("show_tab_bar", "set_show_tab_bar", "set_show_tab_bar_hint") + tog("tab_meta", "set_tab_meta", "set_tab_meta_hint")
+      + sel("sidebar_side", "set_sidebar_side", [["left", t("sidebar_left")], ["right", t("sidebar_right")]])
+      + num("sidebar_width", "set_sidebar_width", 160, 600, 4)
+      + sel("md_preview_side", "set_md_preview_side", [["right", t("md_preview_right")], ["left", t("md_preview_left")]])],
+    appearance: [t("ap_title"), "color", `<div class="ap-host" data-ap-host>${esc(t("loading"))}</div>`
+      + `<div class="srow css-editor"><span><b>${esc(t("set_custom_css"))}</b><small>${esc(t("set_custom_css_hint"))}</small></span></div>
+      <textarea class="input css-area" data-css-editor rows="8" spellcheck="false" placeholder="${esc(t("custom_css_placeholder"))}">${esc(s.custom_css || "")}</textarea>
+      <div class="css-actions"><button class="btn" data-css-apply>${esc(t("custom_css_apply"))}</button><button class="btn ghost" data-css-reset>${esc(t("custom_css_reset"))}</button><span class="css-note muted small" data-css-note></span></div>`],
     editor: [t("set_editor"), "code", sel("font_family", "set_font", MN.boot.fonts.map((f) => [f, f])) + num("font_size", "set_font_size", 8, 40) + num("line_height", "set_line_height", 1, 2.6, 0.05)
       + tog("word_wrap", "word_wrap") + tog("line_numbers", "line_numbers") + tog("minimap", "minimap") + tog("highlight_active_line", "highlight_active_line") + tog("show_whitespace", "show_whitespace")
       + tog("indent_with_tabs", "indent_tabs") + num("tab_size", "set_tab_size", 1, 8) + tog("auto_close_brackets", "set_brackets") + tog("bracket_matching", "set_bracket_match")
@@ -1839,7 +1969,8 @@ function openSettings() {
       + num("large_file_mb", "set_large", 1, 512, 1, "set_large_hint") + tog("detect_external_changes", "set_external")
       + sel("markdown_preview", "set_md_preview", [["live", t("md_mode_live")], ["split", t("md_mode_split")], ["off", t("md_mode_source")], ["preview", t("md_mode_preview")]])
       + tog("ask_markdown_convert", "set_ask_md") + tog("rich_save_warning", "set_rich_warn")
-      + `<div class="srow"><span><b>${esc(t("set_open_with"))}</b><small>${esc(t("set_open_with_hint"))}</small></span><span class="ow-state muted small">…</span></div>`],
+      + `<div class="srow"><span><b>${esc(t("set_explorer_menu"))}</b><small>${esc(t("set_explorer_menu_hint"))}</small></span><span class="muted small" data-windows-menu="explorermenu">…</span></div>`
+      + `<div class="srow"><span><b>${esc(t("set_open_with"))}</b><small>${esc(t("set_open_with_hint"))}</small></span><span class="muted small" data-windows-menu="openwith">…</span></div>`],
     ai: [t("set_ai"), "sparkle", tog("ai_enabled", "set_ai_enabled", "set_ai_enabled_hint")
       + `<label class="srow"><span><b>${esc(t("ai_model"))}</b><small>${esc(AI.online ? t("ai_online") : t("ai_offline"))}</small></span><select class="input sm" data-k="ai_model"><option value="">${esc(t("ai_model_default"))}</option>${AI.models.map((m) => `<option value="${esc(m.id)}" ${s.ai_model === m.id ? "selected" : ""}>${esc(m.label && m.label !== m.id ? `${m.label} · ${m.id}` : m.id)}</option>`).join("")}</select></label>`
       + tog("ai_web_search", "set_ai_web") + tog("ai_memory", "set_ai_memory", "set_ai_memory_hint") + tog("ai_memory_write", "set_ai_memory_write", "set_ai_memory_write_hint")
@@ -1847,10 +1978,19 @@ function openSettings() {
       + num("ai_context_chars", "set_ai_context", 2000, 400000, 1000, "set_ai_context_hint")
       + `<label class="srow"><span><b>${esc(t("set_proxy_url"))}</b><small>${esc(t("set_proxy_url_hint"))}</small></span><input class="input sm" data-k="proxy_url" value="${esc(s.proxy_url)}" placeholder="http://127.0.0.1:8317" spellcheck="false"></label>`],
   };
-  const nav = Object.entries(sections).map(([id, [title, ic]], i) => `<button class="snav ${i === 0 ? "on" : ""}" data-sec="${id}">${icon(ic)}${esc(title)}</button>`).join("");
-  const panes = Object.entries(sections).map(([id, [title, , body]], i) => `<section class="spane" data-sec="${id}" ${i ? "hidden" : ""}><h3>${esc(title)}</h3>${body}</section>`).join("");
+  const first = sections[section] ? section : "general";
+  const nav = Object.entries(sections).map(([id, [title, ic]]) => `<button class="snav ${id === first ? "on" : ""}" data-sec="${id}">${icon(ic)}${esc(title)}</button>`).join("");
+  const panes = Object.entries(sections).map(([id, [title, , body]]) => `<section class="spane" data-sec="${id}" ${id === first ? "" : "hidden"}><h3>${esc(title)}</h3>${body}</section>`).join("");
   modal({ title: t("settings"), wide: true, cls: "settings", body: `<div class="settings-grid"><nav>${nav}</nav><div class="settings-body">${panes}</div></div>`, buttons: [{ label: t("done"), primary: true, value: true }],
     onOpen: async (box) => {
+      const apHost = box.querySelector("[data-ap-host]");
+      if (apHost) bindAppearance(apHost, MN, saveSettings);
+      const cssArea = box.querySelector("[data-css-editor]");
+      if (cssArea) {
+        cssArea.addEventListener("input", () => applyCustomCss(cssArea.value));
+        box.querySelector("[data-css-apply]").onclick = async () => { await saveSettings({ custom_css: cssArea.value }); const note = box.querySelector("[data-css-note]"); if (note) note.textContent = t("custom_css_saved"); };
+        box.querySelector("[data-css-reset]").onclick = async () => { cssArea.value = ""; applyCustomCss(""); await saveSettings({ custom_css: "" }); const note = box.querySelector("[data-css-note]"); if (note) note.textContent = t("custom_css_saved"); };
+      }
       box.querySelectorAll(".snav").forEach((b) => (b.onclick = () => { box.querySelectorAll(".snav").forEach((x) => x.classList.toggle("on", x === b)); box.querySelectorAll(".spane").forEach((p) => (p.hidden = p.dataset.sec !== b.dataset.sec)); }));
       box.querySelectorAll("[data-k]").forEach((el) => el.addEventListener("change", async () => {
         const key = el.dataset.k; let value = el.type === "checkbox" ? el.checked : el.type === "number" ? Number(el.value) : el.value;
@@ -1860,18 +2000,36 @@ function openSettings() {
         if (key === "proxy_url" || key === "ai_enabled") refreshStatus(true);
         renderToolbar();
       }));
-      try {
-        const ow = await api("openwith");
-        const host = box.querySelector(".ow-state");
-        if (!ow.supported) host.textContent = t("set_open_with_unsupported");
-        else {
-          host.innerHTML = `<input type="checkbox" class="switch" ${ow.enabled ? "checked" : ""}>`;
-          const hint = host.parentElement?.querySelector("small"); if (hint && ow.extensions?.length) hint.insertAdjacentHTML("beforeend", `<br><span class="ow-types">${esc(t("set_open_with_types", { list: ow.extensions.join(" ") }))}</span>`);
-          host.querySelector("input").onchange = async (e) => {
-            try { await api("openwith", { enable: e.target.checked }); toast(t(e.target.checked ? "open_with_on" : "open_with_off"), { kind: "ok" }); }
-            catch (err) { e.target.checked = !e.target.checked; toast(err.message, { kind: "error" }); }
-          }; }
-      } catch {  }
+      await Promise.all(Array.from(box.querySelectorAll("[data-windows-menu]"), async (host) => {
+        const endpoint = host.dataset.windowsMenu;
+        const key = endpoint === "explorermenu" ? "explorer_menu" : "open_with";
+        try {
+          const state = await api(endpoint);
+          if (!state.supported) {
+            host.textContent = t("set_open_with_unsupported");
+            return;
+          }
+          host.innerHTML = `<input type="checkbox" class="switch" aria-label="${esc(t("set_" + key))}" ${state.enabled ? "checked" : ""}>`;
+          const hint = host.parentElement.querySelector("small");
+          if (state.extensions?.length) hint.insertAdjacentHTML("beforeend", `<br><span class="ow-types">${esc(t("set_open_with_types", { list: state.extensions.join(" ") }))}</span>`);
+          const input = host.querySelector("input");
+          input.onchange = async () => {
+            input.disabled = true;
+            try {
+              const saved = await api(endpoint, { enable: input.checked });
+              input.checked = saved.enabled;
+              toast(t(key + (saved.enabled ? "_on" : "_off")), { kind: "ok" });
+            } catch (err) {
+              input.checked = !input.checked;
+              toast(err.message, { kind: "error" });
+            } finally {
+              input.disabled = false;
+            }
+          };
+        } catch (err) {
+          host.textContent = err.message;
+        }
+      }));
     } });
 }
 

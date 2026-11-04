@@ -11,7 +11,8 @@ A path that goes THROUGH an archive file — ``D:\\Downloads\\pack.zip\\docs\\a.
   (``args.members``, ``args.strip``, ``args.password``); :func:`compress` — zip / 7z / tar / tar.gz / tar.xz /
   tar.bz2 with a level and an optional password (7z / zip through 7-Zip); :func:`add` — files into an existing archive.
 
-Read-only inside an archive except «add» (zip natively, others via 7-Zip). Stdlib only (7-Zip is optional).
+Changing an archive — delete / rename / move / new folder, test, comment, convert — lives in :mod:`archive_edit`
+(zip and tar natively, 7z via 7-Zip; rar / iso / cab stay read-only). Stdlib only (7-Zip is optional).
 """
 from __future__ import annotations
 
@@ -105,6 +106,63 @@ def _single_name(path: str) -> str:
     stem = base[: base.rfind(".")] if "." in base else base
     return stem or "data"
 
+# F34: a hostile archive must not make the index (or the disk) unbounded.
+MAX_SCAN_ENTRIES = 100_000
+MAX_EXTRACT_BYTES = 100 * 1024 * 1024 * 1024  # 100 GiB declared unpacked size
+SEVEN_ZIP_TIMEOUT = 600  # seconds for one 7z run
+
+
+def _free_bytes(path: str) -> int:
+    try:
+        return shutil.disk_usage(path).free
+    except OSError:
+        return 0
+
+
+def _check_room(dest: str, needed: int) -> None:
+    """Refuse an extraction whose declared size does not fit (zip-bomb guard)."""
+    if needed > MAX_EXTRACT_BYTES:
+        raise FsError("too_large", dest)
+    free = _free_bytes(dest)
+    if free and needed > max(0, free - 100 * 1024 * 1024):
+        raise FsError("not_enough_space", dest)
+
+
+def _materialize_symlinks(root: str) -> None:
+    """Replace every symlink under *root* with a real copy of its target.
+
+    F34: 7z extracts symlinks as-is; moving one into the destination used to
+    hand later writes a path outside the folder. A link whose target is
+    outside the extracted tree is dropped (recorded by the caller via the
+    missing file); a link inside the tree becomes a copy of its target.
+    """
+    for current, dirs, files in os.walk(root, topdown=False, followlinks=False):
+        for name in dirs + files:
+            path = os.path.join(current, name)
+            if not os.path.islink(path):
+                continue
+            real = os.path.realpath(path)
+            if not fsops.is_inside(real, os.path.realpath(root)):
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+                continue
+            tmp = path + ".~mflink"
+            try:
+                if os.path.isdir(real):
+                    shutil.copytree(real, tmp)
+                else:
+                    shutil.copy2(real, tmp)
+                os.unlink(path)
+                os.replace(tmp, path)
+            except OSError:
+                try:
+                    os.unlink(path)
+                except OSError:
+                    pass
+
+
 def _scan(path: str) -> Dict[str, Any]:
     """Index of the whole archive: ``{"kind", "encrypted", "entries": {inner: row}, "dirs": {inner: [child names]}}``."""
     kind = kind_of(path)
@@ -114,6 +172,8 @@ def _scan(path: str) -> Dict[str, Any]:
     def add(name: str, is_dir: bool, size: int, mtime: float, packed: Optional[int] = None) -> None:
         name = _clean(name)
         if not name:
+            return
+        if len(entries) >= MAX_SCAN_ENTRIES:
             return
         parts = name.split("/")
         for i in range(1, len(parts)):
@@ -215,7 +275,8 @@ def info(path: str) -> Dict[str, Any]:
     single = roots[0] if len(roots) == 1 and data["entries"].get(roots[0], {}).get("d") else ""
     return {"kind": data["kind"], "encrypted": data["encrypted"], "files": len(files),
             "folders": sum(1 for r in data["entries"].values() if r["d"]), "unpacked": sum(r["s"] for r in files),
-            "single_root": single, "writable": can_add(path), "seven_zip": bool(seven_zip())}
+            "single_root": single, "writable": can_add(path), "seven_zip": bool(seven_zip()),
+            "packed": os.path.getsize(path), "comment": kind_of(path) == "zip"}
 
 def listing(path: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """``(head, rows)`` of the folder *path* inside an archive (raises FileNotFoundError for a missing inner folder)."""
@@ -239,12 +300,9 @@ def listing(path: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     return head, rows
 
 def can_add(path: str) -> bool:
-    kind = kind_of(path)
-    if kind == "zip":
-        return os.access(path, os.W_OK)
-    if kind == "single":
-        return False
-    return bool(seven_zip()) and os.access(path, os.W_OK) and not path.lower().endswith((".rar", ".iso", ".cab"))
+    """The archive can be changed (add / delete / rename…): zip and tar natively, 7z through 7-Zip."""
+    from .archive_edit import editable
+    return bool(editable(path))
 
 def _cache_root() -> str:
     root = os.path.join(tempfile.gettempdir(), "memufiles-archive")
@@ -393,6 +451,7 @@ def extract(queue: Any, op: Any) -> None:
             chosen = [(i, rel) for i, rel in chosen if rel]
             op.total_items = len(chosen)
             op.total_bytes = sum(i.file_size for i, _ in chosen if not i.is_dir())
+            _check_room(dest, op.total_bytes)
             op.status = "running"
             pwd = password.encode("utf-8") if password else None
             for member, rel in chosen:
@@ -419,6 +478,7 @@ def extract(queue: Any, op: Any) -> None:
             chosen = [(m, rel) for m, rel in chosen if rel]
             op.total_items = len(chosen)
             op.total_bytes = sum(m.size for m, _ in chosen if m.isfile())
+            _check_room(dest, op.total_bytes)
             op.status = "running"
             for member, rel in chosen:
                 op.check()
@@ -465,7 +525,12 @@ def _extract_7z(queue: Any, op: Any, archive: str, dest: str, members: List[str]
                                 creationflags=CREATE_NO_WINDOW)
         pct = re.compile(rb"(\d{1,3})%")
         buf = b""
+        # F34: a hung 7z used to run forever (no timeout, only cancel).
+        deadline = time.monotonic() + SEVEN_ZIP_TIMEOUT
         while True:
+            if time.monotonic() > deadline:
+                proc.kill()
+                raise FsError("extract_timeout", archive)
             if op._cancel.is_set():
                 proc.kill()
                 from .opqueue import Cancelled
@@ -486,12 +551,18 @@ def _extract_7z(queue: Any, op: Any, archive: str, dest: str, members: List[str]
         if proc.wait() not in (0, 1):
             err = (proc.stderr.read() if proc.stderr else b"").decode("utf-8", "replace")
             raise FsError("wrong_password" if "password" in err.lower() else "extract_failed", err[:300] or archive)
+        # F34: never move a symlink from the archive into the destination.
+        _materialize_symlinks(temp)
         src_root = os.path.join(temp, *strip.split("/")) if strip else temp
         for name in sorted(os.listdir(src_root)) if os.path.isdir(src_root) else []:
             src = os.path.join(src_root, name)
             target = os.path.join(dest, name)
             resolved = queue._target_for(op, src, target) if (not fresh and os.path.lexists(target)) else target
             if resolved is None:
+                continue
+            if os.path.islink(src):
+                # F34 (defence in depth): a symlink that survived the
+                # materialisation pass is never moved into the destination.
                 continue
             if os.path.lexists(resolved):
                 if os.path.isdir(resolved) and not os.path.islink(resolved):
@@ -614,7 +685,12 @@ def _run_7z(queue: Any, op: Any, cmd: List[str], cwd: str) -> None:
                             creationflags=CREATE_NO_WINDOW)
     pct = re.compile(rb"(\d{1,3})%")
     buf = b""
+    # F34: same 10-minute cap as the extract path (was unbounded).
+    deadline = time.monotonic() + SEVEN_ZIP_TIMEOUT
     while True:
+        if time.monotonic() > deadline:
+            proc.kill()
+            raise FsError("compress_timeout", cwd)
         if op._cancel.is_set():
             proc.kill()
             from .opqueue import Cancelled
@@ -650,19 +726,29 @@ def _compress_7z(queue: Any, op: Any, partial: str, fmt: str, level: str, passwo
     op.done_items = op.total_items
 
 def add(queue: Any, op: Any) -> None:
-    """``arcadd``: put ``sources`` into the archive ``dest`` under ``args.inner`` (zip natively, others via 7-Zip).
-    Names already in a zip are reported (``exists``) — a zip can't replace an entry in place."""
+    """``arcadd``: put ``sources`` into the archive ``dest`` under ``args.inner`` (zip / tar natively, 7z via
+    7-Zip). Names already there follow ``args.on_conflict``: «replace» (the archive is rewritten without the old
+    copies), «skip», otherwise they are reported as ``exists``."""
     archive = op.dest
     inner = _clean(op.args.get("inner") or "")
     if not can_add(archive):
         raise FsError("archive_readonly", archive)
+    policy = str(op.args.get("on_conflict") or "")
     queue._scan(op, op.sources)
     parent, files, empty_dirs = _files_of(op.sources)
     prefix = inner + "/" if inner else ""
     op.status = "running"
-    if kind_of(archive) == "zip":
+    kind = kind_of(archive)
+    present: set = set()
+    if kind == "zip":
         with zipfile.ZipFile(archive) as zf:
             present = {_clean(_zip_name(i)) for i in zf.infolist()}
+    if kind == "tar" or (kind == "zip" and policy == "replace" and any(prefix + rel in present for _, rel in files)):
+        from . import archive_edit
+        archive_edit.rewrite_add(queue, op, archive, [(full, prefix + rel) for full, rel in files],
+                                 [prefix + rel for rel in empty_dirs], policy)
+        op.done_items = max(op.done_items, op.total_items)
+    elif kind == "zip":
         with zipfile.ZipFile(archive, "a", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as zf:
             for rel in empty_dirs:
                 if prefix + rel not in present:
@@ -672,7 +758,8 @@ def add(queue: Any, op: Any) -> None:
                 name = prefix + rel
                 op.current = full
                 if name in present:
-                    op.errors.append({"path": full, "error": "exists"})
+                    if policy != "skip":
+                        op.errors.append({"path": full, "error": "exists"})
                     op.done_items += 1
                     continue
                 op.start_file(full, os.path.getsize(full))
@@ -683,6 +770,7 @@ def add(queue: Any, op: Any) -> None:
                 op.done_items += 1
     else:
         tool = seven_zip()
+        keep = ["-up1q1r2x1y1z1w1"] if policy == "skip" else []
         if inner:
             stage = tempfile.mkdtemp(prefix=".memufiles-add-")
             try:
@@ -691,12 +779,12 @@ def add(queue: Any, op: Any) -> None:
                 for src in op.sources:
                     dst = os.path.join(target, os.path.basename(src.rstrip("\\/")))
                     (shutil.copytree if os.path.isdir(src) else shutil.copy2)(src, dst)
-                _run_7z(queue, op, [tool, "a", "-bso0", "-bsp1", "-y", archive, "--", inner.split("/")[0]], stage)
+                _run_7z(queue, op, [tool, "a", "-bso0", "-bsp1", "-y"] + keep + [archive, "--", inner.split("/")[0]], stage)
             finally:
                 shutil.rmtree(stage, ignore_errors=True)
         else:
             names = [os.path.relpath(s, parent) for s in op.sources]
-            _run_7z(queue, op, [tool, "a", "-bso0", "-bsp1", "-y", archive, "--"] + names, parent)
+            _run_7z(queue, op, [tool, "a", "-bso0", "-bsp1", "-y"] + keep + [archive, "--"] + names, parent)
         op.done_items = op.total_items
     with _LOCK:
         _CACHE.pop(fsops.norm(archive), None)

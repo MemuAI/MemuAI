@@ -62,6 +62,7 @@ class LibraryCoercionTest(unittest.TestCase):
         self.track_id = self.lib.add({"file": str(self.song), "title": "T", "artist": "A"})["id"]
 
     def tearDown(self):
+        self.lib.close()
         self.tmp.cleanup()
 
     def test_list_history_stats_accept_garbage_numbers(self):
@@ -184,6 +185,7 @@ class MusicApiArgsTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         lib = Library(Path(tmp.name) / "music")
+        self.addCleanup(lib.close)
         song = Path(tmp.name) / "s.mp3"
         song.write_bytes(b"\x00" * 10)
         ids = [lib.add({"file": str(song), "title": f"T{i}"})["id"] for i in range(3)]

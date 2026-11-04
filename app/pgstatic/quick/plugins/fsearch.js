@@ -34,11 +34,11 @@
   const KINDS = () => [["", t("Всё", "All")], ["folder", t("Папки", "Folders")], ["doc", t("Документы", "Documents")], ["image", t("Картинки", "Images")],
     ["video", t("Видео", "Video")], ["audio", t("Аудио", "Audio")], ["archive", t("Архивы", "Archives")], ["exe", t("Программы", "Programs")], ["code", t("Код", "Code")]];
   const SORTS = () => [["relevance", t("Лучшие", "Best")], ["date", t("Новые", "Newest")], ["size", t("Большие", "Largest")], ["name", t("По имени", "By name")]];
-  const TIPS = () => (Q.lang() === "en" ? ["*.pdf", "ext:docx dm:7d", "size:>1gb", "report | invoice", "folder: project", "in:Downloads *.zip", "dm:today"]
-    : ["*.pdf", "ext:docx dm:7d", "size:>1gb", "отчёт | report", "folder: проект", "in:Загрузки *.zip", "dm:today"]);
+  const TIPS = () => (Q.lang() === "en" ? ["black image", "large videos from last month", 'pdf containing "invoice"', "square png", "*.pdf", "in:Downloads *.zip"]
+    : ["чёрная картинка", "большие видео за прошлый месяц", 'pdf с текстом "договор"', "квадратное фото", "*.pdf", "in:Загрузки *.zip"]);
   const PAGE = 60;
   const S = {
-    view: false, query: "", kind: "", sort: "relevance", items: [], index: 0, total: 0, capped: false, ms: 0,
+    view: false, query: "", kind: "", sort: "relevance", items: [], index: 0, total: 0, capped: false, partial: false, ms: 0,
     backend: "", building: false, error: "", code: "", loading: false, memufiles: false, dragKey: "", limit: PAGE,
     settings: null, status: null, seq: 0, inflight: false, pending: false, ai: null, aiIndex: -1,
     windows: null, undo: null, renaming: null, keepScroll: false, warmed: false,
@@ -123,7 +123,7 @@
   async function run() {
     clearTimeout(debounceTimer);
     const q = query();
-    if (!q) { S.seq++; S.items = []; S.total = 0; S.error = ""; S.code = ""; S.loading = false; renderBody(); return; }
+    if (!q) { S.seq++; S.items = []; S.total = 0; S.partial = false; S.error = ""; S.code = ""; S.loading = false; renderBody(); return; }
     if (S.inflight) { S.pending = true; return; }
     S.inflight = true; S.loading = true;
     const seq = ++S.seq;
@@ -135,7 +135,7 @@
       const r = await Q.api("/api/fsindex/search?" + key);
       if (seq === S.seq && q === query()) {
         fresh = true;
-        S.items = r.results || []; S.total = r.total || 0; S.capped = !!r.capped; S.ms = r.ms || 0;
+        S.items = r.results || []; S.total = r.total || 0; S.capped = !!r.capped; S.partial = !!r.partial; S.ms = r.ms || 0;
         S.backend = r.backend || ""; S.building = !!r.building; S.error = r.error || ""; S.code = r.code || "";
         S.memufiles = !!r.memufiles; S.windows = !!r.windows; S.dragKey = r.drag_key || S.dragKey;
         if (S.index >= S.items.length) S.index = 0;
@@ -172,6 +172,7 @@
     const label = backendLabel(S.backend);
     if (S.items.length) parts.push(S.capped ? t(`${S.items.length}+ найдено`, `${S.items.length}+ found`) : t(`Найдено: ${S.total}`, `Found: ${S.total}`));
     if (label) parts.push(label);
+    if (S.partial && !S.building) parts.push(t("Проверена часть файлов", "Some files checked"));
     if (S.ms) parts.push(`${(S.ms < 10 ? Math.round(S.ms * 10) / 10 : Math.round(S.ms)).toLocaleString(Q.lang() === "en" ? "en-US" : "ru-RU")} ${t("мс", "ms")}`);
     const building = S.building ? `<span class="fs-building">${IC.bolt}${esc(t("Индекс ещё строится — результаты дополняются", "The index is still being built — results keep coming"))}</span>` : "";
     const sort = `<label class="fs-sort" title="${esc(t("Порядок", "Order"))}"><select id="fs-sort" aria-label="${esc(t("Порядок", "Order"))}">${SORTS().map(([v, l]) => `<option value="${v}" ${S.sort === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
@@ -181,7 +182,7 @@
     if (!query()) {
       const rec = recent.get();
       return `<div class="fs-empty"><div class="fs-empty-ic">${IC.search}</div><b>${esc(t("Поиск по всему компьютеру", "Search the whole computer"))}</b>
-        <span>${esc(t("Начните вводить имя файла или папки. Можно маски и фильтры:", "Start typing a file or folder name. Wildcards and filters work too:"))}</span>
+        <span>${esc(t("Введите имя или опишите файл. Цвет, размер и содержимое проверяются на компьютере.", "Enter a name or describe a file. Color, size and contents are checked locally."))}</span>
         <div class="fs-tips">${TIPS().map((x) => `<button type="button" class="fs-tip" data-fs-tip="${esc(x)}"><code>${esc(x)}</code></button>`).join("")}</div>
         ${rec.length ? `<div class="fs-recent"><small>${esc(t("Недавние", "Recent"))}</small>${rec.map((x) => `<button type="button" class="fs-tip" data-fs-tip="${esc(x)}">${esc(x)}</button>`).join("")}</div>` : ""}</div>`;
     }
@@ -190,6 +191,7 @@
     if (S.code === "query") return `<div class="fs-empty"><b>${esc(t("Не понял запрос", "Could not read the query"))}</b><span>${esc(S.error)}</span></div>`;
     if (S.error && S.code !== "empty") return `<div class="fs-empty"><b>${esc(t("Поиск не удался", "Search failed"))}</b><span>${esc(S.error)}</span></div>`;
     if (S.loading) return `<div class="fs-empty fs-wait"><span>${esc(t("Ищу…", "Searching…"))}</span></div>`;
+    if (S.partial) return `<div class="fs-empty"><b>${esc(t("В проверенных файлах совпадений нет", "No matches among the files checked"))}</b><span>${esc(t('Уточните папку, например in:"Загрузки".', 'Narrow the folder, for example in:"Downloads".'))}</span></div>`;
     return `<div class="fs-empty"><b>${esc(t("Ничего не найдено", "Nothing found"))}</b><span>${esc(t("Попробуйте часть имени, другую раскладку или маску вроде *отчёт*.", "Try part of the name or a wildcard like *report*."))}</span></div>`;
   }
   function listHtml() {
@@ -206,7 +208,7 @@
     return `<div class="qx-foot fs-foot"><div class="qx-keys"><span><kbd>↵</kbd> ${esc(t("открыть", "open"))}</span><span><kbd>Ctrl</kbd><kbd>↵</kbd> ${esc(t("в папке", "in folder"))}</span><span class="fs-wide"><kbd>F2</kbd> ${esc(t("имя", "rename"))}</span><span class="fs-wide"><kbd>Shift</kbd><kbd>F10</kbd> ${esc(t("меню", "menu"))}</span>${S.memufiles ? `<span class="fs-wide"><kbd>Alt</kbd><kbd>↵</kbd> MemuFiles</span>` : ""}</div></div>`;
   }
   function viewHtml() {
-    const ph = t("Имя файла, *.txt, ext:pdf size:>5mb, dm:today…", "File name, *.txt, ext:pdf size:>5mb, dm:today…");
+    const ph = t("Имя или описание, например «чёрная картинка»", "Name or description, for example “black image”");
     return `<div class="qa-view-head qx-head fs-head"><button type="button" class="qa-icon qa-back" data-fs-act="back" title="${esc(t("Назад (Esc)", "Back (Esc)"))}" aria-label="${esc(t("Назад", "Back"))}">${IC.back}</button>
       <label class="qa-search fs-search">${IC.search}<input id="fs-q" type="text" spellcheck="false" autocomplete="off" placeholder="${esc(ph)}" value="${esc(S.query)}" aria-label="${esc(t("Поиск файлов на компьютере", "Search files on the computer"))}"></label></div>
       <div class="fs-chips-host">${chipsHtml()}</div><div class="fs-status-host">${statusHtml()}</div><div class="fs-body">${listHtml()}</div><div class="fs-foot-host">${footHtml()}</div>`;

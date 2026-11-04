@@ -201,13 +201,23 @@
     }
     return result;
   }
+  // The latest real user request (not an internal tool report): a chat without artifacts gets the short canvas
+  // block unless the request looks like artifact work (the server decides, see canvas.py CANVAS_INTENT).
+  function requestText(messages) {
+    const rows = (messages || []).filter((m) => m && m.role === "user" && !m.internal
+      && !/^<[^>]+_report>/i.test(String(m.content || "").trim()));
+    return rows.slice(-2).map((m) => String(m.content || "").slice(0, 2000)).join("\n");
+  }
   async function promptBlock(chatState = {}) {
     const chatId = chatState.chatId || "";
     try {
       const list = chatId ? await loadList(chatId, true) : [];
-      const heads = pathHeads(chatState.messages || messagesOf(chatId), list);
-      const data = await req("/api/pg/canvas/context", { method: "POST", body: {
-        chat_id: chatId, heads, focus: st.chatId === chatId && isOpen() ? st.openId : "" } });
+      const messages = chatState.messages || messagesOf(chatId);
+      const heads = pathHeads(messages, list);
+      const body = { chat_id: chatId, heads, focus: st.chatId === chatId && isOpen() ? st.openId : "" };
+      const text = requestText(messages);
+      if (text) body.text = text;
+      const data = await req("/api/pg/canvas/context", { method: "POST", body });
       return data.block ? "\n\n" + data.block : "";
     } catch (e) { return ""; }
   }
@@ -975,7 +985,7 @@
     } catch (error) {
       if (error.payload?.code === "not_installed") {
         say(L("MemuNote не установлен — его можно поставить в Настройки → MemuNote", "MemuNote is not installed — install it in Settings → MemuNote"), "warn",
-          typeof openSettings === "function" ? { label: L("Открыть", "Open"), run: () => { try { openSettings("memunote"); } catch (e) {  } } } : null);
+          typeof openSettingsPage === "function" ? { label: L("Открыть", "Open"), run: () => { try { openSettingsPage("memunote"); } catch (e) {  } } } : null);
       } else say(error.message, "warn");
     }
   }

@@ -1,0 +1,245 @@
+/* Zen — quiet and unhurried: rice paper or sumi ink, a light serif for titles,
+   no boxes, lots of air; the accent appears only as a small seal. */
+@font-face {
+  font-family: "Zen Serif";
+  src: url("fonts/source-serif-4/SourceSerif4-Variable.woff2") format("woff2");
+  font-weight: 300 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Zen Serif";
+  src: url("fonts/source-serif-4/SourceSerif4-Italic-Variable.woff2") format("woff2");
+  font-weight: 300 700; font-style: italic; font-display: swap;
+}
+@font-face { font-family: "Zen Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("fonts/inter/inter-latin-wght.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Zen Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("fonts/inter/inter-cyrillic-wght.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+:root[data-design="zen"] {
+  --z-serif: "Zen Serif", "Source Serif 4", Georgia, "Times New Roman", serif;
+  --z-sans: "Zen Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --d-display: var(--z-serif); --d-text: var(--z-sans); --d-small: var(--z-sans); --sans: var(--z-sans);
+  /* dark: sumi ink */
+  --z-paper: color-mix(in srgb, var(--bg) 88%, #17140f);
+  --z-side: var(--z-paper);
+  --z-card: color-mix(in srgb, var(--panel) 80%, var(--z-paper));
+  --z-wash: color-mix(in srgb, var(--text) 4%, var(--z-paper));
+  --z-line: color-mix(in srgb, var(--text) 9%, transparent);
+  --z-line-2: color-mix(in srgb, var(--text) 16%, transparent);
+  --z-hover: color-mix(in srgb, var(--text) 5%, transparent);
+  --z-sel: color-mix(in srgb, var(--accent) 10%, transparent);
+  --z-seal: var(--accent);
+  --z-float: 0 24px 60px -28px rgba(0, 0, 0, .7);
+  --z-ease: cubic-bezier(.22, .61, .36, 1);
+
+  --chrome: var(--z-side); --canvas: var(--z-paper);
+  --canvas-line: transparent;
+  --d-line: var(--z-line); --d-line-soft: color-mix(in srgb, var(--text) 5%, transparent);
+  --d-hover: var(--z-hover); --d-press: color-mix(in srgb, var(--text) 8%, transparent); --d-selected: var(--z-sel);
+  --d-glass: var(--z-card);
+  --d-pop-shadow: 0 0 0 1px var(--z-line), var(--z-float);
+  --d-lift: none;
+  --r-xs: 6px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px; --r-2xl: 24px;
+  --hover: var(--z-hover);
+  --composer-bg: var(--z-paper);
+  --composer-shadow: none;
+  --user-bubble: var(--z-wash);
+  --user-bubble-text: var(--text);
+  --scroll-thumb: color-mix(in srgb, var(--text) 16%, transparent);
+}
+:root[data-design="zen"][data-theme="light"] {
+  /* light: washi paper */
+  --z-paper: color-mix(in srgb, var(--bg) 78%, #f1ebdf);
+  --z-card: color-mix(in srgb, var(--panel) 70%, var(--z-paper));
+  --z-wash: color-mix(in srgb, var(--text) 4%, var(--z-paper));
+  --z-line: color-mix(in srgb, var(--text) 10%, transparent);
+  --z-line-2: color-mix(in srgb, var(--text) 18%, transparent);
+  --z-hover: color-mix(in srgb, var(--text) 4%, transparent);
+  --z-sel: color-mix(in srgb, var(--accent) 8%, transparent);
+  --z-float: 0 24px 60px -30px rgba(60, 48, 30, .32);
+}
+:root[data-design="zen"] body { background: var(--z-paper); font-family: var(--z-sans); }
+:root[data-design="zen"] #app { background: var(--z-paper); }
+:root[data-design="zen"] :focus-visible { outline: 1.5px solid color-mix(in srgb, var(--text) 60%, transparent); outline-offset: 3px; }
+:root[data-design="zen"] :is(textarea, .pinput, .ptexta, input):focus-visible { outline: none; }
+:root[data-design="zen"] ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+:root[data-design="zen"] #startup-cover { background: var(--z-paper); }
+:root[data-design="zen"] .startup-mark { border-radius: 50%; box-shadow: none; }
+
+/* ---- frame: one sheet of paper, the sidebar separated by a single brush line ---- */
+:root[data-design="zen"] .main { margin: 0; border-radius: 0; border: 0; border-left: 1px solid var(--z-line); box-shadow: none; background: var(--z-paper); }
+:root[data-design="zen"] .side.hidden ~ .main, :root[data-design="zen"] .focus-mode .main { margin-left: 0; border-left: 0; }
+:root[data-design="zen"] .side { padding: 16px 12px 12px; background: var(--z-side); border-right: 0; }
+:root[data-design="zen"] .brand { font: 400 19px/1 var(--z-serif); letter-spacing: .01em; }
+:root[data-design="zen"] :is(.brand-dot, .msg-assistant .who .mini, .profile-avatar) { border-radius: 50%; box-shadow: none; }
+:root[data-design="zen"] .btn-new {
+  border-radius: 999px; border: 1px solid var(--z-line-2); background: transparent; color: var(--text); font-weight: 500; box-shadow: none;
+}
+:root[data-design="zen"] .btn-new:hover { background: var(--z-hover); border-color: color-mix(in srgb, var(--text) 30%, transparent); }
+:root[data-design="zen"] .btn-new .ico { background: var(--z-seal); color: var(--on-accent); border-radius: 50%; }
+:root[data-design="zen"] :is(.btn-temp, .ci-more) { border-radius: 999px; }
+:root[data-design="zen"] .side-btn { border-radius: 10px; color: color-mix(in srgb, var(--text) 82%, var(--muted)); }
+:root[data-design="zen"] .mode-switch { border-radius: 999px; border: 1px solid var(--z-line); background: transparent; padding: 3px; box-shadow: none; }
+:root[data-design="zen"] .mode-switch .side-btn { border-radius: 999px; }
+:root[data-design="zen"] .mode-switch .side-btn.active-section { background: var(--z-wash); color: var(--text); box-shadow: none; }
+:root[data-design="zen"] .side-nav .side-btn.active-section { background: transparent; color: var(--text); font-weight: 600; box-shadow: none; }
+:root[data-design="zen"] .side-btn:hover { background: var(--z-hover); }
+:root[data-design="zen"] .side-label { font: 400 12.5px/1.2 var(--z-serif); font-style: italic; letter-spacing: .02em; text-transform: none; color: var(--muted); }
+/* the open chat is marked by a small seal instead of a filled row */
+:root[data-design="zen"] .chat-item { border-radius: 10px; position: relative; padding-left: 22px; }
+:root[data-design="zen"] .chat-item:hover { background: var(--z-hover); }
+:root[data-design="zen"] .chat-item.active { background: transparent; color: var(--text); font-weight: 600; box-shadow: none; }
+:root[data-design="zen"] .chat-item.active::before {
+  content: ""; position: absolute; left: 8px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--z-seal);
+}
+:root[data-design="zen"] :is(.meme-empty, .meme-new-chat) { border-radius: 12px; border: 1px dashed var(--z-line-2); background: transparent; }
+:root[data-design="zen"] .profile-card { border-radius: 14px; background: transparent; border: 1px solid var(--z-line); box-shadow: none; }
+
+/* ---- header: almost invisible ---- */
+:root[data-design="zen"] .topbar.appbar { background: transparent; border-bottom: 0; box-shadow: none; }
+:root[data-design="zen"] :is(.bar-icon, .iconbtn) { border-radius: 50%; color: color-mix(in srgb, var(--text) 70%, var(--muted)); }
+:root[data-design="zen"] :is(.bar-icon, .iconbtn):hover, :root[data-design="zen"] .bar-icon.open { background: var(--z-hover); color: var(--text); }
+:root[data-design="zen"] .appbar .iconbtn.active { background: var(--z-sel); color: var(--text); }
+:root[data-design="zen"] .chat-search { border-radius: 999px; background: transparent; border: 1px solid var(--z-line); }
+:root[data-design="zen"] .chat-search:focus-within { border-color: var(--z-line-2); background: var(--z-wash); }
+:root[data-design="zen"] .dd-btn { border-radius: 999px; font: 500 15px/1.2 var(--z-serif); }
+:root[data-design="zen"] .dd-btn:hover { background: var(--z-hover); }
+:root[data-design="zen"] .context-meter { border-radius: 999px; background: transparent; border: 1px solid var(--z-line); color: var(--muted); }
+
+/* ---- menus ---- */
+:root[data-design="zen"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
+  border-radius: 16px; background: var(--z-card); border: 1px solid var(--z-line); box-shadow: var(--z-float);
+}
+:root[data-design="zen"] :is(.dd-item, .app-menu-pop button, .context-menu button, .profile-menu-pop button, .pretty-select-menu button, .msg-more-pop button, .slash-menu button, .plus-row) { border-radius: 10px; }
+:root[data-design="zen"] :is(.dd-item:hover, .dd-item.kb, .app-menu-pop button:hover, .context-menu button:hover, .profile-menu-pop button:hover, .pretty-select-menu button:hover, .msg-more-pop button:hover, .slash-menu button:hover, .slash-menu button.active, .plus-row:hover) { background: var(--z-hover); }
+:root[data-design="zen"] :is(.dd-item.sel, .pretty-select-menu button.selected, .plus-row.is-active) { background: var(--z-sel); color: var(--text); }
+:root[data-design="zen"] :is(.dd-search input, .plus-search) { border-radius: 999px; background: transparent; border: 1px solid var(--z-line); box-shadow: none; }
+
+/* ---- home: an ensō around the mark, a light serif greeting ---- */
+:root[data-design="zen"] .greet-mark {
+  border-radius: 50%; background: transparent; box-shadow: none; overflow: visible;
+}
+:root[data-design="zen"] .greet-mark::after {
+  content: ""; position: absolute; inset: -6px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from 210deg, transparent 0 4%, color-mix(in srgb, var(--text) 70%, transparent) 10%, var(--text) 40%, color-mix(in srgb, var(--text) 55%, transparent) 88%, transparent 94%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px));
+  opacity: .85;
+}
+:root[data-design="zen"] .greet-mark::before { background: var(--text) !important; }
+:root[data-design="zen"] .greeting h1 { font: 350 clamp(1.9rem, 3.2vw, 2.7rem)/1.15 var(--z-serif); letter-spacing: -.01em; }
+:root[data-design="zen"] .greeting-subtitle { color: var(--muted); font: italic 400 16px/1.5 var(--z-serif); }
+:root[data-design="zen"] .chip-sug { border-radius: 999px; border: 1px solid var(--z-line); background: transparent; color: var(--text); font-weight: 450; box-shadow: none; }
+:root[data-design="zen"] .chip-sug:hover { background: var(--z-hover); border-color: var(--z-line-2); }
+:root[data-design="zen"] .chip-sug .ui-icon { color: var(--muted); }
+:root[data-design="zen"] .chip-sug.featured { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: transparent; }
+:root[data-design="zen"] .chip-sug.featured .ui-icon { color: var(--accent); }
+:root[data-design="zen"] :is(.work-guide, .temp-guide, .code-guide) { border-radius: 18px; border: 1px solid var(--z-line); background: transparent; box-shadow: none; }
+
+/* ---- composer: a single hairline on paper ---- */
+:root[data-design="zen"] .composer-wrap::before { background: linear-gradient(to bottom, transparent, var(--z-paper)); }
+:root[data-design="zen"] .composer { border-radius: 20px; border: 1px solid var(--z-line-2); background: var(--z-paper); box-shadow: none; }
+:root[data-design="zen"] .composer:focus-within { border-color: color-mix(in srgb, var(--text) 34%, transparent); box-shadow: var(--z-float); }
+:root[data-design="zen"] :is(.cbtn, .attach-chip, .composer .tog, .tool-chip, .composer .image-aspect) { border-radius: 999px; }
+:root[data-design="zen"] :is(.attach-chip, .tool-chip) { border: 1px solid var(--z-line); background: transparent; }
+:root[data-design="zen"] .plus-btn { border-radius: 50%; background: transparent; border: 1px solid var(--z-line); }
+:root[data-design="zen"] .plus-btn:hover { background: var(--z-hover); }
+/* the send button is the seal */
+:root[data-design="zen"] .send { border-radius: 10px; background: var(--z-seal); color: var(--on-accent); box-shadow: none; transform: rotate(-3deg); }
+:root[data-design="zen"] .send:hover { transform: rotate(0); }
+:root[data-design="zen"] .send:disabled { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--z-line-2); transform: none; }
+
+/* ---- messages: calm reading ---- */
+:root[data-design="zen"] .msg-user .bubble { border-radius: 18px; background: var(--user-bubble); color: var(--user-bubble-text); border: 0; box-shadow: none; }
+:root[data-design="zen"] .msg-assistant .who-name { font: italic 400 14px/1.2 var(--z-serif); color: var(--muted); }
+:root[data-design="zen"] .msg-assistant .body { line-height: 1.75; }
+:root[data-design="zen"] .msg-assistant .body :is(h1, h2, h3) { font-family: var(--z-serif); font-weight: 450; letter-spacing: -.005em; }
+:root[data-design="zen"] .msg-assistant .body a { color: inherit; text-decoration-color: color-mix(in srgb, var(--accent) 70%, transparent); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+:root[data-design="zen"] .msg-assistant .body a:hover { color: var(--accent); }
+:root[data-design="zen"] .msg-assistant .body hr { border: 0; height: 1px; width: 40%; margin-inline: auto; background: var(--z-line-2); }
+:root[data-design="zen"] .msg-assistant .body :not(pre) > code,
+:root[data-design="zen"] .msg-user .user-text :not(pre) > code { border-radius: 6px; background: var(--z-wash); border: 0; }
+:root[data-design="zen"] .code-block-wrap { border-radius: 14px; border: 1px solid var(--z-line); background: var(--code-bg); box-shadow: none; overflow: hidden; }
+:root[data-design="zen"] .code-header { border-bottom: 1px solid var(--z-line); background: transparent; }
+:root[data-design="zen"] .code-copy-btn { border-radius: 999px; }
+:root[data-design="zen"] .table-wrap { border-radius: 0; border: 0; border-top: 1px solid var(--z-line-2); border-bottom: 1px solid var(--z-line-2); background: transparent; overflow: hidden; }
+:root[data-design="zen"] :is(.table-wrap th, .body th) { background: transparent; font: italic 500 14px/1.3 var(--z-serif); color: var(--muted); border-bottom: 1px solid var(--z-line-2); }
+:root[data-design="zen"] :is(.table-wrap td, .body td) { border-color: var(--z-line); }
+:root[data-design="zen"] :is(.body, .user-text) blockquote {
+  border-radius: 0 !important; border-left: 1px solid var(--z-line-2) !important; background: transparent !important;
+  font-family: var(--z-serif); font-style: italic; font-size: 1.04em; color: color-mix(in srgb, var(--text) 82%, var(--muted));
+}
+:root[data-design="zen"] :is(.trail, .rs-card, .file-pill, .continue-strip, .msg-video, .msg-tool) { border-radius: 14px; }
+:root[data-design="zen"] :is(.rs-card, .file-pill, .continue-strip) { border: 1px solid var(--z-line); background: transparent; box-shadow: none; }
+:root[data-design="zen"] .imgwrap img { border-radius: 12px; }
+:root[data-design="zen"] .msg-actions { opacity: .7; }
+:root[data-design="zen"] .msg-actions:hover { opacity: 1; }
+:root[data-design="zen"] .msg-actions button { border-radius: 50%; }
+:root[data-design="zen"] .msg-actions button:hover { background: var(--z-hover); }
+:root[data-design="zen"] .jump-latest { border-radius: 50%; background: var(--z-card); border: 1px solid var(--z-line); box-shadow: var(--z-float); }
+
+/* ---- settings & panels ---- */
+:root[data-design="zen"] .panel-back { background: color-mix(in srgb, var(--z-paper) 40%, rgba(0, 0, 0, .3)); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+:root[data-design="zen"] .panel { border-radius: 22px; border: 1px solid var(--z-line); background: var(--z-paper); box-shadow: var(--z-float); }
+:root[data-design="zen"] .settings-header { border-bottom: 1px solid var(--z-line); background: transparent; }
+:root[data-design="zen"] .settings-header h2 { font-family: var(--z-serif); font-weight: 400; }
+:root[data-design="zen"] .panel-close { border-radius: 50%; }
+:root[data-design="zen"] .settings-tabs-sidebar { background: transparent; border-right: 1px solid var(--z-line); }
+:root[data-design="zen"] .settings-tab-btn { border-radius: 10px; }
+:root[data-design="zen"] .settings-tab-btn:hover { background: var(--z-hover); }
+:root[data-design="zen"] .settings-tab-btn.active { background: var(--z-wash); color: var(--text); font-weight: 600; box-shadow: none; }
+:root[data-design="zen"] .settings-section { border-radius: 16px; }
+:root[data-design="zen"] :is(.pinput, .ptexta, .pretty-select-button) { border-radius: 12px; background: transparent; border: 1px solid var(--z-line-2); box-shadow: none; }
+:root[data-design="zen"] :is(.pinput, .ptexta):focus { border-color: color-mix(in srgb, var(--text) 40%, transparent); background: var(--z-wash); }
+:root[data-design="zen"] .pbtn { border-radius: 999px; background: var(--text); color: var(--z-paper); border: 0; box-shadow: none; font-weight: 550; }
+:root[data-design="zen"] .pbtn:hover { background: color-mix(in srgb, var(--text) 86%, var(--z-paper)); }
+:root[data-design="zen"] .pbtn.ghost { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--z-line-2); }
+:root[data-design="zen"] .pbtn.danger { background: transparent; color: var(--danger); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent); }
+:root[data-design="zen"] .hintbox { border-radius: 14px; background: transparent; border: 1px solid var(--z-line); }
+:root[data-design="zen"] .switch .sl { box-shadow: none; }
+:root[data-design="zen"] .toast { border-radius: 999px; background: var(--z-card); color: var(--text); border: 1px solid var(--z-line); box-shadow: var(--z-float); }
+:root[data-design="zen"] .memu-tooltip { border-radius: 8px; }
+:root[data-design="zen"] .module-window { border-radius: 20px; border: 1px solid var(--z-line); background: var(--z-paper); box-shadow: var(--z-float); }
+:root[data-design="zen"] .module-window-bar { border-bottom: 1px solid var(--z-line); background: transparent; }
+:root[data-design="zen"] :is(.module-card, .module-taskbar) { border-radius: 18px; border: 1px solid var(--z-line); background: transparent; box-shadow: none; }
+:root[data-design="zen"] .mp-card { --mp-r: 18px; border: 1px solid var(--z-line); background: transparent; box-shadow: none; }
+:root[data-design="zen"] .mp-card[data-mode="home"]:hover { border-color: var(--z-line-2); background: var(--z-hover); }
+:root[data-design="zen"] .mp-chip { border-radius: 999px; }
+:root[data-design="zen"] :is(.mp-menu, .mp-modal) { border-radius: 18px; border: 1px solid var(--z-line); box-shadow: var(--z-float); }
+:root[data-design="zen"] :is(.docs-search, .docs-find) { border-radius: 999px; border: 1px solid var(--z-line); background: transparent; }
+:root[data-design="zen"] :is(.docs-page-link, .docs-group-head, .docs-result) { border-radius: 10px; }
+:root[data-design="zen"] .docs-page-link.active { background: var(--z-wash); }
+:root[data-design="zen"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 14px; }
+:root[data-design="zen"] .docs-article :is(h1, h2, h3) { font-family: var(--z-serif); font-weight: 450; }
+:root[data-design="zen"] .live-call { border-radius: 28px; border: 1px solid var(--z-line); background: var(--z-card); box-shadow: var(--z-float); }
+:root[data-design="zen"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+:root[data-design="zen"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-design="zen"] ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+:root[data-design="zen"] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text) 30%, transparent); background-clip: content-box; }
+/* slow, gentle transitions */
+:root[data-design="zen"] :is(.btn-new, .chip-sug, .send, .pbtn, .chat-item, .side-btn, .composer, .msg-actions, .mp-card) {
+  transition: background-color .35s var(--z-ease), border-color .35s var(--z-ease), box-shadow .45s var(--z-ease), opacity .35s var(--z-ease), transform .45s var(--z-ease);
+}
+:root[data-design="zen"]:is([data-motion="reduced"], [data-motion="off"]) :is(.btn-new, .chip-sug, .send, .pbtn, .chat-item, .side-btn, .composer, .msg-actions, .mp-card) { transition: none; }
+:root[data-design="zen"][data-motion="off"] .send { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="zen"] :is(.btn-new, .chip-sug, .send, .pbtn, .chat-item, .side-btn, .composer, .msg-actions, .mp-card) { transition: none; }
+}
+@media (max-width: 800px) {
+  :root[data-design="zen"] .side, :root[data-design="zen"] .side.hidden { background: var(--z-side); border-right: 1px solid var(--z-line); }
+  :root[data-design="zen"] .main, :root[data-design="zen"] .side.hidden ~ .main { margin: 0; border-left: 0; }
+  :root[data-design="zen"] .greet-mark::after { inset: -4px; }
+}
+:root[data-design="zen"] {
+  --sx-r: 16px; --sx-r-sm: 10px; --sx-font: var(--z-sans); --sx-display: var(--z-serif);
+  --sx-bg: var(--z-paper); --sx-side: transparent; --sx-card: transparent; --sx-card-hover: var(--z-hover);
+  --sx-line: var(--z-line); --sx-line-soft: color-mix(in srgb, var(--text) 5%, transparent); --sx-sel: var(--z-wash);
+}
+:root[data-design="zen"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 10px; }
+:root[data-design="zen"] .sx-shell .sx-nav .settings-tab-btn.active { background: var(--z-wash); color: var(--text); }
+:root[data-design="zen"] .sx-nav-label { font: italic 400 13px/1.2 var(--z-serif); text-transform: none; letter-spacing: .01em; }
+:root[data-design="zen"] .sx-card { border: 1px solid var(--z-line); box-shadow: none; }
+:root[data-design="zen"] .sx-shell .sx-page-title { font-family: var(--z-serif); font-weight: 400; letter-spacing: -.01em; }
+:root[data-design="zen"] :is(.sx-search, .sx-seg) { border-radius: 999px; }
+:root[data-design="zen"] :is(.sx-page-icon, .sx-link-icon, .sx-result-icon) { border-radius: 50%; }

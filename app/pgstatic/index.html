@@ -7,7 +7,7 @@
 
 <script src="/memu-keys.js?v=3.5-r33"></script>
 
-<script src="/api/pg/safe-mode/boot.js"></script>
+<script src="/api/pg/safe-mode/boot.js?v=5.0-r81"></script>
 
 <script src="/module-apps.js?v=3.6-r40"></script>
 <script>
@@ -21,7 +21,7 @@ try {
   const accent = localStorage.getItem("memu_accent") || "";
   root.dataset.accent = /^[a-z]{2,24}$/.test(accent) ? accent : "terracotta";
   const design = localStorage.getItem("memu_design") || "";
-  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal)$/.test(design) ? design : "classic";
+  root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal|notebook|messenger|retro|clay|studio|zen)$/.test(design) ? design : "classic";
   const surface = localStorage.getItem("memu_surface_" + startupTheme) || "";
   if (/^[a-z0-9-]{1,48}$/.test(surface)) root.dataset.surface = surface;
   const background = localStorage.getItem("memu_bg_" + startupTheme) || "";
@@ -34,27 +34,33 @@ try {
   #startup-cover{position:fixed;inset:0;z-index:1000000}
   body.booting>#app{visibility:hidden;opacity:0}
 </style>
-<link rel="stylesheet" href="/style.css?v=4.0-dev">
-<link rel="stylesheet" href="/themes.css">
-<link rel="stylesheet" href="/appearance.css?v=1.8-r36">
-<link rel="stylesheet" href="/memucode.css?v=2.4-r36">
-<link rel="stylesheet" href="/modules.css?v=4.0-dev">
-<link rel="stylesheet" href="/module-icons.css?v=3.6-r39">
+<link rel="stylesheet" href="/style.css?v=5.0-r79">
+<link rel="stylesheet" href="/themes.css?v=5.0-r81">
+<link rel="stylesheet" href="/appearance.css?v=5.0-r80">
+<link rel="stylesheet" href="/memucode.css?v=5.0-r81">
+<link rel="stylesheet" href="/modules.css?v=5.0-r79">
+<link rel="stylesheet" href="/module-icons.css?v=5.0-r79">
 <link rel="stylesheet" href="/module-focus.css?v=3.6-r38">
 <link rel="stylesheet" href="/module-apps.css?v=3.8-r47">
 <link rel="stylesheet" href="/module-appbar.css?v=3.6-r38">
 <link rel="stylesheet" href="/docs.css?v=1.1-r29">
 <link rel="stylesheet" href="/docs-ai.css?v=1.0-r29">
 
-<link rel="stylesheet" href="/design.css?v=4.0-r59">
+<link rel="stylesheet" href="/design.css?v=5.0-r81">
 
-<link rel="stylesheet" href="/designs/aurora.css?v=4.0-r59" data-design-css="aurora" media="not all">
-<link rel="stylesheet" href="/designs/focus.css?v=1.0" data-design-css="focus" media="not all">
-<link rel="stylesheet" href="/designs/grid.css?v=1.2-r36" data-design-css="grid" media="not all">
-<link rel="stylesheet" href="/designs/glass.css?v=4.0-r59" data-design-css="glass" media="not all">
-<link rel="stylesheet" href="/designs/soft.css?v=4.0-r59" data-design-css="soft" media="not all">
+<link rel="stylesheet" href="/designs/aurora.css?v=5.0-r79" data-design-css="aurora" media="not all">
+<link rel="stylesheet" href="/designs/focus.css?v=5.0-r79" data-design-css="focus" media="not all">
+<link rel="stylesheet" href="/designs/grid.css?v=5.0-r79" data-design-css="grid" media="not all">
+<link rel="stylesheet" href="/designs/glass.css?v=5.0-r79" data-design-css="glass" media="not all">
+<link rel="stylesheet" href="/designs/soft.css?v=5.0-r79" data-design-css="soft" media="not all">
 <link rel="stylesheet" href="/designs/terminal.css?v=4.0-r59" data-design-css="terminal" media="not all">
-<link rel="stylesheet" href="/designs/brutal.css?v=4.0-r59" data-design-css="brutal" media="not all">
+<link rel="stylesheet" href="/designs/brutal.css?v=5.0-r79" data-design-css="brutal" media="not all">
+<link rel="stylesheet" href="/designs/notebook.css?v=4.5-r76" data-design-css="notebook" media="not all">
+<link rel="stylesheet" href="/designs/messenger.css?v=5.0-r79" data-design-css="messenger" media="not all">
+<link rel="stylesheet" href="/designs/retro.css?v=4.5-r76" data-design-css="retro" media="not all">
+<link rel="stylesheet" href="/designs/clay.css?v=5.0-r79" data-design-css="clay" media="not all">
+<link rel="stylesheet" href="/designs/studio.css?v=5.0-r79" data-design-css="studio" media="not all">
+<link rel="stylesheet" href="/designs/zen.css?v=4.5-r76" data-design-css="zen" media="not all">
 <script>
 (function () {
   const root = document.documentElement, links = document.querySelectorAll("link[data-design-css]");
@@ -78,54 +84,58 @@ try {
 })();
 </script>
 
-<link rel="stylesheet" href="/motion.css?v=1.0">
+<link rel="stylesheet" href="/motion.css?v=5.0-r80">
 <link rel="stylesheet" href="/appearance-plus.css?v=1.1-r30">
 <link rel="stylesheet" href="/voice-player.css?v=3.8-r46">
 <link rel="stylesheet" href="/products.css?v=1.0">
 <link rel="stylesheet" href="/tables.css?v=1.1-r30">
-<link rel="stylesheet" href="/diagrams.css?v=1.1-r30">
+<link rel="stylesheet" href="/diagrams.css?v=5.0-r79">
 <link rel="stylesheet" href="/cmd-highlight.css?v=1.0-r30">
 <link rel="stylesheet" href="/media-routing.css?v=1.0-r29">
 <link rel="stylesheet" href="/media-cache.css?v=1.0-r33">
-<link rel="stylesheet" href="/model-picker.css?v=3.5-r33">
+<link rel="stylesheet" href="/model-picker.css?v=5.0-r79">
 <link rel="stylesheet" href="/telegram-settings.css?v=1.0">
+<link rel="stylesheet" href="/messengers-settings.css?v=5.0-r77">
 
 <link rel="stylesheet" href="/quick-settings.css?v=1.1-r23">
 <link rel="stylesheet" href="/quick-selection-settings.css?v=1.0-r27">
 
 <link rel="stylesheet" href="/titlebar.css?v=1.0">
 
-<link rel="stylesheet" href="/panels.css?v=3.8-r46">
-<link rel="stylesheet" href="/panels-layout.css?v=3.6-r36">
-<link rel="stylesheet" href="/hotkeys.css?v=1.1-r30">
+<link rel="stylesheet" href="/panels.css?v=5.0-r81">
+<link rel="stylesheet" href="/panels-layout.css?v=5.0-r81">
+<link rel="stylesheet" href="/hotkeys.css?v=5.0-r79">
 <link rel="stylesheet" href="/modules-aipack.css?v=1.1-r30">
 <link rel="stylesheet" href="/companion/companion.css?v=1.3-r34">
 
-<link rel="stylesheet" href="/settings.css?v=4.0-r59">
-<link rel="stylesheet" href="/reflect.css?v=1.0-r27">
+<link rel="stylesheet" href="/settings.css?v=5.0-r81">
+<link rel="stylesheet" href="/settings-home.css?v=5.0-r79">
+<link rel="stylesheet" href="/reflect.css?v=4.5-r76">
 <link rel="stylesheet" href="/memory.css?v=1.2-r40">
 
 <link rel="stylesheet" href="/schedsend.css?v=1.0-r29">
 
-<link rel="stylesheet" href="/plan.css?v=1.4-r30">
+<link rel="stylesheet" href="/plan.css?v=5.0-r79">
 <link rel="stylesheet" href="/flows.css?v=3.5-r35">
 <link rel="stylesheet" href="/plan-triggers.css?v=2-r35">
 <link rel="stylesheet" href="/plan-conds.css?v=2-r37">
 <link rel="stylesheet" href="/plan-templates.css?v=1-r37">
-<link rel="stylesheet" href="/inbox.css?v=3.5-r36">
-<link rel="stylesheet" href="/deeplinks.css?v=3.5-r35">
+<link rel="stylesheet" href="/plan-studio.css?v=5.0-r81">
+<link rel="stylesheet" href="/plan-telegram.css?v=5.0-r81">
+<link rel="stylesheet" href="/inbox.css?v=5.0-r79">
+<link rel="stylesheet" href="/deeplinks.css?v=5.0-r79">
 <link rel="stylesheet" href="/export.css?v=1.0-r29">
 
-<link rel="stylesheet" href="/search.css?v=1.2-r30">
+<link rel="stylesheet" href="/search.css?v=5.0-r79">
 <link rel="stylesheet" href="/sync-settings.css?v=1.0-r29">
 <link rel="stylesheet" href="/gdrive-picker.css?v=1.1-r29">
 
 <link rel="stylesheet" href="/integrations-ui.css?v=3.8-r46">
-<link rel="stylesheet" href="/telegram-use.css?v=3.8-r46">
+<link rel="stylesheet" href="/telegram-use.css?v=5.0-r81">
 <link rel="stylesheet" href="/browser-extension-settings.css?v=3.8-r45">
 
 <link rel="stylesheet" href="/guide-video.css?v=3.5-r33">
-<link rel="stylesheet" href="/app-settings-form.css?v=1.0-r38">
+<link rel="stylesheet" href="/app-settings-form.css?v=5.0-r79">
 <link rel="stylesheet" href="/memunote-settings.css?v=1.0-r29">
 <link rel="stylesheet" href="/memufiles-settings.css?v=1.0-r35">
 <link rel="stylesheet" href="/safe-mode.css?v=1.1-r29">
@@ -134,26 +144,30 @@ try {
 <link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
 
 <link rel="stylesheet" href="/polish-r31.css?v=1.1-r31">
-<link rel="stylesheet" href="/tour.css?v=1.0-r31">
+<link rel="stylesheet" href="/help-tips.css?v=5.0-r80">
 
-<link rel="stylesheet" href="/skills-ui.css?v=1.0-r36">
+<link rel="stylesheet" href="/skills-ui.css?v=5.0-r81">
 
-<link rel="stylesheet" href="/appearance-layout.css?v=3.5-r33">
-<link rel="stylesheet" href="/theme-editor.css?v=3.5-r33">
-<link rel="stylesheet" href="/tool-details.css?v=3.5-r33">
+<link rel="stylesheet" href="/appearance-layout.css?v=5.0-r79">
+<link rel="stylesheet" href="/theme-editor.css?v=5.0-r79">
+<link rel="stylesheet" href="/tool-details.css?v=5.0-r79">
 <link rel="stylesheet" href="/askuser.css?v=3.5-r35">
 <link rel="stylesheet" href="/bigdocs.css?v=3.5-r35">
 <link rel="stylesheet" href="/memu-dragsort.css?v=3.5-r33">
 
 <link rel="stylesheet" href="/reasoning.css?v=3.5-r33">
-<link rel="stylesheet" href="/branches.css?v=3.5-r36">
-<link rel="stylesheet" href="/canvas.css?v=3.6-r40">
+<link rel="stylesheet" href="/branches.css?v=5.0-r79">
+<link rel="stylesheet" href="/personalities.css?v=5.0-r79">
+<link rel="stylesheet" href="/canvas.css?v=5.0-r79">
 <link rel="stylesheet" href="/mcp-hub.css?v=3.6-r40">
 <link rel="stylesheet" href="/mentions.css?v=3.5-r35">
 <link rel="stylesheet" href="/chat-find.css?v=3.5-r37">
 <link rel="stylesheet" href="/compare.css?v=3.5-r37">
-<link rel="stylesheet" href="/composer-snippets.css?v=3.5-r37">
+<link rel="stylesheet" href="/composer-snippets.css?v=5.0-r79">
 <link rel="stylesheet" href="/settings-transfer.css?v=3.5-r37">
+<link rel="stylesheet" href="/spaces.css?v=5.0-20261103">
+<link rel="stylesheet" href="/reactions.css?v=5.0-r81">
+<link rel="stylesheet" href="/onboarding.css?v=5.0-r81">
 <!-- A user theme is injected last so it can override any rule above. -->
 <style id="memu-user-theme"></style>
 <script>
@@ -163,7 +177,7 @@ try {
   if (css) document.getElementById("memu-user-theme").textContent = css;
 } catch (_) {}
 </script>
-<link rel="icon" href="/icon.png">
+<link rel="icon" href="/icon.png?v=5.0-r81">
 </head>
 <body class="native-frame booting">
 
@@ -222,7 +236,7 @@ try {
         </span>
         <span class="profile-dots">⋯</span>
       </button>
-      
+
     </div>
   </aside>
   <div class="sidebar-resizer" id="sidebar-resizer" title="Изменить ширину боковой панели"></div>
@@ -249,7 +263,7 @@ try {
           <div class="dd-list" id="model-list"></div>
         </div>
       </div>
-      <span id="context-meter" class="context-meter" title="Оценка использованного контекста"></span>
+      <button type="button" id="context-meter" class="context-meter" aria-haspopup="dialog"></button>
       <div id="module-slot-topbar"></div>
       <div class="grow"></div>
       <button class="iconbtn" id="btn-focus" aria-label="Режим фокуса" data-en-label="Focus mode" aria-pressed="false"></button>
@@ -387,7 +401,7 @@ try {
           <button class="preview-btn" id="prev-close" title="Закрыть" data-en-title="Close">✕</button>
         </div>
         <div class="preview-stage" id="preview-stage">
-          <iframe id="preview-iframe" title="Предпросмотр сайта" data-en-title="Site preview" sandbox="allow-scripts allow-modals"></iframe>
+          <iframe id="preview-iframe" title="Предпросмотр сайта" data-en-title="Site preview" sandbox="allow-scripts"></iframe>
           <div class="automation-stage" id="automation-stage" hidden>
             <div class="automation-address" id="automation-address-row">
               <button class="preview-btn" id="automation-back" title="Назад" data-en-title="Back">←</button>
@@ -515,37 +529,39 @@ try {
   <nav class="module-taskbar" id="module-taskbar" aria-label="Открытые модули" data-en-label="Open modules" hidden></nav>
 </div>
 <script src="/vendor/katex/katex.min.js?v=1.0-final"></script>
-<script src="/appearance.js?v=2.6-r33"></script>
+<script src="/appearance.js?v=4.5-r76"></script>
 <script src="/appearance-plus.js?v=3.8-r46"></script>
 
-<script src="/theme-editor.js?v=3.5-r33"></script>
+<script src="/theme-editor.js?v=4.5-r76"></script>
 
 <script src="/memu-layers.js?v=1.1-r41"></script>
-<script src="/settings-kit.js?v=4.0-dev"></script>
+<script src="/settings-kit.js?v=5.0-r79"></script>
+<script src="/settings-home.js?v=5.0-r79"></script>
 <script src="/titlebar.js?v=1.0"></script>
-<script src="/motion.js?v=1.0"></script>
-<script src="/tooltip.js?v=1.2-r36"></script>
-<script src="/syntax.js?v=1.0-syntax"></script>
-<script src="/skills.js?v=1.2-r32"></script>
+<script src="/motion.js?v=5.0-r79"></script>
+<script src="/tooltip.js?v=5.0-r80"></script>
+<script src="/syntax.js?v=5.0-r79"></script>
+<script src="/skills.js?v=4.5-r76"></script>
 <script src="/modules-toolbar.js?v=1.0-r30"></script>
 <script src="/module-icons.js?v=4.0-r59"></script>
-<script src="/modules.js?v=4.0-r59"></script>
+<script src="/native-audio.js?v=5.0-r83"></script>
+<script src="/modules.js?v=5.0-20261104"></script>
 <script src="/module-focus.js?v=3.6-r38"></script>
 <script src="/module-appbar.js?v=3.8-r47"></script>
-<link rel="stylesheet" href="/rich-visuals.css?v=4.0-r59">
+<link rel="stylesheet" href="/rich-visuals.css?v=5.0-r79">
 <link rel="stylesheet" href="/module-catalog.css?v=4.0-r59">
-<link rel="stylesheet" href="/modules-settings.css?v=4.0-r59">
+<link rel="stylesheet" href="/modules-settings.css?v=5.0-r79">
 <script src="/module-catalog.js?v=4.0-r59"></script>
 <script src="/rich-visuals.js?v=4.0"></script>
 <script src="/visuals.js?v=4.0"></script>
 
-<script src="/tables.js?v=1.0-r29"></script>
+<script src="/tables.js?v=5.0-r79"></script>
 <script src="/diagram-zoom.js?v=1.1-r36"></script>
-<script src="/diagrams.js?v=1.2-r36"></script>
+<script src="/diagrams.js?v=5.0-r79"></script>
 
-<script src="/cmd-highlight.js?v=1.0-r30"></script>
+<script src="/cmd-highlight.js?v=5.0-r79"></script>
 
-<script src="/memu-model-names.js?v=3.5-r33"></script>
+<script src="/memu-model-names.js?v=5.0-r78"></script>
 <script src="/model-picker.js?v=3.5-r33"></script>
 <script src="/vision-gate.js?v=1.0-r33"></script>
 <script src="/media-routing.js?v=1.2-r34"></script>
@@ -557,12 +573,13 @@ try {
 <script src="/voice-settings.js?v=3.8-r46"></script>
 <script src="/vendor/qrcode/qrcode.js?v=1.0"></script>
 <script src="/telegram-settings.js?v=1.0-r26"></script>
+<script src="/messengers-settings.js?v=5.0-r77"></script>
 <script src="/quick-selection-settings.js?v=1.0-r27"></script>
-<script src="/quick-settings.js?v=1.2-r34"></script>
-<script src="/dfy-client.js?v=3.8-r46"></script>
+<script src="/quick-settings.js?v=5.0-20261103"></script>
+<script src="/dfy-client.js?v=4.5-r76"></script>
 <script src="/askuser.js?v=3.5-r36"></script>
 <script src="/bigdocs.js?v=3.5-r36"></script>
-<script src="/canvas.js?v=3.6-r40"></script>
+<script src="/canvas.js?v=4.5-r76"></script>
 
 <script src="/dfy-remote.js?v=1.1-r30"></script>
 <script src="/stuck.js?v=1.0-r29"></script>
@@ -570,15 +587,15 @@ try {
 <script src="/tgapp-settings.js?v=1.0-r27"></script>
 
 <script src="/memu-ctxmenu.js?v=4.1"></script>
-<script src="/panels.js?v=3.8-r46"></script>
-<script src="/panels-layout.js?v=3.6-r36"></script>
-<script src="/panels-telegram.js?v=25-r30"></script>
-<script src="/reflect.js?v=1.1-r34"></script>
+<script src="/panels.js?v=5.0-20261103"></script>
+<script src="/panels-layout.js?v=5.0-r81"></script>
+<script src="/panels-telegram.js?v=25-r30&amp;rev=20261103"></script>
+<script src="/reflect.js?v=4.5-r76"></script>
 <script src="/sync-settings.js?v=1.2-r30"></script>
 <script src="/server-settings.js?v=1.0"></script>
 <script src="/gdrive-picker.js?v=1.2-r30"></script>
 <script src="/integrations-ui.js?v=3.8-r46"></script>
-<script src="/telegram-use.js?v=3.8-r46"></script>
+<script src="/telegram-use.js?v=5.0-r81"></script>
 <script src="/browser-extension-settings.js?v=3.8-r45"></script>
 <script src="/mcp-hub.js?v=3.6-r40"></script>
 <script src="/guide-video.js?v=3.5-r33"></script>
@@ -587,31 +604,37 @@ try {
 <script src="/memufiles-settings.js?v=1.0-r38"></script>
 <script src="/memufiles-default.js?v=1.0-r38"></script>
 <script src="/safe-mode.js?v=1.1-r29"></script>
-<script src="/hotkeys.js?v=4.1"></script>
+<script src="/hotkeys.js?v=5.0-r79"></script>
 
 <script src="/reasoning.js?v=3.5-r33"></script>
 
 <script src="/answer-guard.js?v=4.1"></script>
 <script src="/branches.js?v=3.5-r37"></script>
-<script src="/tool-details.js?v=3.5-r33"></script>
+<script src="/tool-details.js?v=5.0-r81"></script>
 <script src="/memu-live.js?v=1.0-r40"></script>
-<link rel="stylesheet" href="/teams.css?v=4.0-r59">
-<script src="/app.js?v=4.2"></script>
+<link rel="stylesheet" href="/teams.css?v=5.0-r79">
+<script src="/personalities.js?v=5.0-r77"></script>
+<script src="/app.js?v=5.0-20261103"></script>
+<script src="/spaces.js?v=5.0-20261103"></script>
+<script src="/reactions.js?v=5.0-20261103"></script>
+<script src="/onboarding.js?v=5.0-r80"></script>
 <link rel="stylesheet" href="/sidebar-settings.css?v=4.0-r59">
 <script src="/sidebar-settings.js?v=4.0-r59"></script>
 <script src="/mentions.js?v=3.5-r36"></script>
 <script src="/suggestions.js?v=1.0"></script>
-<script src="/memory.js?v=1.1-r40"></script>
-<script src="/schedsend.js?v=1.0-r29"></script>
+<script src="/memory.js?v=5.0-r80&amp;rev=20261103"></script>
+<script src="/schedsend.js?v=1.0-r29&amp;rev=20261103"></script>
 <script src="/plan-ui.js?v=1.1-r30"></script>
 <script src="/plan-triggers.js?v=3-r37"></script>
 <script src="/plan-conds.js?v=2-r37"></script>
-<script src="/plan-templates.js?v=1-r37"></script>
-<script src="/plan.js?v=4.1"></script>
-<script src="/flows.js?v=3.8-r46"></script>
-<script src="/inbox.js?v=3.5-r36"></script>
-<script src="/teams.js?v=4.0-r59"></script>
-<script src="/deeplinks.js?v=3.5-r36"></script>
+<script src="/plan-templates.js?v=5.0-r81"></script>
+<script src="/plan-scen.js?v=5.0-r81"></script>
+<script src="/plan-telegram.js?v=5.0-20261103"></script>
+<script src="/plan.js?v=5.0-r81"></script>
+<script src="/flows.js?v=5.0-r81"></script>
+<script src="/inbox.js?v=5.0-r81&amp;rev=20261103"></script>
+<script src="/teams.js?v=4.5-r76"></script>
+<script src="/deeplinks.js?v=3.5-r36&amp;rev=20261103"></script>
 <script src="/export.js?v=1.0-r29"></script>
 <script src="/video.js?v=1.1-r26"></script>
 <script src="/code-stats.js?v=1.1-cost"></script>
@@ -620,7 +643,7 @@ try {
 <script src="/sketch.js?v=1.0-r27"></script>
 <script src="/selfdocs.js?v=1.0"></script>
 <script src="/research.js?v=1.0-r27"></script>
-<script src="/agents.js?v=1.1-r25"></script>
+<script src="/agents.js?v=5.0-r81"></script>
 <script src="/realtime.js?v=1.4-r27"></script>
 <script src="/companion/companion-core.js?v=1.1-r26"></script>
 <script src="/companion/companion.js?v=1.1-r34"></script>
@@ -630,18 +653,19 @@ try {
 <script src="/docs.js?v=1.4-r29"></script>
 <script src="/modules-aipack.js?v=1.1-r30"></script>
 <script src="/code-editor.js?v=1.1"></script>
-<script src="/memucode.js?v=2.6-r36"></script>
-<script src="/search.js?v=4.0-r59"></script>
+<script src="/memucode.js?v=5.0-r81"></script>
+<script src="/code-agents.js?v=5.0-20261103"></script>
+<script src="/search.js?v=5.0-r79"></script>
 <script src="/chat-find.js?v=3.5-r37"></script>
 <script src="/chat-drafts.js?v=3.5-r37"></script>
 <script src="/compare.js?v=4.0-r59"></script>
 <script src="/composer-snippets.js?v=3.5-r37"></script>
 <script src="/settings-transfer.js?v=3.5-r37"></script>
-<script src="/music-dock.js?v=4.1" defer></script>
-<script src="/module-integration.js?v=1.2-r39" defer></script>
-<script src="/tour.js?v=4.0-dev"></script>
+<script src="/music-dock.js?v=5.0-20261103" defer></script>
+<script src="/module-integration.js?v=5.0-20261103" defer></script>
+<script src="/help-tips.js?v=5.0-r81"></script>
 
-<script src="/skills-ui.js?v=1.0-r36"></script>
+<script src="/skills-ui.js?v=5.0-r78"></script>
 <div id="code-palette" class="code-palette" hidden>
   <div class="code-palette-card" role="dialog" aria-modal="true" aria-label="Палитра MemuCode" data-en-label="MemuCode palette">
     <label class="cp-search"><i data-cicon="search"></i><input id="code-palette-input" placeholder="Файл, команда или скилл…" data-en-placeholder="File, command or skill…" aria-label="Палитра MemuCode" data-en-label="MemuCode palette" spellcheck="false" autocomplete="off" role="combobox" aria-controls="code-palette-list" aria-expanded="true"><kbd>Esc</kbd></label>

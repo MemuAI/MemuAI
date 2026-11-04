@@ -131,10 +131,10 @@
     "planning": [
       {
         "id": "save-chat-messages",
-        "title": "Сохранить длинный чат с персонажем",
-        "title_en": "Save a long character chat",
-        "description": "Напомнить сохранить или экспортировать чат, когда в нём станет много сообщений.",
-        "description_en": "Remind to save or export a chat once it grows to many messages.",
+        "title": "Длинный чат → память ИИ и сохранение",
+        "title_en": "Long chat → AI memory and save",
+        "description": "Когда чат с персонажем вырастает на N сообщений, ИИ пишет память чата (события, отношения, факты) — персонаж будет помнить их в ответах; чат сохраняется в Markdown.",
+        "description_en": "When a character chat grows by N messages, the AI writes the chat memory (events, relationships, facts) — the character keeps it in mind; the chat is saved as Markdown.",
         "trigger": {
           "kind": "threshold",
           "metric": "messages",
@@ -142,28 +142,46 @@
           "scope": "per_chat"
         },
         "action": {
-          "kind": "notify",
-          "text": "Чат с персонажем превысил порог сообщений — сохраните или экспортируйте его в модуле «Персонажи», чтобы не потерять историю.",
-          "text_en": "characters"
+          "kind": "module",
+          "handler": "characters.save_long_chats",
+          "options": {
+            "metric": "messages"
+          }
         },
         "settings": [
           {
             "key": "threshold",
             "type": "number",
             "label": "Сообщений в чате",
-            "label_en": "Messages in a chat",
+            "label_en": "Messages per chat",
             "default": 30,
             "min": 5,
-            "max": 1000
+            "max": 5000
+          },
+          {
+            "key": "max_chats",
+            "type": "number",
+            "label": "Чатов за запуск",
+            "label_en": "Chats per run",
+            "default": 5,
+            "min": 1,
+            "max": 12
+          },
+          {
+            "key": "export",
+            "type": "bool",
+            "label": "Сохранять Markdown",
+            "label_en": "Save Markdown",
+            "default": true
           }
         ]
       },
       {
         "id": "save-chat-tokens",
-        "title": "Сохранить большой чат с персонажем",
-        "title_en": "Save a large character chat",
-        "description": "Напомнить сохранить или экспортировать чат, когда он превысит порог токенов.",
-        "description_en": "Remind to save or export a chat once it exceeds the token threshold.",
+        "title": "Большой чат по токенам → память ИИ",
+        "title_en": "Large chat by tokens → AI memory",
+        "description": "То же по объёму: когда чат прибавил N токенов (по умолчанию 500 000), ИИ обновляет память чата и сохраняет его.",
+        "description_en": "The same by size: when a chat gained N tokens (500,000 by default), the AI updates the chat memory and saves it.",
         "trigger": {
           "kind": "threshold",
           "metric": "tokens",
@@ -171,28 +189,100 @@
           "scope": "per_chat"
         },
         "action": {
-          "kind": "notify",
-          "text": "Чат с персонажем превысил порог токенов — сохраните или экспортируйте его в модуле «Персонажи», чтобы не потерять историю.",
-          "text_en": "characters"
+          "kind": "module",
+          "handler": "characters.save_long_chats",
+          "options": {
+            "metric": "tokens"
+          }
         },
         "settings": [
           {
             "key": "threshold",
             "type": "number",
             "label": "Токенов в чате",
-            "label_en": "Tokens in a chat",
+            "label_en": "Tokens per chat",
             "default": 500000,
             "min": 10000,
-            "max": 5000000
+            "max": 100000000
+          },
+          {
+            "key": "max_chats",
+            "type": "number",
+            "label": "Чатов за запуск",
+            "label_en": "Chats per run",
+            "default": 3,
+            "min": 1,
+            "max": 12
+          }
+        ]
+      },
+      {
+        "id": "export-weekly",
+        "title": "Еженедельный экспорт чатов (ZIP)",
+        "title_en": "Weekly chat export (ZIP)",
+        "description": "Раз в неделю все чаты выгружаются в Markdown одним архивом в «Загрузки/MemuAI/Modules».",
+        "description_en": "Once a week every chat is exported to Markdown in one archive under “Downloads/MemuAI/Modules”.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "characters.export_chats"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "Только чаты за N дней (0 — все)",
+            "label_en": "Only chats of N days (0 — all)",
+            "default": 0,
+            "min": 0,
+            "max": 3650
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "backup-weekly",
+        "title": "Полная резервная копия персонажей",
+        "title_en": "Full backup of the characters",
+        "description": "Карточки, чаты, лорбуки и настройки — ZIP раз в неделю; хранятся последние копии.",
+        "description_en": "Cards, chats, lorebooks and settings — a ZIP once a week; the latest copies are kept.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "characters.backup"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
           }
         ]
       },
       {
         "id": "total-messages-1000",
-        "title": "Тысяча сообщений с персонажами",
-        "title_en": "A thousand messages with characters",
-        "description": "Сообщить, когда общее число сообщений во всех чатах с персонажами достигнет тысячи.",
-        "description_en": "Notify when the total number of messages across all character chats reaches one thousand.",
+        "title": "Тысяча сообщений → резервная копия",
+        "title_en": "A thousand messages → backup",
+        "description": "Когда во всех чатах набирается 1000 сообщений, делается полная резервная копия.",
+        "description_en": "When all chats reach 1,000 messages, a full backup is made.",
         "trigger": {
           "kind": "threshold",
           "metric": "messages",
@@ -200,17 +290,36 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "Во всех чатах с персонажами уже тысяча сообщений — самое время сохранить самые ценные истории и навести порядок в списке чатов.",
-          "text_en": "All character chats together have reached one thousand messages — a good moment to save the most valuable stories and tidy up the chat list."
-        }
+          "kind": "module",
+          "handler": "characters.backup"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Сообщений всего",
+            "label_en": "Messages in total",
+            "default": 1000,
+            "min": 50,
+            "max": 1000000
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
       },
       {
         "id": "total-tokens-million",
-        "title": "Миллион токенов в чатах",
-        "title_en": "A million tokens in chats",
-        "description": "Попросить модель подвести итог, когда общий объём чатов достигнет миллиона токенов.",
-        "description_en": "Ask the model to sum up the chats once their total volume reaches one million tokens.",
+        "title": "Миллион токенов → экспорт чатов",
+        "title_en": "A million tokens → chat export",
+        "description": "Когда все чаты вместе перешли за миллион токенов, они выгружаются в Markdown-архив.",
+        "description_en": "When all chats together pass a million tokens, they are exported into a Markdown archive.",
         "trigger": {
           "kind": "threshold",
           "metric": "tokens",
@@ -218,17 +327,89 @@
           "scope": "any"
         },
         "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог чатов с персонажами: какие персонажи и сюжеты встречаются чаще всего, какие чаты стоит сохранить, а какие — завершить или архивировать. Коротко, списком.",
-          "prompt_en": "Sum up the character chats: which characters and storylines come up most often, and which chats are worth saving or wrapping up. Briefly, as a list."
-        }
+          "kind": "module",
+          "handler": "characters.export_chats"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Токенов всего",
+            "label_en": "Tokens in total",
+            "default": 1000000,
+            "min": 10000,
+            "max": 1000000000
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
+      },
+      {
+        "id": "weekly-characters",
+        "title": "ИИ-итоги недели с персонажами",
+        "title_en": "AI weekly character round-up",
+        "description": "ИИ читает чаты за неделю и пишет итоги: яркие моменты, незавершённые сюжеты, идеи продолжения.",
+        "description_en": "The AI reads the week's chats and writes a round-up: highlights, open plots, ideas to continue.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "characters.weekly_digest"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "За сколько дней",
+            "label_en": "Days to cover",
+            "default": 7,
+            "min": 1,
+            "max": 365
+          }
+        ]
+      },
+      {
+        "id": "chats-report",
+        "title": "Отчёт по чатам",
+        "title_en": "Chats report",
+        "description": "Персонажи, чаты, сообщения, токены, самые большие чаты и у каких есть память ИИ.",
+        "description_en": "Characters, chats, messages, tokens, the largest chats and which have an AI memory.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "characters.stats",
+          "options": {
+            "save": true
+          }
+        },
+        "settings": [
+          {
+            "key": "save",
+            "type": "bool",
+            "label": "Сохранять отчёт в файл",
+            "label_en": "Save the report to a file",
+            "default": true
+          }
+        ]
       },
       {
         "id": "characters-collection",
         "title": "Десять персонажей в коллекции",
         "title_en": "Ten characters in the collection",
-        "description": "Сообщить, когда в модуле появится десять персонажей.",
-        "description_en": "Notify when the module has ten characters.",
+        "description": "Напоминание проверить карточки, лорбуки и пресеты, когда коллекция выросла.",
+        "description_en": "A reminder to check the cards, lorebooks and presets once the collection has grown.",
         "trigger": {
           "kind": "threshold",
           "metric": "items",
@@ -237,25 +418,20 @@
         },
         "action": {
           "kind": "notify",
-          "text": "В коллекции уже десять персонажей — проверьте карточки, лорбуки и пресеты, чтобы у каждого персонажа всё было на месте.",
-          "text_en": "The collection already has ten characters — check the cards, lorebooks and presets so every character is complete."
-        }
-      },
-      {
-        "id": "weekly-characters",
-        "title": "Итоги недели с персонажами",
-        "title_en": "A week with characters: round-up",
-        "description": "Раз в неделю попросить модель подвести итог чатов и предложить новые сюжеты.",
-        "description_en": "Once a week, ask the model to round up the chats and suggest new storylines.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 10080
+          "text": "В коллекции уже много персонажей — проверьте карточки, лорбуки и пресеты.",
+          "text_en": "The collection already has many characters — check the cards, lorebooks and presets."
         },
-        "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог недели чатов с персонажами: самые яркие моменты, незавершённые сюжеты и три идеи для продолжения. Коротко, списком.",
-          "prompt_en": "Round up the week's character chats: the brightest moments, unfinished storylines and three ideas for what happens next. Briefly, as a list."
-        }
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Персонажей",
+            "label_en": "Characters",
+            "default": 10,
+            "min": 2,
+            "max": 10000
+          }
+        ]
       }
     ]
   }

@@ -2712,16 +2712,18 @@ def _git_branch(root: Path) -> str:
     head = root / ".git" / "HEAD"
     try:
         if head.is_file():
-            text = head.read_text(encoding="utf-8").strip()
+            # F33: a corrupt HEAD used to raise UnicodeDecodeError in the
+            # footer on every render.
+            text = head.read_text(encoding="utf-8", errors="replace").strip()
             branch = text.split("refs/heads/", 1)[1] if "refs/heads/" in text else text[:8]
         elif (root / ".git").is_file():
-            pointer = (root / ".git").read_text(encoding="utf-8").strip()
+            pointer = (root / ".git").read_text(encoding="utf-8", errors="replace").strip()
             if pointer.startswith("gitdir:"):
                 real = Path(pointer[7:].strip())
                 real = real if real.is_absolute() else root / real
-                text = (real / "HEAD").read_text(encoding="utf-8").strip()
+                text = (real / "HEAD").read_text(encoding="utf-8", errors="replace").strip()
                 branch = text.split("refs/heads/", 1)[1] if "refs/heads/" in text else text[:8]
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         branch = ""
     _BRANCH_CACHE[key] = (branch, time.monotonic())
     return branch

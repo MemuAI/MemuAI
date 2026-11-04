@@ -32,6 +32,136 @@ IMPORTANT_NAMES = {
     "main.py", "app.py", "main.js", "app.js", "main.ts", "app.ts",
 }
 
+# H8: files that must NEVER be sent to a model as excerpts. A Work project
+# routinely contains live secrets (.env with API keys, private keys, cloud
+# credentials); the excerpt picker scored them like any other text file, so
+# asking "how is the env configured" could paste the key into the prompt.
+# Names are matched case-insensitively; hidden files are excluded unless
+# they are on the small allow-list of known-harmless dotfiles.
+SECRET_NAMES = {
+    ".env", ".env.local", ".env.production", ".env.development", ".env.test",
+    ".env.example", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", ".npmrc",
+    ".pypirc", "credentials", ".netrc", ".dockercfg", ".dockerconfigjson",
+    "service-account.json", "google-services.json",
+}
+SECRET_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".kdbx", ".keystore", ".jks"}
+SECRET_DIRS = {".aws", ".ssh", ".gnupg", ".kube", ".docker"}
+HARMLESS_DOTFILES = {".gitignore", ".gitattributes", ".editorconfig", ".gitmodules"}
+
+
+def _is_secret_file(rel: str, name: str) -> bool:
+    low = name.lower()
+    if low in SECRET_NAMES:
+        return True
+    if Path(name).suffix.lower() in SECRET_SUFFIXES:
+        return True
+    parts = {part.lower() for part in rel.split("/")[:-1]}
+    if parts & SECRET_DIRS:
+        return True
+    # Hidden files (other than the harmless allow-list) are never excerpts:
+    # .env*, .secrets, .passwd, etc. live here.
+    if low.startswith(".") and low not in HARMLESS_DOTFILES:
+        return True
+    return False
+
+
+RULE_FILES = ("AGENTS.md", "CLAUDE.md")
+RULES_LIMIT = 12_000
+
+def project_rules(root: str | Path, *, limit: int = RULES_LIMIT) -> dict[str, Any]:
+    """The repository's own instructions for coding agents, if it has any.
+
+    AGENTS.md is the common convention; CLAUDE.md is read when it is the only
+    one. Only the project root is checked, links are ignored and the text is
+    clipped, so a huge file cannot flood the prompt.
+    """
+    project = Path(root).resolve()
+    try:
+        names = {entry.name.lower(): entry for entry in project.iterdir()
+                 if entry.is_file() and not is_link(entry)}
+    except OSError:
+        return {}
+    from .work_tools import WorkError, read_text
+    for name in RULE_FILES:
+        path = names.get(name.lower())
+        if path is None:
+            continue
+        try:
+            text, clipped = read_text(path, limit)
+        except WorkError:
+            continue
+        text = text.strip()
+        if text:
+            return {"file": path.name, "text": text, "truncated": bool(clipped)}
+    return {}
+
+CODE_RULE_FILES = ("MEMUCODE.md", "AGENTS.md", "CLAUDE.md")
+
+def code_rules(root: str | Path, *, limit: int = RULES_LIMIT) -> dict[str, Any]:
+    """MemuCode: the same instruction files as MemuCode CLI — the personal MEMUCODE.md, the folders above the
+    project, MEMUCODE.md / AGENTS.md / CLAUDE.md of the project (also in .memucode/ and .claude/), the
+    *.local.md files, with their @imports. Falls back to :func:`project_rules`."""
+    try:
+        from .cli.project import memory_files
+        rows = memory_files(Path(root), list(CODE_RULE_FILES))
+    except Exception:  # noqa: BLE001
+        return project_rules(root, limit=limit)
+    if not rows:
+        return {}
+    project = Path(root).resolve()
+    parts: list[str] = []
+    names: list[str] = []
+    for row in rows:
+        try:
+            shown = row.path.resolve().relative_to(project).as_posix()
+        except ValueError:
+            shown = row.path.name if row.scope != "user" else "~/" + row.path.name
+        names.append(shown)
+        parts.append(f"<memory path=\"{shown}\" scope=\"{row.scope}\">\n{row.text.strip()}\n</memory>")
+    text = "\n".join(parts)
+    clipped = len(text) > limit
+    return {"file": ", ".join(names[:4]) + (f" +{len(names) - 4}" if len(names) > 4 else ""),
+            "text": text[:limit], "truncated": clipped, "files": names}
+
+def project_index(root: str | Path, *, max_files: int = 800, max_entries: int = 4_000) -> dict[str, Any]:
+    """Only the file list and a short overview — no file is opened.
+
+    Work and MemuCode read files with tools, so the prompt needs the structure,
+    not excerpts; this keeps every turn from re-reading the repository. The walk
+    is the same as in `build_work_context`, so the list matches what it returned.
+    """
+    project = Path(root).resolve()
+    index: list[str] = []
+    languages: dict[str, int] = {}
+    entry_points: list[str] = []
+    from .work_tools import ENTRY_NAMES
+    for current, dirs, files in os.walk(project, followlinks=False):
+        base = Path(current)
+        dirs[:] = sorted(name for name in dirs
+                         if name.lower() not in SKIP_DIRS and not _escapes(base / name, project))
+        for name in sorted(files):
+            if len(index) >= max_entries:
+                break
+            path = base / name
+            try:
+                resolved = path.resolve()
+                rel = resolved.relative_to(project).as_posix()
+            except (OSError, ValueError, RuntimeError):
+                continue
+            index.append(rel)
+            suffix = Path(name).suffix.lower()
+            if suffix:
+                languages[suffix] = languages.get(suffix, 0) + 1
+            if name.lower() in ENTRY_NAMES and len(entry_points) < 12:
+                entry_points.append(rel)
+        if len(index) >= max_entries:
+            break
+    top = sorted(languages.items(), key=lambda item: -item[1])[:8]
+    return {"index": index[:max_files],
+            "index_truncated": len(index) > max_files or len(index) >= max_entries,
+            "overview": {"languages": [{"suffix": suffix, "files": count} for suffix, count in top],
+                         "entry_points": entry_points, "count": len(index)}}
+
 def _tokens(value: str) -> set[str]:
     return {part for part in re.findall(r"[\w.-]{2,}", value.lower(), re.UNICODE)
             if not part.isdigit()}
@@ -120,6 +250,10 @@ def build_work_context(root: str | Path, query: str, *, active_paths: list[str] 
             rel = resolved.relative_to(project).as_posix()
             index.append(rel)
             if stat.st_size > 2_000_000 or not _is_probably_text(resolved):
+                continue
+            # H8: secret files are listed in the index (structure) but their
+            # contents are never excerpted into a model prompt.
+            if _is_secret_file(rel, name):
                 continue
             low = rel.lower()
             path_tokens = _tokens(low)

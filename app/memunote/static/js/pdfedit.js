@@ -1,6 +1,6 @@
 
 
-import { api, rawUrl, esc, icon, ICONS, t, toast, debounce, showMenu, modal, API } from "./core.js";
+import { api, rawUrl, esc, icon, ICONS, t, toast, debounce, showMenu, modal, prompt, API, copyText, kbd } from "./core.js";
 
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 Object.assign(ICONS, {
@@ -19,6 +19,15 @@ Object.assign(ICONS, {
   trash: P('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
   pageAdd: P('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 11v6M9 14h6"/>'),
   form: P('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h4M7 14h10M14 9h3"/>'),
+  imageAdd: P('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/>'),
+  signature: P('<path d="M3 17c2.5 0 3.5-9 6-9 2 0-1 9 1.5 9 1.6 0 2.4-4 4-4 1.2 0 1 2.5 2.5 2.5"/><path d="M3 21h18"/>'),
+  stamp: P('<path d="M9 4h6l-1 7h-4z"/><path d="M5 14h14v3H5zM7 20h10"/>'),
+  thumbs: P('<rect x="3" y="3" width="7" height="8" rx="1"/><rect x="3" y="13" width="7" height="8" rx="1"/><path d="M14 5h7M14 9h5M14 15h7M14 19h5"/>'),
+  merge: P('<path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M12 8v8M8.5 12H15.5"/>'),
+  numbers: P('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M10 17h4M12 17v-4"/>'),
+  watermark: P('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="m8 16 8-8" opacity=".55"/><path d="M8 8h3M13 16h3" opacity=".55"/>'),
+  extract: P('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3 3 3-3"/>'),
+  dup: P('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>'),
 });
 
 const COLORS = ["#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#0090ff", "#8e4ec6", "#1c2024", "#ffffff"];
@@ -26,6 +35,8 @@ const HIGHLIGHTS = ["#ffe066", "#a6f4c5", "#a5d8ff", "#ffc9de", "#ffd8a8"];
 const TOOLS = [["select", "cursor"], ["text", "textT"], ["highlight", "marker"], ["ink", "ink"], ["rect", "square"],
   ["ellipse", "circle"], ["line", "lineT"], ["arrow", "arrowT"], ["whiteout", "whiteout"]];
 const ASCENT = 0.86, LINE_H = 1.22;
+const BOX_TYPES = new Set(["image", "stamp", "rect", "ellipse", "highlight", "whiteout"]);
+const STAMPS = [["approved", "#2e7d32"], ["checked", "#2e7d32"], ["paid", "#2e7d32"], ["draft", "#1565c0"], ["copy", "#1565c0"], ["confidential", "#c62828"], ["rejected", "#c62828"]];
 const A4 = [595.28, 841.89];
 
 let _pdfjs = null, _pdflib = null;
@@ -66,7 +77,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const uid = () => Math.random().toString(36).slice(2, 9);
 function rectOf(a, b) { return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(a[0] - b[0]), h: Math.abs(a[1] - b[1]) }; }
 
-export function drawObject(L, page, o, font) {
+export function drawObject(L, page, o, font, images) {
   const col = (c) => L.rgb(...hexRgb(c));
   const w = Math.max(0.3, o.width || 2);
   switch (o.type) {
@@ -106,11 +117,45 @@ export function drawObject(L, page, o, font) {
       String(o.text || "").split("\n").forEach((line, i) => {
         if (!line) return;
         const k = ASCENT * size + i * LINE_H * size;
-        page.drawText(line, { x: o.x + down[0] * k, y: o.y + down[1] * k, size, font, color: col(o.color), rotate: L.degrees(o.angle || 0) });
+        page.drawText(encodable(font, line), { x: o.x + down[0] * k, y: o.y + down[1] * k, size, font, color: col(o.color), rotate: L.degrees(o.angle || 0), opacity: o.opacity ?? 1 });
       });
       break;
     }
+    case "image": {
+      const img = images?.[o.img];
+      if (img) page.drawImage(img, { x: o.x, y: o.y, width: o.w, height: o.h, opacity: o.opacity ?? 1 });
+      break;
+    }
+    case "stamp": {
+      const c = col(o.color || "#c62828"), bw = Math.max(1.2, Math.min(o.w, o.h) * 0.06);
+      page.drawRectangle({ x: o.x, y: o.y, width: o.w, height: o.h, borderColor: c, borderWidth: bw, borderOpacity: 0.9 });
+      const text = encodable(font, String(o.text || ""));
+      let size = o.h * 0.5;
+      try { const w = font.widthOfTextAtSize(text, size); if (w > o.w * 0.86) size *= (o.w * 0.86) / w; } catch {  }
+      let tw = text.length * size * 0.56; try { tw = font.widthOfTextAtSize(text, size); } catch {  }
+      page.drawText(text, { x: o.x + (o.w - tw) / 2, y: o.y + (o.h - size * 0.7) / 2, size, font, color: c, opacity: 0.9 });
+      break;
+    }
   }
+}
+
+// Without a Unicode font (the standard Helvetica covers only WinAnsi) Cyrillic is transliterated
+// and any other character the font can't encode becomes "?", instead of failing the whole save.
+const TRANSLIT = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p",
+  р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya", і: "i", ї: "yi", є: "ye", ґ: "g" };
+function canEncode(font, s) { try { font.encodeText(s); return true; } catch { return false; } }
+export function encodable(font, s) {
+  if (!font || !s || canEncode(font, s)) return s;
+  const tr = [...s].map((ch) => { const lo = ch.toLowerCase(), v = TRANSLIT[lo]; if (v == null) return ch; return ch === lo ? v : v.charAt(0).toUpperCase() + (s === s.toUpperCase() ? v.slice(1).toUpperCase() : v.slice(1)); }).join("");
+  if (canEncode(font, tr)) return tr;
+  return [...tr].map((ch) => (canEncode(font, ch) ? ch : "?")).join("");
+}
+
+function dataBytes(url) {
+  const b64 = String(url).split(",")[1] || "";
+  const bin = atob(b64); const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 export async function applyEdits(bytes, model, fontBytes) {
@@ -118,7 +163,7 @@ export async function applyEdits(bytes, model, fontBytes) {
   const doc = await L.PDFDocument.load(bytes, { updateMetadata: false });
   doc.registerFontkit(L.fontkit);
   let font = null;
-  const needsFont = model.pages.some((p) => p.objs.some((o) => o.type === "text")) || Object.keys(model.fields || {}).length;
+  const needsFont = model.pages.some((p) => p.objs.some((o) => o.type === "text" || o.type === "stamp")) || Object.keys(model.fields || {}).length;
   if (needsFont) {
     if (fontBytes) { try { font = await doc.embedFont(fontBytes, { subset: true }); } catch (e) { console.warn("font", e); } }
     if (!font) font = await doc.embedFont(L.StandardFonts.Helvetica);
@@ -140,25 +185,78 @@ export async function applyEdits(bytes, model, fontBytes) {
     }
     try { form.updateFieldAppearances(font); } catch (e) { console.warn("appearances", e); }
   }
-  for (const p of model.pages) if (p.src) {
+  // Images are embedded once and shared by every page that shows them.
+  const images = {};
+  for (const p of model.pages) for (const o of p.objs) {
+    if (o.type !== "image" || images[o.img] || !model.images?.[o.img]) continue;
+    const url = model.images[o.img];
+    try { images[o.img] = /^data:image\/jpe?g/i.test(url) ? await doc.embedJpg(dataBytes(url)) : await doc.embedPng(dataBytes(url)); }
+    catch (e) { console.warn("image", e); }
+  }
+  for (const p of model.pages) if (p.src && !p.ext) {
     const page = orig[p.src - 1];
-    for (const o of p.objs) drawObject(L, page, o, font);
+    for (const o of p.objs) drawObject(L, page, o, font, images);
     if (p.rot) page.setRotation(L.degrees(((page.getRotation().angle + p.rot) % 360 + 360) % 360));
   }
-  const order = model.pages.map((p) => p.src);
+  const order = model.pages.map((p) => (p.ext ? -1 : p.src));
   const unchanged = order.length === orig.length && order.every((s, i) => s === i + 1);
   if (!unchanged) {
+    // Pages inserted from other PDFs are copied in one batch per source document.
+    const extra = {};
+    for (const p of model.pages) if (p.ext && model.extras?.[p.ext]) (extra[p.ext] ||= new Set()).add(p.src - 1);
+    const copied = {};
+    for (const [key, set] of Object.entries(extra)) {
+      const src = await L.PDFDocument.load(model.extras[key], { updateMetadata: false, ignoreEncryption: true });
+      const idx = [...set];
+      const pages = await doc.copyPages(src, idx);
+      copied[key] = Object.fromEntries(idx.map((n, k) => [n, pages[k]]));
+    }
     for (let i = doc.getPageCount() - 1; i >= 0; i--) doc.removePage(i);
-    const used = new Set();
+    const used = new Set(), usedExt = new Set();
     model.pages.forEach((p, i) => {
-      if (p.src && !used.has(p.src)) { used.add(p.src); doc.insertPage(doc.getPageCount(), orig[p.src - 1]); return; }
+      if (p.ext) {
+        const page = copied[p.ext]?.[p.src - 1];
+        const key = p.ext + ":" + p.src;
+        if (page && !usedExt.has(key)) {
+          usedExt.add(key); doc.insertPage(doc.getPageCount(), page);
+          for (const o of p.objs) drawObject(L, page, o, font, images);
+          if (p.rot) page.setRotation(L.degrees(((page.getRotation().angle + p.rot) % 360 + 360) % 360));
+          return;
+        }
+      } else if (p.src && !used.has(p.src)) { used.add(p.src); doc.insertPage(doc.getPageCount(), orig[p.src - 1]); return; }
       const size = p.size || A4;
       const page = doc.insertPage(doc.getPageCount(), size);
-      for (const o of p.objs) drawObject(L, page, o, font);
+      for (const o of p.objs) drawObject(L, page, o, font, images);
       if (p.rot) page.setRotation(L.degrees(((p.rot % 360) + 360) % 360));
     });
   }
   return doc.save();
+}
+
+// A new PDF with some pages of an existing one (bytes already edited) — "Extract pages".
+export async function extractPages(bytes, indexes) {
+  const L = await pdflib();
+  const src = await L.PDFDocument.load(bytes, { updateMetadata: false });
+  const out = await L.PDFDocument.create();
+  const pages = await out.copyPages(src, indexes);
+  for (const page of pages) out.addPage(page);
+  return out.save();
+}
+
+// "1-3, 5, 8-" → zero-based page indexes within 1..total (order kept, duplicates dropped).
+export function parseRanges(text, total) {
+  const out = [];
+  for (const part of String(text || "").replace(/\s*([-–])\s*/g, "$1").split(/[,;\s]+/).filter(Boolean)) {
+    const m = /^(\d*)[-–](\d*)$/.exec(part) || /^(\d+)$/.exec(part);
+    if (!m || (m.length === 3 && !m[1] && !m[2])) return null;
+    let a, b;
+    if (m.length === 2) a = b = +m[1];
+    else { a = m[1] ? +m[1] : 1; b = m[2] ? +m[2] : total; }
+    if (!a || !b || a > total || b > total) return null;
+    const step = a <= b ? 1 : -1;
+    for (let n = a; step > 0 ? n <= b : n >= b; n += step) if (!out.includes(n - 1)) out.push(n - 1);
+  }
+  return out.length ? out : null;
 }
 
 export async function readFields(bytes) {
@@ -192,6 +290,7 @@ export class PdfView {
     this.host = host; this.tab = tab; this.scale = 1.2; this.rendered = new Map();
     this.editing = false; this.tool = "select"; this.color = COLORS[0]; this.hlColor = HIGHLIGHTS[0]; this.width = 2; this.fontSize = 14;
     this.model = null; this.undoStack = []; this.redoStack = []; this.selected = null; this.fields = null; this.fieldValues = {};
+    this.images = {}; this.extras = {}; this.clip = null;
     this.el = document.createElement("div"); this.el.className = "pdf-view"; this.el.tabIndex = -1;
     this.el.innerHTML = `<div class="pdf-bar">
       <button class="icon-btn" data-a="prev" title="${esc(t("pdf_prev"))}">${icon("up")}</button>
@@ -202,11 +301,12 @@ export class PdfView {
       <span class="small pdf-zoom">120%</span>
       <button class="icon-btn" data-a="in" title="${esc(t("zoom_in"))}">${icon("zoomIn")}</button>
       <button class="btn ghost sm" data-a="fit">${esc(t("pdf_fit"))}</button>
+      <button class="icon-btn" data-a="thumbs" title="${esc(t("pdf_thumbs"))}" aria-label="${esc(t("pdf_thumbs"))}">${icon("thumbs")}</button>
       <span class="spacer"></span>
       <button class="btn ghost sm" data-a="export">${icon("export")}${esc(t("pdf_export"))}${icon("chevron", "small")}</button>
       <button class="btn ghost sm ai-only" data-a="ask">${icon("sparkle")}${esc(t("pdf_ask"))}</button>
       <button class="btn sm pdf-edit-toggle" data-a="edit">${icon("pen")}${esc(t("pdf_edit"))}</button>
-    </div><div class="pdf-edit-bar" hidden></div><div class="pdf-body"><div class="pdf-scroll"><div class="pdf-pages"></div><div class="pdf-loading">${esc(t("loading"))}</div></div><aside class="pdf-fields" hidden></aside></div>`;
+    </div><div class="pdf-edit-bar" hidden></div><div class="pdf-body"><aside class="pdf-thumbs" hidden></aside><div class="pdf-scroll"><div class="pdf-pages"></div><div class="pdf-loading">${esc(t("loading"))}</div></div><aside class="pdf-fields" hidden></aside></div>`;
     host.append(this.el);
     this.scroll = this.el.querySelector(".pdf-scroll"); this.wrap = this.el.querySelector(".pdf-pages");
     this.el.querySelector(".pdf-bar").addEventListener("click", (e) => { const b = e.target.closest("[data-a]"); if (b) this.action(b.dataset.a, b); });
@@ -214,6 +314,8 @@ export class PdfView {
     this.scroll.addEventListener("scroll", debounce(() => this.updatePage(), 60), { passive: true });
     this.scroll.addEventListener("wheel", (e) => { if (e.ctrlKey) { e.preventDefault(); this.zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1); } }, { passive: false });
     this.el.addEventListener("keydown", (e) => this.keys(e));
+    this.scroll.addEventListener("contextmenu", (e) => this.contextMenu(e));
+    this.bindThumbs();
     this.load();
   }
   get dirty() { return this.savedSnapshot != null ? JSON.stringify(this.snapshot()) !== this.savedSnapshot : this.undoStack.length > 0 && this.changed; }
@@ -239,6 +341,7 @@ export class PdfView {
       if (!this.model) this.resetModel();
       this.el.querySelector(".pdf-total").textContent = "/ " + this.model.pages.length;
       this.layout();
+      if (localStorage.getItem("mn_pdf_thumbs") === "1") this.toggleThumbs(true);
       this.onLoaded?.();
     } catch (e) {
       const box = this.el.querySelector(".pdf-loading");
@@ -257,10 +360,23 @@ export class PdfView {
 
   vpOf(mp, info) {
     if (!mp.src) { const s = mp.size || A4; return viewport([0, 0, s[0], s[1]], this.scale, mp.rot || 0); }
-    info = info || this.info[mp.src - 1] || this.info[0];
+    info = info || this.infoOf(mp) || this.info[0];
     return viewport(info.view, this.scale, ((info.rotate || 0) + (mp.rot || 0)) % 360);
   }
 
+  docOf(mp) { return mp.ext ? this.extras[mp.ext]?.doc : this.doc; }
+  infoOf(mp) {
+    if (!mp?.src) return null;
+    const list = mp.ext ? this.extras[mp.ext]?.info : this.info;
+    return list?.[mp.src - 1] || null;
+  }
+  // Page size in PDF units and the origin of its box (unrotated).
+  pageBox(mp) {
+    const info = this.infoOf(mp) || (mp.src ? this.info[0] : null);
+    if (!info) { const s = mp.size || A4; return { x0: 0, y0: 0, w: s[0], h: s[1] }; }
+    const [x0, y0, x1, y1] = info.view;
+    return { x0: Math.min(x0, x1), y0: Math.min(y0, y1), w: Math.abs(x1 - x0), h: Math.abs(y1 - y0) };
+  }
   layout() {
     const keep = this.scroll.scrollTop;
     this.wrap.innerHTML = ""; this.rendered.clear();
@@ -278,6 +394,7 @@ export class PdfView {
     this.el.querySelector(".pdf-zoom").textContent = Math.round(this.scale * 100) + "%";
     this.el.querySelector(".pdf-total").textContent = "/ " + this.model.pages.length;
     this.scroll.scrollTop = keep;
+    this.renderThumbs();
   }
   pageTools(i) {
     const n = this.model.pages.length;
@@ -294,9 +411,10 @@ export class PdfView {
     const tools = box.querySelector(".pdf-page-tools");
     box.querySelectorAll(":scope > :not(.pdf-page-tools)").forEach((x) => x.remove());
     if (mp.src) {
-      const page = await this.doc.getPage(mp.src);
+      const doc = this.docOf(mp); if (!doc) return;
+      const page = await doc.getPage(mp.src);
       if (!this.rendered.has(i) || this.model.pages[i] !== mp) return;
-      this.info[mp.src - 1] = { view: page.view, rotate: page.rotate };
+      (mp.ext ? this.extras[mp.ext].info : this.info)[mp.src - 1] = { view: page.view, rotate: page.rotate };
       const vp = page.getViewport({ scale: this.scale, rotation: (page.rotate + (mp.rot || 0)) % 360 });
       box.style.width = Math.round(vp.width) + "px"; box.style.height = Math.round(vp.height) + "px";
       const ratio = Math.min(window.devicePixelRatio || 1, 2.5);
@@ -342,6 +460,10 @@ export class PdfView {
     if (this.editing) this.bindOverlay(i, box, svg);
   }
   objSvg(o, vp) {
+    const shape = this.objShape(o, vp);
+    return this.editing && this.selected?.id === o.id && BOX_TYPES.has(o.type) ? shape + this.handleSvg(o, vp) : shape;
+  }
+  objShape(o, vp) {
     const sel = this.selected && this.selected.id === o.id ? " selected" : "";
     const sw = Math.max(0.6, (o.width || 2) * vp.scale);
     const box = (o) => { const a = vp.toView(o.x, o.y), b = vp.toView(o.x + o.w, o.y + o.h); return rectOf(a, b); };
@@ -364,16 +486,36 @@ export class PdfView {
         const d = o.points.map((p, k) => { const v = vp.toView(...p); return (k ? "L" : "M") + v[0].toFixed(1) + " " + v[1].toFixed(1); }).join(" ");
         return `<path ${attrs} d="${d}${o.points.length === 1 ? " l0.1 0" : ""}" fill="none" stroke="${esc(o.color)}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
       }
+      case "image": {
+        const r = box(o); const url = this.images[o.img] || "";
+        return `<g ${attrs}><image href="${esc(url)}" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" preserveAspectRatio="none" opacity="${o.opacity ?? 1}"/><rect class="hit" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="transparent"/></g>`;
+      }
+      case "stamp": {
+        const r = box(o); const bw = Math.max(1.2, Math.min(o.w, o.h) * 0.06) * vp.scale;
+        const size = Math.min(r.h * 0.5, (r.w * 0.86) / Math.max(1, String(o.text || "").length * 0.6));
+        return `<g ${attrs}><rect x="${r.x + bw / 2}" y="${r.y + bw / 2}" width="${Math.max(1, r.w - bw)}" height="${Math.max(1, r.h - bw)}" rx="${bw}" fill="transparent" stroke="${esc(o.color)}" stroke-width="${bw}" stroke-opacity=".9"/><text x="${r.x + r.w / 2}" y="${r.y + r.h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${size}" font-weight="700" fill="${esc(o.color)}" fill-opacity=".9" font-family="Arial, 'DejaVu Sans', 'Segoe UI', sans-serif">${esc(o.text)}</text></g>`;
+      }
       case "text": {
         const [ax, ay] = vp.toView(o.x, o.y);
         const size = (o.size || 14) * vp.scale, rot = (vp.rotation - (o.angle || 0) + 360) % 360;
         const lines = String(o.text || "").split("\n");
         const tspans = lines.map((l, k) => `<tspan x="${ax}" y="${ay + ASCENT * size + k * LINE_H * size}">${esc(l) || " "}</tspan>`).join("");
         const wmax = Math.max(...lines.map((l) => l.length)) * size * 0.56, h = lines.length * LINE_H * size;
-        return `<g ${attrs} transform="rotate(${rot} ${ax} ${ay})"><rect class="hit" x="${ax - 2}" y="${ay - 2}" width="${wmax + 4}" height="${h + 4}" fill="transparent"/><text font-size="${size}" fill="${esc(o.color)}" font-family="Arial, 'DejaVu Sans', 'Segoe UI', sans-serif">${tspans}</text></g>`;
+        return `<g ${attrs} transform="rotate(${rot} ${ax} ${ay})"><rect class="hit" x="${ax - 2}" y="${ay - 2}" width="${wmax + 4}" height="${h + 4}" fill="transparent"/><text font-size="${size}" fill="${esc(o.color)}" fill-opacity="${o.opacity ?? 1}" font-family="Arial, 'DejaVu Sans', 'Segoe UI', sans-serif">${tspans}</text></g>`;
       }
     }
     return "";
+  }
+  // The corner that looks bottom-right on screen, whatever the page rotation.
+  handleCorner(o, vp) {
+    const pts = [[o.x, o.y], [o.x + o.w, o.y], [o.x, o.y + o.h], [o.x + o.w, o.y + o.h]];
+    const views = pts.map((p) => vp.toView(...p));
+    let k = 0; views.forEach((v, j) => { if (v[0] + v[1] > views[k][0] + views[k][1]) k = j; });
+    return { k, view: views[k], anchor: pts[3 - k] };
+  }
+  handleSvg(o, vp) {
+    const { view } = this.handleCorner(o, vp);
+    return `<rect class="handle" data-h="${o.id}" x="${view[0] - 6}" y="${view[1] - 6}" width="12" height="12" rx="3"/>`;
   }
   redraw(i) { const box = this.wrap.children[i]; if (box && this.rendered.has(i)) this.drawOverlay(i, box); }
   redrawAll() { this.model.pages.forEach((_, i) => this.redraw(i)); }
@@ -388,6 +530,24 @@ export class PdfView {
       const tool = this.tool;
       const objEl = e.target.closest(".obj");
       if (tool === "select") {
+        const handle = e.target.closest(".handle");
+        if (handle) {
+          const o = mp.objs.find((x) => x.id === handle.dataset.h); if (!o) return;
+          e.preventDefault(); svg.setPointerCapture(e.pointerId);
+          const { anchor } = this.handleCorner(o, vp()); const ratio = o.w / Math.max(0.01, o.h);
+          const snap = this.snapshot(); let moved = false;
+          const move = (ev) => {
+            const q = vp().toPdf(...local(ev));
+            let dx = q[0] - anchor[0], dy = q[1] - anchor[1];
+            if (o.type === "image" && !ev.shiftKey) { const w = Math.max(Math.abs(dx), Math.abs(dy) * ratio); dx = Math.sign(dx || 1) * w; dy = Math.sign(dy || 1) * (w / ratio); }
+            const r = rectOf(anchor, [anchor[0] + dx, anchor[1] + dy]);
+            if (r.w < 4 || r.h < 4) return;
+            Object.assign(o, r); moved = true; this.redraw(i);
+          };
+          const up = () => { svg.removeEventListener("pointermove", move); if (moved) this.commit(snap); };
+          svg.addEventListener("pointermove", move); svg.addEventListener("pointerup", up, { once: true });
+          return;
+        }
         if (!objEl) { this.select(null); return; }
         const o = mp.objs.find((x) => x.id === objEl.dataset.id); if (!o) return;
         this.select({ id: o.id, page: i });
@@ -560,6 +720,11 @@ export class PdfView {
     const color = this.tool === "highlight" ? this.hlColor : this.color;
     const nf = this.fields?.length || 0;
     bar.innerHTML = `${TOOLS.map(toolBtn).join("")}<span class="tb-sep"></span>
+      <button class="tb-btn" data-e="image" title="${esc(t("pdf_tool_image"))}" aria-label="${esc(t("pdf_tool_image"))}">${icon("imageAdd")}</button>
+      <button class="tb-btn" data-e="signature" title="${esc(t("pdf_tool_signature"))}" aria-label="${esc(t("pdf_tool_signature"))}">${icon("signature")}</button>
+      <button class="tb-btn" data-e="stamp" title="${esc(t("pdf_tool_stamp"))}" aria-label="${esc(t("pdf_tool_stamp"))}">${icon("stamp")}</button>
+      <button class="tb-btn" data-e="more" title="${esc(t("pdf_more"))}" aria-label="${esc(t("pdf_more"))}">${icon("more")}</button>
+      <span class="tb-sep"></span>
       <button class="tb-btn" data-e="color" title="${esc(t("fmt_color"))}"><span class="swatch" style="background:${esc(color)}"></span></button>
       <label class="pdf-num" title="${esc(t("pdf_width"))}"><span class="ic">${ICONS.lineT}</span><select class="tb-select" data-e="width">${[1, 2, 3, 5, 8].map((w) => `<option ${w === this.width ? "selected" : ""}>${w}</option>`).join("")}</select></label>
       <label class="pdf-num" title="${esc(t("doc_size"))}"><span class="ic">${ICONS.textT}</span><select class="tb-select" data-e="size">${[8, 10, 12, 14, 16, 18, 24, 32, 48].map((s) => `<option ${s === this.fontSize ? "selected" : ""}>${s}</option>`).join("")}</select></label>
@@ -575,13 +740,17 @@ export class PdfView {
       const b = e.target.closest("[data-tool],[data-e]"); if (!b || b.disabled) return;
       if (b.dataset.tool) { this.tool = b.dataset.tool; this.select(null); this.paintEditBar(); this.redrawAll(); this.el.classList.toggle("tool-highlight", this.tool === "highlight"); return; }
       const a = b.dataset.e;
-      if (a === "color") showMenu((this.tool === "highlight" ? HIGHLIGHTS : COLORS).map((c) => ({ label: c, run: () => { if (this.tool === "highlight") this.hlColor = c; else this.color = c; this.recolorSelected(c); this.paintEditBar(); } })), b);
+      if (a === "color") showMenu((this.tool === "highlight" ? HIGHLIGHTS : COLORS).map((c) => ({ label: c, swatch: c, run: () => { if (this.tool === "highlight") this.hlColor = c; else this.color = c; this.recolorSelected(c); this.paintEditBar(); } })), b);
       if (a === "color") document.querySelectorAll(".menu .mi").forEach((mi, k) => { const c = (this.tool === "highlight" ? HIGHLIGHTS : COLORS)[k]; if (c) mi.querySelector(".mi-ic").innerHTML = `<span class="swatch" style="background:${c}"></span>`; });
       if (a === "undo") this.undo();
       if (a === "redo") this.redo();
       if (a === "delete") this.deleteSelected();
       if (a === "fields") { const f = this.el.querySelector(".pdf-fields"); f.hidden = !f.hidden; this.renderFields(); this.paintEditBar(); }
       if (a === "save") this.onSave?.();
+      if (a === "image") this.pickImage();
+      if (a === "signature") this.signature();
+      if (a === "stamp") this.stampMenu(b);
+      if (a === "more") this.moreMenu(b);
     };
     bar.onchange = (e) => {
       const s = e.target.closest("[data-e]"); if (!s) return;
@@ -624,6 +793,11 @@ export class PdfView {
     if (mod && k === "z" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); this.undo(); }
     else if (mod && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); e.stopPropagation(); this.redo(); }
     else if ((e.key === "Delete" || e.key === "Backspace") && this.selected) { e.preventDefault(); this.deleteSelected(); }
+    else if (mod && k === "c" && this.selected) { const o = this.selectedObj(); if (o) { this.clip = clone(o); e.preventDefault(); } }
+    else if (mod && k === "x" && this.selected) { const o = this.selectedObj(); if (o) { this.clip = clone(o); e.preventDefault(); this.deleteSelected(); } }
+    else if (mod && k === "v" && this.clip) { e.preventDefault(); e.stopPropagation(); this.pasteObj(this.clip); }
+    else if (mod && k === "d" && this.selected) { e.preventDefault(); e.stopPropagation(); const o = this.selectedObj(); if (o) this.pasteObj(o, this.selected.page); }
+    else if (e.key.startsWith("Arrow") && this.selected) { e.preventDefault(); this.nudge(e.key, e.shiftKey ? 10 : 1); }
     else if (e.key === "Escape") { if (this.selected) this.select(null); else if (this.tool !== "select") { this.tool = "select"; this.paintEditBar(); this.redrawAll(); } }
   }
 
@@ -631,7 +805,7 @@ export class PdfView {
     const bytes = await this.ensureBytes();
     const model = this.snapshot();
     const savedSnapshot = JSON.stringify(model);
-    const out = await applyEdits(bytes.slice(), model, await fontBytes() || null);
+    const out = await applyEdits(bytes.slice(), this.editModel(model), await fontBytes() || null);
     const q = new URLSearchParams({ path, mtime: String(opts.mtime || 0), force: opts.force ? "1" : "0" });
     const r = await api("save_binary?" + q, new Blob([out], { type: "application/pdf" }), { raw: true, type: "application/pdf" });
     if (r.ok) {
@@ -641,6 +815,8 @@ export class PdfView {
         return r;
       }
       this.bytes = null; this.fields = null; this.model = null; this.selected = null;
+      for (const x of Object.values(this.extras)) x.doc?.destroy?.();
+      this.extras = {}; this.images = {};
       const keepEdit = this.editing;
       await this.load();
       if (keepEdit) { await this.ensureBytes().catch(() => {}); this.loadFields(); this.paintEditBar(); }
@@ -648,10 +824,61 @@ export class PdfView {
     return r;
   }
 
+  // Right click on a page: copy the selected text, object and page actions while editing, zoom and export.
+  contextMenu(e) {
+    if (e.target.closest("input, textarea, select, [contenteditable]")) return;
+    e.preventDefault();
+    if (!this.model) return;
+    const box = e.target.closest(".pdf-page-box");
+    const i = box ? +box.dataset.i : Math.max(0, this.current() - 1);
+    const n = this.model.pages.length;
+    const sel = window.getSelection();
+    const text = sel && !sel.isCollapsed && this.wrap.contains(sel.anchorNode) ? sel.toString().trim() : "";
+    const objEl = this.editing && box ? e.target.closest(".obj") : null;
+    if (objEl) { const o = this.model.pages[i]?.objs.find((x) => x.id === objEl.dataset.id); if (o) this.select({ id: o.id, page: i }); }
+    const hooks = this.menuHooks?.() || {};
+    const items = [];
+    if (text) {
+      items.push({ label: t("copy"), icon: "copy", kbd: kbd("Ctrl+C"), run: () => copyText(text).then(() => toast(t("copied"), { kind: "ok", ms: 1400 })) });
+      if (this.editing && box) items.push({ label: t("pdf_tool_highlight"), icon: "marker", run: () => this.highlightSelection(i, box) });
+      if (hooks.explain) items.push({ label: t("cm_ask_ai"), icon: "sparkle", run: () => hooks.explain(text) });
+      if (hooks.webSearch) items.push({ label: t("ai_web_search_selection"), icon: "globe", run: () => hooks.webSearch(text) });
+      items.push("-");
+    }
+    const obj = this.editing ? this.selectedObj() : null;
+    if (obj) items.push(
+      { label: t("cut"), icon: "cut", kbd: kbd("Ctrl+X"), run: () => { this.clip = clone(obj); this.deleteSelected(); } },
+      { label: t("copy"), icon: "copy", kbd: kbd("Ctrl+C"), run: () => { this.clip = clone(obj); } },
+      { label: t("cm_duplicate"), icon: "dup", kbd: kbd("Ctrl+D"), run: () => this.pasteObj(obj, this.selected.page) },
+      { label: t("pdf_delete_obj"), icon: "trash", kbd: "Del", danger: true, run: () => this.deleteSelected() },
+      "-");
+    if (this.editing && this.clip) items.push({ label: t("paste"), icon: "paste", kbd: kbd("Ctrl+V"), run: () => this.pasteObj(this.clip, i) }, "-");
+    if (this.editing && box) items.push(
+      { header: `${t("pdf_page")} ${i + 1}` },
+      { label: t("pdf_rotate_left"), icon: "rotL", run: () => this.pageOp(i, "rotL") },
+      { label: t("pdf_rotate_right"), icon: "rotR", run: () => this.pageOp(i, "rotR") },
+      { label: t("pdf_move_up"), icon: "up", disabled: i === 0, run: () => this.pageOp(i, "up") },
+      { label: t("pdf_move_down"), icon: "down", disabled: i >= n - 1, run: () => this.pageOp(i, "down") },
+      { label: t("pdf_insert_blank"), icon: "pageAdd", run: () => this.pageOp(i, "add") },
+      { label: t("pdf_delete_page"), icon: "trash", danger: true, disabled: n <= 1, run: () => this.pageOp(i, "del") },
+      "-");
+    items.push(
+      { label: t("zoom_in"), icon: "zoomIn", run: () => this.zoom(1.15) },
+      { label: t("zoom_out"), icon: "zoomOut", run: () => this.zoom(1 / 1.15) },
+      { label: t("pdf_fit"), icon: "fullscreen", run: () => this.action("fit") },
+      { label: t("pdf_thumbs"), icon: "thumbs", checked: !this.el.querySelector(".pdf-thumbs").hidden, run: () => this.toggleThumbs() },
+      "-",
+      { label: t("pdf_edit"), icon: "pen", checked: this.editing, run: () => this.setEditing(!this.editing) },
+      { label: t("pdf_export_text"), icon: "fileText", run: () => this.onExport?.("text") },
+      ...(hooks.ask ? [{ label: t("pdf_ask"), icon: "sparkle", run: () => hooks.ask() }] : []),
+    );
+    showMenu(items, { x: e.clientX, y: e.clientY });
+  }
   current() { return +(this.el.querySelector(".pdf-page")?.value || 1); }
   updatePage() {
     const boxes = this.wrap.children; const mid = this.scroll.scrollTop + this.scroll.clientHeight / 3;
     for (const b of boxes) { if (b.offsetTop + b.offsetHeight > mid) { this.el.querySelector(".pdf-page").value = b.dataset.page; break; } }
+    this.markThumb();
   }
   goto(n) { const b = this.wrap.children[Math.max(0, Math.min(this.model?.pages.length || 1, n) - 1)]; if (b) this.scroll.scrollTop = b.offsetTop - (this.editing ? 46 : 12); }
   zoom(f) {
@@ -668,6 +895,7 @@ export class PdfView {
     else if (a === "text") this.onExtract?.();
     else if (a === "ask") this.onAsk?.();
     else if (a === "edit") this.setEditing(!this.editing);
+    else if (a === "thumbs") this.toggleThumbs();
   }
 
   async text(maxChars = 400000) {
@@ -688,7 +916,313 @@ export class PdfView {
     }
     return parts.join("\n\n");
   }
-  destroy() { this.observer?.disconnect(); this.doc?.destroy?.(); this.el.remove(); }
+  destroy() {
+    this.observer?.disconnect(); this.thumbObs?.disconnect(); this.doc?.destroy?.();
+    for (const x of Object.values(this.extras)) x.doc?.destroy?.();
+    this.el.remove();
+  }
+
+  // ---- the model handed to applyEdits: snapshot + images + inserted documents ----
+  editModel(model) {
+    return { ...model, images: this.images, extras: Object.fromEntries(Object.entries(this.extras).map(([k, x]) => [k, x.bytes.slice()])) };
+  }
+  async editedBytes() {
+    const bytes = await this.ensureBytes();
+    if (!this.dirty) return bytes.slice();
+    return applyEdits(bytes.slice(), this.editModel(this.snapshot()), await fontBytes() || null);
+  }
+
+  // ---- page thumbnails ----
+  bindThumbs() {
+    const host = this.el.querySelector(".pdf-thumbs");
+    host.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-ta]"); const th = e.target.closest(".pdf-thumb"); if (!th) return;
+      const i = +th.dataset.i;
+      if (b) { e.stopPropagation(); this.pageOp(i, b.dataset.ta); return; }
+      this.goto(i + 1);
+    });
+    host.addEventListener("dragstart", (e) => { const th = e.target.closest(".pdf-thumb"); if (!th || !this.editing) return e.preventDefault(); this._dragFrom = +th.dataset.i; e.dataTransfer.effectAllowed = "move"; th.classList.add("dragging"); });
+    host.addEventListener("dragend", () => { host.querySelectorAll(".dragging, .drop-before, .drop-after").forEach((x) => x.classList.remove("dragging", "drop-before", "drop-after")); });
+    host.addEventListener("dragover", (e) => {
+      if (this._dragFrom == null) return; const th = e.target.closest(".pdf-thumb"); if (!th) return;
+      e.preventDefault(); const r = th.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2;
+      host.querySelectorAll(".drop-before, .drop-after").forEach((x) => x.classList.remove("drop-before", "drop-after"));
+      th.classList.add(after ? "drop-after" : "drop-before");
+    });
+    host.addEventListener("drop", (e) => {
+      const th = e.target.closest(".pdf-thumb"); const from = this._dragFrom; this._dragFrom = null;
+      if (!th || from == null) return; e.preventDefault();
+      const r = th.getBoundingClientRect(); let to = +th.dataset.i + (e.clientY > r.top + r.height / 2 ? 1 : 0);
+      if (to > from) to--;
+      this.movePage(from, to);
+    });
+  }
+  toggleThumbs(force) {
+    const host = this.el.querySelector(".pdf-thumbs");
+    const on = force ?? host.hidden; host.hidden = !on;
+    this.el.querySelector('[data-a="thumbs"]')?.classList.toggle("on", on);
+    localStorage.setItem("mn_pdf_thumbs", on ? "1" : "0");
+    this._thumbSig = ""; if (on) this.renderThumbs();
+  }
+  renderThumbs() {
+    const host = this.el.querySelector(".pdf-thumbs"); if (!host || host.hidden || !this.model) return;
+    const sig = this.model.pages.map((p) => p.id + ":" + (p.rot || 0)).join() + "|" + this.editing;
+    if (sig === this._thumbSig) { this.markThumb(); return; }
+    this._thumbSig = sig;
+    this.thumbObs?.disconnect();
+    this.thumbObs = new IntersectionObserver((entries) => {
+      for (const en of entries) if (en.isIntersecting) { this.thumbObs.unobserve(en.target); this.paintThumb(+en.target.dataset.i, en.target); }
+    }, { root: host, rootMargin: "400px 0px" });
+    host.innerHTML = "";
+    const n = this.model.pages.length;
+    this.model.pages.forEach((mp, i) => {
+      const vp = this.vpOf(mp); const k = 104 / Math.max(1, vp.width);
+      const th = document.createElement("div"); th.className = "pdf-thumb"; th.dataset.i = i; th.draggable = this.editing; th.tabIndex = 0;
+      th.title = `${t("pdf_page")} ${i + 1}`;
+      const B = (a, ic, label, dis) => `<button class="icon-btn sm" data-ta="${a}" title="${esc(t(label))}" aria-label="${esc(t(label))}" ${dis ? "disabled" : ""}>${icon(ic)}</button>`;
+      th.innerHTML = `<span class="pdf-thumb-img${mp.src ? "" : " blank"}" style="width:${Math.round(vp.width * k)}px;height:${Math.round(vp.height * k)}px"></span><span class="pdf-thumb-n">${i + 1}</span>`
+        + (this.editing ? `<span class="pdf-thumb-tools">${B("rotR", "rotR", "pdf_rotate_right")}${B("del", "trash", "pdf_delete_page", n <= 1)}</span>` : "");
+      host.append(th); this.thumbObs.observe(th);
+    });
+    this.markThumb();
+  }
+  markThumb() {
+    const host = this.el.querySelector(".pdf-thumbs"); if (!host || host.hidden) return;
+    const cur = this.current() - 1;
+    host.querySelectorAll(".pdf-thumb").forEach((th) => {
+      const on = +th.dataset.i === cur; th.classList.toggle("on", on);
+      if (on && (th.offsetTop < host.scrollTop || th.offsetTop + th.offsetHeight > host.scrollTop + host.clientHeight)) host.scrollTop = th.offsetTop - host.clientHeight / 3;
+    });
+  }
+  async paintThumb(i, el) {
+    const mp = this.model?.pages[i]; const box = el.querySelector(".pdf-thumb-img"); if (!mp?.src || !box) return;
+    const doc = this.docOf(mp); if (!doc) return;
+    try {
+      const page = await doc.getPage(mp.src);
+      const rot = (page.rotate + (mp.rot || 0)) % 360;
+      const base = page.getViewport({ scale: 1, rotation: rot });
+      const vp = page.getViewport({ scale: (104 / base.width) * Math.min(window.devicePixelRatio || 1, 2), rotation: rot });
+      const c = document.createElement("canvas"); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+      await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+      box.replaceChildren(c);
+    } catch {  }
+  }
+  movePage(from, to) {
+    const pages = this.model.pages;
+    if (from === to || from < 0 || to < 0 || from >= pages.length || to >= pages.length) return;
+    const snap = this.snapshot(); const [mp] = pages.splice(from, 1); pages.splice(to, 0, mp);
+    this.selected = null; this.commit(snap); this.layout(); requestAnimationFrame(() => this.goto(to + 1));
+  }
+
+  // ---- objects: paste, duplicate, nudge ----
+  pasteObj(src, pageIndex) {
+    const i = pageIndex ?? Math.max(0, this.current() - 1); const mp = this.model.pages[i]; if (!mp) return;
+    const o = clone(src); o.id = uid(); delete o._hidden; translate(o, 12, -12);
+    const snap = this.snapshot(); mp.objs.push(o); this.selected = { id: o.id, page: i }; this.commit(snap); this.redraw(i);
+  }
+  nudge(key, step) {
+    const s = this.selected; const o = this.selectedObj(); if (!o) return;
+    const v = this.vpOf(this.model.pages[s.page]);
+    const dv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[key]; if (!dv) return;
+    const a = v.toPdf(100, 100), b = v.toPdf(100 + dv[0] * this.scale, 100 + dv[1] * this.scale);
+    const snap = this.snapshot(); translate(o, b[0] - a[0], b[1] - a[1]); this.commit(snap); this.redraw(s.page);
+  }
+  addObject(i, o) {
+    const mp = this.model.pages[i]; if (!mp) return;
+    const snap = this.snapshot(); o.id = uid(); mp.objs.push(o);
+    if (this.tool !== "select") { this.tool = "select"; this.paintEditBar(); this.redrawAll(); }
+    this.selected = { id: o.id, page: i }; this.commit(snap); this.redraw(i);
+  }
+
+  // ---- images and signatures ----
+  async pickImage() {
+    const file = await pickFile("image/png,image/jpeg,image/webp,image/gif,image/bmp"); if (!file) return;
+    if (file.size > 25 * 1024 * 1024) { toast(t("pdf_image_too_big"), { kind: "error" }); return; }
+    try { const { url, w, h } = await imageData(file); this.placeImage(url, w, h); }
+    catch (e) { toast(t("pdf_image_failed") + ": " + (e.message || e), { kind: "error" }); }
+  }
+  placeImage(url, w, h, opts = {}) {
+    const i = Math.max(0, this.current() - 1); const mp = this.model.pages[i]; if (!mp) return;
+    const pb = this.pageBox(mp);
+    let ow = Math.min(pb.w * (opts.maxW || 0.42), w * 0.75), oh = (ow * h) / Math.max(1, w);
+    if (oh > pb.h * 0.45) { oh = pb.h * 0.45; ow = (oh * w) / Math.max(1, h); }
+    const id = uid(); this.images[id] = url;
+    const x = opts.x ?? pb.x0 + (pb.w - ow) / 2, y = opts.y ?? pb.y0 + (pb.h - oh) / 2;
+    this.addObject(i, { type: "image", img: id, x, y, w: ow, h: oh });
+  }
+  async signature() {
+    const saved = localStorage.getItem("mn_pdf_sig") || "";
+    let pad = null;
+    const res = await modal({
+      title: t("pdf_sig_title"), wide: true, cls: "pdf-sig",
+      body: `<p class="muted small">${esc(t("pdf_sig_hint"))}</p><canvas class="pdf-sig-pad" width="1040" height="360"></canvas>
+        <div class="row pdf-sig-row">${["#1c2024", "#1d4ed8", "#0b6e4f"].map((c, k) => `<button class="pdf-sig-ink ${k ? "" : "on"}" data-ink="${c}" style="background:${c}" aria-label="${c}"></button>`).join("")}
+        <button class="btn ghost sm" data-sig="clear">${icon("eraser")}${esc(t("pdf_sig_clear"))}</button><span class="spacer"></span>
+        ${saved ? `<button class="btn ghost sm" data-sig="saved">${icon("retry")}${esc(t("pdf_sig_use_saved"))}</button>` : ""}
+        <label class="check"><input type="checkbox" data-sig="keep" checked>${esc(t("pdf_sig_keep"))}</label></div>`,
+      buttons: [{ label: t("cancel"), value: null }, { label: t("pdf_sig_insert"), primary: true, value: (box) => ({ url: pad?.export(), keep: box.querySelector('[data-sig="keep"]').checked }) }],
+      onOpen: (box) => {
+        pad = signaturePad(box.querySelector(".pdf-sig-pad"));
+        box.querySelectorAll("[data-ink]").forEach((b) => (b.onclick = () => { box.querySelectorAll("[data-ink]").forEach((x) => x.classList.toggle("on", x === b)); pad.color = b.dataset.ink; }));
+        box.querySelector('[data-sig="clear"]').onclick = () => pad.clear();
+        const use = box.querySelector('[data-sig="saved"]'); if (use) use.onclick = () => pad.load(saved);
+      },
+    });
+    if (!res?.url) { if (res) toast(t("pdf_sig_empty")); return; }
+    if (res.keep) { try { localStorage.setItem("mn_pdf_sig", res.url); } catch {  } }
+    const { w, h } = await imageSize(res.url);
+    this.placeImage(res.url, w, h, { maxW: 0.3 });
+  }
+
+  // ---- stamps ----
+  stampMenu(anchor) {
+    const items = STAMPS.map(([key, color]) => ({ label: t("pdf_stamp_" + key), swatch: color, run: () => this.placeStamp(t("pdf_stamp_" + key).toUpperCase(), color) }));
+    const today = new Date().toLocaleDateString(document.documentElement.lang === "en" ? "en-GB" : "ru-RU");
+    items.push({ label: t("pdf_stamp_date", { date: today }), swatch: "#1565c0", run: () => this.placeStamp(today, "#1565c0") });
+    items.push("-", { label: t("pdf_stamp_custom") + "…", icon: "textT", run: async () => { const v = await prompt(t("pdf_tool_stamp"), t("pdf_stamp_text")); if (v?.trim()) this.placeStamp(v.trim().slice(0, 60), this.color); } });
+    showMenu(items, anchor);
+  }
+  placeStamp(text, color) {
+    const i = Math.max(0, this.current() - 1); const mp = this.model.pages[i]; if (!mp) return;
+    const pb = this.pageBox(mp); const h = 40, w = Math.min(pb.w * 0.6, Math.max(110, text.length * h * 0.36 + 28));
+    this.addObject(i, { type: "stamp", text, color, x: pb.x0 + pb.w - w - 36, y: pb.y0 + pb.h - h - 36, w, h });
+  }
+
+  // ---- document-wide tools ----
+  moreMenu(anchor) {
+    showMenu([
+      { label: t("pdf_insert_pdf") + "…", icon: "merge", run: () => this.insertPdf() },
+      { label: t("pdf_extract_pages") + "…", icon: "extract", run: () => this.extract() },
+      "-",
+      { label: t("pdf_numbers") + "…", icon: "numbers", run: () => this.pageNumbers() },
+      { label: t("pdf_watermark") + "…", icon: "watermark", run: () => this.watermark() },
+      { label: t("pdf_clear_auto"), icon: "eraser", disabled: !this.model.pages.some((p) => p.objs.some((o) => o.auto)), run: () => this.clearAuto() },
+    ], anchor, { alignRight: true });
+  }
+  async pageNumbers() {
+    const r = await modal({
+      title: t("pdf_numbers"),
+      body: `<label class="field"><span>${esc(t("pdf_num_format"))}</span><select class="input" id="pn-f"><option value="n">1, 2, 3</option><option value="nN">1 / N</option><option value="page">${esc(t("pdf_num_page_of", { n: 1, total: "N" }))}</option></select></label>
+        <label class="field"><span>${esc(t("pdf_num_pos"))}</span><select class="input" id="pn-p"><option value="bc">${esc(t("pdf_pos_bc"))}</option><option value="br">${esc(t("pdf_pos_br"))}</option><option value="tr">${esc(t("pdf_pos_tr"))}</option><option value="tc">${esc(t("pdf_pos_tc"))}</option></select></label>
+        <label class="field"><span>${esc(t("pdf_num_start"))}</span><input class="input" id="pn-s" type="number" value="1" min="0" max="9999"></label>`,
+      buttons: [{ label: t("cancel"), value: null }, { label: t("ok"), primary: true, value: (b) => ({ f: b.querySelector("#pn-f").value, p: b.querySelector("#pn-p").value, s: +b.querySelector("#pn-s").value || 1 }) }],
+    });
+    if (!r) return;
+    const snap = this.snapshot(); const total = this.model.pages.length; const size = 10;
+    this.model.pages.forEach((mp, i) => {
+      mp.objs = mp.objs.filter((o) => o.auto !== "num");
+      const n = i + r.s, text = r.f === "n" ? String(n) : r.f === "nN" ? `${n} / ${total + r.s - 1}` : t("pdf_num_page_of", { n, total: total + r.s - 1 });
+      const pb = this.pageBox(mp); const tw = text.length * size * 0.52, m = 28;
+      const x = r.p.endsWith("c") ? pb.x0 + (pb.w - tw) / 2 : pb.x0 + pb.w - m - tw;
+      const y = r.p.startsWith("t") ? pb.y0 + pb.h - m : pb.y0 + m + size * LINE_H;
+      mp.objs.push({ id: uid(), type: "text", text, x, y, size, color: "#444444", angle: 0, auto: "num" });
+    });
+    this.commit(snap); this.redrawAll();
+  }
+  async watermark() {
+    const r = await modal({
+      title: t("pdf_watermark"),
+      body: `<label class="field"><span>${esc(t("pdf_wm_text"))}</span><input class="input" id="wm-t" value="${esc(t("pdf_stamp_confidential").toUpperCase())}" maxlength="60"></label>
+        <label class="field"><span>${esc(t("pdf_wm_opacity"))}</span><select class="input" id="wm-o"><option value=".12">12%</option><option value=".2" selected>20%</option><option value=".35">35%</option></select></label>`,
+      buttons: [{ label: t("cancel"), value: null }, { label: t("ok"), primary: true, value: (b) => ({ text: b.querySelector("#wm-t").value.trim(), opacity: +b.querySelector("#wm-o").value }) }],
+    });
+    if (!r?.text) return;
+    const snap = this.snapshot();
+    for (const mp of this.model.pages) {
+      mp.objs = mp.objs.filter((o) => o.auto !== "wm");
+      const pb = this.pageBox(mp); const size = Math.min(72, (Math.hypot(pb.w, pb.h) * 0.75) / Math.max(4, r.text.length * 0.6));
+      const a = 45, th = (a * Math.PI) / 180, tw = r.text.length * size * 0.6;
+      const dir = [Math.cos(th), Math.sin(th)], down = [Math.sin(th), -Math.cos(th)];
+      const cx = pb.x0 + pb.w / 2, cy = pb.y0 + pb.h / 2;
+      const x = cx - (dir[0] * tw) / 2 - (down[0] * size) / 2, y = cy - (dir[1] * tw) / 2 - (down[1] * size) / 2;
+      mp.objs.unshift({ id: uid(), type: "text", text: r.text, x, y, size, color: "#808080", angle: a, opacity: r.opacity, auto: "wm" });
+    }
+    this.commit(snap); this.redrawAll();
+  }
+  clearAuto() {
+    const snap = this.snapshot();
+    for (const mp of this.model.pages) mp.objs = mp.objs.filter((o) => !o.auto);
+    this.selected = null; this.commit(snap); this.redrawAll();
+  }
+  async insertPdf() {
+    const file = await pickFile("application/pdf,.pdf"); if (!file) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const L = await pdflib();
+      try { await L.PDFDocument.load(bytes.slice(), { updateMetadata: false }); }
+      catch (e) { throw new Error(/encrypt/i.test(String(e?.message || e)) ? t("pdf_encrypted") : (e.message || String(e))); }
+      const lib = await pdfjs();
+      const doc = await lib.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false }).promise;
+      const key = "x" + uid(); const info = [];
+      for (let n = 1; n <= Math.min(doc.numPages, 2000); n++) { const pg = await doc.getPage(n); info.push({ view: pg.view, rotate: pg.rotate }); }
+      this.extras[key] = { bytes, doc, info, name: file.name };
+      const at = Math.max(0, this.current());
+      const snap = this.snapshot();
+      this.model.pages.splice(at, 0, ...info.map((_, k) => ({ id: uid(), src: k + 1, ext: key, rot: 0, objs: [] })));
+      this.selected = null; this.commit(snap); this.layout();
+      requestAnimationFrame(() => this.goto(at + 1));
+      toast(t("pdf_inserted", { n: info.length, name: file.name }), { kind: "ok" });
+    } catch (e) { toast(t("pdf_insert_failed") + ": " + (e.message || e), { kind: "error", ms: 8000 }); }
+  }
+  async extract() {
+    const total = this.model.pages.length;
+    const v = await prompt(t("pdf_extract_pages"), t("pdf_extract_label", { total }), `1-${total}`, { placeholder: "1-3, 5, 8-", note: t("pdf_extract_note") });
+    if (v == null) return;
+    const idx = parseRanges(v, total);
+    if (!idx) { toast(t("pdf_bad_range"), { kind: "error" }); return; }
+    try {
+      const out = await extractPages(await this.editedBytes(), idx);
+      await this.onSaveCopy?.(out, (this.tab.name || "document.pdf").replace(/\.pdf$/i, "") + ` (${v.replace(/[^\d,\- ]/g, "").trim()}).pdf`);
+    } catch (e) { toast(t("pdf_extract_failed") + ": " + (e.message || e), { kind: "error", ms: 8000 }); }
+  }
+}
+
+function pickFile(accept) {
+  return new Promise((resolve) => {
+    const input = document.createElement("input"); input.type = "file"; input.accept = accept; input.style.display = "none";
+    input.onchange = () => { resolve(input.files?.[0] || null); input.remove(); };
+    input.addEventListener("cancel", () => { resolve(null); input.remove(); });
+    document.body.append(input); input.click();
+  });
+}
+function imageSize(url) {
+  return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight, img }); img.onerror = () => reject(new Error("image")); img.src = url; });
+}
+// PNG and JPEG go in as they are; other formats are converted to PNG (pdf-lib embeds only those two).
+async function imageData(file) {
+  const url = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(r.error); r.readAsDataURL(file); });
+  const { w, h, img } = await imageSize(url);
+  if (/^data:image\/(png|jpe?g);/i.test(url)) return { url, w, h };
+  const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(img, 0, 0);
+  return { url: c.toDataURL("image/png"), w, h };
+}
+function signaturePad(canvas) {
+  const ctx = canvas.getContext("2d"); let drawing = false, last = null, empty = true;
+  const pad = { color: "#1c2024" };
+  const pos = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) * canvas.width) / r.width, ((e.clientY - r.top) * canvas.height) / r.height]; };
+  canvas.addEventListener("pointerdown", (e) => { drawing = true; last = pos(e); canvas.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.arc(last[0], last[1], 2.2, 0, Math.PI * 2); ctx.fillStyle = pad.color; ctx.fill(); empty = false; });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!drawing) return; const p = pos(e);
+    ctx.strokeStyle = pad.color; ctx.lineWidth = 4.4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; empty = false;
+  });
+  const stop = () => { drawing = false; };
+  canvas.addEventListener("pointerup", stop); canvas.addEventListener("pointercancel", stop);
+  pad.clear = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); empty = true; };
+  pad.load = (url) => { const img = new Image(); img.onload = () => { pad.clear(); const k = Math.min(canvas.width / img.width, canvas.height / img.height, 1); ctx.drawImage(img, (canvas.width - img.width * k) / 2, (canvas.height - img.height * k) / 2, img.width * k, img.height * k); empty = false; }; img.src = url; };
+  // Trimmed to the ink with a small margin, transparent background.
+  pad.export = () => {
+    if (empty) return "";
+    const { width: W, height: H } = canvas; const data = ctx.getImageData(0, 0, W, H).data;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (data[(y * W + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return "";
+    const m = 8; x0 = Math.max(0, x0 - m); y0 = Math.max(0, y0 - m); x1 = Math.min(W - 1, x1 + m); y1 = Math.min(H - 1, y1 + m);
+    const out = document.createElement("canvas"); out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+    out.getContext("2d").drawImage(canvas, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+    return out.toDataURL("image/png");
+  };
+  return pad;
 }
 
 function translate(o, dx, dy) {

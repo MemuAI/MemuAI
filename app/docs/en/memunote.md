@@ -25,7 +25,11 @@ After installing, MemuNote is in the Start menu. Removing packs the program back
 - **Open with → MemuNote** in Explorer: turn it on in MemuNote settings (**Files → In the "Open with" menu**) or in **MemuAI Settings → MemuNote**. Default apps are not changed.
 - Starting `MemuNote.exe file.txt` again opens the file as a new tab in the window that is already open.
 
-Supported: text and logs, Markdown, DOCX, ODT, RTF, PDF (view, text, AI questions), CSV/TSV (a table with sorting and a filter), JSON (formatting and validation), HTML (preview without scripts), images and source code in almost every language with syntax highlighting.
+Supported: text and logs, Markdown, DOCX, ODT, RTF, PDF (view, editing, text, AI questions), CSV/TSV (a table with sorting and a filter), JSON (formatting and validation), HTML (preview without scripts), images and source code in almost every language with syntax highlighting. MemuNote also opens:
+
+- **audio and video** (MP3, WAV, OGG, FLAC, M4A, Opus, MP4, WebM, MOV, MKV): a built-in player with seeking, 0.5–2× speed and looping that remembers where you stopped. When a codec isn't supported MemuNote says so; open the file in MemuMusic then;
+- **fonts** (TTF, OTF, WOFF, WOFF2): a specimen with your own text, sizes from 10 to 160 px, a table of Latin, Cyrillic, digits and punctuation, and the font's name, version and designer;
+- **e-mail messages** (EML): subject, sender, recipients, date and text; attachments are saved with a click. HTML messages are shown as text: scripts and remote pictures (read trackers) are not loaded. **Message source** opens the file as text.
 
 ## Tabs, session and recovery
 
@@ -85,7 +89,23 @@ On the first start the dictionaries load in the background for a few seconds —
 
 Documents open like in Word: a page, styles, fonts and sizes, colour and highlight, alignment, lists and tasks, tables, images, links, page breaks. Saving goes back to the same format; before overwriting DOCX/ODT MemuNote warns that complex layout (headers, footnotes, fields, macros) may be simplified and offers to save a copy. The **To Markdown** button creates a Markdown version of the document.
 
+A right click in a document opens a menu like Word's: cut, copy, paste (also as plain text), **Format**, **Paragraph** and **Insert** (a link, an image, a table, a task list, a line, a page break), suggestions for a misspelled word, find, "Ask AI" and a web search for the selection. On a table the menu adds and deletes rows and columns or the whole table; on an image — alignment, size (original or page width), replace, copy, save and delete; on a link — open, copy, edit and remove.
+
 **Export** of any file: PDF, HTML, DOCX, ODT, RTF, Markdown, text. **Ctrl+P** prints.
+
+## PDF editor
+
+The **Edit** button above a PDF turns on the editing bar. Everything you add is saved into the file itself (**Ctrl+S**) or into a copy (**Save as**); until then **Ctrl+Z** works.
+
+- **Text, highlight, drawing, shapes, lines and arrows, whiteout** work as before; in select mode objects have a corner handle for resizing, the arrow keys move the selected object (further with Shift), and **Ctrl+C / Ctrl+X / Ctrl+V / Ctrl+D** copy, cut, paste and duplicate.
+- **Image**: PNG, JPEG, WebP, GIF or BMP up to 25 MB; the proportions are kept while resizing (Shift resizes freely).
+- **Signature**: sign with a mouse, pen or finger; the background is transparent and empty margins are trimmed. The signature can be remembered on this computer and inserted with one click.
+- **Stamp**: "Approved", "Checked", "Paid", "Draft", "Copy", "Confidential", "Rejected", today's date or your own text.
+- **More**: **Insert pages from a PDF** (the pages of another file go after the current one), **Save pages as a separate PDF** (a range like `1-3, 5, 8-`; your current edits go into the file too), **Page numbers** (format, position, first number), **Watermark** (text, opacity) and **Remove page numbers and watermarks**.
+- **Page thumbnails**: the button right of **Fit width**. A click goes to the page; in edit mode drag thumbnails to reorder pages, and each one has rotate and delete buttons.
+- PDF form fields are filled in the **Form fields** side panel.
+
+Cyrillic in text, stamps and watermarks is embedded with a system font (Arial, Segoe UI, DejaVu, Liberation). When no such font is found, Russian letters are transliterated instead of breaking the save.
 
 ## AI in MemuNote
 
@@ -98,6 +118,18 @@ MemuAI Proxy has to be running (it starts together with MemuAI). The dot in the 
 - A PDF has the **Extract text** and **Ask AI** buttons.
 
 The model is chosen in the AI panel or in MemuNote settings; by default it is the same as in MemuAI. MemuNote requests are marked in MemuAI as the `memunote` service.
+
+## Image editor
+
+Open an image or create a new one from the **File** menu. The editor works with layers, groups and masks, selections, brushes, text and shapes. Every action can be undone; the list of steps is on the **History** tab.
+
+- **Image → Looks…** opens 15 ready-made looks: vivid, warm, cool, golden hour, film, cinematic, noir, duotone and more. The thumbnails are rendered from your photo, and the **Amount** slider sets the strength. A look is applied to the active layer or selection as a single undo step.
+- **Image → Adjustments** and the **Adjust** tab include, besides brightness, levels, curves and hue, **Shadows/Highlights**, **Clarity** (local contrast), **Dehaze**, **Photo filter**, **Split toning**, **Gradient map** and **Channel mixer**.
+- The **Filter** menu has zoom blur, tilt-shift, chromatic aberration, halftone and pencil sketch.
+- **Layer → Layer style** adds effects that do not change the layer's pixels: drop shadow, outer glow, stroke and color overlay. Presets are available: soft shadow, sticker, neon and outline. A style can be copied to another layer, cleared or rasterized. Layers with a style show an **fx** badge. Styles are kept in `.memuimg` files and are baked into the layer pixels when exporting to PSD and SVG.
+- **Image → Border…** adds a border as a separate top layer: outside (the canvas grows) or over the edges of the photo. You can set the width, color and corner radius.
+- **View → Before / after** (the `\` key) shows the original image to the left of the divider and the current result to the right. Drag the divider across the canvas; Esc closes the comparison. The original is the state when the file was opened.
+- The assistant on the **AI** tab can apply these adjustments, filters and looks from a text request.
 
 ## Presentations
 
@@ -128,6 +160,14 @@ ODP is imported into the presentation model and saved as PPTX. Legacy binary `.p
 | F1 | All shortcuts |
 
 Shortcuts work in any keyboard layout: **Ctrl+S** saves even with the Russian layout on (the press is read by the physical key). Latin layouts such as Dvorak and AZERTY keep their own letters, and AltGr characters (ą, €…) type as usual.
+
+## Appearance
+
+In **MemuNote settings → Appearance** (or in the app menu: **Palette**, **Accent**, **Design**) the look is made of three independent parts:
+
+- **Palette**: the colours of the background, panels, text and code highlighting. "Same as MemuAI" follows MemuAI's appearance; besides the MemuAI palettes (classic, dim, midnight, Nord, Catppuccin, Dracula, Solarized and more) there are MemuNote's own: GitHub, Gruvbox, Monokai, One, Tokyo Night and Sepia for reading. Every palette has a dark and a light face, so switching the theme keeps the palette.
+- **Accent**: the colour of buttons, links and active items: as in MemuAI, from the palette, a preset or **a custom colour**. A colour that is too light or too dark adapts automatically so text stays readable.
+- **Design**: the shape of the interface: classic, soft, paper, glass, studio, grid, zen (minimal borders) and brutalist. "Same as MemuAI" picks the design closest to the one chosen in MemuAI.
 
 ## Settings
 

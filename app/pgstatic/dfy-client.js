@@ -599,14 +599,14 @@
   function promptBlock(lang) {
     const machines = lastStatus && lastStatus.enabled && lastStatus.model && ((lastStatus.machines || []).length || lastStatus.local_system);
     if (!lastStatus || !(lastStatus.ready || machines)) return "";
-    return "\n\n<dfy_tool>Do For You (DFY) is available: a separate agent with its own persistent browser (saved logins and cookies) " +
-      "that performs real web tasks for the user — booking, ordering, registering, filling forms, buying, cancelling. It shows its steps, " +
-      "asks the user for missing choices, logins, payment cards, phone, address, passport data and SMS codes through secure forms (values never reach you), and always asks the user's " +
-      "go-ahead with the total before paying, booking or sending. When the user wants you to DO such a task on a website (not only find information) " +
-      "and the essential choices are known (what, which site or business, dates/times, people, price limit), append exactly one hidden block:\n" +
+    return "\n\n<dfy_tool>Do For You (DFY) is available: a separate agent with its own logged-in browser that does real web tasks — " +
+      "booking, ordering, registering, filling forms, buying, cancelling. It asks the user itself for missing choices, logins, cards, codes and " +
+      "personal data through secure forms (the values never reach you), and for a go-ahead with the total before paying, booking or sending. " +
+      "When the user wants such a task DONE on a website (not only information) and the essential choices are known (what, which site or business, " +
+      "dates/times, people, price limit), append exactly one hidden block:\n" +
       "```memuai-dfy\n{\"goal\":\"a complete, self-contained instruction with every detail and constraint the user gave\"}\n```\n" +
-      "and tell the user in one short sentence that DFY is starting and will ask them before anything irreversible. If an essential choice is missing, " +
-      "ask the user first instead of emitting the block. Never put passwords, card numbers, codes or passport data into the goal (DFY asks for them itself). Do not add choices the user did not make." +
+      "and say in one short sentence that DFY is starting and will ask before anything irreversible. If an essential choice is missing, ask first. " +
+      "Never put passwords, card numbers, codes or passport data into the goal, and do not add choices the user did not make." +
       machinesBlock() + "</dfy_tool>";
   }
 
@@ -616,9 +616,9 @@
     if (lastStatus.local_system) rows.unshift(`"local" = this computer (the user's own PC)`);
     if (!rows.length) return "";
     const picked = window.MemuDFYRemote ? window.MemuDFYRemote.selected() : "";
-    return "\nDFY can also work on a whole machine instead of the browser: shell commands, files, downloads, packages, processes, services. " +
-      "Machines: " + rows.join("; ") + ". When the user wants something done on one of them (a server, \"on my PC\", by its name), add \"target\":\"<id>\" to the block; " +
-      "without \"target\" DFY uses its browser." + (browsers.length ? ` To use a website FROM one of these machines (its IP, its network, its logged-in browser), use "target":"<id>/browser" (${browsers.join(", ")}).` : "") + " DFY itself asks the user before anything destructive and never touches MemuAI or its own agent." +
+    return "\nDFY can also work on a whole machine (shell, files, downloads, packages, processes, services). " +
+      "Machines: " + rows.join("; ") + ". For a task on one of them (a server, \"on my PC\", by its name) add \"target\":\"<id>\" to the block; " +
+      "without it DFY uses its browser." + (browsers.length ? ` For a website FROM one of these machines (its IP, network or logged-in browser) use "target":"<id>/browser" (${browsers.join(", ")}).` : "") + " DFY asks before anything destructive." +
       (picked ? ` The user picked "${picked}" as the DFY target in this window: use it unless they say otherwise.` : "");
   }
   function chatHtml(action) {

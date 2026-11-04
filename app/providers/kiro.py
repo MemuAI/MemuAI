@@ -99,7 +99,10 @@ def _ua() -> str:
 
 _FRAME_PRELUDE = 12
 _FRAME_SUFFIX = 4
-_FRAME_MAX = 32 * 1024 * 1024
+# F29: the buffer cap was 32 MiB and only checked after a frame was seen —
+# a non-frame (plain JSON) body grew without any limit. Now 4 MiB, checked
+# unconditionally after every chunk.
+_FRAME_MAX = 4 * 1024 * 1024
 
 def _parse_event_headers(raw: bytes) -> Dict[str, str]:
     headers: Dict[str, str] = {}
@@ -174,6 +177,37 @@ class KiroProvider(Provider):
     def __init__(self) -> None:
         self._flows: Dict[str, Dict[str, Any]] = {}
         self._servers: Dict[str, asyncio.AbstractServer] = {}
+
+    @staticmethod
+    def _custom_endpoint(fields: Dict[str, Any]) -> str:
+        """The account's custom endpoint, validated — or "" (SSRF guard).
+
+        Kiro endpoints are public AWS hosts; a LAN Kiro-compatible proxy
+        belongs on the Custom provider (same rule as custom.py)."""
+        from ..media_cache import validate_api_base_url
+        custom = str(fields.get("endpoint", "") or "").strip().rstrip("/")
+        if not custom:
+            return ""
+        error = validate_api_base_url(custom, allow_private=False)
+        if error:
+            log.warning("kiro: ignoring invalid custom endpoint %r: %s", custom, error)
+            return ""
+        return custom
+
+    def validate_fields(self, fields: Dict[str, Any]) -> Optional[str]:
+        # SSRF at save time (wave #14): the custom endpoint is sent the
+        # account's AWS-signed token, so it must be a public https host —
+        # no userinfo, no loopback/LAN/metadata, plain HTTP never.
+        error = super().validate_fields(fields)
+        if error:
+            return error
+        custom = str(fields.get("endpoint", "") or "").strip().rstrip("/")
+        if custom:
+            from ..media_cache import validate_api_base_url
+            error = validate_api_base_url(custom, allow_private=False)
+            if error:
+                return error
+        return None
 
     def account_fields(self) -> List[Field]:
         return [
@@ -322,7 +356,7 @@ class KiroProvider(Provider):
 
     def _hosts(self, account) -> List[str]:
         region = str(account.fields.get("region", KIRO_REGION) or KIRO_REGION)
-        custom = str(account.fields.get("endpoint", "") or "").strip().rstrip("/")
+        custom = self._custom_endpoint(account.fields)
         hosts = [host.format(region=region) for host in DATA_PLANE_HOSTS]
         if custom:
             hosts.insert(0, custom)
@@ -330,7 +364,7 @@ class KiroProvider(Provider):
 
     def _control_hosts(self, account) -> List[str]:
         region = str(account.fields.get("region", KIRO_REGION) or KIRO_REGION)
-        custom = str(account.fields.get("endpoint", "") or "").strip().rstrip("/")
+        custom = self._custom_endpoint(account.fields)
         hosts = [host.format(region=region) for host in CONTROL_HOSTS]
         if custom:
             hosts.insert(0, custom)
@@ -621,7 +655,7 @@ class KiroProvider(Provider):
                             yield event
                         elif event["type"] == "stop":
                             return
-                if saw_frame and len(buffer) > _FRAME_MAX:
+                if len(buffer) > _FRAME_MAX:
                     raise ProviderServerError("Kiro sent a malformed eventstream frame")
             if saw_frame and len(buffer) >= _FRAME_PRELUDE:
 
@@ -765,7 +799,7 @@ class KiroProvider(Provider):
 
     def _search_hosts(self, account) -> List[str]:
         region = str(account.fields.get("region", KIRO_REGION) or KIRO_REGION)
-        custom = str(account.fields.get("endpoint", "") or "").strip().rstrip("/")
+        custom = self._custom_endpoint(account.fields)
         hosts = [f"https://q.{region}.amazonaws.com", f"https://runtime.{region}.kiro.dev"]
         if custom:
             hosts.insert(0, custom)

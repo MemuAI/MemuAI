@@ -178,6 +178,7 @@ const Theme = (() => {
 
   function apply() {
     const sch = scheme(), th = theme();
+    root.style.colorScheme = sch;
     root.setAttribute("data-mm-scheme", sch);
     root.setAttribute("data-mm-theme", th.id);
     root.setAttribute("data-mm-covertint", ui.coverTint ? "on" : "off");

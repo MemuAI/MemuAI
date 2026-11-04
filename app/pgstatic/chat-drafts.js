@@ -4,6 +4,21 @@
   "use strict";
   if (window.MemuDrafts) return;
   const KEY = "memu_drafts_v1", MAX = 60, TTL = 30 * 864e5;
+  // B-CHAT-M4: drafts of temporary chats live in sessionStorage — a temp
+  // chat is per-tab by nature, and its draft must not leak into another
+  // tab or survive as a localStorage row pointing at a chat that no longer
+  // exists. Capped to 20 entries.
+  const TKEY = "memu_drafts_temp_v1", TMAX = 20;
+  const isTemp = (id) => !!id && String(id).startsWith("temp-");
+  function loadTemp() {
+    try { const v = JSON.parse(sessionStorage.getItem(TKEY) || "{}") || {}; return (typeof v === "object" && !Array.isArray(v)) ? v : {}; }
+    catch (_) { return {}; }
+  }
+  function storeTemp(all) {
+    const rows = Object.entries(all).filter(([, d]) => d && d.t)
+      .sort((a, b) => (+b[1].at || 0) - (+a[1].at || 0)).slice(0, TMAX);
+    try { sessionStorage.setItem(TKEY, JSON.stringify(Object.fromEntries(rows))); } catch (_) {}
+  }
   const input = () => document.getElementById("input");
   let lastId = null, timer = 0, cache = null;
 
@@ -20,14 +35,26 @@
     cache = Object.fromEntries(rows);
     try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch (_) {}
   }
-  const get = (id) => (id && load()[id]?.t) || "";
+  const get = (id) => (id && (isTemp(id) ? loadTemp()[id]?.t : load()[id]?.t)) || "";
+  // Returns true when the draft was stored (or removed); temp- chats go
+  // to sessionStorage, permanent chats to localStorage.
   function set(id, text) {
-    if (!id || String(id).startsWith("temp-")) return;
-    const all = load(), value = String(text || "");
+    if (!id) return false;
+    const value = String(text || "");
+    if (isTemp(id)) {
+      const all = loadTemp();
+      if (value.trim()) all[id] = { t: value, at: Date.now() };
+      else if (all[id]) delete all[id];
+      else return false;
+      storeTemp(all);
+      return true;
+    }
+    const all = load();
     if (value.trim()) all[id] = { t: value, at: Date.now() };
     else if (all[id]) delete all[id];
-    else return;
+    else return false;
     store();
+    return true;
   }
   const clear = (id) => set(id, "");
   const chat = (id) => (typeof S !== "undefined" ? (S.chats || []).find((c) => c.id === id) : null);
@@ -59,8 +86,12 @@
       if (!text) restore(id, target);
     } else if (fresh && !get(id)) {
 
-      clear(lastId);
-      if (text.trim()) set(id, text);
+      // B-CHAT-M4: save the outgoing draft BEFORE clearing the old
+      // one — the old code cleared first, and set() silently dropped
+      // temp- targets, so switching from a temp chat to a fresh chat
+      // lost the text. Clearing the previous draft only after a
+      // successful save keeps the text if the save fails.
+      if (text.trim() && set(id, text)) clear(lastId);
     } else {
       set(lastId, text);
       restore(id, target);

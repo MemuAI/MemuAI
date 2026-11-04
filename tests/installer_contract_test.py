@@ -233,6 +233,7 @@ class ProxyOnlyInstallerContractTest(unittest.TestCase):
         self.assertNotIn("Чат MemuAI", (kb / "overview.md").read_text(encoding="utf-8"))
         self.assertIn("MemuAI Proxy", (ui / "index.html").read_text(encoding="utf-8"))
 
+    @unittest.skipUnless(sys.platform == "win32", "APPDATA-based data dir is Windows-only; POSIX uses ~/.local/share")
     def test_standalone_data_directory_is_separate(self) -> None:
         with patch.dict(os.environ, {"APPDATA": str(ROOT / "test-appdata")}, clear=True):
             proxy_only.configure_edition()

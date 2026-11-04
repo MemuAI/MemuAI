@@ -366,7 +366,15 @@ const Connect = (() => {
     const tr = Player.current(), tm = Player.times();
     return { track_id: tr ? tr.id : "", position: Math.round(tm.cur * 10) / 10, playing: st.playing,
       queue: st.order.map((i) => st.queue[i] && st.queue[i].id).filter(Boolean).slice(0, 1000), index: st.index, volume: st.volume,
-      shuffle: st.shuffle, repeat: st.repeat, device: "pc", device_name: "MemuMusic", duration: tm.dur, context: { name: st.from || "" }, speed: st.speed, at: Date.now() };
+      shuffle: st.shuffle, repeat: st.repeat, device: "pc", device_name: "MemuMusic", duration: tm.dur, context: { name: st.from || "" }, speed: st.speed, at: Date.now(),
+      track: streamedMeta(tr) };
+  }
+  /* A streamed track («Listen» without downloading) has no library row, so the mini-player
+   * and remotes could only show «Track»: its title, artist and cover travel with the state. */
+  function streamedMeta(tr) {
+    if (!tr || !String(tr.id || "").startsWith("online:")) return null;
+    const cover = typeof tr.cover === "string" && /^https?:\/\//i.test(tr.cover) ? tr.cover : "";
+    return { id: tr.id, title: tr.title || "", artist: tr.artist || "", album: tr.album || "", cover, duration: tr.duration || 0, accent: tr.accent || "", online_url: tr.online_url || "" };
   }
 
   function report(now) { if (API.mocked) return; clearTimeout(timer); timer = setTimeout(send, now === true ? 0 : 400); }

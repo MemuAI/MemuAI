@@ -13,7 +13,7 @@ The bot is your MemuAI in Telegram: the same chats, models, profiles and agents 
 ## Connect in a minute
 
 1. In Telegram open **@BotFather**, send `/newbot` and follow the prompts. At the end it gives you a **bot token**.
-2. In MemuAI: **Settings → Telegram**, paste the token into step **1**. The bot's name appears under the field — the token is valid.
+2. In MemuAI: **Settings → Messengers → Telegram**, paste the token into step **1**. The bot's name appears under the field — the token is valid.
 3. Press **Connect Telegram** (step **2**). A QR code and a code like `K7QM-3XRP` appear.
 4. Scan the QR with your phone camera (or press **Open in Telegram**) and tap **Start** — the bot pairs itself. You can also just send the code to the bot.
 
@@ -77,7 +77,7 @@ The Telegram command menu lists the main ones: `/new /chats /models /menu /temp 
 
 ## Settings
 
-**Settings → Telegram** (some can also be changed in the bot: `/settings` — tap an item and pick a value). Changes made in the bot or the Mini App show up in an open MemuAI window right away — no restart needed.
+**Settings → Messengers → Telegram** (some can also be changed in the bot: `/settings` — tap an item and pick a value). Changes made in the bot or the Mini App show up in an open MemuAI window right away — no restart needed.
 
 | Setting | Meaning |
 | --- | --- |

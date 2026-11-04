@@ -28,7 +28,7 @@ const fixture = JSON.stringify({ data: [
 const nodes = {};
 const el = () => ({ innerHTML: "", textContent: "", hidden: true, dataset: {}, checked: false, scrollTop: 0, value: "",
   classList: { toggle() {} }, setAttribute() {},
-  addEventListener() {}, focus() {}, setSelectionRange() {}, querySelector: () => ({ focus() {} }) });
+  addEventListener() {}, focus() {}, setSelectionRange() {}, querySelector: () => ({ focus() {} }), querySelectorAll: () => [] });
 const saves = [];
 const ctx = {
   console, setTimeout, clearTimeout, Date, Math, JSON, Promise, Set, Map, Number, String, Array, Object, Infinity,

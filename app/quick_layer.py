@@ -205,8 +205,9 @@ class ScreenLayer:
                 return False
             self._style(dark)
             try:
-                from .desktop import grant_local_permissions
+                from .desktop import apply_webview_memory_policy, grant_local_permissions
                 grant_local_permissions(form, self.manager.base_url)
+                apply_webview_memory_policy(form)
             except Exception:
                 pass
             self._loaded.wait(10)

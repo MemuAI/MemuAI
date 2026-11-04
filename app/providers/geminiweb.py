@@ -894,6 +894,11 @@ class GeminiWebProvider(Provider):
         Вошедшему начало ответа придерживается, пока текст короче proto.CANNED_MAX_LEN: короткая служебная
         заглушка («Я всего лишь языковая модель») — признак неверного режима, это ошибка, а не ответ."""
         held: List[Dict[str, Any]] = []
+        held_chars = 0
+        # F29: hold=True used to accumulate the whole reply before yielding
+        # anything. A reply over 64 KiB is genuine content, not the canned
+        # stub this hold exists to detect — release it instead.
+        _HELD_MAX_CHARS = 64 * 1024
         parser = proto.FrameParser()
         sent_text = sent_thoughts = ""
         images: List[str] = []
@@ -904,7 +909,7 @@ class GeminiWebProvider(Provider):
         idle = config_store.settings.stream_idle_timeout
 
         def take(snap: proto.Snapshot) -> None:
-            nonlocal sent_text, sent_thoughts, saw_payload
+            nonlocal sent_text, sent_thoughts, saw_payload, held_chars
             if snap.cid and snap.cid not in cids:
                 cids.append(snap.cid)
             for item in snap.media:
@@ -915,9 +920,11 @@ class GeminiWebProvider(Provider):
             piece, sent_thoughts = proto.delta(snap.thoughts, sent_thoughts)
             if piece:
                 held.append({"type": "reasoning", "text": piece})
+                held_chars += len(piece)
             piece, sent_text = proto.delta(proto.clean_text(snap.text), sent_text)
             if piece:
                 held.append({"type": "text", "text": piece})
+                held_chars += len(piece)
 
         try:
             async for line in http.aiter_lines_str(resp, idle_timeout=idle):
@@ -936,6 +943,14 @@ class GeminiWebProvider(Provider):
                     for item in held:
                         yield item
                     held.clear()
+                    held_chars = 0
+                elif held_chars > _HELD_MAX_CHARS:
+                    # F29: release early — this is real content, not the stub.
+                    released = True
+                    for item in held:
+                        yield item
+                    held.clear()
+                    held_chars = 0
             for event in self._events(parser.flush(), images):
                 if event[0] == "error":
                     self._raise_code(event[1], "" if not released else sent_text, self._known_reset(account))

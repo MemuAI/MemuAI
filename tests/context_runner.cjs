@@ -12,6 +12,8 @@ const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
 const video = fs.readFileSync(path.join(root, "video.js"), "utf8");
 const from = app.indexOf("function imageTokenEstimate(");
 const to = app.indexOf("function modelSeesImages(", from);
+const lastFrom = app.indexOf("function lastContextRequest(");
+const lastTo = app.indexOf("function showContextPanel(", lastFrom);
 if (from < 0 || to < 0) {
   process.stdout.write(JSON.stringify({ error: "context functions not found in app.js" }) + "\n");
   process.exit(0);
@@ -52,12 +54,19 @@ const harness = `
   const S = { currentId: "c1", mode: "chat", messages: [], contextSummary: "", contextSummaryThrough: 0, models: [] };
   const modelSeesImages = (id) => !/text-only/.test(id);
   const buildSystemPrompt = () => "S".repeat(3800);            // ≈ 1000 tokens
+  const captureChatSource = () => S;
+  const isProjectMode = () => false;
+  const activeChatProfileId = () => "default";
+  const budgetedProfileBlock = () => "";
   const integrationsPromptBlock = () => "";
   const memePromptBlock = () => "";
-  const activeMeme = () => null;
+  const requestWebSettings = () => ({});
+  const requestWebPrompt = () => "";
+  const chatTitlePrompt = () => "";
   ${contextSource}
   ${video.replace('"use strict";', "")}
   ${app.slice(from, to)}
+  ${app.slice(lastFrom, lastTo)}
 
   const out = {};
   const C = MemuContext;
@@ -99,7 +108,7 @@ const harness = `
     { role: "assistant", content: "c".repeat(38) },
   ];
   const whole = contextTokenTotals();
-  out.chat = { system: whole.system, images: whole.images, imageCount: whole.imageCount, measured: whole.measured,
+  out.chat = { system: whole.system, images: whole.images, imageCount: whole.imageCount,
     total: whole.total, sums: whole.total === whole.system + whole.summary + whole.messages + whole.images };
   out.reasoningIgnored = messageTokenParts(S.messages[1]).text;
   out.video = messageTokenParts(S.messages[2]);
@@ -121,19 +130,18 @@ const harness = `
     firstImageGone: compressed.imageCount === whole.imageCount - 1 };
   S.contextSummary = ""; S.contextSummaryThrough = 0;
 
-  // ---- the provider's own count wins, and what was added afterwards is put on top
-  S.messages[3].ctx = { sent: 5000, real: 9000, index: 3, model, through: 0, own: 0 };
-  const measured = contextTokenTotals();
-  out.measured = { flag: measured.measured, total: measured.total };
+  // ---- provider counts describe a completed request, independently of future estimates
+  S.messages[3].ctx = { sent: 5000, real: 9000, model };
+  out.measured = { label: contextRequestLabel(lastContextRequest(), String), unchanged: contextTokenTotals().total === whole.total };
   S.messages.push({ role: "user", content: "a".repeat(380) });
-  out.measuredPlusNew = contextTokenTotals().total - measured.total;
-  S.messages[3].ctx = { sent: 5000, index: 3, model, through: 0, own: 0 };
-  const sentOnly = contextTokenTotals();
-  out.sentOnly = { flag: sentOnly.measured, total: sentOnly.total };
-  S.messages[3].ctx = { sent: 5000, real: 9000, index: 3, model: "another-model", through: 0, own: 0 };
-  out.otherModel = contextTokenTotals().measured;
-  S.messages[3].ctx = { sent: 5000, real: 9000, index: 1, model, through: 0, own: 0 };
-  out.movedMessage = contextTokenTotals().measured;
+  out.measuredPlusNew = contextTokenTotals().total - whole.total;
+  S.messages[3].ctx = { sent: 5000, model };
+  out.sentOnly = contextRequestLabel(lastContextRequest(), String);
+  prefs.context_count_images = false;
+  out.imagesOffLast = contextRequestLabel(lastContextRequest(), String);
+  prefs.context_count_images = true;
+  S.messages[3].ctx = { sent: 5000, real: 9000, model: "another-model" };
+  out.otherModel = lastContextRequest();
 
   // ---- reports of tools for earlier questions are not resent
   S.messages = [
@@ -146,7 +154,7 @@ const harness = `
   __done(out);
 `;
 const IMAGES = { png: png(1920, 1080), small: png(64, 64), jpeg: jpeg(800, 600), exif: jpeg(4000, 3000, 60000), frame: jpeg(768, 432) };
-const ctx = { __done: (value) => process.stdout.write(JSON.stringify(value) + "\n"), IMAGES,
+const ctx = { __done: (value) => process.stdout.write(JSON.stringify(value) + "\n"), IMAGES, window: {},
   atob: (text) => Buffer.from(text, "base64").toString("latin1"), console };
 vm.createContext(ctx);
 try {

@@ -1,0 +1,249 @@
+/* Notebook — an editorial notebook: warm paper, book serif for the conversation,
+   hairline rules instead of boxes, margin-note user messages. */
+@font-face {
+  font-family: "Notebook Serif";
+  src: url("fonts/source-serif-4/SourceSerif4-Variable.woff2") format("woff2");
+  font-weight: 300 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Notebook Serif";
+  src: url("fonts/source-serif-4/SourceSerif4-Italic-Variable.woff2") format("woff2");
+  font-weight: 300 700; font-style: italic; font-display: swap;
+}
+@font-face { font-family: "Notebook Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("fonts/inter/inter-latin-wght.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Notebook Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("fonts/inter/inter-cyrillic-wght.woff2") format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+:root[data-design="notebook"] {
+  --p-serif: "Notebook Serif", "Source Serif 4", Georgia, Cambria, "Times New Roman", serif;
+  --p-sans: "Notebook Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --d-display: var(--p-serif); --d-text: var(--p-sans); --d-small: var(--p-sans); --sans: var(--p-sans);
+  /* dark mode: ink-blue night paper */
+  --p-paper: color-mix(in srgb, var(--bg) 80%, #31291e);
+  --p-desk: color-mix(in srgb, var(--bg-deep) 82%, #1d1812);
+  --p-card: color-mix(in srgb, var(--panel) 84%, #352c20);
+  --p-rule: color-mix(in srgb, var(--text) 13%, transparent);
+  --p-rule-strong: color-mix(in srgb, var(--text) 24%, transparent);
+  --p-ink: var(--text);
+  --p-note: color-mix(in srgb, var(--accent) 9%, var(--p-paper));
+  --p-mark: color-mix(in srgb, var(--accent) 26%, transparent);
+  --p-shadow: 0 1px 0 color-mix(in srgb, #000 30%, transparent), 0 12px 30px -18px rgba(0, 0, 0, .55);
+
+  --chrome: var(--p-desk); --canvas: var(--p-paper);
+  --canvas-line: var(--p-rule);
+  --d-line: var(--p-rule); --d-line-soft: color-mix(in srgb, var(--text) 7%, transparent);
+  --d-hover: color-mix(in srgb, var(--text) 6%, transparent); --d-press: color-mix(in srgb, var(--text) 10%, transparent);
+  --d-selected: var(--p-note);
+  --d-glass: var(--p-card);
+  --d-pop-shadow: var(--p-shadow);
+  --d-lift: none;
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 10px; --r-xl: 12px; --r-2xl: 14px;
+  --hover: var(--d-hover);
+  --composer-bg: var(--p-card);
+  --composer-shadow: var(--p-shadow);
+  --user-bubble: var(--p-note);
+  --code-bg: color-mix(in srgb, var(--p-card) 82%, var(--bg-deep));
+  --code-header: color-mix(in srgb, var(--p-card) 70%, var(--bg-deep));
+  --scroll-thumb: var(--p-rule-strong);
+}
+:root[data-design="notebook"][data-theme="light"] {
+  --p-paper: color-mix(in srgb, var(--bg) 70%, #f6efe0);
+  --p-desk: color-mix(in srgb, var(--bg-deep) 62%, #ece3cf);
+  --p-card: color-mix(in srgb, var(--panel) 76%, #fbf6ea);
+  --p-rule: color-mix(in srgb, #5b4a2e 20%, transparent);
+  --p-rule-strong: color-mix(in srgb, #5b4a2e 34%, transparent);
+  --p-ink: color-mix(in srgb, var(--text) 88%, #3a2a12);
+  --p-note: color-mix(in srgb, var(--accent) 8%, #fbf6ea);
+  --p-mark: color-mix(in srgb, #f4d35e 55%, transparent);
+  --p-shadow: 0 1px 0 color-mix(in srgb, #5b4a2e 16%, transparent), 0 14px 30px -20px rgba(70, 50, 20, .35);
+  --d-hover: color-mix(in srgb, #5b4a2e 7%, transparent); --d-press: color-mix(in srgb, #5b4a2e 12%, transparent);
+  --code-bg: color-mix(in srgb, var(--p-card) 80%, #e9dfc8);
+  --code-header: color-mix(in srgb, var(--p-card) 64%, #e2d6bb);
+}
+:root[data-design="notebook"] body { background: var(--p-desk); font-family: var(--p-sans); color: var(--p-ink); }
+:root[data-design="notebook"] #app { background: var(--p-desk); }
+:root[data-design="notebook"] :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 80%, transparent); outline-offset: 2px; }
+:root[data-design="notebook"] :is(textarea, .pinput, .ptexta, input):focus-visible { outline: none; }
+:root[data-design="notebook"] ::selection { background: var(--p-mark); color: inherit; }
+:root[data-design="notebook"] #startup-cover { background: var(--p-paper); }
+:root[data-design="notebook"] .startup-mark { border-radius: 8px; }
+
+/* ---- frame ---- */
+:root[data-design="notebook"] .main {
+  margin: 10px 10px 10px 0; border-radius: 6px; border: 1px solid var(--p-rule); background: var(--p-paper);
+  box-shadow: var(--p-shadow);
+}
+/* the red margin rule of a school notebook, only behind the conversation */
+:root[data-design="notebook"] .chat {
+  background-image: linear-gradient(color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent) 30%, transparent));
+  background-size: 1px 100%; background-position: 46px 0; background-repeat: no-repeat;
+}
+:root[data-design="notebook"] .side.hidden ~ .main, :root[data-design="notebook"] .focus-mode .main { margin-left: 10px; }
+:root[data-design="notebook"] .side { padding: 14px 10px 12px 14px; }
+:root[data-design="notebook"] .brand { font: 600 19px/1 var(--p-serif); letter-spacing: -.01em; }
+:root[data-design="notebook"] :is(.brand-dot, .greet-mark, .msg-assistant .who .mini) { border-radius: 6px; box-shadow: none; }
+:root[data-design="notebook"] .btn-new {
+  border-radius: 6px; border: 1px solid var(--p-rule-strong); background: var(--p-card); color: var(--p-ink);
+  font-weight: 600; box-shadow: 0 1px 0 var(--p-rule);
+}
+:root[data-design="notebook"] .btn-new:hover { background: var(--p-note); border-color: color-mix(in srgb, var(--accent) 40%, var(--p-rule-strong)); }
+:root[data-design="notebook"] .btn-new .ico { border-radius: 4px; }
+:root[data-design="notebook"] :is(.btn-temp, .side-btn, .chat-item, .ci-more) { border-radius: 4px; }
+:root[data-design="notebook"] .mode-switch { border-radius: 6px; border: 1px solid var(--p-rule); background: transparent; padding: 3px; box-shadow: none; }
+:root[data-design="notebook"] .mode-switch .side-btn.active-section { background: var(--p-card); color: var(--p-ink); box-shadow: 0 1px 0 var(--p-rule-strong), inset 0 0 0 1px var(--p-rule); }
+:root[data-design="notebook"] .side-nav .side-btn.active-section { background: transparent; color: var(--p-ink); font-weight: 650; box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="notebook"] .side-btn:hover { background: var(--d-hover); }
+:root[data-design="notebook"] .side-label { font: italic 500 13px/1.2 var(--p-serif); letter-spacing: 0; text-transform: none; color: var(--muted); }
+:root[data-design="notebook"] .chat-item { border-bottom: 1px dotted transparent; }
+:root[data-design="notebook"] .chat-item:hover { background: var(--d-hover); }
+:root[data-design="notebook"] .chat-item.active { background: var(--p-note); color: var(--p-ink); box-shadow: inset 2px 0 0 var(--accent); font-weight: 600; }
+:root[data-design="notebook"] :is(.meme-empty, .meme-new-chat) { border-radius: 6px; border: 1px dashed var(--p-rule-strong); background: transparent; font-style: italic; font-family: var(--p-serif); }
+:root[data-design="notebook"] .profile-card { border-radius: 6px; background: transparent; border-top: 1px solid var(--p-rule); box-shadow: none; }
+:root[data-design="notebook"] .profile-avatar { border-radius: 6px; }
+
+/* ---- top bar ---- */
+:root[data-design="notebook"] .topbar.appbar { background: transparent; border-bottom: 1px solid var(--p-rule); }
+:root[data-design="notebook"] :is(.bar-icon, .iconbtn) { border-radius: 4px; }
+:root[data-design="notebook"] :is(.bar-icon, .iconbtn):hover, :root[data-design="notebook"] .bar-icon.open { background: var(--d-hover); }
+:root[data-design="notebook"] .chat-search { border-radius: 4px; background: transparent; border: 0; border-bottom: 1px solid var(--p-rule); }
+:root[data-design="notebook"] .chat-search:focus-within { border-bottom-color: var(--accent); }
+:root[data-design="notebook"] .dd-btn { border-radius: 4px; font: 600 16px/1.1 var(--p-serif); letter-spacing: 0; }
+:root[data-design="notebook"] .dd-btn:hover { background: var(--d-hover); }
+:root[data-design="notebook"] .context-meter { border-radius: 999px; background: transparent; border: 1px solid var(--p-rule); font-variant-numeric: tabular-nums; }
+
+/* ---- menus ---- */
+:root[data-design="notebook"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
+  border-radius: 6px; background: var(--p-card); border: 1px solid var(--p-rule-strong); box-shadow: var(--p-shadow);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+:root[data-design="notebook"] :is(.dd-item, .app-menu-pop button, .context-menu button, .profile-menu-pop button, .pretty-select-menu button, .msg-more-pop button, .slash-menu button, .plus-row) { border-radius: 4px; }
+:root[data-design="notebook"] :is(.dd-item:hover, .dd-item.kb, .app-menu-pop button:hover, .context-menu button:hover, .profile-menu-pop button:hover, .pretty-select-menu button:hover, .msg-more-pop button:hover, .slash-menu button:hover, .slash-menu button.active, .plus-row:hover) { background: var(--d-hover); }
+:root[data-design="notebook"] :is(.dd-item.sel, .pretty-select-menu button.selected, .plus-row.is-active) { background: var(--p-note); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="notebook"] :is(.dd-search input, .plus-search) { border-radius: 4px; background: transparent; border: 0; border-bottom: 1px solid var(--p-rule); box-shadow: none; }
+
+/* ---- home ---- */
+:root[data-design="notebook"] .greeting h1 { font: 500 clamp(2rem, 3.4vw, 2.8rem)/1.1 var(--p-serif); letter-spacing: -.015em; }
+:root[data-design="notebook"] .greeting-subtitle { font: italic 400 17px/1.4 var(--p-serif); color: var(--muted); }
+:root[data-design="notebook"] .greet-mark { border-radius: 8px; }
+:root[data-design="notebook"] .chip-sug {
+  border-radius: 999px; border: 1px solid var(--p-rule-strong); background: transparent; color: var(--p-ink);
+  font: 500 14px/1.2 var(--p-serif); box-shadow: none;
+}
+:root[data-design="notebook"] .chip-sug:hover { background: var(--p-note); border-color: color-mix(in srgb, var(--accent) 45%, var(--p-rule-strong)); }
+:root[data-design="notebook"] .chip-sug.featured { border-color: var(--accent); color: var(--accent); }
+:root[data-design="notebook"] :is(.work-guide, .temp-guide, .code-guide) { border-radius: 6px; border: 1px solid var(--p-rule); background: var(--p-card); box-shadow: none; }
+
+/* ---- composer ---- */
+:root[data-design="notebook"] .composer-wrap::before { background: linear-gradient(to bottom, transparent, var(--p-paper)); }
+:root[data-design="notebook"] .composer {
+  border-radius: 8px; border: 1px solid var(--p-rule-strong); background: var(--p-card); box-shadow: var(--p-shadow);
+}
+:root[data-design="notebook"] .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--p-rule-strong)); }
+:root[data-design="notebook"] .composer textarea {
+  font: 400 16px/28px var(--p-serif);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 27px, color-mix(in srgb, var(--accent) 14%, transparent) 27px 28px);
+  background-attachment: local;
+}
+:root[data-design="notebook"] :is(.cbtn, .attach-chip, .composer .tog, .tool-chip, .composer .image-aspect) { border-radius: 4px; }
+:root[data-design="notebook"] .plus-btn { border-radius: 4px; border: 1px solid var(--p-rule); background: transparent; }
+:root[data-design="notebook"] .send { border-radius: 6px; background: var(--p-ink); color: var(--p-paper); box-shadow: none; }
+:root[data-design="notebook"] .send:hover { filter: none; background: var(--accent); color: var(--on-accent); }
+
+/* ---- messages: user notes in the margin, the answer as a printed page ---- */
+:root[data-design="notebook"] .msg-user .bubble {
+  border-radius: 2px 8px 8px 2px; background: var(--p-note); color: var(--p-ink);
+  border: 0; box-shadow: inset 3px 0 0 var(--accent); font: italic 400 16px/1.55 var(--p-serif);
+}
+:root[data-design="notebook"] .msg-assistant .who-name { font: 600 15px/1.2 var(--p-serif); }
+:root[data-design="notebook"] .msg-assistant .body { font: 400 17px/1.72 var(--p-serif); color: var(--p-ink); }
+:root[data-design="notebook"] .msg-assistant .body :is(h1, h2, h3) { font-family: var(--p-serif); font-weight: 600; letter-spacing: -.01em; }
+:root[data-design="notebook"] .msg-assistant .body h2 { padding-bottom: 4px; border-bottom: 1px solid var(--p-rule); }
+:root[data-design="notebook"] .msg-assistant .body h3 { font-variant: small-caps; letter-spacing: .03em; }
+:root[data-design="notebook"] .msg-assistant .body strong { background: linear-gradient(transparent 62%, var(--p-mark) 62%); }
+:root[data-design="notebook"] .msg-assistant .body a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+:root[data-design="notebook"] .msg-assistant .body li::marker { color: var(--accent); }
+:root[data-design="notebook"] .msg-assistant .body hr { border: 0; text-align: center; height: auto; }
+:root[data-design="notebook"] .msg-assistant .body hr::after { content: "\2042"; color: var(--muted); font: 16px/1 var(--p-serif); }
+:root[data-design="notebook"] .msg-assistant .body :not(pre) > code,
+:root[data-design="notebook"] .msg-user .user-text :not(pre) > code { border-radius: 3px; background: color-mix(in srgb, var(--p-ink) 7%, transparent); font-size: .86em; font-style: normal; }
+:root[data-design="notebook"] .code-block-wrap { border-radius: 6px; border: 1px solid var(--p-rule); background: var(--code-bg); box-shadow: none; overflow: hidden; }
+:root[data-design="notebook"] .code-header { background: var(--code-header); border-bottom: 1px solid var(--p-rule); font-family: var(--p-sans); }
+:root[data-design="notebook"] .code-copy-btn { border-radius: 4px; }
+:root[data-design="notebook"] .table-wrap { border-radius: 0; border: 0; border-top: 2px solid var(--p-ink); border-bottom: 2px solid var(--p-ink); background: transparent; overflow: hidden; }
+:root[data-design="notebook"] :is(.table-wrap th, .body th) { background: transparent; font: 600 14px/1.3 var(--p-sans); border-bottom: 1px solid var(--p-ink); text-transform: none; }
+:root[data-design="notebook"] :is(.table-wrap td, .body td) { border-color: var(--p-rule); font-family: var(--p-serif); }
+:root[data-design="notebook"] :is(.body, .user-text) blockquote {
+  border-left-width: 2px !important; border-radius: 0 !important; background: transparent !important;
+  font-style: italic !important; padding: 2px 18px !important; color: color-mix(in srgb, var(--p-ink) 84%, var(--muted)) !important;
+}
+:root[data-design="notebook"] :is(.trail, .rs-card, .file-pill, .continue-strip, .msg-video, .msg-tool) { border-radius: 6px; }
+:root[data-design="notebook"] :is(.rs-card, .file-pill, .continue-strip) { border: 1px solid var(--p-rule); background: var(--p-card); }
+:root[data-design="notebook"] .imgwrap img { border-radius: 2px; border: 6px solid var(--p-card); box-shadow: var(--p-shadow); }
+:root[data-design="notebook"] .msg-actions button { border-radius: 4px; }
+:root[data-design="notebook"] .msg-actions button:hover { background: var(--d-hover); }
+:root[data-design="notebook"] .jump-latest { border-radius: 999px; background: var(--p-card); border: 1px solid var(--p-rule-strong); box-shadow: var(--p-shadow); }
+
+/* ---- settings & panels ---- */
+:root[data-design="notebook"] .panel-back { background: color-mix(in srgb, #1b1408 42%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-design="notebook"] .panel { border-radius: 8px; border: 1px solid var(--p-rule-strong); background: var(--p-paper); box-shadow: var(--p-shadow); }
+:root[data-design="notebook"] .settings-header { border-bottom: 1px solid var(--p-rule); background: transparent; }
+:root[data-design="notebook"] .settings-header h2, :root[data-design="notebook"] .settings-title { font-family: var(--p-serif); font-weight: 600; }
+:root[data-design="notebook"] .panel-close { border-radius: 4px; }
+:root[data-design="notebook"] .settings-tabs-sidebar { background: transparent; border-right: 1px solid var(--p-rule); }
+:root[data-design="notebook"] .settings-tab-btn { border-radius: 4px; }
+:root[data-design="notebook"] .settings-tab-btn:hover { background: var(--d-hover); }
+:root[data-design="notebook"] .settings-tab-btn.active { background: var(--p-note); color: var(--p-ink); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="notebook"] .settings-section { border-radius: 6px; }
+:root[data-design="notebook"] :is(.pinput, .ptexta, .pretty-select-button) { border-radius: 4px; background: var(--p-card); border: 1px solid var(--p-rule-strong); box-shadow: none; }
+:root[data-design="notebook"] :is(.pinput, .ptexta):focus { border-color: var(--accent); box-shadow: 0 1px 0 var(--accent); }
+:root[data-design="notebook"] .pbtn { border-radius: 4px; background: var(--p-ink); color: var(--p-paper); border: 1px solid var(--p-ink); box-shadow: none; font-weight: 600; }
+:root[data-design="notebook"] .pbtn:hover { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+:root[data-design="notebook"] .pbtn.ghost { background: transparent; color: var(--p-ink); border-color: var(--p-rule-strong); }
+:root[data-design="notebook"] .pbtn.ghost:hover { background: var(--d-hover); color: var(--p-ink); }
+:root[data-design="notebook"] .pbtn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+:root[data-design="notebook"] .hintbox { border-radius: 4px; background: var(--p-note); border: 0; box-shadow: inset 3px 0 0 var(--accent); font-family: var(--p-serif); }
+:root[data-design="notebook"] .switch .sl { box-shadow: inset 0 0 0 1px var(--p-rule-strong); }
+:root[data-design="notebook"] .toast { border-radius: 6px; background: var(--p-card); border: 1px solid var(--p-rule-strong); box-shadow: var(--p-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; font-family: var(--p-serif); }
+:root[data-design="notebook"] .memu-tooltip { border-radius: 4px; }
+:root[data-design="notebook"] .module-window { border-radius: 8px; border: 1px solid var(--p-rule-strong); background: var(--p-paper); box-shadow: var(--p-shadow); }
+:root[data-design="notebook"] .module-window-bar { border-bottom: 1px solid var(--p-rule); background: var(--p-card); font-family: var(--p-serif); }
+:root[data-design="notebook"] :is(.module-card, .module-taskbar) { border-radius: 6px; border: 1px solid var(--p-rule); background: var(--p-card); box-shadow: none; }
+:root[data-design="notebook"] .mp-card { --mp-r: 6px; border: 1px solid var(--p-rule); background: var(--p-card); box-shadow: 0 1px 0 var(--p-rule); }
+:root[data-design="notebook"] .mp-card[data-mode="home"]:hover { border-color: var(--p-rule-strong); box-shadow: var(--p-shadow); }
+:root[data-design="notebook"] .mp-card :is(h2, h3, .mp-title) { font-family: var(--p-serif); }
+:root[data-design="notebook"] .mp-chip { border-radius: 999px; border: 1px solid var(--p-rule); }
+:root[data-design="notebook"] :is(.mp-menu, .mp-modal) { border-radius: 6px; border: 1px solid var(--p-rule-strong); box-shadow: var(--p-shadow); }
+:root[data-design="notebook"] :is(.docs-search, .docs-find) { border-radius: 4px; border: 1px solid var(--p-rule); background: var(--p-card); }
+:root[data-design="notebook"] :is(.docs-page-link, .docs-group-head, .docs-result) { border-radius: 4px; }
+:root[data-design="notebook"] .docs-page-link.active { background: var(--p-note); box-shadow: inset 2px 0 0 var(--accent); color: var(--p-ink); }
+:root[data-design="notebook"] .docs-article { font-family: var(--p-serif); }
+:root[data-design="notebook"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 6px; border: 1px solid var(--p-rule); }
+:root[data-design="notebook"] .live-call { border-radius: 14px; border: 1px solid var(--p-rule-strong); background: var(--p-paper); box-shadow: var(--p-shadow); }
+:root[data-design="notebook"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+:root[data-design="notebook"] ::-webkit-scrollbar-track { background: transparent; }
+:root[data-design="notebook"] ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+:root[data-design="notebook"] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 60%, var(--p-rule-strong)); background-clip: content-box; }
+:root[data-design="notebook"]:is([data-motion="reduced"], [data-motion="off"]) :is(.btn-new, .chip-sug, .send, .pbtn, .mp-card) { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="notebook"] :is(.btn-new, .chip-sug, .send, .pbtn, .mp-card) { transition: none; }
+}
+@media (max-width: 800px) {
+  :root[data-design="notebook"] .side, :root[data-design="notebook"] .side.hidden { background: var(--p-desk); border-right: 1px solid var(--p-rule); }
+  :root[data-design="notebook"] .main, :root[data-design="notebook"] .side.hidden ~ .main { margin: 6px; background-image: none; }
+  :root[data-design="notebook"] .msg-assistant .body { font-size: 16px; }
+}
+:root[data-design="notebook"] {
+  --sx-r: 6px; --sx-r-sm: 4px; --sx-font: var(--p-sans); --sx-display: var(--p-serif);
+  --sx-bg: var(--p-paper); --sx-side: var(--p-desk); --sx-card: var(--p-card); --sx-card-hover: var(--p-note);
+  --sx-line: var(--p-rule-strong); --sx-line-soft: var(--p-rule); --sx-sel: var(--p-note);
+}
+:root[data-design="notebook"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 4px; }
+:root[data-design="notebook"] .sx-shell .sx-nav .settings-tab-btn.active { background: var(--p-note); color: var(--p-ink); box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="notebook"] .sx-nav-label { font: italic 500 13px/1.2 var(--p-serif); text-transform: none; letter-spacing: 0; }
+:root[data-design="notebook"] .sx-card { border: 1px solid var(--p-rule); box-shadow: none; }
+:root[data-design="notebook"] .sx-shell .sx-page-title { font-family: var(--p-serif); font-weight: 600; letter-spacing: -.01em; }
+:root[data-design="notebook"] .sx-shell .sx-section-title { font: italic 600 15px/1.3 var(--p-serif); text-transform: none; letter-spacing: 0; }
+:root[data-design="notebook"] :is(.sx-search, .sx-seg) { border: 1px solid var(--p-rule-strong); border-radius: 6px; }
+:root[data-design="notebook"] :is(.sx-page-icon, .sx-link-icon, .sx-result-icon) { border-radius: 4px; }

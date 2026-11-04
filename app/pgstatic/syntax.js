@@ -481,6 +481,20 @@ const MemuSyntax = (() => {
     return !!(RENDER[name] || LANGS[name]);
   }
 
-  return { highlight, highlightLine, supports, langOf };
+  // Line by line with the state kept between calls, for code that arrives a line at a time.
+  function lineHighlighter(lang) {
+    const name = langOf(lang);
+    if (!RENDER[name] && !LANGS[name]) return null;
+    const state = {};
+    const run = (line, current) => {
+      try { return highlightOne(String(line), name, current); } catch (error) { return escapeHtml(line); }
+    };
+    // next(line) moves on to the following line; next.peek(line) shows a line that may still grow.
+    const next = (line) => run(line, state);
+    next.peek = (line) => run(line, typeof structuredClone === "function" ? structuredClone(state) : JSON.parse(JSON.stringify(state)));
+    return next;
+  }
+
+  return { highlight, highlightLine, supports, langOf, lineHighlighter };
 })();
 window.MemuSyntax = MemuSyntax;

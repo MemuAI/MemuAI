@@ -556,10 +556,16 @@ class StaticUiTest(unittest.TestCase):
         minimize = js.split("minimize: '")[1].split("'")[0]
         self.assertNotIn("M12 4v10M7.5 9.5", minimize)
         self.assertNotIn(download.split('d="')[1].split('"')[0], minimize)
-        self.assertIn('class="module-ctl-text"', js)
-        self.assertIn("mhb-min-text", js)
+        # Collapse controls are icon-only chevrons now: no text pills in the header.
+        self.assertIn('class="module-task-restore"', js)
+        self.assertIn("CTRL_ICONS.restore", js)
+        self.assertNotIn("module-ctl-text", js)
+        self.assertNotIn("mhb-min-text", js)
+        self.assertNotIn("mhb-close-text", js)
         css = (STATIC / "modules.css").read_text(encoding="utf-8")
-        self.assertIn(".module-window-tools .module-ctl-text { display: inline; }", css)
+        self.assertIn(".module-task-restore", css)
+        self.assertNotIn(".module-task-badge", css)
+        self.assertNotIn(".module-ctl-text", css)
 
     def test_module_app_hooks(self):
         js = (STATIC / "modules.js").read_text(encoding="utf-8")
@@ -780,7 +786,7 @@ class BrowserTest(unittest.TestCase):
         self.assertFalse(page.evaluate("() => MemuModuleApps.isDetached('translator')"))
         mgr.destroy_all()
 
-    def test_minimize_button_is_labelled(self):
+    def test_minimize_button_is_icon_only(self):
         page = self.page(size=(1366, 768), lang="ru")
         page.evaluate("() => { MemuModules.closeAll(); return MemuModules.open('translator'); }")
         self.wait(page, "MemuModules.openIds.includes('translator')")
@@ -788,13 +794,17 @@ class BrowserTest(unittest.TestCase):
         page.evaluate("""() => { const w = document.querySelector('.module-window[data-module="translator"]'); if (w.dataset.full === '1') w.querySelector('[data-win="full"]').click(); }""")
         page.wait_for_timeout(600)
         floating = page.evaluate("""() => { const b = document.querySelector('.module-window[data-module="translator"] [data-win="min"]');
-          const word = b.querySelector('.module-ctl-text'); return { text: word && word.getClientRects().length ? word.textContent : '', title: b.title }; }""")
-        self.assertEqual(floating["text"], "Свернуть")
+          return { text: b.innerText.trim(), title: b.title, icon: !!b.querySelector('svg') }; }""")
+        self.assertEqual(floating["text"], "")
+        self.assertTrue(floating["icon"])
+        self.assertIn("Свернуть модуль", floating["title"])
         page.evaluate("() => MemuModules.snap('translator', 'max')")
         page.wait_for_timeout(700)
-        head = page.evaluate("""() => { const b = document.querySelector('#module-headbar [data-mhb="min"] .mhb-min-text');
-          return b && b.getClientRects().length ? b.textContent : ''; }""")
-        self.assertEqual(head, "Свернуть")
+        head = page.evaluate("""() => { const b = document.querySelector('#module-headbar [data-mhb="min"]');
+          return { text: b.innerText.trim(), title: b.title, icon: !!b.querySelector('svg') }; }""")
+        self.assertEqual(head["text"], "")
+        self.assertTrue(head["icon"])
+        self.assertIn("Свернуть модуль", head["title"])
         page.evaluate("() => MemuModules.closeAll()")
 
 if __name__ == "__main__":

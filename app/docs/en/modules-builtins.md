@@ -1,11 +1,11 @@
 ---
 title: Built-in modules
-summary: Translator, Studio, Design, Benchmarks, Model catalog, Characters, MemuMusic, MemuLearn and MemuDB: what they do and how they work inside.
+summary: Translator, Studio, Design, Benchmarks, Model catalog, Characters, MemuMusic, MemuLearn, MemuDB, MemuMeet and MemuUtils: what they do and how they work inside.
 ---
 
 # Built-in modules
 
-Ten modules ship with MemuAI and are **disabled by default**. They use the same bridge as your code and hide no capabilities.
+Twelve modules ship with MemuAI and are **disabled by default**. They use the same bridge as your code and hide no capabilities.
 
 ## Translator
 
@@ -180,3 +180,38 @@ The module needs `learn`, `chat`, `models`, `storage`, `download`, `notify`. Mem
 ## MemuDB
 
 A local database workbench for SQLite databases and DuckDB analytical files with a schema explorer, SQL editor and AI assistant. See [MemuDB](doc:memudb). The module needs `database`, `models` and `storage` — see [Module permissions](doc:modules-permissions).
+
+## MemuMeet
+
+Meeting and call recording: the microphone, system audio or an imported recording. The transcript comes from the speech recognition chosen in the Live settings, and the model turns it into a summary, decisions and tasks. The module needs the `chat`, `media`, `models`, `storage`, `clipboard`, `download` permissions — see [Module permissions](doc:modules-permissions).
+
+## MemuUtils
+
+More than two hundred small utilities in one window. Almost all of them run as code right on this PC; only the network ones go online (DNS, WHOIS, website check, speed test, exchange rates), and the six marked "(AI)" send a request to the chosen model.
+
+| Section | For example |
+| --- | --- |
+| Text, formatting | change case, find and replace, fix keyboard layout, typographer, compare two texts; JSON, XML, HTML, CSS, SQL |
+| Encoding, developer | Base64, URL encoding, hashes, JWT, HMAC; cron, chmod, regex tester, curl → code |
+| Validation, conversions | email, card number, IBAN, Russian INN and SNILS, password strength; units, number bases, time zones, colors |
+| Generators | UUID, passwords, fake test data, QR code, barcode, palette, dummy file |
+| Images | converter, resize, compress, remove EXIF, watermark, favicon, collage, animation from images, images → PDF |
+| Audio, video | converters, trim, volume, join, audio from video, video → GIF, compress video to a size |
+| PDF, documents | merge, split, password, text and images from a PDF; document converter, Markdown → Word and PDF |
+| Tables and data | table converter, SQL over files, pivot table, compare JSON |
+| Network, system | DNS, ping, ports, speed test; disks, big files, duplicates, processes, startup programs, Windows tweaks, auto-clicker |
+| With AI | text from a photo, regex or SQL from a description, explain code or an error, rewrite text |
+
+Search finds a utility by name; there are "Favorites" and "Recent" sections, and the list opens with the "Most useful" picks. Some utilities update the result as you type, and many offer "Examples" under the input. While a utility is working you can open another one: the result waits in its place, and the status line tells you when it is ready. Finished files are saved to `Downloads/MemuAI/MemuUtils`. Utilities that change the system or files (end a process, temp files cleanup, Windows tweaks, the hosts file) ask for confirmation first; some system utilities exist only on Windows. The auto-clicker, auto-type and "Keep awake" run in the background — see and stop them under "Background jobs".
+
+### Utilities in the chat
+
+The model in the MemuAI chat can call a utility by itself: convert an attached file, compute a hash, make a QR code, compress a PDF. The result and files arrive as a card in the answer.
+
+To save tokens you decide which utilities the model may use — in the **AI access** section of the MemuUtils window. By default the model gets none and its prompt does not grow: turn on whole sections or single utilities, or take a preset — "Recommended" (converters, validators and generators), "All" or "None". The same section has the master switch "The AI uses utilities", search, the "Allowed only" filter and an estimate of how many tokens the list adds. Each allowed utility is one line in the model's prompt, and the list is added only to requests that look like work with files, formats or utilities; the "What the AI sees" block shows that text in full. Utilities that need the mouse, the keyboard or saved passwords (auto-clicker, auto-type, Wi-Fi passwords) work only in the window.
+
+### Tasks in Planning
+
+In **Planning** MemuUtils has six ready-made tasks, all off until you turn them on: a daily check of free drive space (a warning when less than 10% or 5 GB is free), a report on the results folder — weekly or when it grows past 1 GB, weekly SHA-256 checksums of the results compared with the previous run, a backup of the MemuUtils settings (favorites, model, the AI access choice) and a report on which utilities the AI may use. The tasks only read your files and delete nothing; checksum lists and settings copies are saved to `Downloads/MemuAI/Modules/MemuUtils`.
+
+The module needs the `utils`, `chat`, `models`, `storage`, `download`, `clipboard`, `notify` permissions — see [Module permissions](doc:modules-permissions). Like the other built-in modules, MemuUtils has to be enabled in the modules menu first.

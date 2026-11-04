@@ -26,6 +26,7 @@
     choice: ["Такого варианта нет", "Not one of the options"], length: ["Слишком длинное значение", "Value is too long"],
     font: ["Недопустимое имя шрифта", "Invalid font name"], url: ["Нужен локальный адрес, например http://127.0.0.1:8317", "A local address is needed, e.g. http://127.0.0.1:8317"],
     unknown_key: ["Неизвестная настройка", "Unknown setting"],
+    format: ["Неверный формат, например #3366ff", "Wrong format, for example #3366ff"],
   };
 
   function create(opts) {

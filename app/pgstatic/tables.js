@@ -605,7 +605,9 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     const sep = block.findIndex((l) => SEP_RE.test(l.trim()) && l.includes("-"));
     const rows = sep >= 0 ? block.slice(sep + 1).filter((l, k, all) => /\|[ \t]*$/.test(l) || k < all.length - 1).length : 0;
     const cols = block.length ? Math.max(1, splitRow(block[0]).length) : 0;
-    return (before ? before + "\n" : "") + "\n```memuai-table-pending\n" + rows + " " + cols + "\n```\n";
+    // The text before the table stays byte for byte as written, so a streaming view can keep what it already drew.
+    const head = before ? before + "\n" : "";
+    return head + (head && !/\n\n$/.test(head) ? "\n" : "") + "```memuai-table-pending\n" + rows + " " + cols + "\n```\n";
   }
   function pending(rows, en, cols) {
     const n = Math.max(0, +rows || 0), c = Math.max(0, +cols || 0);

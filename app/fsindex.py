@@ -652,8 +652,10 @@ class Index:
                 return iter(range(lo, hi)), []
             cands.append((hi - lo, lambda lo=lo, hi=hi: iter(range(lo, hi)), None))
         lit_terms = sorted((t for t in pos_terms if t.lits), key=lambda t: -t.lit_score())
-        np = _np()
-        numeric = [t for t in pos_terms if t.kind in ("size", "dm")] if np is not None else []
+        numeric = [t for t in pos_terms if t.kind in ("size", "dm")]
+        np = _np() if numeric and len(snap) >= 200_000 else None
+        if np is None:
+            numeric = []
         if len(lit_terms) + len(numeric) + len(cands) > 1:
             for t in lit_terms[:4]:
                 est = sum(snap.lblob.count(lit.encode("utf-8", "surrogatepass")) for lit in t.lits)
@@ -1130,7 +1132,6 @@ class Service:
                     self._thread.start()
 
     def _run_start(self) -> None:
-        _np()
         path = data_dir() / "index.bin"
         settings = get_settings()
         self.owner = claim_owner()
@@ -1465,10 +1466,42 @@ def start() -> None:
 
 def search_ex(query: str, limit: int = 200, kinds: Any = None, roots: Any = None, sort: Optional[str] = None,
               timeout: Optional[float] = None, backend: Optional[str] = None, validate: bool = True) -> Dict[str, Any]:
+    """Search filenames first, with bounded local inspection for descriptive queries."""
+    from .file_description import parse_description
+
+    text = str(query or "").strip()[:1000]
+    description = parse_description(text)
+    if not description.inspect:
+        result = _search_ex(description.base, limit, kinds, roots, sort, timeout, backend, validate)
+        result["query"] = text
+        return result
+
+    started = time.perf_counter()
+    limit = max(1, min(MAX_LIMIT, int(limit or 200)))
+    result = _search_ex(description.index_base(), MAX_LIMIT, kinds, roots, sort, timeout, backend, validate)
+    candidates = result["results"]
+    deadline = time.perf_counter() + 1.5
+    matches = []
+    examined = 0
+    for row in candidates:
+        if time.perf_counter() >= deadline or len(matches) >= limit:
+            break
+        examined += 1
+        if not row.get("is_dir") and description.matches(row["path"]):
+            matches.append(row)
+    partial = (examined < len(candidates) or result.get("partial") or result.get("capped")
+               or result.get("total", 0) > len(candidates))
+    result.update(results=matches, total=len(matches), partial=bool(partial), capped=len(matches) >= limit and bool(partial),
+                  query=text, ms=round((time.perf_counter() - started) * 1000, 2))
+    return result
+
+
+def _search_ex(query: str, limit: int, kinds: Any, roots: Any, sort: Optional[str],
+               timeout: Optional[float], backend: Optional[str], validate: bool) -> Dict[str, Any]:
     """Search; the result says which backend answered and whether the list is complete."""
     t0 = time.perf_counter()
     limit = max(1, min(MAX_LIMIT, int(limit or 200)))
-    text = str(query or "").strip()[:1000]
+    text = query
     out: Dict[str, Any] = {"results": [], "total": 0, "capped": False, "partial": False, "backend": "",
                            "ms": 0.0, "building": False, "error": "", "query": text}
     try:

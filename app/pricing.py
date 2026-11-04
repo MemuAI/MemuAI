@@ -47,8 +47,8 @@ OVERRIDES_FILE = MEMU_DIR / "pricing-overrides.json"
 SOURCE_URL = "https://openrouter.ai/api/v1/models"
 CACHE_TTL = 24 * 3600
 
-SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok"}
-PROVIDER_PREFIXES = ("genspark", "kiro", "antigravity", "geminiweb", "grok", "local", "custom")
+SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok", "zcode"}
+PROVIDER_PREFIXES = ("genspark", "kiro", "antigravity", "geminiweb", "grok", "zcode", "local", "custom")
 
 @dataclass
 class Price:

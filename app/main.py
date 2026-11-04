@@ -10,12 +10,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .admin_api import router as admin_router
 from .anthropic_api import router as anthropic_router
 from .applog import app_log
-from .config import config_store
+from .config import config_store, valid_cors_origin
 from .openai_api import router as openai_router
 from .responses_api import router as responses_router
 from .passthrough import router as passthrough_router
@@ -73,7 +74,9 @@ async def _cookie_checker() -> None:
             if provider is None:
                 continue
             try:
-                ok, message = await provider.check(acc)
+                # F29: a hung provider check used to stall the whole checker
+                # loop (and delay every later account) forever.
+                ok, message = await asyncio.wait_for(provider.check(acc), timeout=60)
                 acc.last_checked = time.time()
                 if ok is True:
                     acc.mark(ST_OK, background_ok_message(message))
@@ -99,6 +102,8 @@ def create_app() -> FastAPI:
             background.append(asyncio.create_task(_cookie_checker()))
             background.append(asyncio.create_task(scheduler_loop()))
             background.append(asyncio.create_task(telegram_loop()))
+            from .messenger_runtime import messengers_loop
+            background.append(asyncio.create_task(messengers_loop()))
             background.append(asyncio.create_task(_watchdog()))
             background.append(asyncio.create_task(background_loop()))
 
@@ -188,6 +193,27 @@ def create_app() -> FastAPI:
     app = FastAPI(title="MemuAI Proxy", version=APP_VERSION,
                   docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 
+    # F16: oversized JSON bodies are rejected before any handler reads them
+    # into memory (bare `await request.json()` used to accept any size).
+    # Multipart/form uploads are unaffected — only JSON is capped.
+    MAX_JSON_BODY_BYTES = 10 * 1024 * 1024
+
+    @app.middleware("http")
+    async def body_limit(request, call_next):
+        if request.method in ("POST", "PUT", "PATCH"):
+            length = request.headers.get("content-length")
+            content_type = request.headers.get("content-type", "")
+            if length is not None and content_type.startswith("application/json"):
+                try:
+                    size = int(length)
+                except ValueError:
+                    size = 0
+                if size > MAX_JSON_BODY_BYTES:
+                    return JSONResponse(status_code=413, content={
+                        "error": "Тело запроса слишком большое (предел 10 МБ)",
+                        "error_en": "Request body too large (limit 10 MB)"})
+        return await call_next(request)
+
     @app.middleware("http")
     async def security_headers(request, call_next):
         response = await call_next(request)
@@ -205,11 +231,21 @@ def create_app() -> FastAPI:
         return response
 
     if config_store.settings.cors_enabled:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
-            expose_headers=["*"],
-        )
+        # F15: explicit origin allow-list from settings — never "*".
+        origins = [origin for origin in config_store.settings.cors_origins
+                   if valid_cors_origin(origin)]
+        if origins:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=origins,
+                allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                allow_headers=["Authorization", "Content-Type", "X-Hub-Key",
+                               "X-Requested-With", "Accept", "Accept-Language"],
+                expose_headers=["*"],
+            )
+        else:
+            log.warning("CORS включён, но список разрешённых origin пуст — "
+                        "CORS не активирован (добавьте origin в настройки)")
 
     app.include_router(openai_router)
     app.include_router(responses_router)
@@ -246,5 +282,13 @@ def create_app() -> FastAPI:
 
     from .proxy_updates import register_proxy_update_routes
     register_proxy_update_routes(app)
+
+    from .whatsapp_bot import register as register_whatsapp
+    register_whatsapp(app)
+
+    # MCP-сервер: провайдеры и плагины Proxy для любого MCP-клиента (POST /mcp).
+    from .mcp_server import register as register_mcp_server
+    register_mcp_server(app)
+
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")
     return app

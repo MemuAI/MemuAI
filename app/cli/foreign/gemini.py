@@ -15,8 +15,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .model import (ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts, short_args,
-                    text_of, title_from)
+from .model import (MAX_READ_BYTES, ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts,
+                    short_args, text_of, title_from)
 
 KEY = "gemini"
 TITLE = "Gemini CLI"
@@ -33,7 +33,9 @@ def project_hash(folder: str) -> str:
 def _load(path: Path) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """(header, messages) of a chat file in either format."""
     try:
-        text = path.read_text(encoding="utf-8", errors="replace")
+        # F31: cap the read — a giant foreign file must not be loaded whole.
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            text = handle.read(MAX_READ_BYTES + 1)
     except OSError as exc:
         raise ReadError(str(exc)) from exc
     if path.suffix == ".json":
@@ -80,16 +82,25 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     if not base.is_dir():
         return rows
-    for project in base.iterdir():
+    try:
+        projects = list(base.iterdir())
+    except OSError:
+        return rows
+    for project in projects:
         chats = project / "chats"
         if not chats.is_dir():
             continue
         root = ""
         try:
-            root = (project / ".project_root").read_text(encoding="utf-8").strip()
+            # F33: a bad byte in .project_root used to drop the project.
+            root = (project / ".project_root").read_text(encoding="utf-8", errors="replace").strip()
         except OSError:
             pass
-        for file in list(chats.glob("session-*.json")) + list(chats.glob("session-*.jsonl")):
+        try:
+            files = list(chats.glob("session-*.json")) + list(chats.glob("session-*.jsonl"))
+        except OSError:
+            continue
+        for file in files:
             info = _info(file, root)
             if info is not None:
                 rows.append(info)

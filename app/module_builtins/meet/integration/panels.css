@@ -26,3 +26,5 @@
 .mt-tag { font-size: .74em; font-weight: 620; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
 .mt-empty { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 8px 2px; }
 .mt-empty span { color: var(--muted); font-size: .88em; line-height: 1.45; }
+.mt-tag.mt-tasks { background: color-mix(in srgb, #d9a441 18%, transparent); color: #d9a441; margin-left: 4px; }
+.mt-tag.mt-tasks::before { content: "\2713  "; }

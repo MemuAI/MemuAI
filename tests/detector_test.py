@@ -132,7 +132,8 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("claude-opus-5-5", scores)
         rows = d.specific_distribution(scores, "claude")
         self.assertEqual(rows[0]["id"], "claude-opus-5-5")
-        self.assertEqual(rows[0]["tier"], "uncertain")
+
+        self.assertEqual(rows[0]["tier"], "current")
 
     def test_specific_model_finds_nothing_on_a_family_only_answer(self) -> None:
         scores = d.score_specific_model(["I am Claude, made by Anthropic."])
@@ -145,7 +146,8 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(row["cutoff"], "2025-03")
 
         row2 = d.expected_model("genspark-claude-opus-5-5")
-        self.assertEqual(row2["cutoff"], "")
+
+        self.assertEqual(row2["cutoff"], "2026-06")
         self.assertEqual(d.expected_model("custom-gpt-5-mini")["id"], "gpt-5-mini")
         self.assertEqual(d.score_specific_model(["I am GPT-5 mini"]), {"gpt-5-mini": 2.5})
 
@@ -246,7 +248,7 @@ class RunTests(unittest.TestCase):
         async def go():
             with patch("app.model_call.complete", fake_complete):
                 started = await d.start("genspark-claude-opus-5", "full", judge)
-                for _ in range(200):
+                for _ in range(1000):  # up to 10 s: under a loaded parallel run 2 s was not always enough
                     run = d.get_run(started["id"])
                     if run["state"] != "running":
                         return run
@@ -305,7 +307,7 @@ class RunTests(unittest.TestCase):
         async def go():
             with patch("app.model_call.complete", failing):
                 started = await d.start("kiro-claude-sonnet-4-5")
-                for _ in range(200):
+                for _ in range(1000):  # up to 10 s: under a loaded parallel run 2 s was not always enough
                     run = d.get_run(started["id"])
                     if run["state"] != "running":
                         return run

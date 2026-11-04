@@ -1,0 +1,98 @@
+/* Message reactions of an agentic workspace: small emoji chips that sit on the
+   lower edge of a message bubble, a quiet "add a reaction" button that shows up
+   on hover, and a floating emoji picker. No gray fills: chips use the page
+   background with a hairline border, the user's own reaction is tinted with the
+   companion's color. */
+.rx-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  margin: -7px 0 0 10px; min-height: 0; pointer-events: none;
+}
+.rx-row > * { pointer-events: auto; }
+.rx-row.empty { height: 0; margin: 0; }
+.msg-user .rx-row { flex-basis: 100%; justify-content: flex-end; margin: -7px 12px 0 0; }
+html:root[data-te-ualign="left"] .msg-user .rx-row { justify-content: flex-start; margin: -7px 0 0 12px; }
+.msg-assistant .answer > .rx-row { margin: 6px 0 0; }
+.msg-assistant .answer > .rx-row.empty { height: auto; min-height: 26px; }
+
+.rx-chip {
+  --rx-tint: var(--companion-color, var(--accent));
+  display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 7px 0 6px; margin: 0;
+  border: 1px solid var(--d-line, var(--border)); border-radius: 999px; background: var(--bg); color: var(--text);
+  position: relative; z-index: 1; font: 600 11.5px/1 var(--sans); box-shadow: var(--d-lift, 0 1px 2px rgba(0, 0, 0, .08)); cursor: default;
+  transition: transform .14s var(--ease, ease), border-color .14s, background-color .14s;
+}
+.rx-chip .rx-e { font-size: 14px; line-height: 1; font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", var(--sans); }
+.rx-chip .rx-n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.rx-chip .rx-who { display: inline-flex; margin-left: 1px; }
+.rx-chip .rx-ava { --sz: 16px; font-size: 8px; box-shadow: 0 0 0 1.5px var(--bg); }
+.rx-chip.mine {
+  cursor: pointer; border-color: color-mix(in srgb, var(--rx-tint) 45%, var(--border));
+  background: color-mix(in srgb, var(--rx-tint) 13%, var(--bg));
+}
+.rx-chip.mine:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--rx-tint) 70%, var(--border)); }
+.rx-chip.mine:active { transform: scale(.94); }
+.rx-chip.rx-new { animation: rx-chip-in .42s cubic-bezier(.2, .9, .3, 1.35) both; }
+@keyframes rx-chip-in { 0% { opacity: 0; transform: scale(.35); } 60% { opacity: 1; transform: scale(1.18); } 100% { opacity: 1; transform: none; } }
+
+/* "Add a reaction": next to the bubble, visible while the message is hovered or focused. */
+.rx-add {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; margin: 0;
+  border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer;
+  opacity: 0; transform: scale(.85); transition: opacity .15s, transform .15s var(--ease, ease), color .15s, background-color .15s, border-color .15s;
+}
+.rx-add svg { width: 16px; height: 16px; }
+.rx-add:hover, .rx-add:focus-visible { color: var(--text); background: var(--bg); border-color: var(--d-line, var(--border)); box-shadow: var(--d-lift, none); }
+.sp-b > .rx-row .rx-add { position: absolute; z-index: 2; left: calc(100% + 6px); bottom: 4px; }
+.sp-b > .rx-row:not(.empty) .rx-add { bottom: 21px; }
+.sp-b.wide > .rx-row .rx-add { left: auto; right: 8px; bottom: 8px; background: var(--bg); }
+.sp-b.wide > .rx-row:not(.empty) .rx-add { bottom: 25px; }
+.sp-b:hover > .rx-row .rx-add, .sp-b:focus-within > .rx-row .rx-add, .sp-b.rx-open > .rx-row .rx-add,
+.msg-assistant:not(.msg-bubbles):is(:hover, :focus-within, .rx-open) .answer > .rx-row .rx-add { opacity: 1; transform: none; }
+.rx-open .rx-add { color: var(--text); background: var(--bg); border-color: var(--d-line, var(--border)); }
+@media (hover: none) { .rx-add { opacity: .55; transform: none; } }
+
+/* The picker: a pill of quick reactions that opens a full set. */
+.rx-pop {
+  position: fixed; z-index: 1300; display: flex; flex-direction: column; max-width: calc(100vw - 16px);
+  border: 1px solid var(--d-line, var(--border)); border-radius: 999px; background: var(--panel, var(--bg));
+  box-shadow: var(--d-pop-shadow, 0 12px 40px rgba(0, 0, 0, .3)); animation: rx-pop-in .2s var(--ease-out, ease-out) both;
+}
+.rx-pop[data-side="bottom"] { animation-name: rx-pop-in-down; }
+.rx-pop.expanded { border-radius: 18px; }
+@keyframes rx-pop-in { from { opacity: 0; transform: translateY(6px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes rx-pop-in-down { from { opacity: 0; transform: translateY(-6px) scale(.94); } to { opacity: 1; transform: none; } }
+.rx-quick { display: flex; align-items: center; gap: 1px; padding: 4px 5px; }
+.rx-opt {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; margin: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: pointer; font: 21px/1 "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", var(--sans);
+  transition: transform .14s cubic-bezier(.2, .9, .3, 1.4), background-color .14s;
+}
+.rx-opt:hover, .rx-opt:focus-visible { transform: scale(1.22); background: var(--d-hover, color-mix(in srgb, var(--text) 6%, transparent)); outline: none; }
+.rx-opt:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent); }
+.rx-opt:active { transform: scale(1.05); }
+.rx-opt.on { background: color-mix(in srgb, var(--companion-color, var(--accent)) 18%, transparent); }
+.rx-quick .rx-opt { animation: rx-opt-in .26s cubic-bezier(.2, .9, .3, 1.3) both; }
+.rx-quick .rx-opt:nth-child(2) { animation-delay: 18ms; }
+.rx-quick .rx-opt:nth-child(3) { animation-delay: 36ms; }
+.rx-quick .rx-opt:nth-child(4) { animation-delay: 54ms; }
+.rx-quick .rx-opt:nth-child(5) { animation-delay: 72ms; }
+.rx-quick .rx-opt:nth-child(6) { animation-delay: 90ms; }
+.rx-quick .rx-opt:nth-child(7) { animation-delay: 108ms; }
+@keyframes rx-opt-in { from { opacity: 0; transform: translateY(5px) scale(.6); } to { opacity: 1; transform: none; } }
+.rx-more {
+  display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; margin: 0 2px 0 3px; border-radius: 50%;
+  border: 1px solid var(--d-line, var(--border)); background: transparent; color: var(--muted); cursor: pointer;
+  transition: color .14s, background-color .14s, transform .18s var(--ease, ease);
+}
+.rx-more svg { width: 15px; height: 15px; }
+.rx-more:hover, .rx-more:focus-visible { color: var(--text); background: var(--d-hover, transparent); }
+.rx-more[aria-expanded="true"] { transform: rotate(45deg); color: var(--text); }
+.rx-grid { width: 316px; max-width: 100%; max-height: min(268px, 50vh); overflow-y: auto; padding: 0 8px 8px; border-top: 1px solid var(--d-line-soft, var(--border)); scrollbar-width: thin; }
+.rx-grid[hidden] { display: none; }
+.rx-sec small { display: block; margin: 9px 4px 3px; color: var(--muted); font: 600 11px/1.2 var(--sans); }
+.rx-sec-row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 1px; }
+.rx-sec-row .rx-opt { width: 100%; height: 34px; font-size: 19px; border-radius: 9px; }
+.rx-sec-row .rx-opt:hover, .rx-sec-row .rx-opt:focus-visible { transform: scale(1.14); }
+
+:root[data-motion="off"] :is(.rx-chip, .rx-pop, .rx-opt, .rx-add, .rx-more) { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { :is(.rx-chip, .rx-pop, .rx-opt, .rx-add, .rx-more) { animation: none !important; transition: none !important; } }

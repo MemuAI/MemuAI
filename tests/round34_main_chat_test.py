@@ -200,8 +200,10 @@ class WiringTest(unittest.TestCase):
             self.assertIsNotNone(match, name)
             self.assertTrue(match.group(1).strip(), name)
             if name == "app.js":
+                # E13: app.js carries a build-date suffix ("5.0-20261103"),
+                # so it must start with APP_VERSION, not equal it.
                 from app.version import APP_VERSION
-                self.assertEqual(match.group(1), APP_VERSION)
+                self.assertTrue(match.group(1).startswith(APP_VERSION), match.group(1))
 
 if __name__ == "__main__":
     unittest.main()

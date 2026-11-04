@@ -92,24 +92,34 @@
         "id": "glossary-backup",
         "title": "Резервная копия глоссария",
         "title_en": "Glossary backup",
-        "description": "Раз в неделю напомнить сохранить копию глоссария и истории переводов.",
-        "description_en": "Remind once a week to back up the glossary and the translation history.",
+        "description": "Раз в неделю глоссарий сохраняется как есть и таблицей CSV «термин — перевод».",
+        "description_en": "Once a week the glossary is saved as is and as a “term — translation” CSV.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Сохраните копию глоссария переводчика: откройте модуль «Переводчик», проверьте глоссарий и сохраните его в файл.",
-          "text_en": "translator"
-        }
+          "kind": "module",
+          "handler": "translator.glossary_backup"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 20,
+            "min": 1,
+            "max": 100
+          }
+        ]
       },
       {
         "id": "history-grown",
-        "title": "История переводов выросла",
-        "title_en": "Translation history grew",
-        "description": "Напомнить сохранить нужные переводы, когда в истории накопится много записей.",
-        "description_en": "Remind to keep the translations worth saving once the history grows long.",
+        "title": "История заполнилась → экспорт",
+        "title_en": "History is full → export",
+        "description": "Переводчик хранит 30 последних переводов; когда история заполнена, она выгружается в Markdown и CSV, пока старые не вытеснились.",
+        "description_en": "The translator keeps the last 30 translations; when the history is full it is exported to Markdown and CSV before old ones drop out.",
         "trigger": {
           "kind": "threshold",
           "metric": "items",
@@ -117,74 +127,68 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "В истории переводов уже много записей — сохраните нужные переводы и при необходимости очистите историю.",
-          "text_en": "translator"
-        }
-      },
-      {
-        "id": "daily-translator",
-        "title": "Ежедневная проверка переводов",
-        "title_en": "Daily translation check",
-        "description": "Каждый день напомнить проверить историю переводов и глоссарий.",
-        "description_en": "Remind every day to check the translation history and glossary.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 1440
+          "kind": "module",
+          "handler": "translator.history_export"
         },
-        "action": {
-          "kind": "notify",
-          "text": "Загляните в переводчик: проверьте историю переводов и глоссарий, не пора ли добавить новые термины.",
-          "text_en": "Open the translator: check the translation history and glossary, and whether new terms should be added."
-        }
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Переводов в истории",
+            "label_en": "Translations in the history",
+            "default": 30,
+            "min": 2,
+            "max": 30
+          }
+        ]
       },
       {
-        "id": "two-day-pairs",
-        "title": "Частые пары языков",
-        "title_en": "Frequent language pairs",
-        "description": "Каждые два дня попросить модель подсказать частые пары языков и термины для глоссария.",
-        "description_en": "Every two days, ask the model about the frequent language pairs and glossary terms.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 2880
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Подскажи, для каких пар языков чаще всего нужны переводы, и предложи термины, которые стоит добавить в глоссарий. Коротко, списком.",
-          "prompt_en": "Suggest which language pairs are needed most often, and which terms are worth adding to the glossary. Briefly, as a list."
-        }
-      },
-      {
-        "id": "three-day-glossary",
-        "title": "Глоссарий каждые три дня",
-        "title_en": "Glossary every three days",
-        "description": "Раз в три дня напомнить проверить и сохранить глоссарий.",
-        "description_en": "Every three days, remind to check and save the glossary.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 4320
-        },
-        "action": {
-          "kind": "notify",
-          "text": "Проверьте глоссарий: приведите в порядок термины и сохраните копию, чтобы не потерять правки.",
-          "text_en": "Check the glossary: tidy up the terms and save a copy so the edits are not lost."
-        }
-      },
-      {
-        "id": "weekly-translation-report",
-        "title": "Недельный отчёт о переводах",
-        "title_en": "Weekly translation report",
-        "description": "Раз в неделю попросить модель подвести итог переводов за неделю.",
-        "description_en": "Once a week, ask the model to round up the week's translations.",
+        "id": "weekly-history-export",
+        "title": "Еженедельный экспорт переводов",
+        "title_en": "Weekly translation export",
+        "description": "Раз в неделю история переводов — в Markdown и CSV (для памяти переводов).",
+        "description_en": "Once a week the translation history — to Markdown and CSV (for a translation memory).",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог недели переводов: частые языки, темы и термины для глоссария. Коротко, списком.",
-          "prompt_en": "Round up the week of translations: frequent languages, topics and terms for the glossary. Briefly, as a list."
-        }
+          "kind": "module",
+          "handler": "translator.history_export"
+        },
+        "settings": []
+      },
+      {
+        "id": "two-day-pairs",
+        "title": "Частые языковые пары",
+        "title_en": "Frequent language pairs",
+        "description": "Какие пары языков вы переводите чаще всего и сколько текста.",
+        "description_en": "Which language pairs you translate most and how much text.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 2880
+        },
+        "action": {
+          "kind": "module",
+          "handler": "translator.pairs_report"
+        },
+        "settings": []
+      },
+      {
+        "id": "glossary-suggest",
+        "title": "ИИ предлагает термины для глоссария",
+        "title_en": "AI suggests glossary terms",
+        "description": "Раз в неделю ИИ читает историю переводов и предлагает термины, которых нет в глоссарии.",
+        "description_en": "Once a week the AI reads the translation history and suggests terms missing from the glossary.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "translator.glossary_suggest"
+        },
+        "settings": []
       }
     ]
   }

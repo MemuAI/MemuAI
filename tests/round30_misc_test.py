@@ -173,7 +173,7 @@ class WiringTest(unittest.TestCase):
         for page in (index, quick):
             self.assertLess(page.index("/diagram-zoom.js"), page.index("/diagrams.js"))
             self.assertIn('href="/cmd-highlight.css?v=1.0-r30"', page)
-            self.assertIn('src="/cmd-highlight.js?v=1.0-r30"', page)
+            self.assertIn('src="/cmd-highlight.js?v=5.0-r79"', page)
         self.assertLess(quick.index("/quick/quick.js"), quick.index("/cmd-highlight.js"))
         app_js = (STATIC / "app.js").read_text(encoding="utf-8")
         self.assertIn("data.send && /^\\/(image|img|video)\\s+\\S/i.test", app_js)

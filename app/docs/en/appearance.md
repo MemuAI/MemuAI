@@ -73,9 +73,11 @@ Any text cut off with an ellipsis in the window works the same way — a long ch
 | Conversation width | Comfortable, Wide | the width of the message column |
 | Font scale | 85 to 125 % | the size of all interface text |
 | Compact messages | on/off | less space between messages |
-| Reduce motion | on/off | turns off transitions and fades |
+| Animations | Full, Reduced, Off | Reduced keeps short fades, Off turns off transitions and fades |
 
 "Comfortable" keeps lines to about 780 pixels, which makes long answers easier to read. "Wide" helps with tables and code.
+
+**Animations.** With Full, settings sections, skill cards and panel templates appear in a short wave, an attached file pops in with a light spring, the copy button briefly shows a check mark, and the jump-to-latest arrow nudges when new text arrives below. Reduced keeps only short fades without the nudge; Off removes animations altogether. The system “reduce motion” setting is always respected.
 
 ## Answer font
 

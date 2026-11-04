@@ -518,7 +518,7 @@ class QuickAskManager:
     def release_window(self) -> bool:
         """Close the hidden popup and its screen layer; the next ``show`` creates them again."""
         with self._create_lock, self._lock:
-            if self.visible or self._quitting or not self.hwnd:
+            if self.visible or self.pinned or self._quitting or not self.hwnd or time.monotonic() < self._busy_until:
                 return False
             layer, self.layer = getattr(self, "layer", None), None
             if layer is not None:
@@ -556,21 +556,23 @@ class QuickAskManager:
 
     def _warm(self) -> None:
         time.sleep(WARM_DELAY)
+        if self._quitting:
+            return
         try:
             prefs = self.load_prefs()
 
-            if prefs.get("quick_ask_enabled", True) and quick_warm.warm_at_start(prefs):
-                self.ensure_window()
-                if prefs.get("quick_ask_selection", True):
-                    quick_selection.warm()
-
-                if self.layer_settings()["on"]:
-                    layer = self.ensure_layer()
-                    if layer is not None and layer.available():
-                        layer.ensure_window()
-
+            if prefs.get("quick_ask_enabled", True):
                 if self.pinned and load_state().get("pinned_open"):
                     self.show("restore")
+                elif quick_warm.warm_at_start(prefs):
+                    self.ensure_window()
+                    if prefs.get("quick_ask_selection", True):
+                        quick_selection.warm()
+
+                    if self.layer_settings()["on"]:
+                        layer = self.ensure_layer()
+                        if layer is not None and layer.available():
+                            layer.ensure_window()
         except Exception as exc:
             log.warning("quick ask: warm window failed: %s", exc)
 
@@ -742,8 +744,9 @@ class QuickAskManager:
             self._created_at = time.monotonic()
             self._style_window(prefs)
             try:
-                from .desktop import grant_local_permissions
+                from .desktop import apply_webview_memory_policy, grant_local_permissions
                 grant_local_permissions(form, self.base_url)
+                apply_webview_memory_policy(form)
             except Exception:
                 pass
             ready.wait(10)

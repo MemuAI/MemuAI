@@ -16,7 +16,10 @@
 .br-switch .br-count b { color: var(--text); font-weight: 650; }
 .br-switch .br-mapbtn { margin-left: 1px; border-left: 1px solid var(--border); border-radius: 0 999px 999px 0; width: 24px; }
 .msg-tools.has-br { opacity: 1 !important; }
-.msg:not(:hover):not(:focus-within):not(:last-child) .msg-tools.has-br > :not(.br-switch):not(.msg-time) { opacity: 0; transition: opacity .18s; }
+/* The faded children are named by class: a rule ending in a bare :not() would make every hover change
+   restyle the whole subtree of the hovered element (Chrome keeps one invalidation set per pseudo-class). */
+.msg:not(:hover):not(:focus-within):not(:last-child) .msg-tools.has-br > .msg-tool:not(.msg-time),
+.msg:not(:hover):not(:focus-within):not(:last-child) .msg-tools.has-br > .msg-more:not(.msg-time) { opacity: 0; transition: opacity .18s; }
 .msg-user .msg-tools .br-switch { order: 1; margin: 0 2px 0 4px; }
 .msg-user .msg-tools.has-br .msg-time { order: 2; }
 .msg.br-flash > .bubble, .msg.br-flash .answer { animation: br-flash 1.4s ease-out; border-radius: 12px; }

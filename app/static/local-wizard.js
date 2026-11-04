@@ -36,6 +36,7 @@ window.MemuLocalWizard = (() => {
     step: 0, hw: null, runtime: null, edited: null, editing: false, loadingHw: false,
     goals: { uses: ["chat"], language: LANG === "en" ? "en" : "ru", priority: 40, context: 0, license: "any", keep_free_gb: 0, mtp: false },
     result: null, loading: false, error: "", picked: {}, installs: {}, poll: 0, expanded: new Set(), gen: 0, showMore: false,
+    sort: "best", gpuOnly: false, maxSize: 0,
   };
 
   function gb(value, digits = 1) {
@@ -279,6 +280,7 @@ window.MemuLocalWizard = (() => {
       if (S.edited) body.hardware = S.edited;
       S.result = await api("/api/admin/local/wizard/recommend", { method: "POST", body });
       S.picked = {}; S.expanded = new Set(); S.showMore = false;
+      S.quantGuide = LANG === "en" ? (S.result.quant_guide_en || S.result.quant_guide) : S.result.quant_guide;
     } catch (error) {
       S.error = errorOf(error);
     }
@@ -286,18 +288,64 @@ window.MemuLocalWizard = (() => {
     if (gen === S.gen && alive()) render();
   }
 
+  function quantNote(quant) {
+    const guide = S.quantGuide;
+    if (!guide || !guide.quants) return "";
+    const hit = guide.quants.find((q) => q.quant === quant)
+      || guide.quants.find((q) => quant && quant.startsWith(q.quant.slice(0, 2)));
+    return hit ? `${hit.title}. ${hit.text}` : "";
+  }
+
+  function guideBlock() {
+    const guide = S.quantGuide;
+    if (!guide) return "";
+    const rows = (guide.quants || []).map((q) => `<tr><th scope="row">${esc(q.quant)}</th><td><b>${esc(q.title)}</b> — ${esc(q.text)}</td><td class="muted">${esc(L(`≈${String(q.gb_per_b).replace(".", ",")} ГБ на 1 млрд параметров`, `≈${q.gb_per_b} GB per 1B params`))}</td></tr>`).join("");
+    const picks = (guide.picks || []).map((p) => `<li>${esc(p)}</li>`).join("");
+    return `<details class="lw-guide"><summary>${esc(L("Что такое квантование? Коротко", "What is quantisation? In short"))}</summary>
+      <p>${esc(guide.what)}</p>
+      <h5>${esc(L("Какой брать", "Which one to pick"))}</h5><ul>${picks}</ul>
+      <table class="lw-quant-table"><tbody>${rows}</tbody></table></details>`;
+  }
+
   function renderResult() {
-    if (S.loading) return `<div class="lw-empty"><span class="spin">◌</span> ${esc(L("Сравниваю модели, кванты и скорость на вашем железе…", "Comparing models, quants and speed on your hardware…"))}</div>`;
+    if (S.loading) return `<div class="lw-empty"><span class="spin">◌</span> ${esc(L("Сравниваю модели, кванты и скорость на вашем компьютере…", "Comparing models, quants and speed on your computer…"))}</div>`;
     if (S.error) return `<div class="warn-strip">${esc(S.error)}</div>`;
     const r = S.result;
     if (!r) return "";
-    const rows = S.showMore ? r.results.concat(r.more || []) : r.results;
-    const top = rows.length ? rows.map(card).join("") : `<div class="lw-empty">${esc(L("Под эти условия ничего не подошло. Уберите «Картинки» или «Лицензию», уменьшите контекст или выберите «Скорость».",
-      "Nothing matches these conditions. Drop “Images” or the licence condition, lower the context or move towards speed."))}</div>`;
-    const more = (r.more || []).length && !S.showMore ? `<button class="btn small lw-more" data-lw="show-more">${esc(L(`Показать ещё ${r.more.length}`, `Show ${r.more.length} more`))}</button>` : "";
+    const all = (r.results || []).concat(r.more || []);
+    const filtered = all.filter((row) => (!S.gpuOnly || row.placement === "gpu") && (!S.maxSize || (row.size || 0) <= S.maxSize));
+    const sorted = [...filtered].sort((a, b) => S.sort === "speed" ? (b.tps || 0) - (a.tps || 0)
+      : S.sort === "quality" ? (b.quality || 0) - (a.quality || 0)
+      : S.sort === "small" ? (a.size || 0) - (b.size || 0)
+      : S.sort === "big" ? (b.size || 0) - (a.size || 0)
+      : (a.rank || 0) - (b.rank || 0));
+    const shown = S.showMore ? sorted : sorted.slice(0, (r.results || []).length);
+    const emptyMsg = filtered.length < all.length
+      ? L("Под эти фильтры ничего не подошло — ослабьте их.", "Nothing matches these filters — loosen them.")
+      : L("Под эти условия ничего не подошло. Уберите «Картинки» или «Лицензию», уменьшите контекст или выберите «Скорость».",
+        "Nothing matches these conditions. Drop “Images” or the licence condition, lower the context or move towards speed.");
+    const top = shown.length ? shown.map(card).join("") : `<div class="lw-empty">${esc(emptyMsg)}</div>`;
+    const more = sorted.length > shown.length && !S.showMore ? `<button class="btn small lw-more" data-lw="show-more">${esc(L(`Показать ещё ${sorted.length - shown.length}`, `Show ${sorted.length - shown.length} more`))}</button>` : "";
+    const tools = `<div class="lw-tools">
+      <label>${esc(L("Сортировка", "Sort"))} <select id="lw-sort" aria-label="${esc(L("Сортировка", "Sort"))}">
+        <option value="best" ${S.sort === "best" ? "selected" : ""}>${esc(L("Сначала лучшие", "Best match first"))}</option>
+        <option value="speed" ${S.sort === "speed" ? "selected" : ""}>${esc(L("По скорости", "By speed"))}</option>
+        <option value="quality" ${S.sort === "quality" ? "selected" : ""}>${esc(L("По качеству", "By quality"))}</option>
+        <option value="small" ${S.sort === "small" ? "selected" : ""}>${esc(L("Сначала маленькие", "Smallest first"))}</option>
+        <option value="big" ${S.sort === "big" ? "selected" : ""}>${esc(L("Сначала большие", "Largest first"))}</option>
+      </select></label>
+      <label>${esc(L("Скачать не больше", "Download at most"))} <select id="lw-maxsize" aria-label="${esc(L("Максимальный размер скачивания", "Maximum download size"))}">
+        <option value="0" ${!S.maxSize ? "selected" : ""}>${esc(L("Любой размер", "Any size"))}</option>
+        <option value="4294967296" ${S.maxSize === 4294967296 ? "selected" : ""}>${esc(L("до 4 ГБ", "up to 4 GB"))}</option>
+        <option value="8589934592" ${S.maxSize === 8589934592 ? "selected" : ""}>${esc(L("до 8 ГБ", "up to 8 GB"))}</option>
+        <option value="17179869184" ${S.maxSize === 17179869184 ? "selected" : ""}>${esc(L("до 16 ГБ", "up to 16 GB"))}</option>
+      </select></label>
+      <label class="lm-check lw-check"><input type="checkbox" id="lw-gpuonly" ${S.gpuOnly ? "checked" : ""}><span>${esc(L("Только целиком на видеокарте", "Fully on GPU only"))}</span></label>
+    </div>`;
     const excluded = (r.excluded || []).length ? `<details class="lw-excluded"><summary>${esc(L(`Не подошли: ${r.excluded.length}`, `Ruled out: ${r.excluded.length}`))}</summary>
       <ul>${r.excluded.map((e) => `<li><b>${esc(e.name)}</b> — ${esc(L(e.reason, e.reason_en))}</li>`).join("")}</ul></details>` : "";
     return `<div class="lw-summary">${ico("sparkles")}<span>${esc(L(r.summary, r.summary_en))}</span></div>
+      ${guideBlock()}${tools}
       <div class="lw-cards">${top}</div>${more}${excluded}
       <p class="lw-hint lw-fine">${esc(L("Скорость — оценка по пропускной способности памяти (±25 %); реальная зависит от драйвера, длины разговора и нагрузки. Оценки качества — сравнительные, по опубликованным тестам моделей.",
         "Speed is an estimate from memory bandwidth (±25%); real speed depends on the driver, conversation length and load. Quality scores are comparative, from the models' published benchmarks."))}</p>`;
@@ -360,6 +408,7 @@ window.MemuLocalWizard = (() => {
           <dt>${esc(L("Контекст", "Context"))}</dt><dd>${esc(ctx(context))} <span class="muted">/ ${esc(ctx(row.ctx_max))}</span></dd>
           <dt>${esc(L("Лицензия", "Licence"))}</dt><dd>${esc(row.license_label || row.license || "—")}</dd>
         </dl>
+        ${quantNote(quant) ? `<p class="lw-quant-note">${esc(quantNote(quant))}</p>` : ""}
         <div class="lw-actions">${actions(row, inst)}</div>
         <a class="lw-hf" href="${esc(row.hf_url)}" target="_blank" rel="noopener">${esc(row.repo)} ↗</a>
       </aside>
@@ -571,6 +620,9 @@ window.MemuLocalWizard = (() => {
 
   function onChange(event) {
     const el = event.target;
+    if (el.id === "lw-sort") { S.sort = el.value; S.showMore = false; return render(); }
+    if (el.id === "lw-maxsize") { S.maxSize = Number(el.value) || 0; S.showMore = false; return render(); }
+    if (el.id === "lw-gpuonly") { S.gpuOnly = el.checked; S.showMore = false; return render(); }
     if (el.id === "lw-mtp") { S.goals.mtp = el.checked; S.result = null; renderFoot(); return; }
     if (el.dataset.lwQuant) {
       S.picked[el.dataset.lwQuant] = el.value;

@@ -639,6 +639,8 @@ class Engine:
 
         emit("registering", 94)
 
+        self._run_component_hooks(app_dir, (hook for hook in product.pre_uninstall if hook[0] not in components),
+                                  "pre-uninstall")
         for comp in product.components:
             keep = set(owned.get(comp.id, []))
             old = set(previous_entries.get(comp.id, []))
@@ -669,6 +671,8 @@ class Engine:
         path_changed = self._apply_path(app_dir, components)
         self._apply_protocols(app_dir, components)
         self._register(app_dir, components, tasks, options.language, total)
+        self._run_component_hooks(app_dir, (hook for hook in product.post_install if hook[0] in components),
+                                  "post-install")
         if path_changed:
             try:
                 self.os.broadcast_environment()
@@ -685,6 +689,18 @@ class Engine:
         log.info("install finished: %s", app_dir)
         return {"ok": True, "install_dir": str(app_dir), "version": self.version, "components": components,
                 "tasks": tasks, "warnings": list(self.warnings), "webview2": webview}
+
+    def _run_component_hooks(self, app_dir: Path, hooks: Iterable[Tuple[str, str, str]], phase: str) -> None:
+        for _comp, relative, args in hooks:
+            exe = app_dir / relative.replace("\\", os.sep)
+            if not exists(exe):
+                continue
+            try:
+                code = self.os.run_wait(exe, shlex.split(args), timeout=20)
+                if code:
+                    self._warn(f"{phase} {exe.name}: exit code {code}")
+            except Exception as exc:  # noqa: BLE001 - never block setup on an integration hook
+                self._warn(f"{phase} {exe.name}: {exc}")
 
     def _apply_packages(self, app_dir: Path, components: List[str],
                         emit: Callable[..., None] = lambda *_a, **_k: None) -> None:
@@ -1098,15 +1114,7 @@ class Engine:
                 pass
         path_changed = self._apply_path(app_dir, [], removing=True)
         self._apply_protocols(app_dir, [], removing=True)
-        for _comp, relative, args in product.pre_uninstall:
-
-            exe = app_dir / relative.replace("\\", os.sep)
-            if exists(exe):
-                try:
-                    code = self.os.run_wait(exe, shlex.split(args), timeout=20)
-                    log.info("pre-uninstall %s %s -> %s", exe, args, code)
-                except Exception as exc:  # noqa: BLE001 - never block the uninstall
-                    self._warn(f"pre-uninstall {exe.name}: {exc}")
+        self._run_component_hooks(app_dir, product.pre_uninstall, "pre-uninstall")
 
         emit("files", 25)
         entries: List[str] = []

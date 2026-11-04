@@ -285,7 +285,7 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         _wait(page, f"document.querySelector(\"{pill}\") && !document.getElementById('module-taskbar').hidden")
 
         self.assertTrue(page.is_visible(".module-taskbar [data-task-close='translator']"))
-        self.assertTrue(page.is_visible(".module-taskbar .module-task-badge"))
+        self.assertTrue(page.is_visible(".module-taskbar .module-task-restore"))
         self.assertFalse(page.query_selector(".module-taskbar [data-taskbar-close]"))
         self.shot(page, "behaviour-minimized")
         page.click(pill)
@@ -315,7 +315,9 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         self.assertTrue(page.is_visible("#module-headbar [data-mhb='min']"))
         self.assertTrue(page.is_visible("#module-headbar [data-mhb='close']"))
 
-        self.assertTrue(page.is_visible("#module-headbar .mhb-close-text"))
+        self.assertTrue(page.is_visible("#module-headbar [data-mhb='close']"))
+        self.assertEqual(page.inner_text("#module-headbar [data-mhb='close']").strip(), "")
+        self.assertEqual(page.inner_text("#module-headbar [data-mhb='min']").strip(), "")
         self.assertIn("окном", page.inner_text("#module-headbar [data-mhb='esc']"))
         page.click("#module-headbar [data-mhb='min']")
         page.wait_for_timeout(200)

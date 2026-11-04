@@ -22,15 +22,15 @@ class PlanningActionsVisibleTest(unittest.TestCase):
     def test_fresh_root_exposes_all_modules(self):
         with tempfile.TemporaryDirectory() as tmp:
             rows = planning_actions(Path(tmp))
-        self.assertEqual(len(rows), 11)
+        self.assertEqual(len(rows), 12)
         self.assertEqual({r["module"] for r in rows},
                          {"translator", "studio", "design", "benchmarks", "catalog",
-                          "api-models", "characters", "music", "learn", "memudb", "meet"})
+                          "api-models", "characters", "music", "learn", "memudb", "meet", "utils"})
         total = sum(len(r["actions"]) for r in rows)
         self.assertGreaterEqual(total, 22)
         for row in rows:
             self.assertGreaterEqual(len(row["actions"]), 2)
-            self.assertLessEqual(len(row["actions"]), 6)
+            self.assertLessEqual(len(row["actions"]), 12)
             for action in row["actions"]:
                 self.assertIs(action["enabled"], False)
                 self.assertIs(action["requires_consent"], True)

@@ -304,7 +304,7 @@ class StaticContracts(unittest.TestCase):
         self.assertIn("CLOSE_SAFETY_MS = 300", js)
         self.assertNotIn("await new Promise((r) => setTimeout(r, 110)); }\n    await windowAction(\"hide\")", js)
         self.assertIn(':root[data-native="1"] .qa-card.qa-leaving .qa-inner { opacity: 0;', css)
-        self.assertRegex(html, r'/quick/quick\.js\?v=[\w.]+-r(?:3[8-9]|4\d)"')
+        self.assertRegex(html, r'/quick/quick\.js\?v=[\w.]+-r(?:3[8-9]|[4-9]\d)"')
         self.assertIn(':root[data-native="1"]:not([data-backdrop])[data-theme="dark"]{background:#1b1c20}', html)
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts,
-                    read_lines, short_args, text_of, title_from)
+                    read_lines, safe_int, short_args, text_of, title_from)
 
 KEY = "grok"
 TITLE = "Grok"
@@ -28,7 +28,11 @@ def present() -> bool:
 
 def _summary(folder: Path) -> Dict[str, Any]:
     try:
-        data = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+        target = folder / "summary.json"
+        # F31: never read a huge foreign file whole (1 MB is far past a summary).
+        if target.stat().st_size > 1_000_000:
+            return {}
+        data = json.loads(target.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
@@ -38,10 +42,18 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     if not base.is_dir():
         return rows
-    for project in base.iterdir():
+    try:
+        projects = list(base.iterdir())
+    except OSError:
+        return rows
+    for project in projects:
         if not project.is_dir():
             continue
-        for folder in project.iterdir():
+        try:
+            folders = list(project.iterdir())
+        except OSError:
+            continue
+        for folder in folders:
             chat = folder / "chat_history.jsonl"
             if not chat.is_file():
                 continue
@@ -70,7 +82,8 @@ def _info(folder: Path, chat: Path, cwd_from_folder: str) -> Optional[SessionInf
     return SessionInfo(tool=KEY, id=str(meta.get("id") or folder.name), title=title_from(title),
                        cwd=str(meta.get("cwd") or cwd_from_folder), started=iso_to_ts(summary.get("created_at")) or mtime,
                        updated=iso_to_ts(summary.get("last_active_at") or summary.get("updated_at")) or mtime,
-                       messages=int(summary.get("num_chat_messages") or summary.get("num_messages") or 0),
+                       # F31: a string count used to raise ValueError here.
+                       messages=safe_int(summary.get("num_chat_messages") or summary.get("num_messages") or 0),
                        model=str(summary.get("current_model_id") or model), path=str(folder))
 
 def _user_text(event: Dict[str, Any]) -> str:

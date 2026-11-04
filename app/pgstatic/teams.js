@@ -6,7 +6,9 @@ const MemuTeams = (() => {
   const E = (v) => esc(String(v ?? ""));
   const I = (name) => icon(name);
   const q = (s, root = document) => root.querySelector(s);
-  const state = { profile: "", teams: [], presets: [], loaded: false, selected: "", home: false, loading: null, epoch: 0, monitor: null, actor: "" };
+  const runMode = (team) => team?.run_mode === "economy" ? "economy" : "standard";
+  const runModeLabel = (team) => runMode(team) === "economy" ? T("Экономный", "Economy") : T("Стандартный", "Standard");
+  const state = { profile: "", teams: [], presets: [], categories: [], stats: {}, history: {}, presetCat: "all", teamQuery: "", loaded: false, selected: "", home: false, loading: null, epoch: 0, monitor: null, actor: "" };
   const splitBilingual = (text) => {
     const raw = String(text ?? "");
     const parts = raw.split(" / ");
@@ -91,6 +93,8 @@ const MemuTeams = (() => {
       if (epoch !== state.epoch || activeProfile() !== profile) return;
       state.teams = Array.isArray(data.teams) ? data.teams : [];
       state.presets = Array.isArray(data.presets) ? data.presets : [];
+      state.categories = Array.isArray(data.categories) ? data.categories : [];
+      state.stats = data.stats && typeof data.stats === "object" ? data.stats : {};
       state.loaded = true;
     }).finally(() => {
       if (epoch === state.epoch) state.loading = null;
@@ -135,8 +139,10 @@ const MemuTeams = (() => {
       homeHost().innerHTML = `<div class="tm-loading" role="status">${E(T("Загружаем команды…", "Loading teams…"))}</div>`;
     }
     const profile = activeProfile();
+    state.history = {};
     try {
-      await load();
+      // Re-read on every visit so run statistics and history stay current.
+      await load(state.loaded && state.profile === profile);
       if (state.home && activeProfile() === profile) renderHome();
     } catch (error) {
       if (state.home && activeProfile() === profile) {
@@ -169,51 +175,260 @@ const MemuTeams = (() => {
     const ordered = [...members].sort((a,b) => Number(!!b.is_lead) - Number(!!a.is_lead));
     return `<section class="tm-roster" aria-label="${E(T("Состав команды", "Team roster"))}"><div class="tm-roster-heading"><span>${E(T("Участник и роль", "Member and role"))}</span><span>${E(T("Модель", "Model"))}</span></div>${managerNode}${ordered.map((member) => memberTile(member)).join("")}</section>`;
   }
+  const TEAM_COLORS = ["coral", "blue", "green", "violet", "amber", "teal", "pink", "slate"];
+  const TEAM_ICONS = ["users", "code", "search", "sparkle", "chart", "shield", "book", "globe", "target", "brain", "research", "terminal", "palette", "vote", "crown", "zap", "message", "flag", "database", "text"];
+  const DONE = ["completed", "completed_with_warnings", "done"];
+  const localeOf = (item, key) => PG_LANG === "en" && item?.[key + "_en"] ? item[key + "_en"] : item?.[key];
+  const teamIcon = (team) => TEAM_ICONS.includes(team?.icon) ? team.icon : "users";
+  const colorClass = (team) => TEAM_COLORS.includes(team?.color) ? ` tm-c-${team.color}` : "";
+  const langTag = () => PG_LANG === "en" ? "en-GB" : "ru-RU";
+  const fmtNum = (value) => {
+    const n = Math.max(0, +value || 0);
+    if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, "") + T(" млн", "M");
+    if (n >= 1e4) return Math.round(n / 1e3) + T(" тыс.", "k");
+    return Math.round(n).toLocaleString(langTag());
+  };
+  const fmtDur = (ms) => {
+    const s = Math.round((+ms || 0) / 1000);
+    if (!s) return "—";
+    if (s < 60) return s + T(" с", "s");
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + T(" мин", " min") + (m < 10 && s % 60 ? " " + (s % 60) + T(" с", "s") : "");
+    const h = Math.floor(m / 60);
+    return h + T(" ч", " h") + (m % 60 ? " " + (m % 60) + T(" мин", " min") : "");
+  };
+  const relTime = (ms) => {
+    if (!ms) return "";
+    const minutes = Math.round((Date.now() - ms) / 60000);
+    if (minutes < 1) return T("только что", "just now");
+    if (minutes < 60) return T(`${minutes} мин назад`, `${minutes} min ago`);
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return T(`${hours} ч назад`, `${hours} h ago`);
+    const days = Math.round(hours / 24);
+    if (days < 7) return T(`${days} дн. назад`, `${days} d ago`);
+    return new Date(ms).toLocaleDateString(langTag(), { day: "numeric", month: "short" });
+  };
+  const statusTone = (status) => DONE.includes(status) ? "ok"
+    : ["error", "failed", "limited", "interrupted"].includes(status) ? "err" : status === "running" ? "run" : "off";
+  const plural = (n, one, few, many) => {
+    const a = Math.abs(n) % 100, b = a % 10;
+    return a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many;
+  };
+  function homeStats() {
+    const rows = Object.values(state.stats || {});
+    const sum = (key) => rows.reduce((n, row) => n + (+row[key] || 0), 0);
+    const runs = sum("runs"), ok = sum("completed");
+    const tile = (ico, value, label, tone = "") => `<div class="tm-stat${tone ? " " + tone : ""}">${I(ico)}<b>${E(value)}</b><span>${E(label)}</span></div>`;
+    return `<div class="tm-stats">
+      ${tile("users", state.teams.length, T(plural(state.teams.length, "команда", "команды", "команд"), state.teams.length === 1 ? "team" : "teams"))}
+      ${tile("play", runs, T(plural(runs, "запуск", "запуска", "запусков"), runs === 1 ? "run" : "runs"))}
+      ${tile("check", runs ? Math.round(ok * 100 / runs) + "%" : "—", T("завершены успешно", "finished successfully"), runs && ok < runs ? "warn" : runs ? "ok" : "")}
+      ${tile("zap", fmtNum(sum("calls")), T("обращений к моделям", "model calls"))}
+      ${tile("chart", fmtNum(sum("tokens")), T("токенов за запуски", "tokens used"))}
+    </div>`;
+  }
+  function teamOption(item, selected) {
+    const lead = (item.members || []).find((m) => m.is_lead);
+    const st = state.stats?.[item.id];
+    const runs = st?.runs ? `<small class="tm-option-runs"><i class="tm-dot ${statusTone(st.last_status)}" aria-hidden="true"></i>${E(T(`${st.runs} ${plural(st.runs, "запуск", "запуска", "запусков")}`, `${st.runs} ${st.runs === 1 ? "run" : "runs"}`))} · ${E(relTime(st.last_at))}</small>` : "";
+    const settings = T(`Настройки команды «${item.name}»`, `Settings for ${item.name}`);
+    return `<div class="tm-team-option-row"><button type="button" class="tm-team-option${selected ? " selected" : ""}${colorClass(item)}" data-tm-select="${E(item.id)}" aria-pressed="${selected}">`
+      + `<span class="tm-option-ico">${I(teamIcon(item))}</span>`
+      + `<div class="tm-option-copy"><strong>${item.pinned ? `<span class="tm-pin-mark" title="${E(T("Закреплена", "Pinned"))}">${I("star")}</span>` : ""}${E(item.name)}</strong>`
+      + `<small>${E(runModeLabel(item))} · ${E(item.members.length ? T(`Участников: ${item.members.length}`, `${item.members.length} members`) : T("Автоподбор состава", "Auto-recruited"))}${lead ? ` · ${E(lead.name)}` : ""}</small>${runs}</div>`
+      + `${selected ? `<span class="tm-option-check">${I("check")}</span>` : ""}</button>`
+      + `<button class="tm-icon-btn sm tm-team-settings" type="button" data-tm-settings="${E(item.id)}" aria-label="${E(settings)}" title="${E(settings)}">${I("settings")}</button></div>`;
+  }
+  function historyHtml(team) {
+    const rows = state.history[team.id];
+    const head = `<div class="tm-history-head"><h3>${I("clock")}<span>${E(T("Последние запуски", "Recent runs"))}</span></h3>${rows && rows.length ? `<button type="button" class="tm-link-btn" id="tm-history-clear">${I("trash")}<span>${E(T("Очистить историю", "Clear history"))}</span></button>` : ""}</div>`;
+    if (!rows) return head + `<p class="tm-muted tm-history-empty">${E(T("Загружаем историю…", "Loading history…"))}</p>`;
+    if (!rows.length) return head + `<p class="tm-muted tm-history-empty">${E(T("Запусков пока нет. Начните разговор или поручите команде задачу в «Планировании» — здесь появятся время, расход и отчёты участников.", "No runs yet. Start a conversation or schedule the team in Planning — time, usage and member reports will appear here."))}</p>`;
+    const when = (ms) => ms ? new Date(ms).toLocaleString(langTag(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+    return head + `<div class="tm-history-list">${rows.map((r) => `<div class="tm-hrow">
+      <button type="button" class="tm-hrow-main" data-tm-run="${E(r.id)}" title="${E(T("Открыть ход работы и отчёты", "Open the activity and reports"))}">
+        <i class="tm-dot ${statusTone(r.status)}" aria-hidden="true"></i>
+        <span class="tm-hrow-copy"><strong>${E(r.titles?.[0] || roles()[r.status] || T("Запуск команды", "Team run"))}</strong>
+          <small>${E(when(r.started))} · ${E(r.source === "schedule" ? T("по расписанию", "scheduled") : r.mode === "work" ? "Work" : T("чат", "chat"))} · ${E(runModeLabel(r))} · ${E(roles()[r.status] || r.status || "")}</small></span>
+        <span class="tm-hrow-meta"><span title="${E(T("Длительность", "Duration"))}">${I("hourglass")}${E(fmtDur(r.duration_ms))}</span><span title="${E(T("Обращений к моделям", "Model calls"))}">${I("zap")}${E(r.calls)}</span><span title="${E(r.estimated ? T("Токенов (оценка)", "Tokens (estimated)") : T("Токенов", "Tokens"))}">${I("chart")}${E(fmtNum(r.tokens))}${r.estimated ? "≈" : ""}</span>${r.tasks ? `<span title="${E(T("Задач выполнено", "Tasks done"))}">${I("check")}${E(r.tasks_done)}/${E(r.tasks)}</span>` : ""}</span>
+      </button>
+      <button type="button" class="tm-icon-btn sm" data-tm-run-del="${E(r.id)}" aria-label="${E(T("Удалить запись", "Delete entry"))}" title="${E(T("Удалить запись", "Delete entry"))}">${I("trash")}</button>
+    </div>`).join("")}</div>`;
+  }
+  async function loadHistory(teamId) {
+    if (!teamId || state.history[teamId] !== undefined) return;
+    state.history[teamId] = null;
+    const profile = activeProfile();
+    try {
+      const data = await api(`/api/pg/teams/runs?profile_id=${encodeURIComponent(profile)}&team_id=${encodeURIComponent(teamId)}&limit=8`);
+      state.history[teamId] = Array.isArray(data.runs) ? data.runs : [];
+    } catch (_) {
+      state.history[teamId] = [];
+    }
+    const team = selectedTeam();
+    if (state.home && team?.id === teamId && activeProfile() === profile && q("#tm-history")) {
+      q("#tm-history").innerHTML = historyHtml(team);
+      bindHistory(team);
+    }
+  }
+  async function openRun(runId) {
+    try {
+      const data = await api(`/api/pg/teams/runs/${encodeURIComponent(runId)}?profile_id=${encodeURIComponent(activeProfile())}`);
+      const run = data.run || {};
+      const manager = (run.members || []).find((m) => m.id === "manager");
+      openMonitor({ teamRun: { ...run, name: run.team_name }, streaming: false, model: manager?.model || "", toolHistory: [] });
+    } catch (error) {
+      toast(splitBilingual(error.message), "err");
+    }
+  }
+  async function clearRuns(team, runId = "") {
+    if (!runId && !await askConfirm(T("Очистить историю запусков?", "Clear the run history?"),
+      T("Записи о ходе работы этой команды будут удалены. Чаты останутся.", "Activity records of this team will be removed. Chats stay."), T("Очистить", "Clear"))) return;
+    try {
+      await api("/api/pg/teams/runs-clear", { method: "POST", body: runId ? { profile_id: activeProfile(), run_id: runId } : { profile_id: activeProfile(), team_id: team.id } });
+      state.history[team.id] = runId ? (state.history[team.id] || []).filter((r) => r.id !== runId) : [];
+      await load(true);
+      renderHome();
+    } catch (error) {
+      toast(splitBilingual(error.message), "err");
+    }
+  }
+  function bindHistory(team) {
+    const host = q("#tm-history");
+    if (!host) return;
+    host.querySelectorAll("[data-tm-run]").forEach((b) => { b.onclick = () => openRun(b.dataset.tmRun); });
+    host.querySelectorAll("[data-tm-run-del]").forEach((b) => { b.onclick = () => clearRuns(team, b.dataset.tmRunDel); });
+    if (q("#tm-history-clear")) q("#tm-history-clear").onclick = () => clearRuns(team);
+  }
+  function exportTeam(team) {
+    const { id, created, updated, pinned, ...rest } = clone(team);
+    rest.members = (rest.members || []).map(({ id: memberId, ...member }) => member);
+    const name = (String(team.name || "team").replace(/[\\/:*?"<>|\x00-\x1f]+/g, " ").trim() || "team").slice(0, 60);
+    downloadTextFile(`${name}.memuteam.json`, JSON.stringify({ format: "memuai-team", version: 1, exported: new Date().toISOString(), team: rest }, null, 2));
+  }
+  function importTeam() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        if (file.size > 512 * 1024) throw new Error(T("Файл больше 512 КБ", "The file is larger than 512 KB"));
+        const raw = JSON.parse(await file.text());
+        const source = raw && raw.format === "memuai-team" ? raw.team : raw;
+        if (!source || typeof source !== "object" || !Array.isArray(source.members)) throw new Error(T("Это не файл команды MemuAI", "This is not a MemuAI team file"));
+        const textModels = visibleModels().filter((m) => MemuModelPicker.kindOf(m) === "chat").map((m) => m.id);
+        const fallback = textModels.includes(currentModel()) ? currentModel() : textModels[0] || "";
+        const pick = (id) => textModels.includes(id) ? id : fallback;
+        const draft = {
+          name: String(source.name || "").slice(0, 100), description: String(source.description || "").slice(0, 2000),
+          icon: TEAM_ICONS.includes(source.icon) ? source.icon : "users", color: TEAM_COLORS.includes(source.color) ? source.color : "",
+          run_mode: runMode(source),
+          starters: (Array.isArray(source.starters) ? source.starters : []).map((s) => String(s || "").slice(0, 300)).filter(Boolean).slice(0, 6),
+          manager_model: pick(source.manager_model), manager_instructions: String(source.manager_instructions || "").slice(0, 8000),
+          manager_approvals: source.manager_approvals !== false,
+          members: source.members.slice(0, 6).map((m) => ({ id: crypto.randomUUID().slice(0, 12), name: String(m?.name || "").slice(0, 80), role: String(m?.role || "").slice(0, 1000), model: pick(m?.model), instructions: String(m?.instructions || "").slice(0, 8000), is_lead: m?.is_lead === true })),
+          budget: { max_calls: 1200, max_parallel: 3, max_rounds: 300, context_chars: 48000, output_tokens: 6000, ...(source.budget && typeof source.budget === "object" ? source.budget : {}) },
+        };
+        const replaced = [source.manager_model, ...source.members.map((m) => m?.model)].filter((id) => id && !textModels.includes(id)).length;
+        edit(null, null, draft);
+        if (replaced) toast(T("Часть моделей недоступна — выбрана модель по умолчанию. Проверьте состав перед сохранением.", "Some models are unavailable — the default model was chosen. Check the roster before saving."), "warn");
+      } catch (error) {
+        toast(error instanceof SyntaxError ? T("Файл повреждён: это не JSON", "The file is damaged: not JSON") : error.message, "err");
+      }
+    };
+    input.click();
+  }
+  async function togglePin(team) {
+    try {
+      await api("/api/pg/teams", { method: "POST", body: { profile_id: activeProfile(), team: { ...clone(team), pinned: !team.pinned } } });
+      await load(true);
+      renderHome();
+    } catch (error) {
+      toast(splitBilingual(error.message), "err");
+    }
+  }
+  function startWith(team, mode, text) {
+    Promise.resolve(start(team, mode)).then(() => {
+      const input = q("#input");
+      if (!input || !S.chatCaps?.team_id) return;
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.focus();
+      try { input.setSelectionRange(text.length, text.length); } catch (_) {}
+    });
+  }
+  function presetCard(preset) {
+    const members = Array.isArray(preset.members) ? preset.members : [];
+    return `<button class="tm-template" type="button" data-tm-preset="${E(preset.id)}">`
+      + `<div class="tm-template-top"><span class="tm-template-ico" aria-hidden="true">${I(TEAM_ICONS.includes(preset.icon) ? preset.icon : "users")}</span>`
+      + `<span class="tm-template-count">${E(T(`${members.length} ${plural(members.length, "роль", "роли", "ролей")}`, `${members.length} roles`))}</span></div>`
+      + `<strong>${E(localeOf(preset, "name"))}</strong>`
+      + `<p>${E(localeOf(preset, "description"))}</p>`
+      + `<div class="tm-template-roles">${members.map((m) => `<span class="tm-role-pill${m.is_lead ? " lead" : ""}">${E(localeOf(m, "name"))}</span>`).join("")}</div>`
+      + `<small>${E(T("Настроить состав", "Set up team"))}${I("plus")}</small></button>`;
+  }
   function renderHome() {
     if (!state.home) return;
     const team = selectedTeam();
     if (team) state.selected = team.id;
-    const locale = (item, key) => PG_LANG === "en" && item[key + "_en"] ? item[key + "_en"] : item[key];
+    const sorted = [...state.teams].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+    const query = state.teamQuery.trim().toLowerCase();
+    const shown = query ? sorted.filter((item) => `${item.name} ${item.description} ${(item.members || []).map((m) => m.name + " " + m.role).join(" ")}`.toLowerCase().includes(query)) : sorted;
+    const cats = state.categories || [];
+    const presets = state.presetCat === "all" ? state.presets : state.presets.filter((p) => p.category === state.presetCat);
+    const starters = Array.isArray(team?.starters) ? team.starters : [];
     homeHost().innerHTML = `<div class="tm-page">
       <header class="tm-page-head">
         <div class="tm-page-title">
           <h1>${E(T("Команда", "Team"))}</h1>
           <p>${E(T("Выберите состав, обсудите план с менеджером и следите за работой участников.", "Choose a team, agree on the plan with its manager and follow each member’s work."))}</p>
         </div>
-        <button class="pbtn" id="tm-create">${I("plus")}<span>${E(T("Создать команду", "Create team"))}</span></button>
+        <div class="tm-head-actions">
+          <button class="pbtn ghost" type="button" id="tm-import" title="${E(T("Открыть файл команды .json", "Open a .json team file"))}">${I("attach")}<span>${E(T("Импорт", "Import"))}</span></button>
+          <button class="pbtn" id="tm-create">${I("plus")}<span>${E(T("Создать команду", "Create team"))}</span></button>
+        </div>
       </header>
-      <details class="tm-intro"><summary>${E(T("Как устроена работа команды", "How team collaboration works"))}</summary><p>${E(T("Менеджер согласует план и передаст тимлиду нужный контекст. Исполнители выполнят задания, ревьюер проверит результат. В чате можно открыть общий ход работы или действия отдельного участника.", "The manager agrees on the plan and passes relevant context to the lead. Specialists complete their assignments and a reviewer checks the outcome. Open the activity view from the chat to follow the whole team or an individual member."))}</p></details>
+      ${state.teams.length ? homeStats() : ""}
+      <details class="tm-intro"><summary>${E(T("Как устроена работа команды", "How team collaboration works"))}</summary>
+        <ol class="tm-flow">
+          <li><b>${I("chat")}${E(T("Менеджер", "Manager"))}</b><span>${E(T("Уточняет задачу, согласует с вами план и отбирает нужный контекст.", "Clarifies the task, agrees on the plan and picks the needed context."))}</span></li>
+          <li><b>${I("crown")}${E(T("Тимлид", "Lead"))}</b><span>${E(T("Делит работу на задания и раздаёт их участникам.", "Splits the work into assignments for the members."))}</span></li>
+          <li><b>${I("users")}${E(T("Участники", "Members"))}</b><span>${E(T("Работают параллельно, обмениваются результатами и задают вопросы.", "Work in parallel, share results and ask questions."))}</span></li>
+          <li><b>${I("shieldCheck")}${E(T("Проверка", "Review"))}</b><span>${E(T("Тимлид проверяет итог, менеджер представляет ответ в чате.", "The lead reviews the outcome, the manager presents it in the chat."))}</span></li>
+        </ol>
+        <p>${E(T("В чате можно открыть общий ход работы или действия отдельного участника. Здесь же — история запусков с расходом и отчётами.", "In the chat you can open the whole team’s activity or one member’s. Run history with usage and reports lives here."))}</p></details>
       <div class="tm-library">
         <aside class="tm-library-list">
           <div class="tm-library-head"><h2>${E(T("Ваши команды", "Your teams"))}</h2><span class="tm-count-pill">${state.teams.length}</span></div>
+          ${state.teams.length > 5 ? `<label class="tm-search">${I("search")}<input id="tm-team-search" type="search" value="${E(state.teamQuery)}" placeholder="${E(T("Найти команду", "Find a team"))}" aria-label="${E(T("Найти команду", "Find a team"))}"></label>` : ""}
           <div class="tm-library-items">
-            ${state.teams.length ? state.teams.map((item) => {
-              const selected = item.id === team?.id;
-              const lead = (item.members || []).find((m) => m.is_lead);
-              return `<button class="tm-team-option${selected ? " selected" : ""}" data-tm-select="${E(item.id)}" aria-pressed="${selected}">`
-                + `<span class="tm-option-ico">${I("users")}</span>`
-                + `<div class="tm-option-copy"><strong>${E(item.name)}</strong>`
-                + `<small>${E(item.members.length ? T(`Участников: ${item.members.length}`, `${item.members.length} members`) : T("Автоподбор состава", "Auto-recruited"))}${lead ? ` · ${E(lead.name)}` : ""}</small></div>`
-                + `${selected ? `<span class="tm-option-check">${I("check")}</span>` : ""}</button>`;
-            }).join("") : `<div class="tm-library-empty"><p class="tm-muted">${E(T("Пока нет сохранённых команд. Начните с готового шаблона ниже или создайте свою.", "No saved teams yet. Start with a preset template below or create your own."))}</p></div>`}
+            ${state.teams.length ? (shown.length ? shown.map((item) => teamOption(item, item.id === team?.id)).join("") : `<p class="tm-muted tm-library-empty">${E(T("Ничего не найдено", "Nothing found"))}</p>`)
+              : `<div class="tm-library-empty"><p class="tm-muted">${E(T("Пока нет сохранённых команд. Начните с готового шаблона ниже или создайте свою.", "No saved teams yet. Start with a preset template below or create your own."))}</p></div>`}
           </div>
         </aside>
         <div class="tm-team-detail">${team ? `
           <div class="tm-detail-head">
+            <span class="tm-team-badge${colorClass(team)}" aria-hidden="true">${I(teamIcon(team))}</span>
             <div class="tm-detail-title">
               <h2>${E(team.name)}</h2>
               <p>${E(team.description || T("Команда моделей для совместного решения задач", "A multi-model team for collaborative problem solving"))}</p>
             </div>
             <div class="tm-detail-actions">
+              <button class="tm-icon-btn${team.pinned ? " on" : ""}" id="tm-pin" type="button" aria-pressed="${!!team.pinned}" aria-label="${E(team.pinned ? T("Открепить", "Unpin") : T("Закрепить сверху", "Pin to top"))}" title="${E(team.pinned ? T("Открепить", "Unpin") : T("Закрепить сверху", "Pin to top"))}">${I("star")}</button>
+              <button class="tm-icon-btn" id="tm-export" type="button" aria-label="${E(T("Сохранить в файл", "Export to a file"))}" title="${E(T("Сохранить в файл", "Export to a file"))}">${I("download")}</button>
               <button class="tm-icon-btn" id="tm-duplicate" type="button" aria-label="${E(T("Дублировать команду", "Duplicate team"))}" title="${E(T("Дублировать команду", "Duplicate team"))}">${I("copy")}</button>
-              <button class="tm-icon-btn" id="tm-edit" type="button" aria-label="${E(T("Изменить команду", "Edit team"))}" title="${E(T("Изменить команду", "Edit team"))}">${I("edit")}</button>
+              <button class="tm-icon-btn tm-settings-action" id="tm-edit" type="button">${I("settings")}<span>${E(T("Настройки", "Settings"))}</span></button>
             </div>
           </div>
           ${rosterHtml(team)}
           <div class="tm-budget-hint">
+            <button class="tm-budget-chip tm-run-mode-chip" id="tm-run-mode" type="button">${I("zap")}<span>${E(T("Режим работы", "Run mode"))} · ${E(runModeLabel(team))}</span></button>
             <span class="tm-budget-chip">${I("zap")}<span>${E(T(`До ${team.budget?.max_calls || 1200} вызовов моделей`, `Up to ${team.budget?.max_calls || 1200} model calls`))}</span></span>
             <span class="tm-budget-chip">${I("users")}<span>${E(T(`До ${team.budget?.max_parallel || 3} параллельно`, `Up to ${team.budget?.max_parallel || 3} in parallel`))}</span></span>
             <span class="tm-budget-chip">${I("shield")}<span>${E(team.manager_approvals !== false ? T("Проверка CU/DFY менеджером", "Manager reviews CU/DFY") : T("Ручные подтверждения", "Manual approvals"))}</span></span>
+            ${state.stats?.[team.id]?.avg_ms ? `<span class="tm-budget-chip">${I("hourglass")}<span>${E(T("В среднем ", "Average ") + fmtDur(state.stats[team.id].avg_ms))}</span></span>` : ""}
           </div>
           <div class="tm-launch-card">
             <div class="tm-launch">
@@ -224,7 +439,9 @@ const MemuTeams = (() => {
               <button class="pbtn" id="tm-start">${E(T("Начать разговор", "Start conversation"))}${I("send")}</button>
             </div>
             <p class="tm-launch-note" id="tm-mode-note">${E(T("Сохранится в обычной истории чатов.", "Saved in your regular chat history."))}</p>
-          </div>` : `
+            ${starters.length ? `<div class="tm-starters"><span class="tm-starters-label">${I("sparkle")}${E(T("Быстрый старт — текст подставится в поле ввода", "Quick start — fills the message box"))}</span><div class="tm-starter-list">${starters.map((s, i) => `<button type="button" class="tm-starter" data-tm-starter="${i}">${E(s)}</button>`).join("")}</div></div>` : ""}
+          </div>
+          <section class="tm-history" id="tm-history" aria-live="polite">${historyHtml(team)}</section>` : `
           <div class="tm-empty">
             <span class="tm-empty-icon" aria-hidden="true">${I("users")}</span>
             <h2>${E(T("У каждой задачи — свой состав", "The right people for the task"))}</h2>
@@ -238,18 +455,13 @@ const MemuTeams = (() => {
       <section class="tm-templates">
         <div class="tm-templates-head">
           <h2>${E(T("Готовые составы", "Start with a template"))}</h2>
-          <p>${E(T("Роли уже настроены — останется выбрать модели или сразу сохранить команду", "Pre-configured roles — just pick your models and save"))}</p>
+          <p>${E(T("Роли и инструкции уже настроены — останется выбрать модели или сразу сохранить команду", "Roles and instructions are ready — just pick your models and save"))}</p>
         </div>
-        <div class="tm-template-grid">${state.presets.map((preset) => {
-          const members = Array.isArray(preset.members) ? preset.members : [];
-          return `<button class="tm-template" type="button" data-tm-preset="${E(preset.id)}">`
-            + `<div class="tm-template-top"><span class="tm-template-ico" aria-hidden="true">${I(preset.id.includes("creat") ? "sparkle" : preset.id.includes("research") ? "search" : "code")}</span>`
-            + `<span class="tm-template-count">${E(T(`${members.length} рол.`, `${members.length} roles`))}</span></div>`
-            + `<strong>${E(locale(preset, "name"))}</strong>`
-            + `<p>${E(locale(preset, "description"))}</p>`
-            + `<div class="tm-template-roles">${members.map((m) => `<span class="tm-role-pill${m.is_lead ? " lead" : ""}">${E(locale(m, "name"))}</span>`).join("")}</div>`
-            + `<small>${E(T("Настроить состав", "Set up team"))}${I("plus")}</small></button>`;
-        }).join("")}</div>
+        ${cats.length ? `<div class="tm-cats" role="group" aria-label="${E(T("Категории шаблонов", "Template categories"))}">${[{ id: "all", name: "Все", name_en: "All" }, ...cats].map((c) => {
+          const n = c.id === "all" ? state.presets.length : state.presets.filter((p) => p.category === c.id).length;
+          return n ? `<button type="button" class="tm-cat${state.presetCat === c.id ? " on" : ""}" data-tm-cat="${E(c.id)}" aria-pressed="${state.presetCat === c.id}">${E(localeOf(c, "name"))}<em>${n}</em></button>` : "";
+        }).join("")}</div>` : ""}
+        <div class="tm-template-grid">${presets.map(presetCard).join("")}</div>
       </section>
       <footer class="tm-page-foot">
         <span>${E(T("Личный контекст доступен менеджеру. Команда получает только нужное для задачи.", "Personal context stays with the manager. Members receive what the task needs."))}</span>
@@ -257,19 +469,43 @@ const MemuTeams = (() => {
       </footer>
     </div>`;
     q("#tm-create").onclick = () => edit();
+    q("#tm-import").onclick = () => importTeam();
     if (q("#tm-empty-create")) q("#tm-empty-create").onclick = () => edit();
     homeHost().querySelectorAll("[data-tm-select]").forEach((button) => {
       button.onclick = () => { state.selected = button.dataset.tmSelect; renderHome(); };
     });
+    homeHost().querySelectorAll("[data-tm-settings]").forEach((button) => {
+      button.onclick = () => edit(state.teams.find((item) => item.id === button.dataset.tmSettings));
+    });
     homeHost().querySelectorAll("[data-tm-preset]").forEach((button) => {
       button.onclick = () => edit(null, state.presets.find((item) => item.id === button.dataset.tmPreset));
     });
+    homeHost().querySelectorAll("[data-tm-cat]").forEach((button) => {
+      button.onclick = () => { state.presetCat = button.dataset.tmCat; renderHome(); };
+    });
+    const search = q("#tm-team-search");
+    if (search) {
+      search.oninput = () => {
+        state.teamQuery = search.value;
+        const pos = search.selectionStart;
+        renderHome();
+        const again = q("#tm-team-search");
+        if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (_) {} }
+      };
+    }
     if (team) {
       q("#tm-edit").onclick = () => edit(team);
+      q("#tm-run-mode").onclick = () => {
+        edit(team);
+        q("#tm-editor input[name=tm-run-mode]:checked")?.focus();
+      };
+      q("#tm-pin").onclick = () => togglePin(team);
+      q("#tm-export").onclick = () => exportTeam(team);
       if (q("#tm-duplicate")) {
         q("#tm-duplicate").onclick = () => {
           const copy = clone(team);
           delete copy.id;
+          copy.pinned = false;
           copy.name = `${team.name} (${T("копия", "copy")})`.slice(0, 100);
           copy.members = (copy.members || []).map((m) => ({ ...m, id: crypto.randomUUID().slice(0, 12) }));
           edit(null, null, copy);
@@ -289,6 +525,11 @@ const MemuTeams = (() => {
         };
       });
       q("#tm-start").onclick = () => start(team, mode);
+      homeHost().querySelectorAll("[data-tm-starter]").forEach((button) => {
+        button.onclick = () => startWith(team, mode, starters[+button.dataset.tmStarter] || "");
+      });
+      bindHistory(team);
+      loadHistory(team.id);
     }
     q("#tm-sidebar").onchange = (event) => {
       savePreferences({ team_sidebar_visible: event.target.checked });
@@ -305,6 +546,11 @@ const MemuTeams = (() => {
     return {
       name: locale(preset, "name") || "",
       description: locale(preset, "description") || "",
+      icon: TEAM_ICONS.includes(preset?.icon) ? preset.icon : "users",
+      color: "",
+      pinned: false,
+      run_mode: "standard",
+      starters: (locale(preset, "starters") || []).slice(0, 6),
       manager_model: model,
       manager_instructions: "",
       manager_approvals: true,
@@ -313,7 +559,7 @@ const MemuTeams = (() => {
         name: locale(m, "name") || m.role,
         role: locale(m, "role") || m.role,
         model,
-        instructions: "",
+        instructions: locale(m, "instructions") || "",
         is_lead: !!m.is_lead,
       })),
       budget: { max_calls: 1200, max_parallel: 3, max_rounds: 300, context_chars: 48000, output_tokens: 6000 },
@@ -326,7 +572,7 @@ const MemuTeams = (() => {
     panel(`<form id="tm-editor" class="tm-editor" novalidate>
       <header class="tm-editor-head">
         <div>
-          <h2>${E(team ? T("Изменить команду", "Edit team") : T("Новая команда", "New team"))}</h2>
+          <h2>${E(team ? T(`Настройки команды «${team.name}»`, `Settings for ${team.name}`) : T("Новая команда", "New team"))}</h2>
           <p>${E(T("Задайте цель, выберите модель менеджера и распределите роли участников.", "Set a purpose, choose a manager model and assign member roles."))}</p>
         </div>
       </header>
@@ -334,10 +580,24 @@ const MemuTeams = (() => {
       <div class="tm-editor-basics">
         <label>${E(T("Название", "Name"))}<input id="tm-name" class="pinput" maxlength="100" required value="${E(draft.name)}" placeholder="${E(T("Например, Новая функция", "For example, Feature team"))}"></label>
         <label>${E(T("Для каких задач", "Purpose"))}<textarea id="tm-desc" class="ptexta" rows="2" maxlength="2000" placeholder="${E(T("Что эта команда умеет делать вместе", "What this team does together"))}">${E(draft.description)}</textarea></label>
+        <label>${E(T("Быстрые задачи", "Quick tasks"))}<small class="tm-field-hint">${E(T("По одной в строке, до 6 — появятся кнопками «Быстрый старт» на странице команды.", "One per line, up to 6 — shown as “Quick start” buttons on the team page."))}</small><textarea id="tm-starters" class="ptexta" rows="3" maxlength="2000" placeholder="${E(T("Например: Проведи ревью изменений перед релизом", "For example: Review the changes before the release"))}">${E((draft.starters || []).join("\n"))}</textarea></label>
       </div>
+      <fieldset class="tm-editor-section tm-run-modes">
+        <legend>${E(T("Режим работы команды", "Team run mode"))}</legend>
+        <label><input type="radio" name="tm-run-mode" value="standard"${runMode(draft) === "standard" ? " checked" : ""}><span><strong>${E(T("Стандартный", "Standard"))}</strong><small>${E(T("Менеджер оформляет ответ после проверки тимлидом. Действуют заданные вами лимиты.", "The manager prepares the final answer after the lead’s review. Uses your configured limits."))}</small></span></label>
+        <label><input type="radio" name="tm-run-mode" value="economy"${runMode(draft) === "economy" ? " checked" : ""}><span><strong>${E(T("Экономный", "Economy"))}</strong><small>${E(T("Меньше контекста и токенов на ответ. Готовый результат тимлида может уйти в чат без переписывания менеджером.", "Uses less context and fewer response tokens. The lead’s completed answer can go straight to the chat."))}</small></span></label>
+      </fieldset>
+      <section class="tm-editor-section tm-look">
+        <div class="tm-section-title"><span aria-hidden="true">${I("palette")}</span><div><h3>${E(T("Оформление", "Appearance"))}</h3><p>${E(T("Значок и цвет помогают быстро найти команду в списке.", "An icon and a colour make the team easy to spot in the list."))}</p></div></div>
+        <div class="tm-look-row">
+          <div class="tm-icon-pick" role="radiogroup" aria-label="${E(T("Значок", "Icon"))}">${TEAM_ICONS.map((ic) => `<button type="button" role="radio" class="tm-ip${(draft.icon || "users") === ic ? " on" : ""}" data-tm-icon="${ic}" aria-checked="${(draft.icon || "users") === ic}" aria-label="${E(ic)}">${I(ic)}</button>`).join("")}</div>
+          <div class="tm-color-pick" role="radiogroup" aria-label="${E(T("Цвет", "Colour"))}">${["", ...TEAM_COLORS].map((c) => `<button type="button" role="radio" class="tm-cp${(draft.color || "") === c ? " on" : ""}${c ? " tm-c-" + c : ""}" data-tm-color="${c}" aria-checked="${(draft.color || "") === c}" aria-label="${E(c || T("Цвет темы", "Theme colour"))}" title="${E(c || T("Цвет темы", "Theme colour"))}"><i></i></button>`).join("")}</div>
+        </div>
+      </section>
       <section class="tm-editor-section">
         <div class="tm-section-title"><span aria-hidden="true">${I("chat")}</span><div><h3>${E(T("Менеджер", "Manager"))}</h3><p>${E(T("Общается с вами, отбирает контекст и представляет результат.", "Talks to you, curates context and presents the result."))}</p></div></div>
         <label>${E(T("Модель менеджера", "Manager model"))}<select id="tm-manager" required>${modelOptions(draft.manager_model)}</select></label>
+        <button type="button" class="tm-link-btn" id="tm-same-model" title="${E(T("Назначить модель менеджера каждому участнику", "Give every member the manager's model"))}">${I("users")}<span>${E(T("Эту модель — всем участникам", "Use this model for all members"))}</span></button>
         <details class="tm-manager-extra"${draft.manager_instructions ? " open" : ""}>
           <summary>${E(T("Дополнительные инструкции менеджеру", "Additional instructions for the manager"))}</summary>
           <textarea id="tm-manager-instructions" class="ptexta" rows="2" maxlength="8000" placeholder="${E(T("Стиль подачи ответа, критерии приёмки или особые правила…", "Presentation style, acceptance criteria or special rules…"))}">${E(draft.manager_instructions || "")}</textarea>
@@ -347,6 +607,13 @@ const MemuTeams = (() => {
         <div class="tm-section-title"><span aria-hidden="true">${I("users")}</span><div><h3>${E(T("Участники", "Members"))}</h3><p>${E(T("Можно оставить состав пустым: менеджер подберёт участников под ваш запрос. Или назначьте модели и роли сами.", "Leave the roster empty for the manager to recruit a team for your request, or assign models and roles yourself."))}</p></div></div>
         <label class="tm-auto-lead"><input type="checkbox" id="tm-auto-lead"${draft.members.some((m) => m.is_lead) ? "" : " checked"}><span>${E(T("Выбирать тимлида под каждую задачу", "Select the best lead for each task"))}</span></label>
         <div id="tm-member-fields"></div>
+        <datalist id="tm-role-list">${[
+          T("Архитектура и итоговая проверка", "Architecture and final review"), T("Поиск и проверка источников", "Find and verify sources"),
+          T("Тесты и проверка требований", "Tests and acceptance checks"), T("Критика и поиск слабых мест", "Critique and weak spots"),
+          T("Тексты и редактура", "Writing and editing"), T("Расчёты и анализ данных", "Calculations and data analysis"),
+          T("Безопасность и риски", "Security and risks"), T("Интерфейс и доступность", "Interface and accessibility"),
+          T("Перевод и локализация", "Translation and localization"), T("Объяснения и примеры", "Explanations and examples"),
+        ].map((r) => `<option value="${E(r)}"></option>`).join("")}</datalist>
         <button type="button" class="pbtn ghost" id="tm-add-member">${I("plus")}<span>${E(T("Добавить участника", "Add member"))}</span></button>
       </section>
       <section class="tm-editor-section">
@@ -360,6 +627,7 @@ const MemuTeams = (() => {
           <label>${E(T("Обращений к моделям", "Model calls"))}<input id="tm-max-calls" type="number" min="8" max="10000" value="${+draft.budget.max_calls}"></label>
           <label>${E(T("Одновременно", "In parallel"))}<input id="tm-parallel" type="number" min="1" max="4" value="${+draft.budget.max_parallel}"></label>
           <label>${E(T("Раундов на участника", "Rounds per member"))}<input id="tm-rounds" type="number" min="3" max="2000" value="${+draft.budget.max_rounds}"></label>
+          <label>${E(T("Символов контекста на запрос", "Context characters per request"))}<input id="tm-context" type="number" min="16000" max="160000" value="${+draft.budget.context_chars}"></label>
           <label>${E(T("Токенов на ответ модели", "Tokens per model response"))}<input id="tm-output" type="number" min="1000" max="16000" step="500" value="${+draft.budget.output_tokens}"></label>
         </div>
       </details>
@@ -379,18 +647,34 @@ const MemuTeams = (() => {
         <legend>${E(T("Участник", "Member"))} ${index + 1}</legend>
         <div class="tm-member-grid">
           <label>${E(T("Имя", "Name"))}<input class="pinput" data-field="name" maxlength="80" required value="${E(member.name)}"></label>
-          <label>${E(T("Роль", "Role"))}<input class="pinput" data-field="role" maxlength="160" required value="${E(member.role)}" placeholder="${E(T("Например, QA", "For example, QA"))}"></label>
+          <label>${E(T("Роль", "Role"))}<input class="pinput" data-field="role" maxlength="160" required list="tm-role-list" value="${E(member.role)}" placeholder="${E(T("Например, QA", "For example, QA"))}"></label>
           <label class="tm-member-model">${E(T("Модель", "Model"))}<select data-field="model" required>${modelOptions(member.model)}</select></label>
         </div>
         <div class="tm-member-bottom">
           <label class="tm-lead-choice"><input type="radio" name="tm-lead" data-field="is_lead"${member.is_lead ? " checked" : ""}><span>${E(T("Предпочтительный тимлид", "Preferred lead"))}</span></label>
-          <button class="tm-icon-btn" type="button" data-tm-remove="${E(member.id)}" aria-label="${E(T("Удалить участника", "Remove member"))}" title="${E(T("Удалить участника", "Remove member"))}">${I("trash")}</button>
+          <span class="tm-member-tools">
+            <button class="tm-icon-btn sm" type="button" data-tm-move="${E(member.id)}" data-dir="-1"${index === 0 ? " disabled" : ""} aria-label="${E(T("Выше", "Move up"))}" title="${E(T("Выше", "Move up"))}">${I("arrowUp")}</button>
+            <button class="tm-icon-btn sm" type="button" data-tm-move="${E(member.id)}" data-dir="1"${index === draft.members.length - 1 ? " disabled" : ""} aria-label="${E(T("Ниже", "Move down"))}" title="${E(T("Ниже", "Move down"))}">${I("arrowDown")}</button>
+            <button class="tm-icon-btn" type="button" data-tm-remove="${E(member.id)}" aria-label="${E(T("Удалить участника", "Remove member"))}" title="${E(T("Удалить участника", "Remove member"))}">${I("trash")}</button>
+          </span>
         </div>
         <details${member.instructions ? " open" : ""}>
           <summary>${E(T("Задачи и инструкции участнику", "Member responsibilities and instructions"))}</summary>
           <textarea class="ptexta" rows="3" data-field="instructions" maxlength="8000" aria-label="${E(T("Инструкции участнику", "Member instructions"))}">${E(member.instructions)}</textarea>
         </details>
       </fieldset>`).join("");
+      q("#tm-member-fields").querySelectorAll("[data-tm-move]").forEach((button) => {
+        button.onclick = () => {
+          readMembers();
+          const at = draft.members.findIndex((m) => m.id === button.dataset.tmMove);
+          const to = at + Number(button.dataset.dir);
+          if (at < 0 || to < 0 || to >= draft.members.length) return;
+          const [row] = draft.members.splice(at, 1);
+          draft.members.splice(to, 0, row);
+          drawMembers();
+          q(`[data-tm-member="${CSS.escape(row.id)}"] [data-tm-move][data-dir="${button.dataset.dir}"]`)?.focus();
+        };
+      });
       q("#tm-member-fields").querySelectorAll("[data-tm-remove]").forEach((button) => {
         button.onclick = () => {
           readMembers();
@@ -425,6 +709,26 @@ const MemuTeams = (() => {
       q("#tm-member-fields fieldset:last-child input")?.focus();
     };
     q("#tm-cancel").onclick = closePanel;
+    q("#tm-editor").querySelectorAll("[data-tm-icon]").forEach((button) => {
+      button.onclick = () => {
+        draft.icon = button.dataset.tmIcon;
+        q("#tm-editor").querySelectorAll("[data-tm-icon]").forEach((b) => { b.classList.toggle("on", b === button); b.setAttribute("aria-checked", String(b === button)); });
+      };
+    });
+    q("#tm-editor").querySelectorAll("[data-tm-color]").forEach((button) => {
+      button.onclick = () => {
+        draft.color = button.dataset.tmColor;
+        q("#tm-editor").querySelectorAll("[data-tm-color]").forEach((b) => { b.classList.toggle("on", b === button); b.setAttribute("aria-checked", String(b === button)); });
+      };
+    });
+    q("#tm-same-model").onclick = () => {
+      readMembers();
+      const model = q("#tm-manager").value;
+      if (!model) return toast(T("Сначала выберите модель менеджера", "Choose the manager model first"), "warn");
+      draft.members.forEach((m) => { m.model = model; });
+      drawMembers();
+      toast(T("Модель назначена всем участникам", "The model is set for every member"), "ok");
+    };
     if (team) {
       q("#tm-delete").onclick = async () => {
         if (!await askConfirm(
@@ -456,16 +760,19 @@ const MemuTeams = (() => {
       draft.manager_model = q("#tm-manager").value;
       draft.manager_instructions = q("#tm-manager-instructions")?.value.trim() || "";
       draft.manager_approvals = q("#tm-manager-approvals").checked;
+      draft.run_mode = q("#tm-editor input[name=tm-run-mode]:checked").value;
+      draft.starters = [...new Set(q("#tm-starters").value.split("\n").map((line) => line.replace(/\s+/g, " ").trim().slice(0, 300)).filter(Boolean))].slice(0, 6);
       Object.assign(draft.budget, {
         max_calls: +q("#tm-max-calls").value,
         max_parallel: +q("#tm-parallel").value,
         max_rounds: +q("#tm-rounds").value,
+        context_chars: +q("#tm-context").value,
         output_tokens: +q("#tm-output").value,
       });
       const errorBox = q("#tm-form-error"), save = q("#tm-save");
       const allowedModels = new Set(visibleModels().filter((m) => MemuModelPicker.kindOf(m) === "chat").map((m) => m.id));
       const invalid = !draft.name || !allowedModels.has(draft.manager_model) || draft.members.some((m) => !allowedModels.has(m.model) || !m.role.trim() || !m.name.trim());
-      const bounds = [["max_calls", 8, 10000], ["max_parallel", 1, 4], ["max_rounds", 3, 2000], ["output_tokens", 1000, 16000]];
+      const bounds = [["max_calls", 8, 10000], ["max_parallel", 1, 4], ["max_rounds", 3, 2000], ["context_chars", 16000, 160000], ["output_tokens", 1000, 16000]];
       if (invalid || bounds.some(([key, min, max]) => !Number.isInteger(draft.budget[key]) || draft.budget[key] < min || draft.budget[key] > max)) {
         errorBox.hidden = false;
         errorBox.textContent = invalid
@@ -615,12 +922,12 @@ const MemuTeams = (() => {
     if (manager && currentModel() !== manager) setCurrentModel(manager);
     const name = caps.team_name || team?.name || T("Команда", "Team");
     const memberCount = team?.members?.length || 0;
-    const signature = [caps.team_id, name, memberCount, PG_LANG].join("|");
+    const signature = [caps.team_id, name, memberCount, runMode(team), PG_LANG].join("|");
     if (bar.dataset.signature !== signature) {
       bar.dataset.signature = signature;
       bar.innerHTML = `<button type="button" id="tm-chat-open" class="tm-chat-team-btn">${I("users")}<strong>${E(name)}</strong>${I("chevron-right")}</button>`
-        + `<span class="tm-chat-sub">${E(memberCount ? T(`Менеджер и ${memberCount} участн.`, `Manager + ${memberCount} members`) : T("Менеджер и автоподбор", "Manager + auto-roster"))}</span>`
-        + `<button type="button" class="tm-chat-edit-btn" id="tm-chat-edit" title="${E(T("Настроить команду", "Configure team"))}">${I("settings")}<span>${E(T("Состав", "Roster"))}</span></button>`;
+        + `<span class="tm-chat-sub">${E(runModeLabel(team))} · ${E(memberCount ? T(`Менеджер и ${memberCount} участн.`, `Manager + ${memberCount} members`) : T("Менеджер и автоподбор", "Manager + auto-roster"))}</span>`
+        + `<button type="button" class="tm-chat-edit-btn" id="tm-chat-edit" title="${E(T("Настроить команду", "Configure team"))}">${I("settings")}<span>${E(T("Настройки", "Settings"))}</span></button>`;
       q("#tm-chat-open").onclick = () => open();
       q("#tm-chat-edit").onclick = () => editCurrent();
     }
@@ -687,18 +994,30 @@ const MemuTeams = (() => {
       return "";
     };
     const rest = roster.filter((m) => m !== manager && m.id !== "manager" && m.kind !== "manager");
+    const byMember = run.usage_by_member && typeof run.usage_by_member === "object" ? run.usage_by_member : {};
+    const memberTokens = (id) => {
+      const u = byMember[id] || {};
+      return (+u.total_tokens || 0) || ((+u.prompt_tokens || 0) + (+u.completion_tokens || 0));
+    };
+    const tokenSum = Object.keys(byMember).reduce((n, id) => n + memberTokens(id), 0);
+    const usageLine = (id) => {
+      const value = memberTokens(id);
+      if (!tokenSum || !value) return "";
+      const share = Math.max(1, Math.round(value * 100 / tokenSum));
+      return `<small class="tm-live-usage" style="--w:${share}%"><i aria-hidden="true"></i>${E(fmtNum(value))} ${E(T("ток.", "tok."))} · ${share}%</small>`;
+    };
     const person = (m, isManager = false) => {
       const isLead = !isManager && (m.id === run.lead_id || m.is_lead);
       return `<button type="button" data-team-actor="${E(m.id)}" aria-pressed="${state.actor === m.id}" class="tm-live-person ${E(m.status || "idle")}${isManager ? " manager" : ""}${isLead ? " lead" : ""}">`
         + `<span class="tm-state-dot ${E(m.status || "idle")}" aria-hidden="true"></span>`
         + `<div><strong>${E(isManager ? T("Менеджер", "Manager") : m.name || m.role || m.id)}</strong>`
         + `<small>${E(isManager ? T("Менеджер", "Manager") : isLead ? T("Тимлид", "Lead") + " · " + (m.role || "") : m.role || T("Участник", "Member"))}</small>`
-        + `<span title="${E(m.model || "")}">${E(modelDisplayName(m.model || ""))}</span></div>`
+        + `<span title="${E(m.model || "")}">${E(modelDisplayName(m.model || ""))}</span>${usageLine(m.id)}</div>`
         + `<em>${E(roles()[m.status] || (m.status ? m.status : T("Ожидает", "Waiting")))}</em></button>`;
     };
     const tokens = (+run.usage?.prompt_tokens || 0) + (+run.usage?.completion_tokens || 0) + (+run.usage?.estimated_prompt_tokens || 0) + (+run.usage?.estimated_completion_tokens || 0);
     return `<header class="tm-monitor-head"><div><h2>${E(run.name || run.team_name || T("Работа команды", "Team activity"))}</h2><p>${E(phaseText(run.status === "running" ? run.phase : run.status))}</p></div><span class="tm-monitor-status ${E(run.status || "")}" role="status">${E(message.streaming ? T("В процессе", "In progress") : roles()[run.status] || (run.status === "completed" ? T("Готово", "Done") : T("Завершено", "Finished")))}</span></header>
-      <div class="tm-monitor-summary"><span><strong>${+run.calls || +run.usage?.calls || 0}</strong>${E(T("обращений к моделям", "model calls"))}</span><span><strong>${tokens.toLocaleString()}</strong>${E((run.usage?.estimated || run.usage?.estimated_calls) ? T("токенов, оценка", "tokens, estimated") : T("токенов по отчётам", "reported tokens"))}</span><span><strong>${run.started ? Math.max(0, Math.round(((run.finished || Date.now()) - run.started) / 1000)) : 0} ${E(T("с", "s"))}</strong>${E(T("с начала работы", "elapsed"))}</span></div>
+      <div class="tm-monitor-summary"><span><strong>${+run.calls || +run.usage?.calls || 0}</strong>${E(T("обращений к моделям", "model calls"))}</span><span><strong>${tokens.toLocaleString()}</strong>${E((run.usage?.estimated || run.usage?.estimated_calls) ? T("токенов, оценка", "tokens, estimated") : T("токенов по отчётам", "reported tokens"))}</span><span><strong>${run.started ? E(fmtDur(Math.max(1000, (run.finished || Date.now()) - run.started))) : "0" + E(T(" с", "s"))}</strong>${E(run.finished ? T("длительность", "duration") : T("с начала работы", "elapsed"))}</span>${Array.isArray(run.tasks) && run.tasks.length ? `<span><strong>${run.tasks.filter((t) => DONE.includes(t.status)).length}/${run.tasks.length}</strong>${E(T("задач готово", "tasks done"))}</span>` : ""}${+run.tool_calls ? `<span><strong>${+run.tool_calls}</strong>${E(T("вызовов инструментов", "tool calls"))}</span>` : ""}</div>
       <div class="tm-monitor-map" aria-label="${E(T("Участники команды", "Team members"))}">${person(manager, true)}${rest.map((m) => person(m)).join("")}</div>
       <button type="button" class="pbtn ghost tm-actor-reset" data-team-actor="">${E(state.actor ? T("Показать всю команду", "Show the whole team") : T("Вся команда · выберите участника выше", "Whole team · select a member above"))}</button>
       <div class="tm-monitor-columns"><section><h3>${E(T("Задачи", "Tasks"))}</h3><div class="tm-task-list">${(run.tasks || events.filter((e) => e.type === "task")).filter((e) => !state.actor || e.member_id === state.actor).slice(-20).map((event) => `<div class="tm-task" data-team-task="${E(event.task_id || event.id || event.member_id + event.title)}"><span class="tm-state-dot ${E(event.status || "pending")}" aria-hidden="true"></span><div><strong>${E(eventLabel(event))}</strong><small>${E(event.member_name || (event.member_id ? memberName(event.member_id) : ""))}${event.status ? ` · ${E(roles()[event.status] || event.status)}` : ""}</small>${event.report ? `<details><summary>${E(T("Открыть отчёт", "Open report"))}</summary><pre class="tm-task-report">${E(event.report)}</pre></details>` : ""}</div></div>`).join("") || `<p class="tm-muted">${E(T("Тимлид распределит задачи после изучения запроса.", "The lead assigns tasks after reviewing the request."))}</p>`}</div></section>
@@ -752,6 +1071,7 @@ const MemuTeams = (() => {
     if (event.run_id) run.id = event.run_id;
     if (event.type === "run_started") {
       if (event.max_calls) run.max_calls = event.max_calls;
+      if (event.run_mode) run.run_mode = event.run_mode;
       if (event.members) run.members = event.members;
       run.name = event.team_name || event.name || run.name;
     }
@@ -806,6 +1126,7 @@ const MemuTeams = (() => {
       name: team?.name || source.chatCaps.team_name,
       status: "running",
       phase: "manager",
+      run_mode: runMode(team),
       started: Date.now(),
       events: [],
       members: [

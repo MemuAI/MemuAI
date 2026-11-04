@@ -37,6 +37,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -117,6 +118,7 @@ TARGETS = {
                                    "app.music", "app.music.api", "app.music.library", "app.music.sources", "app.music.tools", "app.music.downloader", "app.music.lyrics", "app.music.player", "app.music.tagger", "app.music.extras", "app.music.tgapp_ops", "app.music.telegram_music", "mutagen", "mutagen.mp4", "mutagen.id3", "mutagen.flac", "mutagen.oggopus", "mutagen.oggvorbis",
 
                                    "app.module_integration", "app.module_integration_api", "app.module_integration_handlers", "app.module_integration_quick", "app.module_integration_data",
+                                   "app.utils_kit", "app.utils_kit.core", "app.utils_kit.colors", "app.utils_kit.jobs", "app.utils_kit.api", "app.utils_kit.chat", "app.utils_kit.t_text", "app.utils_kit.t_code", "app.utils_kit.t_dev", "app.utils_kit.t_check", "app.utils_kit.t_gen", "app.utils_kit.t_image", "app.utils_kit.t_av", "app.utils_kit.t_docs", "app.utils_kit.t_data", "app.utils_kit.t_net", "app.utils_kit.t_sys", "app.utils_kit.t_ai", "zoneinfo", "tzdata", "yaml",
                                    "app.bigdocs", "app.bigdocs_telegram",
 
                                    "app.local_hw", "app.local_wizard", "app.local_wizard_api",
@@ -181,6 +183,7 @@ TARGETS = {
                                    "app.music", "app.music.api", "app.music.library", "app.music.sources", "app.music.tools", "app.music.downloader", "app.music.lyrics", "app.music.player", "app.music.tagger", "app.music.extras", "app.music.tgapp_ops", "app.music.telegram_music", "mutagen", "mutagen.mp4", "mutagen.id3", "mutagen.flac", "mutagen.oggopus", "mutagen.oggvorbis",
 
                                    "app.module_integration", "app.module_integration_api", "app.module_integration_handlers", "app.module_integration_quick", "app.module_integration_data",
+                                   "app.utils_kit", "app.utils_kit.core", "app.utils_kit.colors", "app.utils_kit.jobs", "app.utils_kit.api", "app.utils_kit.chat", "app.utils_kit.t_text", "app.utils_kit.t_code", "app.utils_kit.t_dev", "app.utils_kit.t_check", "app.utils_kit.t_gen", "app.utils_kit.t_image", "app.utils_kit.t_av", "app.utils_kit.t_docs", "app.utils_kit.t_data", "app.utils_kit.t_net", "app.utils_kit.t_sys", "app.utils_kit.t_ai", "zoneinfo", "tzdata", "yaml",
 
                                    "app.gdrive_sync", "app.gdrive_sync_crypto", "app.gdrive_sync_drive",
 
@@ -206,7 +209,7 @@ TARGETS = {
 
                                    "app.tables_api",
 
-                                   "app.skills_catalog",
+                                   "app.skills_catalog", "app.skills_scope",
 
                                    "app.characters_api", "app.character_import",
 
@@ -221,9 +224,9 @@ TARGETS = {
 
                                    "app.memufiles_manager", "app.memufiles", "app.memufiles.desktop", "app.memufiles.paths",
 
-                                   "app.app_settings_api", "app.memunote.settings", "app.memunote.settings_schema", "app.memunote.desktop",
+                                   "app.app_settings_api", "app.memunote.settings", "app.memunote.settings_schema", "app.memunote.appearance", "app.memunote.desktop",
                                    "app.memunote.ai", "app.memunote.formats", "app.memunote.formats.textio",
-                                   "app.memufiles.settings", "app.memufiles.settings_schema"],
+                                   "app.memufiles.settings", "app.memufiles.settings_schema", "app.memufiles.appearance"],
         "collect": ["curl_cffi", "faster_whisper", "piper", "onnxruntime", "pystray", "vosk",
                     "telethon", "python_socks", "qrcode", "pykakasi", "pypinyin"],
     },
@@ -250,7 +253,8 @@ TARGETS = {
                    "app.cli.foreign.cursor", "app.cli.foreign.gemini", "app.cli.foreign.grok", "app.cli.foreign.handoff",
                    "app.cli.foreign.importer", "app.cli.foreign.model", "app.cli.foreign.opencode",
                    "app.cli.foreign.protobuf", "app.cli.schedule", "app.cli.triage", "app.cli.risk", "app.cli.modelmeta",
-                   "app.cli.skillkit", "app.cli.editor", "app.cli.tools.skills", "sqlite3", "tomllib",
+                   "app.cli.skillkit", "app.cli.editor", "app.cli.tools.skills", "app.skills_scope", "app.skills_catalog",
+                   "sqlite3", "tomllib",
 
                    "app.cli.remote",
 
@@ -307,10 +311,10 @@ TARGETS = {
 
                  "app/memunote/dicts;app/memunote/dicts"],
         "hidden": ["app.memunote", "app.memunote.server", "app.memunote.desktop", "app.memunote.ai",
-                   "app.memunote.prompts", "app.memunote.edits", "app.memunote.settings", "app.memunote.settings_schema", "app.memunote.paths", "app.memunote.winsys",
+                   "app.memunote.prompts", "app.memunote.edits", "app.memunote.settings", "app.memunote.settings_schema", "app.memunote.appearance", "app.memunote.paths", "app.memunote.winsys",
                    "app.memunote.formats", "app.memunote.formats.textio", "app.memunote.formats.richhtml",
                    "app.memunote.formats.docx", "app.memunote.formats.odt", "app.memunote.formats.rtf",
-                   "app.memunote.formats.pdftools", "app.memunote.formats.sheets", "app.memunote.formats.books",
+                   "app.memunote.formats.pdftools", "app.memunote.formats.sheets", "app.memunote.formats.books", "app.memunote.formats.email_msg",
 
                    "app.memunote.crash", "app.memory_v2",
 
@@ -326,7 +330,9 @@ TARGETS = {
 
                    "app.token_estimate",
 
-                   "app.memunote.sheets_api", "app.memunote.formats.xlsx_edit"],
+                   "app.memunote.sheets_api", "app.memunote.formats.xlsx_edit",
+
+                   "app.skills_scope", "app.skills_catalog"],
         "collect": ["spylls"],
 
         "exclude": ["app.websearch", "app.config", "app.pgdata", "app.providers", "app.inbox_hooks", "httpx._main", "curl_cffi", "fastapi", "uvicorn", "starlette",
@@ -344,7 +350,9 @@ TARGETS = {
         "comments": "Fast file manager with tabs, two panes, instant search, previews and an AI assistant through MemuAI Proxy.",
         "data": ["app/memufiles/static;app/memufiles/static", "memufiles-icon.png;."],
         "hidden": ["app.memufiles", "app.memufiles.server", "app.memufiles.desktop", "app.memufiles.crash",
-                   "app.memufiles.paths", "app.memufiles.settings", "app.memufiles.settings_schema", "app.memufiles.fsops", "app.memufiles.trash",
+                   "app.skills_scope", "app.skills_catalog",
+                   "app.memufiles.paths", "app.memufiles.settings", "app.memufiles.settings_schema", "app.memufiles.appearance", "app.memunote.appearance",
+                   "app.memufiles.fsops", "app.memufiles.trash",
                    "app.memufiles.opqueue", "app.memufiles.batchrename", "app.memufiles.search", "app.memufiles.jobs",
                    "app.memufiles.preview", "app.memufiles.assistant", "app.memufiles.textedit", "app.memufiles.clip",
                    "app.memufiles.openwith", "app.win_titlebar",
@@ -446,7 +454,13 @@ def prepare_proxy_only_assets() -> None:
     value, removed = re.subn(r'^\s*"home\.openchat(?:\.done)?":.*\n', "", value, flags=re.M)
     if removed != 4:
         raise SystemExit("Proxy-only UI: chat translations changed")
+    value = value.replace(r"%APPDATA%\\MemuAI\\providers", r"%APPDATA%\\MemuAIProxy\\providers")
+    value = value.replace("исходников MemuAI:", "исходников Proxy:")
+    value = value.replace("touching MemuAI source:", "touching Proxy source:")
     i18n.write_text(value, encoding="utf-8")
+    replace_exact(ui / "index.html", "исходников MemuAI:", "исходников Proxy:")
+    for name in ("index.html", "proxy-r31.css"):
+        replace_exact(ui / name, r"%APPDATA%\MemuAI\providers", r"%APPDATA%\MemuAIProxy\providers")
     replace_exact(ui / "local.js", "Скопировать в папку MemuAI", "Скопировать в папку Proxy")
     replace_exact(ui / "local.js", "Copy into the MemuAI folder", "Copy into the Proxy folder")
 
@@ -675,6 +689,38 @@ def ensure_icon() -> None:
         say(f"Собираю иконку ({script_name})…")
         run([str(VENV_PY), str(script)])
 
+
+def prepare_video_runtime() -> None:
+    """Bundle the small QuickJS runtime used by yt-dlp's YouTube challenge solver."""
+    if os.name != "nt":
+        return
+    version = "v0.18.0"
+    if sys.maxsize > 2**32:
+        asset = "qjs-windows-x86_64.exe"
+        digest = "ff03398d74ea6e6bd3a8e58058f7003225abcac229d7d57775b7aaae812a49c7"
+    else:
+        asset = "qjs-windows-x86.exe"
+        digest = "79aa85a8208596dc04333e99726c254d43b9e814803f2100ea593341f2c95b0e"
+    folder = ROOT / "build" / "video-runtime"
+    folder.mkdir(parents=True, exist_ok=True)
+    exe = folder / "qjs.exe"
+    if not exe.is_file() or hashlib.sha256(exe.read_bytes()).hexdigest() != digest:
+        with urllib.request.urlopen(f"https://github.com/quickjs-ng/quickjs/releases/download/{version}/{asset}",
+                                    timeout=60) as response:
+            binary = response.read(4 * 1024 * 1024)
+        if hashlib.sha256(binary).hexdigest() != digest:
+            raise SystemExit("QuickJS: SHA-256 не совпадает.")
+        exe.write_bytes(binary)
+    license_file = folder / "LICENSE-QuickJS"
+    if not license_file.is_file():
+        with urllib.request.urlopen(f"https://raw.githubusercontent.com/quickjs-ng/quickjs/{version}/LICENSE",
+                                    timeout=30) as response:
+            license_file.write_bytes(response.read())
+    data = "build/video-runtime;video-runtime"
+    if data not in TARGETS["memuai"]["data"]:
+        TARGETS["memuai"]["data"].append(data)
+
+
 def _add_data_arg(item: str, spec_target: bool) -> str:
     """``--add-data`` argument with the platform's separator.
 
@@ -761,6 +807,8 @@ def build_exes(args, version: str) -> None:
     keys = [args.only] if args.only else ["memuai", "proxy", "memucode", "memufiles", "memunote", "memu"]
     if "proxy_only" in keys:
         prepare_proxy_only_assets()
+    if "memuai" in keys:
+        prepare_video_runtime()
     jobs = []
     with stage("проверка изменений (граф импортов)"):
         for key in keys:

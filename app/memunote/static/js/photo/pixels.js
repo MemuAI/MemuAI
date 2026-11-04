@@ -191,7 +191,122 @@ export const ADJUST = {
       px[0] = clamp(px[0] + (c[0] - px[0]) * k); px[1] = clamp(px[1] + (c[1] - px[1]) * k); px[2] = clamp(px[2] + (c[2] - px[2]) * k);
     }, mask);
   },
+  shadowsHighlights(img, { shadows = 35, highlights = 0, radius = 30 } = {}, mask) {
+    const base = lumBlur(img, Math.max(1, radius)), out = cloneImage(img), d = out.data;
+    const s = clamp(shadows, -100, 100) / 100, hl = clamp(highlights, -100, 100) / 100;
+    for (let p = 0, i = 0; p < base.length; p++, i += 4) {
+      if (!d[i + 3]) continue;
+      const L = lumOf(d[i], d[i + 1], d[i + 2]) / 255, B = base[p], ws = (1 - B) * (1 - B), wh = B * B;
+      const nl = clamp(L + s * ws * (1 - L) * 0.9 - hl * wh * L * 0.55, 0, 1);
+      toneTo(d, i, L, nl);
+    }
+    return applyMask(img, out, mask);
+  },
+  clarity(img, { amount = 30, radius = 20 } = {}, mask) {
+    const base = lumBlur(img, Math.max(1, radius)), out = cloneImage(img), d = out.data, a = clamp(amount, -100, 100) / 100;
+    for (let p = 0, i = 0; p < base.length; p++, i += 4) {
+      if (!d[i + 3]) continue;
+      const L = lumOf(d[i], d[i + 1], d[i + 2]) / 255, mid = 1 - (2 * L - 1) * (2 * L - 1);
+      const dl = (L - base[p]) * a * 1.2 * (0.35 + 0.65 * mid) * 255;
+      d[i] = clamp(d[i] + dl); d[i + 1] = clamp(d[i + 1] + dl); d[i + 2] = clamp(d[i + 2] + dl);
+    }
+    return applyMask(img, out, mask);
+  },
+  dehaze(img, { amount = 30 } = {}, mask) {
+    const { width: w, height: h, data: s } = img, n = w * h, k = clamp(amount, -100, 100) / 100, out = cloneImage(img), d = out.data;
+    if (!k || !n) return applyMask(img, out, mask);
+    const dc = new Uint8ClampedArray(n * 4);
+    for (let p = 0, i = 0; p < n; p++, i += 4) { const m = Math.min(s[i], s[i + 1], s[i + 2]); dc[i] = dc[i + 1] = dc[i + 2] = m; dc[i + 3] = 255; }
+    const db = gaussianBlurData(dc, w, h, Math.max(2, Math.round(Math.max(w, h) / 80)));
+    const hist = new Uint32Array(256); for (let i = 0; i < db.length; i += 4) hist[db[i]]++;
+    let cut = 255, acc = 0; const top = Math.max(1, Math.round(n * 0.002)); while (cut > 0 && (acc += hist[cut]) < top) cut--;
+    const A = [0, 0, 0]; let cnt = 0;
+    for (let i = 0; i < db.length; i += 4) if (db[i] >= cut && s[i + 3]) { A[0] += s[i]; A[1] += s[i + 1]; A[2] += s[i + 2]; cnt++; }
+    if (cnt) { A[0] /= cnt; A[1] /= cnt; A[2] /= cnt; } else A[0] = A[1] = A[2] = 255;
+    const Am = Math.max(1, (A[0] + A[1] + A[2]) / 3);
+    for (let i = 0; i < d.length; i += 4) {
+      if (!d[i + 3]) continue;
+      if (k > 0) { const tr = Math.max(0.12, 1 - k * 0.92 * Math.min(1, db[i] / Am)); for (let c = 0; c < 3; c++) d[i + c] = clamp((s[i + c] - A[c]) / tr + A[c]); }
+      else { const tr = 1 + k * 0.6; for (let c = 0; c < 3; c++) d[i + c] = clamp(s[i + c] * tr + A[c] * (1 - tr)); }
+    }
+    return applyMask(img, out, mask);
+  },
+  channelMixer(img, { rr = 100, rg = 0, rb = 0, gr = 0, gg = 100, gb = 0, br = 0, bg = 0, bb = 100, mono = false } = {}, mask) {
+    return perPixel(img, (px) => {
+      const [r, g, b] = px;
+      if (mono) { px[0] = px[1] = px[2] = clamp((r * rr + g * rg + b * rb) / 100); return; }
+      px[0] = clamp((r * rr + g * rg + b * rb) / 100); px[1] = clamp((r * gr + g * gg + b * gb) / 100); px[2] = clamp((r * br + g * bg + b * bb) / 100);
+    }, mask);
+  },
+  gradientMap(img, { from = "#1e1b4b", to = "#fbbf77", amount = 100, reverse = false } = {}, mask) {
+    let a = parseHex(from) || [0, 0, 0], b = parseHex(to) || [255, 255, 255]; if (reverse) [a, b] = [b, a];
+    const k = clamp(amount, 0, 100) / 100;
+    return perPixel(img, (px) => {
+      const t = lumOf(px[0], px[1], px[2]) / 255;
+      for (let c = 0; c < 3; c++) px[c] = clamp(px[c] + (a[c] + (b[c] - a[c]) * t - px[c]) * k);
+    }, mask);
+  },
+  photoFilter(img, { color = "#ec8a00", density = 25, preserve = true } = {}, mask) {
+    const col = parseHex(color) || [236, 138, 0], k = clamp(density, 0, 100) / 100;
+    return perPixel(img, (px) => {
+      const L0 = lumOf(px[0], px[1], px[2]);
+      let r = px[0] + (px[0] * col[0] / 255 * 1.35 - px[0]) * k + (col[0] - px[0]) * k * 0.25, g = px[1] + (px[1] * col[1] / 255 * 1.35 - px[1]) * k + (col[1] - px[1]) * k * 0.25, b = px[2] + (px[2] * col[2] / 255 * 1.35 - px[2]) * k + (col[2] - px[2]) * k * 0.25;
+      if (preserve) { const dl = L0 - lumOf(r, g, b); r += dl; g += dl; b += dl; }
+      px[0] = clamp(r); px[1] = clamp(g); px[2] = clamp(b);
+    }, mask);
+  },
+  splitToning(img, { shadowHue = 210, shadowSat = 35, highlightHue = 40, highlightSat = 30, balance = 0 } = {}, mask) {
+    const sc = hslToRgb(shadowHue, 100, 50), hc = hslToRgb(highlightHue, 100, 50), ss = clamp(shadowSat, 0, 100) / 100, hs = clamp(highlightSat, 0, 100) / 100;
+    const pivot = clamp(0.5 + clamp(balance, -100, 100) / 100 * 0.35, 0.1, 0.9);
+    return perPixel(img, (px) => {
+      const L0 = lumOf(px[0], px[1], px[2]), L = L0 / 255;
+      let ws = L < pivot ? 1 - L / pivot : 0, wh = L > pivot ? (L - pivot) / (1 - pivot) : 0; ws = ws * ws * (3 - 2 * ws); wh = wh * wh * (3 - 2 * wh);
+      const v = [0, 0, 0]; for (let c = 0; c < 3; c++) v[c] = px[c] + (sc[c] - 128) * ws * ss * 0.55 + (hc[c] - 128) * wh * hs * 0.55;
+      const dl = L0 - lumOf(v[0], v[1], v[2]);
+      px[0] = clamp(v[0] + dl); px[1] = clamp(v[1] + dl); px[2] = clamp(v[2] + dl);
+    }, mask);
+  },
+  look(img, { name = "vivid", amount = 100 } = {}, mask) {
+    const steps = LOOKS[name]; if (!steps) return applyMask(img, cloneImage(img), mask);
+    let cur = img;
+    for (const [op, p] of steps) cur = (ADJUST[op] || FILTER[op])(cur, { ...p }, null);
+    const k = clamp(amount, 0, 100) / 100;
+    if (k < 1) { const s = img.data, o = cur === img ? (cur = cloneImage(img)).data : cur.data; for (let i = 0; i < o.length; i += 4) { o[i] = s[i] + (o[i] - s[i]) * k; o[i + 1] = s[i + 1] + (o[i + 1] - s[i + 1]) * k; o[i + 2] = s[i + 2] + (o[i + 2] - s[i + 2]) * k; o[i + 3] = s[i + 3] + (o[i + 3] - s[i + 3]) * k; } }
+    if (cur === img) cur = cloneImage(img);
+    return applyMask(img, cur, mask);
+  },
 };
+
+function lumBlur(img, radius) {
+  const { width: w, height: h, data: s } = img, n = w * h, buf = new Uint8ClampedArray(n * 4);
+  for (let p = 0, i = 0; p < n; p++, i += 4) { const v = lumOf(s[i], s[i + 1], s[i + 2]); buf[i] = buf[i + 1] = buf[i + 2] = v; buf[i + 3] = 255; }
+  const b = gaussianBlurData(buf, w, h, radius), out = new Float32Array(n);
+  for (let p = 0, i = 0; p < n; p++, i += 4) out[p] = b[i] / 255;
+  return out;
+}
+function toneTo(d, i, L, nl) {
+  if (nl > L) { const t = (nl - L) / Math.max(1e-6, 1 - L); d[i] += (255 - d[i]) * t; d[i + 1] += (255 - d[i + 1]) * t; d[i + 2] += (255 - d[i + 2]) * t; }
+  else if (nl < L) { const k = L > 1e-6 ? nl / L : 0; d[i] *= k; d[i + 1] *= k; d[i + 2] *= k; }
+}
+
+export const LOOKS = {
+  vivid: [["vibrance", { vibrance: 45, saturation: 5 }], ["brightnessContrast", { brightness: 4, contrast: 14 }]],
+  warm: [["temperature", { temperature: 28, tint: 4 }], ["vibrance", { vibrance: 12 }]],
+  cool: [["temperature", { temperature: -26, tint: -2 }], ["brightnessContrast", { contrast: 6 }]],
+  golden: [["temperature", { temperature: 42, tint: 8 }], ["shadowsHighlights", { shadows: 20, highlights: 10, radius: 30 }], ["vibrance", { vibrance: 18 }]],
+  matte: [["curves", { points: [[0, 34], [70, 72], [190, 196], [255, 236]] }], ["vibrance", { saturation: -12 }]],
+  fade: [["curves", { points: [[0, 44], [128, 132], [255, 222]] }], ["vibrance", { saturation: -28 }]],
+  vintage: [["sepia", { amount: 38 }], ["curves", { points: [[0, 28], [128, 126], [255, 228]] }], ["vignette", { amount: 38, size: 55 }]],
+  film: [["curves", { points: [[0, 12], [64, 56], [192, 204], [255, 244]] }], ["temperature", { temperature: 8 }], ["noise", { amount: 6, mono: true }]],
+  cinematic: [["splitToning", { shadowHue: 195, shadowSat: 45, highlightHue: 32, highlightSat: 40, balance: 0 }], ["brightnessContrast", { contrast: 12 }], ["vibrance", { saturation: -8 }]],
+  dramatic: [["clarity", { amount: 45, radius: 20 }], ["brightnessContrast", { contrast: 18 }], ["vibrance", { saturation: -15 }], ["vignette", { amount: 30, size: 60 }]],
+  noir: [["blackWhite", {}], ["brightnessContrast", { contrast: 32 }], ["vignette", { amount: 35, size: 58 }]],
+  mono: [["grayscale", {}], ["curves", { points: [[0, 6], [64, 54], [192, 206], [255, 250]] }]],
+  lomo: [["vibrance", { vibrance: 35, saturation: 8 }], ["brightnessContrast", { contrast: 24 }], ["vignette", { amount: 62, size: 48 }]],
+  pastel: [["hueSaturation", { saturation: -32, lightness: 10 }], ["curves", { points: [[0, 30], [255, 250]] }]],
+  duotone: [["gradientMap", { from: "#1e1b4b", to: "#fbbf77", amount: 100 }]],
+};
+export const LOOK_NAMES = Object.keys(LOOKS);
 
 export function curveLut(points) {
   const pts = points.map(([x, y]) => [clamp(x), clamp(y)]).sort((a, b) => a[0] - b[0]).filter((p, i, a) => i === 0 || p[0] !== a[i - 1][0]);
@@ -393,6 +508,63 @@ export const FILTER = {
       }
       let best = 0; for (let k = 1; k < L; k++) if (cnt[k] > cnt[best]) best = k;
       const i = (y * w + x) * 4; o[i] = sr[best] / cnt[best]; o[i + 1] = sg[best] / cnt[best]; o[i + 2] = sb[best] / cnt[best];
+    }
+    return applyMask(img, out, mask);
+  },
+  zoomBlur(img, { amount = 25, cx = 50, cy = 50 } = {}, mask) {
+    const { width: w, height: h, data: s } = img, out = cloneImage(img), o = out.data, k = clamp(amount, 0, 100) / 100 * 0.35, N = 18;
+    if (!k) return applyMask(img, out, mask);
+    const ox = w * clamp(cx, 0, 100) / 100, oy = h * clamp(cy, 0, 100) / 100;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let j = 0; j < N; j++) {
+        const f = 1 - k * j / (N - 1), sx = Math.round(ox + (x - ox) * f), sy = Math.round(oy + (y - oy) * f), i = ((sy < 0 ? 0 : sy >= h ? h - 1 : sy) * w + (sx < 0 ? 0 : sx >= w ? w - 1 : sx)) * 4, al = s[i + 3];
+        r += s[i] * al; g += s[i + 1] * al; b += s[i + 2] * al; a += al;
+      }
+      const i = (y * w + x) * 4;
+      if (a) { o[i] = r / a; o[i + 1] = g / a; o[i + 2] = b / a; } o[i + 3] = a / N;
+    }
+    return applyMask(img, out, mask);
+  },
+  tiltShift(img, { position = 55, band = 22, radius = 10 } = {}, mask) {
+    const { width: w, height: h, data: s } = img, out = cloneImage(img), o = out.data, bl = gaussianBlurData(s, w, h, Math.max(0.5, radius));
+    const c = clamp(position, 0, 100) / 100, half = clamp(band, 1, 100) / 200, soft = Math.max(0.02, half * 1.2);
+    for (let y = 0; y < h; y++) {
+      let t = clamp((Math.abs((y + 0.5) / h - c) - half) / soft, 0, 1); t = t * t * (3 - 2 * t);
+      if (!t) continue;
+      for (let x = 0, i = y * w * 4; x < w; x++, i += 4) { o[i] = s[i] + (bl[i] - s[i]) * t; o[i + 1] = s[i + 1] + (bl[i + 1] - s[i + 1]) * t; o[i + 2] = s[i + 2] + (bl[i + 2] - s[i + 2]) * t; o[i + 3] = s[i + 3] + (bl[i + 3] - s[i + 3]) * t; }
+    }
+    return applyMask(img, out, mask);
+  },
+  chromatic(img, { distance = 4 } = {}, mask) {
+    const { width: w, height: h, data: s } = img, out = cloneImage(img), o = out.data, cx = (w - 1) / 2, cy = (h - 1) / 2, k = clamp(distance, 0, 200) / Math.max(1, Math.hypot(cx, cy));
+    if (!k) return applyMask(img, out, mask);
+    const at = (x, y) => ((y < 0 ? 0 : y >= h ? h - 1 : y) * w + (x < 0 ? 0 : x >= w ? w - 1 : x)) * 4;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = x - cx, dy = y - cy, i = (y * w + x) * 4;
+      o[i] = s[at(Math.round(cx + dx * (1 - k)), Math.round(cy + dy * (1 - k)))];
+      o[i + 2] = s[at(Math.round(cx + dx * (1 + k)), Math.round(cy + dy * (1 + k))) + 2];
+    }
+    return applyMask(img, out, mask);
+  },
+  halftone(img, { size = 8, angle = 45, colored = false } = {}, mask) {
+    const { width: w, height: h, data: s } = img, out = cloneImage(img), o = out.data, n = Math.max(3, size), a = (angle * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const u = x * ca + y * sa, v = -x * sa + y * ca, cu = (Math.floor(u / n) + 0.5) * n, cv = (Math.floor(v / n) + 0.5) * n;
+      const X = Math.round(cu * ca - cv * sa), Y = Math.round(cu * sa + cv * ca), j = ((Y < 0 ? 0 : Y >= h ? h - 1 : Y) * w + (X < 0 ? 0 : X >= w ? w - 1 : X)) * 4;
+      const L = lumOf(s[j], s[j + 1], s[j + 2]) / 255, r = n * Math.sqrt((1 - L * (colored ? 0.8 : 1)) / Math.PI), cover = clamp(r - Math.hypot(u - cu, v - cv) + 0.5, 0, 1);
+      const i = (y * w + x) * 4, ink = colored ? [s[j], s[j + 1], s[j + 2]] : [0, 0, 0];
+      o[i] = 255 + (ink[0] - 255) * cover; o[i + 1] = 255 + (ink[1] - 255) * cover; o[i + 2] = 255 + (ink[2] - 255) * cover;
+    }
+    return applyMask(img, out, mask);
+  },
+  sketch(img, { radius = 10, strength = 100 } = {}, mask) {
+    const { width: w, height: h, data: s } = img, n = w * h, inv = new Uint8ClampedArray(n * 4), gray = new Uint8Array(n);
+    for (let p = 0, i = 0; p < n; p++, i += 4) { const g = Math.round(lumOf(s[i], s[i + 1], s[i + 2])); gray[p] = g; inv[i] = inv[i + 1] = inv[i + 2] = 255 - g; inv[i + 3] = 255; }
+    const bl = gaussianBlurData(inv, w, h, Math.max(0.5, radius)), out = cloneImage(img), o = out.data, k = clamp(strength, 0, 300) / 100;
+    for (let p = 0, i = 0; p < n; p++, i += 4) {
+      const b = bl[i], dodge = b >= 255 ? 255 : Math.min(255, (gray[p] * 255) / (255 - b)), v = clamp(255 - (255 - dodge) * k);
+      o[i] = o[i + 1] = o[i + 2] = v;
     }
     return applyMask(img, out, mask);
   },

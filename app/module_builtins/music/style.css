@@ -6,7 +6,7 @@ html {
   --mm-ease: cubic-bezier(.2,.8,.2,1); --mm-spring: cubic-bezier(.34,1.56,.64,1);
   --np-ink: 255 255 255; --np-paper: 6 6 9; --np-pill: #fff; --np-on-pill: #111;
   --mm-side: 232px; --mm-bar: 84px; --mm-rk: 1; --mm-tile: 176px; --mm-row: 56px; --mm-safe-top: var(--memu-appbar-h, 0px);
-  --mm-danger: #ff7b7b; --mm-ok: #4ade80;
+  --mm-danger: #ff7b7b; --mm-ok: #4ade80; --scroll-thumb: var(--border, color-mix(in srgb, var(--mm-text) 22%, transparent));
   --mm-font: var(--sans, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif); --mm-display: var(--mm-font);
   --mm-display-weight: 800; --mm-title-track: -.035em; --mm-pad-x: 36px; --mm-gap: 18px;
 }
@@ -524,13 +524,16 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-ly-warn { flex: none; padding: 3px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; cursor: help;
   color: rgb(255 196 120); background: rgb(255 170 60 / .14); }
 @media (max-width: 860px) { .mm-ly-tap span, .mm-ly-edit span { display: none; } }
-.mm-ly-alts { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 5; width: min(360px, 100%); max-height: 300px; overflow: auto; scrollbar-width: thin;
+.mm-ly-alts { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 5; width: min(360px, 100%); max-height: 300px; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; overscroll-behavior: contain;
   padding: 4px; border-radius: calc(14px * var(--mm-rk)); display: grid; gap: 2px; box-shadow: 0 16px 40px -12px rgba(0,0,0,.5);
   background: rgb(var(--np-paper) / .96); border: 1px solid rgb(var(--np-ink) / .14); }
 .mm-ly-alts button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; }
 .mm-ly-alts button[aria-checked="true"] { background: rgb(var(--np-ink) / .1); }
 .mm-ly-alts b { font-size: 13px; color: rgb(var(--np-ink)); }
 .mm-ly-alts small { opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-menu::-webkit-scrollbar, .mm-pop::-webkit-scrollbar, .mm-ly-alts::-webkit-scrollbar { width: 8px; height: 8px; }
+.mm-menu::-webkit-scrollbar-track, .mm-pop::-webkit-scrollbar-track, .mm-ly-alts::-webkit-scrollbar-track { margin: 12px 0; background: transparent; }
+.mm-menu::-webkit-scrollbar-thumb, .mm-pop::-webkit-scrollbar-thumb, .mm-ly-alts::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .mm-ly-alts-empty { padding: 10px; }
 .mm-ly-language { max-width: 110px; padding: 4px; border: 1px solid rgb(var(--np-ink) / .22); border-radius: 8px; color: rgb(var(--np-ink)); background: rgb(var(--np-paper)); font: inherit; }
 .mm-ly-edit-menu { position: fixed; z-index: 100; min-width: 180px; padding: 5px; display: grid; border-radius: 12px; background: var(--mm-bg); border: 1px solid var(--mm-line); box-shadow: 0 12px 32px #0006; }
@@ -580,7 +583,10 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
   animation: mm-drawer-in .45s var(--mm-ease) both; }
 @keyframes mm-drawer-in { from { opacity: 0; transform: translateX(24px); } }
 .mm-drawer header { display: flex; align-items: center; gap: 8px; padding: 16px 12px 10px 20px; font-size: 16px; }
-.mm-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 12px; }
+.mm-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 12px; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; overscroll-behavior: contain; }
+.mm-drawer-body::-webkit-scrollbar { width: 8px; }
+.mm-drawer-body::-webkit-scrollbar-track { margin: 12px 0; background: transparent; }
+.mm-drawer-body::-webkit-scrollbar-thumb { border: 3px solid transparent; background-clip: padding-box; border-radius: 999px; }
 .mm-q-label { padding: 12px 12px 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mm-faint); }
 .mm-qrow { display: grid; grid-template-columns: 20px 40px 1fr auto; align-items: center; gap: 10px; padding: 6px 8px; border-radius: calc(10px * var(--mm-rk)); transition: background .15s; }
 .mm-qrow:hover { background: var(--mm-hover); }
@@ -594,8 +600,9 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-qrow.dragging { opacity: .35; } .mm-qrow.drop-before { box-shadow: inset 0 2px 0 var(--tint); }
 .mm-qrow .x { opacity: 0; } .mm-qrow:hover .x { opacity: 1; }
 
-.mm-pop { position: fixed; z-index: 40; min-width: 240px; padding: 14px; border-radius: calc(18px * var(--mm-rk)); color: var(--mm-text);
-  background: color-mix(in srgb, var(--mm-bg) 94%, var(--tint)); border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow); animation: mm-pop-in .3s var(--mm-ease) both; }
+.mm-pop { position: fixed; z-index: 40; min-width: 240px; max-height: calc(100vh - 24px); overflow-y: auto; padding: 14px; border-radius: calc(18px * var(--mm-rk)); color: var(--mm-text);
+  background: color-mix(in srgb, var(--mm-bg) 94%, var(--tint)); border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow); animation: mm-pop-in .3s var(--mm-ease) both;
+  scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; overscroll-behavior: contain; }
 .mm-np:not([hidden]):not([data-light]) ~ .mm-pop, .mm-np:not([hidden]):not([data-light]) ~ .mm-menu { --mm-bg: #121216; --mm-text: #fff; --mm-muted: rgba(255,255,255,.66); --mm-line: rgba(255,255,255,.14); --mm-hover: rgba(255,255,255,.08); --mm-panel-2: rgba(255,255,255,.1); }
 @keyframes mm-pop-in { from { opacity: 0; transform: translateY(8px) scale(.97); } }
 .mm-pop h4 { margin: 0 0 12px; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
@@ -608,8 +615,9 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-eq label { display: grid; grid-template-rows: 1fr auto; justify-items: center; gap: 4px; font-size: 10px; color: var(--mm-faint); }
 .mm-eq input { writing-mode: vertical-lr; direction: rtl; width: 22px; height: 100%; accent-color: var(--tint-ink); }
 .mm-eq-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.mm-menu { position: fixed; z-index: 45; min-width: 210px; padding: 6px; border-radius: calc(14px * var(--mm-rk)); background: color-mix(in srgb, var(--mm-bg) 94%, var(--tint));
-  border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow); animation: mm-pop-in .22s var(--mm-ease) both; color: var(--mm-text); }
+.mm-menu { position: fixed; z-index: 45; min-width: 210px; max-height: calc(100vh - 24px); overflow-y: auto; padding: 6px; border-radius: calc(14px * var(--mm-rk)); background: color-mix(in srgb, var(--mm-bg) 94%, var(--tint));
+  border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow); animation: mm-pop-in .22s var(--mm-ease) both; color: var(--mm-text);
+  scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; overscroll-behavior: contain; }
 .mm-menu button { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; border-radius: calc(9px * var(--mm-rk)); font-size: 13.5px; text-align: left; }
 .mm-menu button:hover { background: var(--mm-hover); }
 .mm-menu button svg { width: 16px; height: 16px; color: var(--mm-muted); }
@@ -1107,7 +1115,7 @@ html[data-mm-design="compact"] .mm-quick-item b { -webkit-line-clamp: 1; }
 .mm .mm-smart-art, .mm-side-pl .mm-smart-art { width: 100%; height: 100%; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--a), var(--b)); }
 .mm-smart-art svg { width: 40%; height: 40%; max-width: 48px; max-height: 48px; min-width: 16px; stroke-width: 2; }
 .mm-btn svg, .mm-chip svg, .mm-icon.sm svg, .mm-search svg, .mm-row .n .p-btn svg, .mm-sources .mm-srcdot svg, .mm-set-tabs svg { stroke-width: 2.1; }
-.mm :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"]), textarea, select):focus-visible { outline: none; }
+.mm :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"]), textarea, select):focus-visible { outline: none; }
 .mm-input:hover:not(:focus):not(:disabled), .mm-select:hover:not(:focus):not(:disabled) { border-color: color-mix(in srgb, var(--mm-text) 22%, var(--mm-line)); }
 .mm-select { transition: border-color .2s, box-shadow .2s; }
 .mm-select:focus-visible { border-color: color-mix(in srgb, var(--tint) 70%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tint) 18%, transparent); }

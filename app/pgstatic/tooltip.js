@@ -23,15 +23,33 @@ const MemuTooltip = (() => {
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const SHORTCUT = /^(?:(?:Ctrl|Alt|Shift|Win|Cmd|Enter|Esc|Escape|Tab|Space|Del|Delete|Home|End|PgUp|PgDn|F\d{1,2}|↑|↓|←|→)(?:\s*\+\s*|$))+|^(?:Ctrl|Alt|Shift)\s*\+\s*\S+$|^\S$|^Alt\+\d…\d$/i;
 
+  // The hint lives in the browser's top layer when it can (popover), so menus,
+  // dialogs and overlays with a huge z-index never cover it; the CSS z-index is
+  // the fallback for engines without popovers.
+  const TOP_LAYER = typeof HTMLElement !== "undefined" && typeof HTMLElement.prototype.showPopover === "function";
+  const MENU = "[role='menu'], [role='listbox'], .context-menu, .dd-pop, .app-menu-pop, .memu-help-menu, .profile-menu-pop, .pretty-select-menu, .mpick-pop";
+
   function element() {
-    if (tip) return tip;
+    if (tip && tip.isConnected) return tip;
     tip = document.createElement("div");
     tip.className = "memu-tooltip";
     tip.id = "memu-tooltip";
     tip.setAttribute("role", "tooltip");
+    if (TOP_LAYER) tip.setAttribute("popover", "manual");
     tip.hidden = true;
     document.body.appendChild(tip);
     return tip;
+  }
+  function raise() {
+    if (!TOP_LAYER || !tip) return;
+    try {
+      if (tip.matches(":popover-open")) tip.hidePopover();
+      tip.showPopover();
+    } catch (_) { /* the z-index keeps it above the page */ }
+  }
+  function lower() {
+    if (!TOP_LAYER || !tip) return;
+    try { if (tip.matches(":popover-open")) tip.hidePopover(); } catch (_) { /* already hidden */ }
   }
 
   function clipped(el) {
@@ -103,7 +121,32 @@ const MemuTooltip = (() => {
 
   function place(node) {
     const box = node.getBoundingClientRect();
-    const own = tip.getBoundingClientRect();
+    // Measure at the corner: near a screen edge the hint would shrink and wrap.
+    tip.style.left = "0px";
+    tip.style.top = "0px";
+    const own = { width: tip.offsetWidth, height: tip.offsetHeight };
+    // An item of an open menu gets its hint beside the menu, not over the next items.
+    const menu = node.closest(MENU);
+    if (menu && menu !== node) {
+      const frame = menu.getBoundingClientRect();
+      let left = frame.right + GAP;
+      let side = "right";
+      if (left + own.width > window.innerWidth - 6) { left = frame.left - own.width - GAP; side = "left"; }
+      let top = Math.max(6, Math.min(box.top + box.height / 2 - own.height / 2, window.innerHeight - own.height - 6));
+      if (left < 6) {
+        // No room at the sides: under or over the whole menu.
+        left = Math.max(6, Math.min(box.left + box.width / 2 - own.width / 2, window.innerWidth - own.width - 6));
+        if (frame.bottom + GAP + own.height <= window.innerHeight - 6) { top = frame.bottom + GAP; side = "below"; }
+        else if (frame.top - GAP - own.height >= 6) { top = frame.top - GAP - own.height; side = "above"; }
+        else left = -1;
+      }
+      if (left >= 0) {
+        tip.style.left = `${Math.round(left)}px`;
+        tip.style.top = `${Math.round(top)}px`;
+        tip.dataset.side = side;
+        return;
+      }
+    }
     let top = box.bottom + GAP;
     let side = "below";
     if (top + own.height > window.innerHeight - 6) { top = box.top - own.height - GAP; side = "above"; }
@@ -128,8 +171,14 @@ const MemuTooltip = (() => {
     tip.innerHTML = render(text);
     tip.hidden = false;
     tip.classList.remove("visible");
+    raise();
     place(node);
     requestAnimationFrame(() => tip && tip.classList.add("visible"));
+    // B-ONB-M7: remember the previous value so hide() can restore it
+    // instead of deleting an aria-describedby the page itself set.
+    if (node.getAttribute("aria-describedby") !== tip.id) {
+      node.dataset.memuPrevDescribedby = node.getAttribute("aria-describedby") || "";
+    }
     node.setAttribute("aria-describedby", tip.id);
     clearInterval(watch);
 
@@ -154,8 +203,13 @@ const MemuTooltip = (() => {
     clearTimeout(clipTimer);
     clearInterval(watch);
     if (observer) observer.disconnect();
-    if (target && target.getAttribute("aria-describedby") === "memu-tooltip") target.removeAttribute("aria-describedby");
-    if (tip && !tip.hidden) { tip.hidden = true; tip.classList.remove("visible"); lastHidden = Date.now(); }
+    if (target && target.getAttribute("aria-describedby") === "memu-tooltip") {
+      const prev = target.dataset.memuPrevDescribedby;
+      if (prev) target.setAttribute("aria-describedby", prev);
+      else target.removeAttribute("aria-describedby");
+      delete target.dataset.memuPrevDescribedby;
+    }
+    if (tip && !tip.hidden) { lower(); tip.hidden = true; tip.classList.remove("visible"); lastHidden = Date.now(); }
     target = null;
   }
 

@@ -286,7 +286,7 @@
 }
 .msx-everywhere kbd { font: 600 10px/18px var(--d-text, var(--sans)); padding: 0 5px; border-radius: 5px; color: var(--muted); border: 1px solid var(--d-line, var(--border)); background: transparent; white-space: nowrap; }
 .msx-everywhere:hover { opacity: 1; }
-.msx-everywhere:hover kbd { color: var(--text); border-color: var(--accent); }
+.msx-everywhere:hover .msx-ew-kbd { color: var(--text); border-color: var(--accent); }
 .msx-target { position: relative; animation: msx-target 2.4s var(--msx-ease); border-radius: 14px; }
 @keyframes msx-target {
   0%, 30% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent), 0 0 0 9px color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -456,3 +456,67 @@
 :root[data-design="brutal"] .msx-pop { border: var(--b-line, 2px solid var(--text)); box-shadow: var(--b-sh-2, 5px 5px 0 var(--accent)); }
 :root[data-design="brutal"] .msx-foot { border-top: var(--b-line, 2px solid var(--text)); }
 :root[data-design="brutal"] .msx-findbar { border: var(--b-line, 2px solid var(--text)); box-shadow: var(--b-sh-1, 3px 3px 0 var(--accent)); backdrop-filter: none; background: var(--b-paper, var(--panel)); }
+
+/* Notebook, Messenger, Retro, Clay, Studio, Zen */
+:root[data-design="notebook"] {
+  --msx-r: var(--r-xl, 14px); --msx-r-sm: var(--r-md, 8px);
+  --msx-bg: var(--p-paper, var(--panel)); --msx-side: var(--p-card, var(--panel-2));
+  --msx-line: var(--d-line, var(--border)); --msx-line-soft: var(--d-line-soft, var(--border)); --msx-hover: var(--d-hover);
+  --msx-sel: var(--d-selected, var(--accent-soft)); --msx-shadow: var(--p-shadow, var(--shadow)); --msx-blur: none;
+  --msx-font: var(--p-sans, var(--sans)); --msx-display: var(--p-serif, var(--d-display, var(--sans)));
+}
+:root[data-design="notebook"] .msx-input { font-family: var(--p-serif, var(--sans)); }
+:root[data-design="notebook"] .msx-group-h { text-transform: none; letter-spacing: 0; font-style: italic; }
+:root[data-design="notebook"] .msx-item.active { box-shadow: inset 3px 0 0 var(--accent); }
+:root[data-design="messenger"] {
+  --msx-r: 18px; --msx-r-sm: 12px;
+  --msx-bg: var(--m-head, var(--panel)); --msx-side: var(--m-side, var(--panel-2));
+  --msx-line: var(--m-line, var(--border)); --msx-line-soft: var(--m-line, var(--border)); --msx-hover: var(--m-hover, var(--d-hover));
+  --msx-sel: var(--d-selected, var(--accent-soft)); --msx-shadow: var(--m-sh-2, var(--shadow)); --msx-blur: none;
+  --msx-font: var(--m-sans, var(--sans)); --msx-display: var(--m-sans, var(--sans));
+}
+:root[data-design="messenger"] :is(.msx-chip, .msx-filter-btn, .msx-btn, .msx-tip) { border-radius: 999px; }
+:root[data-design="messenger"] .msx-btn.primary { background: var(--m-out, var(--accent)); color: var(--m-on-out, var(--accent-fg, var(--bg))); }
+:root[data-design="messenger"] .msx-item.active { border-radius: 12px; box-shadow: none; }
+:root[data-design="retro"] {
+  --msx-r: 0px; --msx-r-sm: 0px; --msx-r-xs: 0px;
+  --msx-bg: var(--rt-face, var(--panel)); --msx-side: var(--rt-window, var(--panel-2));
+  --msx-line: var(--rt-dk, var(--border)); --msx-line-soft: var(--rt-dk, var(--border)); --msx-hover: var(--d-hover);
+  --msx-sel: var(--rt-sel, var(--accent)); --msx-sel-line: var(--rt-dk, var(--border)); --msx-shadow: var(--rt-sh, var(--shadow)); --msx-blur: none;
+  --msx-font: var(--rt-sans, var(--sans)); --msx-display: var(--rt-sans, var(--sans));
+}
+:root[data-design="retro"] .msx-panel { box-shadow: var(--rt-raised, none), var(--msx-shadow); }
+:root[data-design="retro"] .msx-head { background: linear-gradient(90deg, var(--rt-title-1, var(--accent)), var(--rt-title-2, var(--accent))); color: var(--rt-title-text, var(--accent-fg, var(--bg))); }
+:root[data-design="retro"] .msx-input { color: inherit; }
+:root[data-design="retro"] :is(.msx-chip, .msx-filter-btn, .msx-btn, .msx-tip, .msx-ico, .msx-pop, .msx-pv-block) { border-radius: 0; box-shadow: var(--rt-raised, none); }
+:root[data-design="retro"] .msx-item.active { background: var(--rt-sel, var(--accent)); color: var(--rt-sel-text, var(--accent-fg, var(--bg))); box-shadow: none; }
+:root[data-design="clay"] {
+  --msx-r: 28px; --msx-r-sm: 16px;
+  --msx-bg: var(--c-clay, var(--panel)); --msx-side: var(--c-clay-2, var(--panel-2));
+  --msx-line: transparent; --msx-line-soft: var(--c-line, var(--border)); --msx-hover: var(--c-hover, var(--d-hover));
+  --msx-sel: var(--c-tint, var(--accent-soft)); --msx-sel-line: transparent; --msx-shadow: var(--c-out, var(--shadow)); --msx-blur: none;
+  --msx-font: var(--c-sans, var(--sans)); --msx-display: var(--c-sans, var(--sans));
+}
+:root[data-design="clay"] .msx-panel { border: 0; }
+:root[data-design="clay"] .msx-head { margin: 10px 10px 0; border: 0; border-radius: 22px; box-shadow: var(--c-in-sm, none); background: var(--c-well, var(--panel-2)); }
+:root[data-design="clay"] :is(.msx-chip, .msx-filter-btn, .msx-btn, .msx-tip) { border: 0; border-radius: 999px; box-shadow: var(--c-out-sm, none); }
+:root[data-design="clay"] .msx-item.active { border-radius: 18px; box-shadow: var(--c-in-sm, none); }
+:root[data-design="studio"] {
+  --msx-r: 10px; --msx-r-sm: 6px; --msx-r-xs: 4px;
+  --msx-bg: var(--st-pop, var(--panel)); --msx-side: var(--st-side, var(--panel-2));
+  --msx-line: var(--st-line, var(--border)); --msx-line-soft: var(--st-line, var(--border)); --msx-hover: var(--st-hover, var(--d-hover));
+  --msx-sel: var(--st-sel, var(--accent-soft)); --msx-shadow: var(--d-pop-shadow, var(--shadow)); --msx-blur: none;
+  --msx-font: var(--st-sans, var(--sans)); --msx-display: var(--st-sans, var(--sans)); --msx-mono: var(--st-mono, var(--mono));
+}
+:root[data-design="studio"] :is(.msx-group-h, .msx-stats, .msx-keys) { font-family: var(--st-mono, var(--mono)); font-size: 10.5px; letter-spacing: .08em; }
+:root[data-design="studio"] .msx-item.active { box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-design="zen"] {
+  --msx-r: 20px; --msx-r-sm: 12px;
+  --msx-bg: var(--z-paper, var(--panel)); --msx-side: var(--z-card, var(--panel-2));
+  --msx-line: var(--z-line, var(--border)); --msx-line-soft: var(--z-line, var(--border)); --msx-hover: var(--z-hover, var(--d-hover));
+  --msx-sel: var(--z-sel, var(--accent-soft)); --msx-shadow: var(--z-float, var(--shadow)); --msx-blur: none;
+  --msx-font: var(--z-sans, var(--sans)); --msx-display: var(--z-serif, var(--d-display, var(--sans)));
+}
+:root[data-design="zen"] .msx-panel { border-color: var(--z-line, var(--border)); }
+:root[data-design="zen"] .msx-group-h { text-transform: none; letter-spacing: .02em; font-weight: 500; }
+:root[data-design="zen"] .msx-item.active { box-shadow: none; }

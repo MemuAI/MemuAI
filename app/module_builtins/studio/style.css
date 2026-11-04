@@ -216,7 +216,7 @@
   display: flex; align-items: flex-end; gap: 8px; flex: none;
   margin: 0 14px 14px; padding: 8px;
   border-radius: 16px; border: 1px solid var(--border);
-  background: var(--panel);
+  background: var(--field-bg, var(--panel));
   box-shadow: 0 6px 24px rgba(0,0,0,.12);
   transition: border-color .15s, box-shadow .15s;
 }

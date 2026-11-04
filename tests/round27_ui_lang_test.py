@@ -189,7 +189,12 @@ class TunnelStatusEnglishTest(unittest.TestCase):
         self.assertIn('"error_en": status_en(self.error)', source)
         script = (ROOT / "app" / "pgstatic" / "tgapp-settings.js").read_text(encoding="utf-8")
         self.assertNotRegex(script, r"esc\(status\.(error|detail)\)")
-        self.assertTrue(re.search(r'statusText\(status, "error"\)', script))
+        # The sticky error panel renders the last error and the
+        # next step through the translated accessors (statusText), never
+        # the raw Russian strings.
+        self.assertTrue(re.search(r'statusText\(diag, "last_error"\)', script))
+        self.assertTrue(re.search(r'statusText\(diag, "next_step"\)', script))
+        self.assertNotRegex(script, r"esc\(diag\.(last_error|next_step)\)")
 
 class NetworkErrorTextTest(unittest.TestCase):
     """An account card showed «сеть недоступна: ConnectionError: Failed to perform, curl: (7) … See

@@ -153,6 +153,73 @@ class ModuleWindowStatesTest(unittest.TestCase):
                         page.wait_for_timeout(350)
                         self.assert_sheet(self.expand(page), f"{design}/{theme}/{titlebar}")
 
+    def test_saved_minimized_module_loads_on_restore(self):
+        page = self.open_page(titlebar=False)
+        page.evaluate("() => MemuModules.dropWindow('translator')")
+        _wait(page, "document.querySelector('#module-window iframe')?.getAttribute('src') === 'about:blank'")
+        document_requests = []
+        page.on("request", lambda req: document_requests.append(req.url)
+                if "/modules/translator/document" in req.url else None)
+        page.evaluate("() => MemuModules.open('translator', {minimized: true})")
+        state = page.evaluate("() => MemuModules.windowState('translator')")
+        self.assertTrue(state["minimized"] and state["deferred"])
+        self.assertEqual(document_requests, [])
+        page.evaluate("() => MemuModules.restore('translator')")
+        _wait(page, "MemuModules.windowState('translator')?.deferred === false")
+        page.frame_locator('[data-module=translator] iframe').locator("body script").first.wait_for(state="attached")
+        self.assertEqual(len(document_requests), 1)
+
+    def test_detached_module_keeps_pin_and_skips_main_chat(self):
+        page = self.browser.new_page()
+        self.addCleanup(page.close)
+        requested = []
+        page.on("request", lambda req: requested.append(req.url))
+        page.route("**/api/pg/profiles", lambda route: route.fulfill(json={
+            "active_id": "default", "items": [{"id": "default", "name": "Test", "has_pin": True}],
+        }))
+        page.route("**/api/pg/profiles/default/verify-pin", lambda route: route.fulfill(json={
+            "ok": route.request.post_data_json == {"pin": "1234"},
+        }))
+        page.goto(f"http://127.0.0.1:{self.port}/?module_app=translator", wait_until="domcontentloaded")
+        page.locator("#pin-input").fill("1234")
+        self.assertFalse(page.evaluate("document.body.classList.contains('boot-ready')"))
+        page.locator("#pin-input").press("Enter")
+        _wait(page, "document.body.classList.contains('boot-ready')")
+        page.frame_locator('[data-module=translator] iframe').locator("body script").first.wait_for(state="attached")
+        skipped = ("/api/pg/chats", "/api/pg/panels", "/api/pg/work/projects", "/api/voice/catalog",
+                   "/api/pg/music/player/events", "/api/schedsend/", "/api/pg/inbox/", "/api/pg/deeplink/pending", "/api/memory")
+        self.assertFalse([url for url in requested if any(path in url for path in skipped)])
+
+    def test_module_panel_observer_releases_replaced_slots(self):
+        page = self.open_page(titlebar=False)
+        counts = page.evaluate("""async () => {
+          await MemuModInt.load();
+          const targets = new Map();
+          const proto = IntersectionObserver.prototype;
+          const observe = proto.observe, disconnect = proto.disconnect;
+          proto.observe = function(slot) {
+            if (slot.dataset.mmiKey === 'observer-probe') {
+              if (!targets.has(this)) targets.set(this, new Set());
+              targets.get(this).add(slot);
+            }
+            return observe.call(this, slot);
+          };
+          proto.disconnect = function() { targets.delete(this); return disconnect.call(this); };
+          const host = document.createElement('div');
+          host.hidden = true;
+          document.body.appendChild(host);
+          for (let i = 0; i < 40; i += 1) {
+            host.innerHTML = '<div class="mmi-slot" data-mmi="translator:probe" data-mmi-key="observer-probe"></div>';
+            MemuModInt.mount();
+          }
+          const count = () => [...targets.values()].reduce((n, slots) => n + slots.size, 0);
+          const mounted = count();
+          host.remove();
+          MemuModInt.mount();
+          return [mounted, count()];
+        }""")
+        self.assertEqual(counts, [1, 0])
+
     def test_floating_window_cannot_go_under_the_title_band(self):
         page = self.open_page("glass", "dark", True)
 

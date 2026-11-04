@@ -166,7 +166,38 @@ def diff(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
             "repository": full.get("repository", True)}
 
 def skills(root: Path, *, include_prompt: bool = False) -> Dict[str, Any]:
-    return {"skills": code_skills.catalogue(root, include_prompt=include_prompt)}
+    return {"skills": code_skills.window_catalogue(root, include_prompt=include_prompt)}
+
+def _takes_args(body: str, hint: str) -> bool:
+    return bool(hint) or "$ARGUMENTS" in body or "${ARGUMENTS}" in body or any(f"${index}" in body for index in range(1, 10))
+
+def commands(root: Path) -> Dict[str, Any]:
+    """The custom commands of MemuCode CLI: Markdown files in the personal and the project ``commands`` folders
+    (also Claude Code's), read by the CLI's own loader."""
+    from .cli.project import load_commands
+    rows = []
+    for item in load_commands(root, True).values():
+        rows.append({"name": item.name, "description": item.description, "argument_hint": item.argument_hint,
+                     "model": item.model, "source": item.source, "path": str(item.path),
+                     "takes_args": _takes_args(item.body, item.argument_hint)})
+    return {"commands": rows}
+
+def command_prompt(root: Path, name: str, args: str, project_id: str = "") -> Dict[str, Any]:
+    """``/name args`` the way MemuCode CLI runs it: a custom command first, then a skill of that id."""
+    from .cli.project import expand_command, load_commands
+    wanted = str(name or "").strip().lstrip("/").lower()
+    args = str(args or "").strip()[:20_000]
+    custom = load_commands(root, True).get(wanted)
+    if custom is not None:
+        return {"kind": "command", "name": custom.name, "prompt": expand_command(custom, args), "model": custom.model}
+    if code_tools._skill_disabled(str(project_id or ""), wanted):
+        raise WorkError(f"The skill {wanted} is turned off in the MemuCode settings")
+    prompt = code_skills.prompt_for(root, wanted)
+    if not prompt:
+        raise WorkError(f"Unknown command /{wanted}")
+    return {"kind": "skill", "name": wanted, "model": "",
+            "prompt": f"<skill name=\"{wanted}\">\n{prompt}\n</skill>\n\n"
+                      f"Follow this skill for the task: {args or '(the task is described by the skill itself)'}"}
 
 def context_stats(root: Path, session_id: str) -> Dict[str, Any]:
     engine = code_context.engine_for(_session(session_id), root)

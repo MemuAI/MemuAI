@@ -2,7 +2,7 @@
 
 (function () {
   "use strict";
-  if (window.MemuMusicDock) return;
+  if (window.MemuMusicDock || document.documentElement.dataset.moduleApp) return;
   const L = (ru, en) => ((typeof PG_LANG !== "undefined" ? PG_LANG : "ru") === "en" ? en : ru);
   const MODULE = "music";
   const PC_TARGETS = ["", "pc", "desktop", "memuai", "dock"];
@@ -38,6 +38,8 @@
   async function trackMeta(id) {
     if (!id) return null;
     if (meta.has(id)) return meta.get(id);
+    // A streamed track ("online:…") has no library row: its title and cover come with the player state.
+    if (String(id).startsWith("online:")) return null;
     const tr = await soft("library.get", { id });
     if (tr && tr.id) meta.set(id, tr);
     return tr && tr.id ? tr : null;
@@ -51,7 +53,7 @@
   function moduleWindow() {
     const mm = window.MemuModules;
     const ws = mm && typeof mm.windowState === "function" && (mm.openIds || []).includes(MODULE) ? mm.windowState(MODULE) : null;
-    return ws;
+    return ws?.deferred ? null : ws;
   }
   const now = () => Date.now() / 1000;
   const position = () => (st.mode === "local" && audio ? (pendingSeek ? pendingSeek.at : audio.currentTime || 0)
@@ -425,7 +427,9 @@
     if (ex && now() < ex.until && !!s.playing !== ex.playing && !s.pending && (s.updated_at || 0) + st.serverSkew < ex.at) {
       s = Object.assign({}, s, { playing: ex.playing });
     } else if (!ex || now() >= ex.until || !!s.playing === ex.playing) st.expect = null;
-    if (s.track_id !== st.trackId) { st.trackId = s.track_id; st.track = s.track || meta.get(s.track_id) || null; if (!st.track) trackMeta(s.track_id).then((tr) => { if (st.trackId === s.track_id) { st.track = tr; render(); } }); }
+    if (s.track && s.track.id && s.track.id === s.track_id) meta.set(s.track_id, s.track);
+    if (s.track_id !== st.trackId) { st.trackId = s.track_id; st.track = meta.get(s.track_id) || null; if (!st.track) trackMeta(s.track_id).then((tr) => { if (st.trackId === s.track_id && tr) { st.track = tr; render(); } }); }
+    else if (meta.get(s.track_id) && st.track !== meta.get(s.track_id) && String(s.track_id).startsWith("online:")) st.track = meta.get(s.track_id);
     if (s.playing && !st.playing) st.dismissed = false;
     st.playing = !!s.playing && !stale();
     st.position = Number(s.position_now ?? s.position) || 0; st.posAt = now();

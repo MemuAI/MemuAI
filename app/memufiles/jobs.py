@@ -261,7 +261,6 @@ class Jobs:
         min_size = int(job.args.get("min_size") or 1)
         by_size: Dict[int, List[str]] = defaultdict(list)
         aliases: Dict[str, List[str]] = defaultdict(list)
-        first_by_inode: Dict[Tuple[int, int], str] = {}
         stack = [root]
         scanned = 0
         while stack:
@@ -279,12 +278,6 @@ class Jobs:
                             elif entry.is_file(follow_symlinks=False):
                                 st = entry.stat(follow_symlinks=False)
                                 scanned += 1
-                                inode = (st.st_dev, st.st_ino) if st.st_ino else None
-                                if inode is not None and inode in first_by_inode:
-                                    aliases[first_by_inode[inode]].append(entry.path)
-                                    continue
-                                if inode is not None:
-                                    first_by_inode[inode] = entry.path
                                 if st.st_size >= min_size:
                                     by_size[st.st_size].append(entry.path)
                         except OSError:
@@ -292,14 +285,37 @@ class Jobs:
             except OSError:
                 continue
             job.progress.update(files=scanned, current=folder, phase="scan")
-        candidates = {size: sorted(paths) for size, paths in by_size.items() if len(paths) > 1}
+        # Only candidates need a fresh stat. Windows DirEntry.stat() omits
+        # the file ID, while stat_key supplies it for both aliases and cache.
+        candidates = {}
+        keys = {}
+        for size, paths in by_size.items():
+            if len(paths) < 2:
+                continue
+            first_by_inode = {}
+            distinct = []
+            for path in sorted(paths):
+                if job.cancel.is_set():
+                    raise FsError("cancelled")
+                key = stat_key(path)
+                if key is None or key[1] != size:
+                    continue
+                identity = key[3:5]
+                if key[4] and identity in first_by_inode:
+                    aliases[first_by_inode[identity]].append(path)
+                    continue
+                if key[4]:
+                    first_by_inode[identity] = path
+                distinct.append(path)
+                keys[path] = key
+            if len(distinct) > 1:
+                candidates[size] = distinct
         ordered = [path for size in sorted(candidates, key=lambda s: -s) for path in candidates[size]]
+        keys = {path: keys[path] for path in ordered}
         total = len(ordered)
 
         cache = self._dupes_cache(job)
         try:
-            keys = {path: stat_key(path) for path in ordered}
-            keys = {path: key for path, key in keys.items() if key is not None}
             cached: Dict[str, Tuple[str, str]] = {}
             if cache is not None and keys:
                 try:

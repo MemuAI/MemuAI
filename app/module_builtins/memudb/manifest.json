@@ -69,10 +69,10 @@
     "planning": [
       {
         "id": "backup-growth",
-        "title": "База выросла — резервная копия",
-        "title_en": "Database grew — back it up",
-        "description": "Напомнить сделать резервную копию, когда база заметно вырастет.",
-        "description_en": "Remind to back up the database once it grows noticeably.",
+        "title": "База выросла → резервная копия",
+        "title_en": "Database grew → backup",
+        "description": "Когда открытые в MemuDB базы вместе выросли до порога, они копируются в папку резервных копий (SQLite — согласованным снимком).",
+        "description_en": "When the databases opened in MemuDB together reach the threshold, they are copied to the backup folder (SQLite as a consistent snapshot).",
         "trigger": {
           "kind": "threshold",
           "metric": "bytes",
@@ -80,80 +80,87 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "База MemuDB заметно выросла — сделайте её резервную копию: экспортируйте базу в файл.",
-          "text_en": "memudb"
+          "kind": "module",
+          "handler": "memudb.backup_databases"
         },
         "settings": [
           {
             "key": "threshold",
             "type": "number",
-            "label": "Размер базы, байт",
-            "label_en": "Database size, bytes",
+            "label": "Размер, байт",
+            "label_en": "Size, bytes",
             "default": 52428800,
             "min": 1048576,
-            "max": 1073741824
+            "max": 100000000000
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 5,
+            "min": 1,
+            "max": 100
           }
         ]
       },
       {
         "id": "backup-weekly",
-        "title": "Еженедельная копия базы",
+        "title": "Еженедельная копия баз",
         "title_en": "Weekly database backup",
-        "description": "Раз в неделю напомнить сделать резервную копию базы.",
-        "description_en": "Remind once a week to back up the database.",
+        "description": "Раз в неделю — копии всех баз, открывавшихся в MemuDB; хранятся последние 5.",
+        "description_en": "Once a week — copies of every database opened in MemuDB; the last 5 are kept.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Сделайте резервную копию MemuDB: экспортируйте базу в файл и сохраните его в надёжном месте.",
-          "text_en": "memudb"
-        }
+          "kind": "module",
+          "handler": "memudb.backup_databases"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 5,
+            "min": 1,
+            "max": 100
+          },
+          {
+            "key": "max_mb",
+            "type": "number",
+            "label": "Не копировать базы больше, МБ",
+            "label_en": "Skip databases larger than, MB",
+            "default": 2048,
+            "min": 1,
+            "max": 50000
+          }
+        ]
       },
       {
-        "id": "records-hundred",
-        "title": "Сто записей в базе",
-        "title_en": "One hundred records in the database",
-        "description": "Сообщить, когда в базе накопится сто записей.",
-        "description_en": "Notify when the database holds one hundred records.",
+        "id": "db-two-day-check",
+        "title": "Проверка баз каждые два дня",
+        "title_en": "Database check every two days",
+        "description": "Размер, таблицы, число строк и быстрая проверка целостности каждой базы (только чтение).",
+        "description_en": "Size, tables, row counts and a quick integrity check of every database (read-only).",
         "trigger": {
-          "kind": "threshold",
-          "metric": "items",
-          "threshold": 100,
-          "scope": "any"
+          "kind": "periodic",
+          "every_minutes": 2880
         },
         "action": {
-          "kind": "notify",
-          "text": "В базе уже сто записей — проверьте таблицы и наведите порядок в самых быстрорастущих из них.",
-          "text_en": "The database already has one hundred records — check the tables and tidy up the fastest-growing ones."
-        }
-      },
-      {
-        "id": "records-thousand",
-        "title": "Тысяча записей в базе",
-        "title_en": "One thousand records in the database",
-        "description": "Попросить модель предложить, как упорядочить базу из тысячи записей.",
-        "description_en": "Ask the model to suggest how to organise a database of one thousand records.",
-        "trigger": {
-          "kind": "threshold",
-          "metric": "items",
-          "threshold": 1000,
-          "scope": "any"
+          "kind": "module",
+          "handler": "memudb.health_report"
         },
-        "action": {
-          "kind": "chat",
-          "prompt": "Предложи, как упорядочить базу из тысячи записей: какие таблицы проверить первыми, что архивировать и где искать дубликаты. Коротко, списком.",
-          "prompt_en": "Suggest how to organise a database of one thousand records: which tables to check first, what to archive, and where to look for duplicates. Briefly, as a list."
-        }
+        "settings": []
       },
       {
         "id": "database-500mb",
         "title": "База приблизилась к 500 МБ",
         "title_en": "Database approaching 500 MB",
-        "description": "Сообщить, когда размер базы приблизится к 500 МБ.",
-        "description_en": "Notify when the database size approaches 500 MB.",
+        "description": "Когда базы вместе подошли к 500 МБ — проверка целостности и отчёт о таблицах.",
+        "description_en": "When the databases together approach 500 MB — an integrity check and a table report.",
         "trigger": {
           "kind": "threshold",
           "metric": "bytes",
@@ -161,26 +168,36 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "Размер базы приблизился к 500 МБ — сделайте резервную копию и проверьте, нет ли таблиц, которые можно почистить.",
-          "text_en": "The database is approaching 500 MB — make a backup and check whether any tables can be cleaned up."
-        }
+          "kind": "module",
+          "handler": "memudb.health_report"
+        },
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Размер, байт",
+            "label_en": "Size, bytes",
+            "default": 524288000,
+            "min": 1048576,
+            "max": 100000000000
+          }
+        ]
       },
       {
-        "id": "db-two-day-check",
-        "title": "Проверка базы каждые два дня",
-        "title_en": "Database check every two days",
-        "description": "Каждые два дня напомнить проверить новые записи и актуальность копии.",
-        "description_en": "Every two days, remind to check the new records and that the backup is up to date.",
+        "id": "snippets-weekly",
+        "title": "Сниппеты и история SQL в файл",
+        "title_en": "SQL snippets and history to a file",
+        "description": "Раз в неделю сохранённые сниппеты и последние запросы — в .sql-файл.",
+        "description_en": "Once a week the saved snippets and recent queries — into an .sql file.",
         "trigger": {
           "kind": "periodic",
-          "every_minutes": 2880
+          "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Загляните в MemuDB: проверьте новые записи, размер базы и то, что резервная копия актуальна.",
-          "text_en": "Open MemuDB: check the new records, the database size, and that the backup is up to date."
-        }
+          "kind": "module",
+          "handler": "memudb.snippets_backup"
+        },
+        "settings": []
       }
     ]
   }

@@ -386,12 +386,15 @@ class MenuButtonTest(unittest.IsolatedAsyncioTestCase):
         self.calls = []
         self.menu = {}
         self.stale_once = False
+        self.reject_menu = False
 
         def handler(request):
             method = request.url.path.rsplit("/", 1)[-1]
             payload = json.loads(request.content or b"{}")
             self.calls.append((method, payload))
             if method == "setChatMenuButton":
+                if self.reject_menu:
+                    return httpx.Response(500, json={"ok": False, "description": "Temporary error"})
                 if self.stale_once and payload.get("chat_id"):
                     self.stale_once = False
                 else:
@@ -439,6 +442,20 @@ class MenuButtonTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("b.trycloudflare.com", json.dumps(edits[-1]["reply_markup"]))
         self.assertNotIn("a.trycloudflare.com", json.dumps(edits[-1]["reply_markup"]))
         self.assertEqual(self.menu[str(OWNER)]["web_app"]["url"], "https://b.trycloudflare.com/tgapp/")
+
+    async def test_failed_update_is_retried_without_another_url_change(self):
+        runner = telegram_bot._BotRunner(self.client)
+        runner.token = TOKEN
+        url = "https://new-host.trycloudflare.com/tgapp/"
+        self.reject_menu = True
+        with mock.patch.object(telegram_bot, "_read_webapp_url", return_value=url):
+            await runner.check_webapp(self.prefs, force=True)
+            self.assertFalse(runner.webapp_applied)
+            self.reject_menu = False
+            runner.last_webapp_check -= runner.WEBAPP_EVERY
+            await runner.check_webapp(self.prefs)
+        self.assertTrue(runner.webapp_applied)
+        self.assertEqual(self.menu[str(OWNER)]["web_app"]["url"], url)
 
 if __name__ == "__main__":
     unittest.main()

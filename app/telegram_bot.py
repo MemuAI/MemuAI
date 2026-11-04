@@ -6,7 +6,7 @@ private chat (``telegram_chat_id``) and an optional short whitelist of user ids
 (``telegram_allowed_users``) are served; everyone else gets one polite refusal
 per ten minutes and nothing more.
 
-Pairing: MemuAI → Settings → Telegram shows a one-time code, a deep link
+Pairing: MemuAI → Settings → Messengers → Telegram shows a one-time code, a deep link
 ``t.me/<bot>?start=pair-<code>`` and a QR code (``app.telegram_pairing``). The
 legacy manual Chat ID keeps working.
 
@@ -137,13 +137,22 @@ def authorized_user_ids(prefs: Optional[Dict[str, Any]] = None) -> List[str]:
     return list(dict.fromkeys(result))
 
 def _allowed(prefs: Dict[str, Any], chat_id: str, user_id: Any = "") -> bool:
-    """The paired chat, or a whitelisted user's own private chat."""
+    """The paired chat, or a whitelisted user's own private chat.
+
+    Only private chats are served: the chat id must be a positive number, and
+    when the sender is known it must equal the chat id (in a private chat the
+    two are the same Telegram id). Group and channel ids are negative — they
+    never pass, even if one was saved as ``telegram_chat_id``."""
+    chat_id = str(chat_id or "").strip()
+    if not chat_id.isdigit() or int(chat_id) <= 0:
+        return False
+    if user_id and str(user_id) != chat_id:
+        return False
     configured = str(prefs.get("telegram_chat_id") or "").strip()
-    chat_id = str(chat_id)
     if configured and configured == chat_id:
         return True
     extra = {str(x) for x in prefs.get("telegram_allowed_users") or []}
-    return bool(user_id) and str(user_id) in extra and chat_id == str(user_id)
+    return chat_id in extra
 
 def _profiles() -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     state = load_profiles()
@@ -611,7 +620,7 @@ def _reply_keyboard(prefs: Dict[str, Any], url: Optional[str] = None) -> Dict[st
 def _keyboard_rev(prefs: Dict[str, Any], url: Optional[str]) -> str:
     return hashlib.sha1(f"{_lang(prefs)}|{url or ''}|{SETUP_VERSION}".encode()).hexdigest()[:12]
 
-_ROUTE_PREFIXES = ("genspark", "antigravity", "kiro", "grok", "notion", "openrouter", "qwen", "copilot",
+_ROUTE_PREFIXES = ("genspark", "antigravity", "kiro", "grok", "zcode", "notion", "openrouter", "qwen", "copilot",
                    "codex", "custom", "local")
 
 def _short_model(model: str, prefs: Dict[str, Any], limit: int = 18) -> str:
@@ -676,6 +685,10 @@ def _home_text(chat_id: str, prefs: Dict[str, Any]) -> Tuple[str, Dict[str, Any]
     facts = [f"🤖 {html.escape(_model_name(model, prefs) if model else '—')}"]
     if len(profiles) > 1:
         facts.append(f"👤 {html.escape(str(profile.get('name') or 'Profile'))}")
+    from . import personalities
+    persona = personalities.normalize(prefs.get("ai_personality"))
+    if persona != personalities.DEFAULT:
+        facts.append("✨ " + html.escape(personalities.label(persona, _lang(prefs))))
     lines.append(" · ".join(facts))
     profile_id = str(profile.get("id") or "default")
     agent = _active_agent(session, prefs, profile_id)
@@ -1180,7 +1193,7 @@ def _delete_chat(profile_id: str, chat_id: str) -> bool:
     return True
 
 def _provider_label(provider: str) -> str:
-    names = {"genspark": "Genspark", "antigravity": "Antigravity", "kiro": "Kiro", "grok": "Grok",
+    names = {"genspark": "Genspark", "antigravity": "Antigravity", "kiro": "Kiro", "grok": "Grok", "zcode": "ZCode",
              "custom": "Custom API", "local": "Local", "notion": "Notion", "openrouter": "OpenRouter",
              "gemini": "Gemini", "qwen": "Qwen", "copilot": "Copilot", "codex": "Codex"}
     return names.get(provider, provider.replace("-", " ").title() or "?")
@@ -1398,11 +1411,19 @@ _SETTING_CHOICES: Dict[str, Tuple[str, List[Tuple[str, Tuple[str, str]]]]] = {
                                               ("60", ("60 сообщений", "60 messages")), ("100", ("100 сообщений", "100 messages"))]),
     "lang": ("telegram_language", [("ru", ("🇷🇺 Русский", "🇷🇺 Русский")), ("en", ("🇬🇧 English", "🇬🇧 English"))]),
 }
+
+def _persona_choices() -> List[Tuple[str, Tuple[str, str]]]:
+    from . import personalities
+    rows = sorted(personalities.PERSONALITIES, key=lambda row: row["id"] != personalities.DEFAULT)
+    return [(row["id"], (row["name_ru"], row["name"])) for row in rows]
+
+# The AI personality is shared with the desktop app (Settings → Chat → Personality).
+_SETTING_CHOICES["persona"] = ("ai_personality", _persona_choices())
 _SETTING_TITLES = {
     "notify": ("🔔 Уведомления", "🔔 Notifications", "Готовые ответы MemuAI, задачи по расписанию и Work.",
                "Finished MemuAI answers, scheduled tasks and Work."),
-    "quiet": ("🌙 Тихие часы", "🌙 Quiet hours", "В это время уведомления приходят без звука. Время меняется в MemuAI → Настройки → Telegram.",
-              "Notifications arrive silently during these hours. Change the time in MemuAI → Settings → Telegram."),
+    "quiet": ("🌙 Тихие часы", "🌙 Quiet hours", "В это время уведомления приходят без звука. Время меняется в MemuAI → Настройки → Мессенджеры → Telegram.",
+              "Notifications arrive silently during these hours. Change the time in MemuAI → Settings → Messengers → Telegram."),
     "stream": ("⚡ Как печатать ответ", "⚡ How answers appear", "Живой черновик — текст растёт по мере генерации.",
                "Live draft — the text grows as it is generated."),
     "voice": ("🎙 Голосовые сообщения", "🎙 Voice messages", "Распознавание речи из настроек «Голос и Live» MemuAI.",
@@ -1415,6 +1436,8 @@ _SETTING_TITLES = {
     "history": ("🧠 Память разговора", "🧠 Conversation memory", "Сколько последних сообщений видит модель. Больше — точнее, но дороже.",
                 "How many recent messages the model sees. More is smarter but uses more tokens."),
     "lang": ("🌐 Язык бота", "🌐 Bot language", "Меню, кнопки и команды.", "Menus, buttons and commands."),
+    "persona": ("✨ Личность", "✨ Personality", "Как MemuAI разговаривает: тон и стиль ответов. Настройка общая с MemuAI на компьютере.",
+                "How MemuAI talks: the tone and style of its answers. Shared with MemuAI on your computer."),
 }
 
 def _setting_value(prefs: Dict[str, Any], key: str) -> str:
@@ -1430,6 +1453,9 @@ def _setting_value(prefs: Dict[str, Any], key: str) -> str:
         return str(int(prefs.get("telegram_history_messages", 60) or 60))
     if key == "lang":
         return _lang(prefs)
+    if key == "persona":
+        from . import personalities
+        return personalities.normalize(prefs.get("ai_personality"))
     preference, options = _SETTING_CHOICES[key]
     value = str(prefs.get(preference) or options[0][0])
     return value if value in [option for option, _ in options] else options[0][0]
@@ -1469,7 +1495,7 @@ def _setting_patch(key: str, value: str) -> Dict[str, Any]:
 
 async def _show_settings(client: Any, token: str, chat_id: str,
                          prefs: Dict[str, Any], edit_id: int = 0) -> None:
-    order = ["notify", "quiet", "stream", "voice", "vreview", "vreply", "history", "lang"]
+    order = ["persona", "notify", "quiet", "stream", "voice", "vreview", "vreply", "history", "lang"]
     lines = [f"<b>⚙️ {_tr(prefs, 'Настройки бота', 'Bot settings')}</b>",
              _tr(prefs, "Нажмите на пункт, чтобы изменить. Изменения сразу видны и в MemuAI на компьютере.",
                  "Tap an item to change it. Changes show up in MemuAI on your computer right away.")]
@@ -1490,8 +1516,10 @@ async def _show_setting(client: Any, token: str, chat_id: str, prefs: Dict[str, 
     ru, en, hint_ru, hint_en = _SETTING_TITLES[key]
     current = _setting_value(prefs, key)
     options = _setting_options(prefs, key)
-    rows = [[{"text": ("✓ " if value == current else "") + (labels[1] if _lang(prefs) == "en" else labels[0]),
-              "callback_data": f"setv:{key}:{value}"}] for value, labels in options]
+    buttons = [{"text": ("✓ " if value == current else "") + (labels[1] if _lang(prefs) == "en" else labels[0]),
+                "callback_data": f"setv:{key}:{value}"} for value, labels in options]
+    per_row = 2 if len(buttons) > 8 else 1
+    rows = [buttons[index:index + per_row] for index in range(0, len(buttons), per_row)]
     rows.append(_nav_row(prefs, "settings"))
     text = f"<b>⚙️ {_tr(prefs, 'Настройки', 'Settings')} › {html.escape(en if _lang(prefs) == 'en' else ru)}</b>\n" + \
         html.escape(hint_en if _lang(prefs) == "en" else hint_ru)
@@ -1513,9 +1541,8 @@ def _system_prompt(model: str, prefs: Dict[str, Any], profile: Dict[str, Any],
     base = str(selected.get("text") if selected and "text" in selected else DEFAULT_PROMPT)
     if not base:
         return ""
-    base += ("\n\nBe warm, attentive, and clear without filler."
-             if prefs.get("ai_personality", "friendly") == "friendly"
-             else "\n\nBe direct, pragmatic, concise, and task-focused.")
+    from . import personalities
+    base += "\n\n" + personalities.block(prefs, internal_prompt)
     custom = str(prefs.get("custom_system_prompt") or "").strip()
     if custom:
         base += "\n\n<user_custom_instructions>\n" + custom + "\n</user_custom_instructions>"
@@ -2289,11 +2316,12 @@ async def _apply_menu_button(client: Any, token: str, prefs: Dict[str, Any], url
     button = ({"type": "web_app", "text": "MemuAI", "web_app": {"url": url}} if url
               else {"type": "commands"})
     api = _api(client, token)
+    ok = True
     try:
         await api.call("setChatMenuButton", menu_button=button)
     except Exception as exc:
+        ok = False
         log.info("telegram default menu button: %s", _redact_token(str(exc)))
-    ok = True
     for chat_id in [value for value in dict.fromkeys(targets) if value]:
         for attempt in range(2):
             try:
@@ -2329,10 +2357,10 @@ def _unauthorized_text(prefs: Dict[str, Any], paired: bool) -> str:
                    "⛔ This MemuAI bot is already paired with another account.")
     return _tr(prefs,
                "👋 Это личный бот MemuAI.\n\nЧтобы подключить его: откройте MemuAI на компьютере → "
-               "Настройки → Telegram → «Подключить Telegram» и отсканируйте QR-код или отправьте "
+               "Настройки → Мессенджеры → Telegram → «Подключить Telegram» и отсканируйте QR-код или отправьте "
                "сюда показанный код.",
                "👋 This is a personal MemuAI bot.\n\nTo connect it, open MemuAI on your computer → "
-               "Settings → Telegram → “Connect Telegram”, then scan the QR code or send the code shown there.")
+               "Settings → Messengers → Telegram → “Connect Telegram”, then scan the QR code or send the code shown there.")
 
 async def _try_pairing(client: Any, token: str, message: Dict[str, Any], prefs: Dict[str, Any],
                        text: str) -> bool:
@@ -2345,8 +2373,8 @@ async def _try_pairing(client: Any, token: str, message: Dict[str, Any], prefs: 
         return False
     if not await _io(telegram_pairing.check_pairing_code, code):
         await _send(client, token, str(chat.get("id")), _tr(
-            prefs, "❌ Код не подошёл или устарел. Создайте новый в MemuAI → Настройки → Telegram.",
-            "❌ The code is wrong or expired. Create a new one in MemuAI → Settings → Telegram."))
+            prefs, "❌ Код не подошёл или устарел. Создайте новый в MemuAI → Настройки → Мессенджеры → Telegram.",
+            "❌ The code is wrong or expired. Create a new one in MemuAI → Settings → Messengers → Telegram."))
         return True
     owner = await _io(telegram_pairing.complete_pairing, chat, message.get("from") or {})
     prefs = await _io(load_preferences)
@@ -2535,8 +2563,8 @@ async def _handle_message(client: Any, token: str,
     command_word = text.split()[0].split("@", 1)[0].lower() if text else ""
     if command_word == "/id":
         await _send(client, token, chat_id, f"🔑 Telegram Chat ID: {chat_id}\n" + _tr(
-            prefs, "Проще подключиться кодом: MemuAI → Настройки → Telegram → «Подключить Telegram».",
-            "Easier: connect with a code in MemuAI → Settings → Telegram → “Connect Telegram”."))
+            prefs, "Проще подключиться кодом: MemuAI → Настройки → Мессенджеры → Telegram → «Подключить Telegram».",
+            "Easier: connect with a code in MemuAI → Settings → Messengers → Telegram → “Connect Telegram”."))
         return
 
     if text and await _try_pairing(client, token, message, prefs, text):
@@ -3162,11 +3190,26 @@ async def send_notification(title: str, text: str, *, source_chat_id: str = "",
         ]}
     try:
 
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10)) as client:
+        async with _httpx_client(timeout=httpx.Timeout(30, connect=10)) as client:
             await _send(client, token, telegram_chat_id, body, keyboard,
                         markdown=True, silent=quiet)
     except Exception as exc:
         log.warning("Telegram notification failed: %s", _redact_token(str(exc)))
+
+def _httpx_client(**kwargs) -> httpx.AsyncClient:
+    """Create an httpx client honouring env proxies, with a fallback.
+
+    E03: httpx parses ``no_proxy`` at client creation; a ``"[::1]"`` entry
+    (standard for curl, common in corporate/sandbox envs) crashes it with
+    ``InvalidURL: Invalid port: ':1]'`` — which used to fail every Telegram
+    notification/call. When the env is unparseable, retry without env
+    proxies instead of failing outright.
+    """
+    try:
+        return httpx.AsyncClient(**kwargs)
+    except httpx.InvalidURL:
+        return httpx.AsyncClient(trust_env=False, **kwargs)
+
 
 POLL_TIMEOUT = 25
 POLL_DEADLINE = POLL_TIMEOUT + 20
@@ -3224,7 +3267,7 @@ def _failure(exc: BaseException, prefs: Dict[str, Any]) -> Tuple[str, str]:
 def _new_client() -> httpx.AsyncClient:
 
     limits = httpx.Limits(max_connections=20, max_keepalive_connections=10, keepalive_expiry=20)
-    return httpx.AsyncClient(timeout=httpx.Timeout(40, connect=10, pool=15), limits=limits)
+    return _httpx_client(timeout=httpx.Timeout(40, connect=10, pool=15), limits=limits)
 
 _DEFAULT_NEW_CLIENT = _new_client
 
@@ -3233,7 +3276,7 @@ def _new_poll_client() -> httpx.AsyncClient:
     downloads and answerCallbackQuery can no longer queue behind (or starve)
     the long poll, and a stuck send never delays the next batch of updates."""
     limits = httpx.Limits(max_connections=2, max_keepalive_connections=1, keepalive_expiry=60)
-    return httpx.AsyncClient(timeout=httpx.Timeout(POLL_TIMEOUT + 15, connect=10, pool=10), limits=limits)
+    return _httpx_client(timeout=httpx.Timeout(POLL_TIMEOUT + 15, connect=10, pool=10), limits=limits)
 
 def _retire_client(client: Any, tasks: Set[asyncio.Task]) -> None:
     """Close an old client once the requests started on it are done."""
@@ -3285,6 +3328,7 @@ class _BotRunner:
         self.last_webapp_check = 0.0
         self.webapp_url: Optional[str] = None
         self.webapp_applied = False
+        self.webapp_lock = asyncio.Lock()
         self.status = ""
         self.error = ""
         self.retry_at = 0.0
@@ -3422,22 +3466,25 @@ class _BotRunner:
         self.setup_sig = signature
 
     async def check_webapp(self, prefs: Dict[str, Any], force: bool = False) -> None:
-        now = time.monotonic()
-        if not force and self.webapp_applied and now - self.last_webapp_check < self.WEBAPP_EVERY:
-            return
-        self.last_webapp_check = now
-        url = await _io_deadline(_read_webapp_url)
-        _webapp_cache.update(at=now, url=url)
-        if url == self.webapp_url and self.webapp_applied:
-            return
-        changed = self.webapp_applied and url != self.webapp_url
-        self.webapp_url = url
-        if prefs.get("telegram_chat_id") or prefs.get("telegram_allowed_users"):
-            await _apply_menu_button(self.client, self.token, prefs, url)
-            if changed:
-                await _refresh_menu_cards(self.client, self.token, prefs)
-        self.webapp_applied = True
-        await self.write_status(self.status or "ok", self.error, force=True, retry_at=self.retry_at)
+        async with self.webapp_lock:
+            now = time.monotonic()
+            if not force and now - self.last_webapp_check < self.WEBAPP_EVERY:
+                return
+            self.last_webapp_check = now
+            url = await _io_deadline(_read_webapp_url)
+            _webapp_cache.update(at=now, url=url)
+            if url == self.webapp_url and self.webapp_applied:
+                return
+            changed = url != self.webapp_url
+            self.webapp_url = url
+            self.webapp_applied = False
+            applied = True
+            if prefs.get("telegram_chat_id") or prefs.get("telegram_allowed_users"):
+                applied = await _apply_menu_button(self.client, self.token, prefs, url)
+                if changed:
+                    await _refresh_menu_cards(self.client, self.token, prefs)
+            self.webapp_applied = applied
+            await self.write_status(self.status or "ok", self.error, force=True, retry_at=self.retry_at)
 
     def refresh_webapp_soon(self) -> None:
         """Apply a new Mini App address right away (called from the loop)."""

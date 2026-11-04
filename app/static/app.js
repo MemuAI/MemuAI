@@ -384,6 +384,14 @@ function accountSetupGuide(providerId) {
         [pair("Проверьте доступ", "Check access"), pair("Нажмите «Проверить» на карточке аккаунта. Для ручного импорта нужны действующий access token и, по возможности, refresh token для обновления сессии.", "Choose Check on the account card. Manual import needs a valid access token and, when available, a refresh token to renew the session.")],
       ],
     },
+    zcode: {
+      steps: [
+        [pair("Войдите через Z.AI", "Sign in via Z.AI"), pair("Нажмите «Войти через браузер»: откроется страница входа Z.AI — та же, что у официального приложения ZCode. Войдите в аккаунт, и Proxy сам получит токен. Ссылка действует 5 минут; если браузер не открылся, нажмите ссылку под кнопкой.", "Choose Sign in via browser: the Z.AI sign-in page opens — the same one the official ZCode app uses. Sign in and the Proxy receives the token by itself. The link is valid for 5 minutes; if no browser opened, use the link under the button.")],
+        [pair("Или вставьте токен", "Or paste the token"), pair("Можно вставить в поле «JWT ZCode» токен (начинается с eyJ) из официального приложения ZCode. Подойдёт и строка «Bearer …», и JSON с полем token — лишнее Proxy отбросит сам.", "You can paste the JWT (it starts with eyJ) from the official ZCode app into the ZCode JWT field. A “Bearer …” line or JSON with a token field also works — the Proxy strips the rest.")],
+        [pair("Проверьте план", "Check the plan"), pair("Нажмите «Проверить», затем «Лимиты»: Proxy покажет план, остаток и дату сброса. Если плана нет, получите его в приложении ZCode с тем же аккаунтом и пройдите проверку «я не робот», если она появится.", "Choose Check, then Limits to see your plan, remaining quota and reset date. If you have no plan, claim one in the ZCode app with the same account and complete the CAPTCHA if prompted.")],
+        [pair("Готово — модели подключены", "Done — the models are connected"), pair("Модели появятся как zcode-glm-5.3 и zcode-glm-5.3-flash. ZCode понимает вызовы инструментов и картинки — подходит для MemuCode и агентов. Глубина размышлений и лимит ответа — в настройках провайдера.", "Models appear as zcode-glm-5.3 and zcode-glm-5.3-flash. ZCode understands tool calls and images, so it suits MemuCode and agents. Thinking depth and the answer limit live in the provider settings.")],
+      ],
+    },
     custom: {
       steps: [
         [pair("Укажите корень API", "Set the API root"), pair("Вставьте Base URL из документации провайдера, обычно https://api.example.com/v1. Не добавляйте /chat/completions. Для известных сервисов можно вернуться к выбору и использовать готовый пресет.", "Use the Base URL from the provider documentation, usually https://api.example.com/v1. Do not append /chat/completions. You can return to the picker and use a preset for a known service.")],
@@ -1470,8 +1478,194 @@ async function moveAccount(accountId, delta) {
   await saveAccountOrder(list);
 }
 
+let pluginsCache = [];
+let pluginsDirCache = "";
+let pluginsTemplatesCache = [];
+
+async function loadPlugins() {
+  const box = $("#plugins-list"), summary = $("#plugins-summary");
+  if (!box) return;
+  try {
+    const [data, modelsData] = await Promise.all([
+      api("/api/admin/providers/plugins"),
+      api("/api/admin/models").catch(() => ({ models: [] })),
+    ]);
+    const rows = data.plugins || [];
+    pluginsCache = rows;
+    pluginsDirCache = data.dir || "";
+    pluginsTemplatesCache = data.templates || [];
+    const okCount = rows.filter((r) => r.status === "loaded").length;
+    if (summary) summary.textContent = rows.length ? `(${okCount}/${rows.length})` : "";
+    const dirEl = $("#plugins-dir");
+    if (dirEl) dirEl.textContent = pluginsDirCache || "—";
+    const modelsByProvider = {};
+    for (const m of (modelsData.models || [])) {
+      const pid = m.provider || "";
+      if (pid) (modelsByProvider[pid] = modelsByProvider[pid] || []).push(m.id);
+    }
+    renderPluginsList(rows, modelsByProvider);
+    renderPluginsTemplates(rows);
+    initMcpBox();
+  } catch (e) {
+    if (summary) summary.textContent = "";
+    box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  }
+}
+
+function renderPluginsList(rows, modelsByProvider) {
+  const box = $("#plugins-list");
+  if (!rows.length) {
+    box.innerHTML = `<div class="empty">${esc(t("acc.plugins.empty"))}</div>`;
+    return;
+  }
+  box.innerHTML = rows.map((r) => {
+    const pid = (r.providers || [])[0] || "";
+    const meta = pid ? (providersMeta || []).find((p) => p.id === pid) : null;
+    const statusIcon = r.status === "loaded" ? "✓" : r.status === "disabled" ? "⏸" : "✗";
+    const statusText = t(`acc.plugins.status.${r.status}`) || r.status;
+    const kindText = r.kind ? (t(`acc.plugins.kind.${r.kind}`) || r.kind) : "";
+    const models = pid ? (modelsByProvider[pid] || []) : [];
+    const title = esc(r.title || (meta && meta.title) || pid || r.file);
+    const desc = esc((meta && (meta.description || meta.description_en)) || "");
+    const ver = r.version ? `<span class="dim">v${esc(r.version)}</span>` : "";
+    const author = r.author ? `<span class="dim">${esc(r.author)}</span>` : "";
+    const modelsText = models.length
+      ? `<span class="dim">${models.length} ${esc(t("acc.plugins.models"))}: ${esc(models.slice(0, 4).join(", "))}${models.length > 4 ? "…" : ""}</span>` : "";
+    const canToggle = r.status === "loaded" || r.status === "disabled";
+    return `<div class="plugin-card${r.status === "disabled" ? " is-disabled" : ""}${r.status === "error" ? " is-error" : ""}">
+      <div class="plugin-card-head">
+        <span class="plugin-status ${r.status}">${statusIcon}</span>
+        <span class="plugin-title">${title}</span>
+        <span class="plugin-badge">${esc(kindText)}</span>
+        <span class="plugin-status-text">${esc(statusText)}</span>
+        ${ver}${author}
+        <span class="grow"></span>
+        <span class="plugin-file dim">${esc(r.file)}</span>
+      </div>
+      ${desc ? `<div class="plugin-desc">${desc}</div>` : ""}
+      ${modelsText ? `<div class="plugin-models">${modelsText}</div>` : ""}
+      ${r.status === "error" && r.error ? `<div class="plugin-error">${esc(r.error)}</div>` : ""}
+      <div class="plugin-actions">
+        ${canToggle ? `<button class="btn small" type="button" data-ptoggle="${esc(r.file)}" data-pdisabled="${r.status === "loaded" ? "1" : ""}">${esc(r.status === "loaded" ? t("acc.plugins.disable") : t("acc.plugins.enable"))}</button>` : ""}
+        ${r.status === "loaded" && pid ? `<button class="btn small" type="button" data-paccount="${esc(pid)}">${esc(t("acc.plugins.addaccount"))}</button>` : ""}
+        <button class="btn small danger" type="button" data-pdel="${esc(r.file)}">${esc(t("acc.plugins.delete"))}</button>
+      </div>
+    </div>`;
+  }).join("");
+  $$("#plugins-list [data-ptoggle]").forEach((el) => el.onclick = async () => {
+    el.disabled = true;
+    try {
+      await api("/api/admin/providers/plugins/toggle", { method: "POST", body: { file: el.dataset.ptoggle, disabled: el.dataset.pdisabled === "1" } });
+      await fetchProviders(true);
+      await loadPlugins();
+      await loadAccounts();
+    } catch (e) { toast(e.message, "err"); }
+    el.disabled = false;
+  });
+  $$("#plugins-list [data-paccount]").forEach((el) => el.onclick = () => showAccountForm(el.dataset.paccount));
+  $$("#plugins-list [data-pdel]").forEach((el) => el.onclick = () => {
+    confirmDialog(t("acc.plugins.del.confirm"), el.dataset.pdel, async () => {
+      try {
+        await api(`/api/admin/providers/plugins/${encodeURIComponent(el.dataset.pdel)}`, { method: "DELETE" });
+        await fetchProviders(true);
+        await loadPlugins();
+        await loadAccounts();
+        toast(t("acc.plugins.deleted"), "ok");
+      } catch (e) { toast(e.message, "err"); }
+    });
+  });
+}
+
+function renderPluginsTemplates(rows) {
+  const grid = $("#plugins-templates-grid");
+  if (!grid) return;
+  const installed = new Set(rows.map((r) => r.file));
+  grid.innerHTML = pluginsTemplatesCache.map((tpl) => {
+    const already = installed.has(tpl.file);
+    const isOpenAi = tpl.id === "openai";
+    return `<div class="tpl-card">
+      <div class="tpl-title">${esc(tpl.title || tpl.id)}</div>
+      <div class="tpl-desc">${esc(tpl.description || "")}</div>
+      <label class="tpl-field"><span>${esc(t("acc.plugins.templates.name"))}</span>
+        <input type="text" class="input" data-tpl-name="${esc(tpl.id)}" value="${esc(tpl.file)}"></label>
+      ${isOpenAi ? `<label class="tpl-field"><span>${esc(t("acc.plugins.templates.id"))}</span>
+        <input type="text" class="input" data-tpl-id="openai" value="my-api"></label>` : ""}
+      <button class="btn small" type="button" data-tpl-create="${esc(tpl.id)}" ${already ? "disabled" : ""}>${esc(already ? t("acc.plugins.templates.installed") : t("acc.plugins.templates.create"))}</button>
+    </div>`;
+  }).join("");
+  $$("#plugins-templates-grid [data-tpl-create]").forEach((el) => el.onclick = async () => {
+    const tplId = el.dataset.tplCreate;
+    const nameInput = $(`#plugins-templates-grid [data-tpl-name="${tplId}"]`);
+    const idInput = $(`#plugins-templates-grid [data-tpl-id="openai"]`);
+    el.disabled = true;
+    try {
+      const body = { template: tplId };
+      if (nameInput && nameInput.value.trim()) body.name = nameInput.value.trim();
+      if (idInput && idInput.value.trim()) body.id = idInput.value.trim();
+      const r = await api("/api/admin/providers/plugins/template", { method: "POST", body });
+      await fetchProviders(true);
+      await loadPlugins();
+      await loadAccounts();
+      toast(`${t("acc.plugins.templates.created")}: ${r.file}`, "ok");
+    } catch (e) { toast(e.message, "err"); }
+    el.disabled = false;
+  });
+}
+
+let mcpBoxInit = false;
+
+function initMcpBox() {
+  const urlEl = $("#mcp-url");
+  if (urlEl) urlEl.textContent = location.origin + "/mcp";
+  const cfg = $("#mcp-config");
+  if (cfg) cfg.textContent = JSON.stringify({ mcpServers: { memuai: { type: "streamable-http", url: location.origin + "/mcp", headers: { Authorization: "Bearer YOUR_HUB_API_KEY" } } } }, null, 2);
+  if (mcpBoxInit) return;
+  mcpBoxInit = true;
+  const copyUrl = $("#mcp-copy-url");
+  if (copyUrl) copyUrl.onclick = () => copyText(location.origin + "/mcp", t("acc.plugins.dir.copied"));
+  const copyCfg = $("#mcp-copy-config");
+  if (copyCfg) copyCfg.onclick = () => { const el = $("#mcp-config"); if (el) copyText(el.textContent, t("acc.plugins.mcp.cfgcopied")); };
+  const checkBtn = $("#mcp-check");
+  if (checkBtn) checkBtn.onclick = async () => {
+    const out = $("#mcp-check-result");
+    checkBtn.disabled = true;
+    if (out) out.textContent = "…";
+    try {
+      let hubKey = "";
+      try { const kd = await api("/api/admin/keys"); hubKey = (kd.keys || [])[0] || ""; } catch (e) { }
+      const headers = { "Content-Type": "application/json", Accept: "application/json, text/event-stream" };
+      if (hubKey) headers.Authorization = "Bearer " + hubKey;
+      const init = await (await fetch("/mcp", { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "MemuAI Proxy admin", version: "1" } } }) })).json();
+      if (init.error) throw new Error(init.error.message || "MCP error");
+      const tools = await (await fetch("/mcp", { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) })).json();
+      const n = (tools.result && tools.result.tools || []).length;
+      if (out) out.textContent = t("acc.plugins.mcp.check.ok").replace("{v}", init.result.protocolVersion).replace("{n}", String(n));
+    } catch (e) { if (out) out.textContent = e.message; toast(e.message, "err"); }
+    checkBtn.disabled = false;
+  };
+  const newKeyBtn = $("#mcp-new-key");
+  if (newKeyBtn) newKeyBtn.onclick = async () => {
+    newKeyBtn.disabled = true;
+    try {
+      const r = await api("/api/admin/keys", { method: "POST", body: {} });
+      let copied = false;
+      try { copied = await writeClipboard(r.key); } catch (e) { }
+      if (copied) {
+        toast(LANG === "en" ? "Key created and copied" : "Ключ создан и скопирован", "ok", 5000);
+      } else {
+        openModal(`<h3>${t("set.key.new")}</h3><p class="muted">${LANG === "en" ? "Copy this key now." : "Скопируйте ключ сейчас."}</p><div class="code-block">${esc(r.key)}</div><div class="row-end"><button class="btn" id="m-close">${t("modal.close")}</button></div>`);
+        const closeBtn = $("#m-close");
+        if (closeBtn) closeBtn.onclick = closeModal;
+      }
+      if (typeof loadKeys === "function") loadKeys();
+    } catch (e) { toast(e.message, "err"); }
+    newKeyBtn.disabled = false;
+  };
+}
+
 async function loadAccounts() {
   try {
+    loadPlugins();
     await fetchProviders();
     const data = await api("/api/admin/accounts");
     accountsCache = data.accounts;
@@ -1772,6 +1966,46 @@ $("#acc-export").onclick = () => downloadAuthed("/api/admin/accounts/export", "m
 let presetsCache = [];
 let musicPresetsCache = [], legacyMusicAvailable = false;
 
+$("#plugins-reload").onclick = async () => {
+  const button = $("#plugins-reload");
+  button.disabled = true;
+  try {
+    await api("/api/admin/providers/reload", { method: "POST", body: {} });
+    await fetchProviders(true);
+    await loadPlugins();
+    await loadAccounts();
+    toast(t("acc.plugins.reloaded"), "ok");
+  } catch (e) { toast(e.message, "err"); }
+  button.disabled = false;
+};
+
+$("#plugins-open-folder").onclick = async () => {
+  try { await api("/api/admin/providers/plugins/open-folder", { method: "POST", body: {} }); }
+  catch (e) { toast(e.message, "err"); }
+};
+
+$("#plugins-copy-dir").onclick = () => {
+  if (pluginsDirCache) copyText(pluginsDirCache, t("acc.plugins.dir.copied"));
+};
+
+$("#plugins-file").addEventListener("change", async (ev) => {
+  const input = ev.target;
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = "";
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    const r = await api("/api/admin/providers/plugins/install", { method: "POST", body: { name: file.name, content_base64: btoa(binary) } });
+    await fetchProviders(true);
+    await loadPlugins();
+    await loadAccounts();
+    toast(`${t("acc.plugins.installed")}: ${r.file}`, "ok");
+  } catch (e) { toast(e.message, "err"); }
+});
+
 $("#acc-add-btn").onclick = async () => {
   try { await fetchProviders(); }
   catch (error) { toast(error.message, "err"); return; }
@@ -1790,7 +2024,7 @@ $("#acc-add-btn").onclick = async () => {
         <button class="pick-tile${p.id === "custom" ? " is-suggested" : ""}" type="button" data-pick="${esc(p.id)}">
           <div class="t-ico">${esc(p.icon)}</div>
           <div class="t-name">${esc(p.title)}</div>
-          <div class="t-desc">${how !== `acc.how.${p.id}` ? esc(how) : (p.oauth ? t("acc.browser") : t("acc.manual"))}</div>
+          <div class="t-desc">${p.plugin ? esc(t("acc.plugins.badge")) + " · " : ""}${how !== `acc.how.${p.id}` ? esc(how) : (p.oauth ? t("acc.browser") : t("acc.manual"))}</div>
         </button>`; }).join("")}
       <button class="pick-tile music-account-tile" type="button" id="acc-add-music"><div class="t-ico">♫</div><div class="t-name">${LANG === "en" ? "Music API" : "Музыкальный API"}</div><div class="t-desc">ElevenLabs · MiniMax · REST API</div></button>
     </div>
@@ -2037,7 +2271,17 @@ function showAccountForm(providerId) {
       browserBtn.disabled = true;
       try {
         const r = await api(`/api/admin/oauth/${encodeURIComponent(providerId)}/start`, { method: "POST" });
-        el.textContent = t("acc.oauth.wait");
+        const minutes = Number(r.expires_in) > 0 ? Math.max(1, Math.round(Number(r.expires_in) / 60)) : 0;
+        el.textContent = minutes ? t("acc.oauth.wait_n").replace("{n}", String(minutes)) : t("acc.oauth.wait");
+        if (/^https:\/\//i.test(String(r.url || ""))) {
+          const hint = document.createElement("div");
+          hint.className = "oauth-link";
+          const link = document.createElement("a");
+          link.href = r.url; link.target = "_blank"; link.rel = "noopener noreferrer";
+          link.textContent = t("acc.oauth.open");
+          hint.append(t("acc.oauth.link"), " ", link);
+          el.append(hint);
+        }
         watch(r.flow_id);
       } catch (e) { el.className = "oauth-status err"; el.textContent = e.message; browserBtn.disabled = false; }
     };

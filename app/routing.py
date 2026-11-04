@@ -21,7 +21,7 @@ class Resolved:
 
 def known_prefixes() -> List[str]:
     """Все активные префиксы: провайдеры с аккаунтами + имена кастомных подключений."""
-    from .providers import builtin_ids
+    from .providers import builtin_ids, plugin_ids
     prefixes = set()
     for acc in state.accounts.values():
         if acc.provider == "custom":
@@ -29,6 +29,8 @@ def known_prefixes() -> List[str]:
             if name:
                 prefixes.add(name)
         elif acc.provider in builtin_ids() and acc.provider != "custom":
+            prefixes.add(acc.provider)
+        elif acc.provider in plugin_ids():
             prefixes.add(acc.provider)
     return sorted(prefixes, key=len, reverse=True)
 
@@ -87,9 +89,12 @@ def resolve(model_id: str) -> Optional[Resolved]:
     return None
 
 def _provider_of_prefix(prefix: str) -> str:
-    from .providers import builtin_ids
+    from .providers import builtin_ids, plugin_ids
 
     if prefix.lower() in builtin_ids() and prefix.lower() != "custom" and any(
+            account.provider == prefix.lower() for account in state.accounts.values()):
+        return prefix.lower()
+    if prefix.lower() in plugin_ids() and any(
             account.provider == prefix.lower() for account in state.accounts.values()):
         return prefix.lower()
     for acc in state.accounts.values():

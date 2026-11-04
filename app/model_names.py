@@ -48,7 +48,7 @@ BRANDS: Dict[str, str] = {
     "fp8": "FP8", "fp16": "FP16", "bf16": "BF16", "int4": "INT4", "int8": "INT8", "mlx": "MLX", "rl": "RL", "ft": "FT",
     "t2i": "T2I", "t2v": "T2V", "i2v": "I2V", "i2i": "I2I", "r1": "R1", "rp": "RP", "nano-banana": "Nano Banana",
     "dall-e": "DALL·E", "gpt-oss": "GPT-OSS", "4o": "4o", "ui-tars": "UI-TARS", "apodex": "Apodex", "ollama": "Ollama",
-    "auto": "Auto", "genspark": "Genspark", "kiro": "Kiro", "antigravity": "Antigravity",
+    "auto": "Auto", "genspark": "Genspark", "kiro": "Kiro", "antigravity": "Antigravity", "zcode": "ZCode",
 }
 
 FAMILIES = (

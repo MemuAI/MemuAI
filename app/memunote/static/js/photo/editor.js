@@ -1,7 +1,7 @@
 
 
 import { esc, t, I18N, toast, showMenu, kbd, api } from "../core.js";
-import { PhotoDoc, newCanvas, ctx2d, cloneCanvas, isVector, renderVector, vectorBounds, textBox, fontString } from "./doc.js";
+import { PhotoDoc, newCanvas, ctx2d, cloneCanvas, isVector, renderVector, vectorBounds, textBox, fontString, hasFx } from "./doc.js";
 import { TOOLS, TOOL_GROUPS, DEFAULT_OPTS } from "./tools.js";
 import { openDocument, saveDocument, formatOfPath, SAVE_FORMATS, extOf } from "./io.js";
 import { parseHex, toHex, rgbToHsv, hsvToRgb, rgbToHsl, hslToRgb, combineMasks, BLEND_MODES, histogram } from "./pixels.js";
@@ -9,6 +9,7 @@ import { PICON, picon } from "./icons.js";
 import { COMMANDS } from "./commands.js";
 import { PhotoAI } from "./ai.js";
 import { TRANSFORM } from "./transform.js";
+import { COMPARE } from "./extras.js";
 
 const FONTS = ["Segoe UI", "Arial", "Calibri", "Cambria", "Georgia", "Times New Roman", "Verdana", "Tahoma", "Trebuchet MS", "Impact", "Comic Sans MS", "Consolas", "Courier New", "Bahnschrift", "Segoe Print", "Segoe Script", "Franklin Gothic Medium", "Palatino Linotype", "Book Antiqua", "Lucida Console", "JetBrains Mono"];
 const SWATCHES = ["#000000", "#ffffff", "#7f7f7f", "#c3c3c3", "#e5484d", "#ff8a3d", "#ffd23f", "#3ddc84", "#16a34a", "#22c3ee", "#4c8dff", "#2346c4", "#8b5cf6", "#ec4899", "#7c4a2d", "#f5d0a9"];
@@ -22,7 +23,7 @@ export class PhotoEditor {
     this.view = { zoom: 1, panX: 0, panY: 0 }; this.dpr = window.devicePixelRatio || 1;
     this.showRulers = localStorage.getItem(LS + "rulers") !== "0"; this.showGrid = false; this.gridSize = 50; this.showGuides = true;
     this.sideTab = localStorage.getItem(LS + "side") || "layers"; this.sideOpen = localStorage.getItem(LS + "side_open") !== "0";
-    if (!document.querySelector("link[data-photo-css]")) { const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "photo.css?v=r32"; css.dataset.photoCss = "1"; document.head.append(css); }
+    if (!document.querySelector("link[data-photo-css]")) { const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "photo.css?v=r33"; css.dataset.photoCss = "1"; document.head.append(css); }
     document.querySelector("#toolbar")?.classList.add("photo-hidden");
     this.el = document.createElement("div"); this.el.className = "ph"; this.el.tabIndex = -1;
     host.append(this.el);
@@ -53,13 +54,14 @@ export class PhotoEditor {
   }
   setDoc(doc) {
     this.doc?.listeners.clear();
-    this.doc = doc;
+    this.doc = doc; this.compare = null; this.compareDrag = false; this.framePreview = null; this.el.classList.remove("ph-comparing"); this.el.querySelector("[data-a=compare]")?.classList.remove("on");
     doc.on((kind) => { this.requestRender(); this.refreshPanels(); this.hooks.onDirty?.(doc.dirty); if (kind === "undo" || kind === "redo") this.syncToolState(); });
     this.el.classList.remove("ph-new-mode");
     this.stage.querySelector(".ph-empty")?.remove();
     this.fit(); this.renderTools(); this.renderOptions(); this.refreshPanels(); this.requestRender(); this.renderRulers();
     TOOLS[this.toolId]?.activate?.(this);
     this.hooks.onDirty?.(doc.dirty);
+    this.captureOriginal();
   }
   newDocument(w, h, bg) {
     const doc = new PhotoDoc(w, h), l = doc.makeLayer({ name: t(bg === "transparent" ? "ph_layer" : "ph_layer_background") });
@@ -92,6 +94,7 @@ export class PhotoEditor {
         <span class="ph-sp"></span>
         <button class="icon-btn sm" data-a="undo" title="${esc(t("ph_undo"))} (${kbd("Ctrl+Z")})">${picon("undo")}</button><button class="icon-btn sm" data-a="redo" title="${esc(t("ph_redo"))} (${kbd("Ctrl+Shift+Z")})">${picon("redo")}</button>
         <span class="ph-zoom"><button class="icon-btn sm" data-a="zout" title="${esc(t("ph_zoom_out"))}">${picon("minus")}</button><button class="ph-zoom-v" data-a="zmenu" title="${esc(t("ph_zoom"))}">100%</button><button class="icon-btn sm" data-a="zin" title="${esc(t("ph_zoom_in"))}">${picon("plus")}</button></span>
+        <button class="icon-btn sm ph-compare-btn" data-a="compare" title="${esc(t("ph_compare"))} (\\)">${picon("compare")}</button>
         <button class="icon-btn sm ph-side-toggle" data-a="side" title="${esc(t("ph_panels"))} (Tab)">${picon("panel")}</button></div>
       <div class="ph-opts"></div>
       <div class="ph-main">
@@ -111,6 +114,7 @@ export class PhotoEditor {
     this.el.querySelector("[data-a=zin]").onclick = () => this.zoomStep(1); this.el.querySelector("[data-a=zout]").onclick = () => this.zoomStep(-1);
     this.el.querySelector("[data-a=zmenu]").onclick = (e) => showMenu([[t("ph_fit"), () => this.fit()], ["100%", () => this.setZoom(1)], ["200%", () => this.setZoom(2)], ["50%", () => this.setZoom(0.5)], ["25%", () => this.setZoom(0.25)], [t("ph_fill_window"), () => this.fit(true)]].map(([label, run]) => ({ label, run })), e.currentTarget);
     this.el.querySelector("[data-a=side]").onclick = () => this.toggleSide();
+    this.el.querySelector("[data-a=compare]").onclick = () => this.compareToggle();
     this.el.classList.toggle("side-closed", !this.sideOpen);
     this.ro = new ResizeObserver(() => this.onResize()); this.ro.observe(this.stage); this.ro.observe(this.el);
     this.bindInput();
@@ -158,7 +162,7 @@ export class PhotoEditor {
   renderZoom() { const b = this.el.querySelector(".ph-zoom-v"); if (b) b.textContent = (this.view.zoom * 100 >= 10 ? Math.round(this.view.zoom * 100) : (this.view.zoom * 100).toFixed(1)) + "%"; this.renderStatus(); }
 
   requestRender() { if (this.raf) return; this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); }); }
-  layerChanged(rect) { if (this.doc) { if (rect) this.doc.markDirtyRect(rect); else this.doc.compDirty = true; } this.requestRender(); this.thumbsSoon(); }
+  layerChanged(rect) { if (this.doc) { this.doc.pixStamp = (this.doc.pixStamp || 0) + 1; if (rect && !this.doc.activeHasFx()) this.doc.markDirtyRect(rect); else this.doc.compDirty = true; } this.requestRender(); this.thumbsSoon(); }
   render() {
     const c = this.canvas, x = this.ctx, d = this.doc, dpr = this.dpr;
     x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height);
@@ -179,6 +183,8 @@ export class PhotoEditor {
     }
     x.drawImage(this.viewCache, 0, 0);
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (this.compare) this.drawCompare(x, X, Y, W, H);
+    if (this.framePreview) this.drawFramePreview(x, X, Y, W, H);
     if (z >= 12) this.drawPixelGrid(x, X, Y, W, H, z);
     if (this.showGrid) this.drawGrid(x, X, Y, W, H, z);
     if (this.showGuides && d.guides.length) { x.save(); x.strokeStyle = "#22d3ee"; x.lineWidth = 1; x.beginPath(); for (const g of d.guides) { if (g.axis === "x") { const sx = Math.round(X + g.pos * z) + 0.5; x.moveTo(sx, 0); x.lineTo(sx, c.height); } else { const sy = Math.round(Y + g.pos * z) + 0.5; x.moveTo(0, sy); x.lineTo(c.width, sy); } } x.stroke(); x.restore(); }
@@ -274,6 +280,7 @@ export class PhotoEditor {
     if (!this.doc || e.button === 1 || (e.button === 0 && this.spaceDown)) { if (this.doc) { this.panDrag = { x: e.clientX, y: e.clientY, px: this.view.panX, py: this.view.panY }; this.canvas.setPointerCapture(e.pointerId); this.setCursor("grabbing"); } return; }
     if (e.button !== 0) return;
     this.el.focus({ preventScroll: true });
+    if (this.compare) { this.canvas.setPointerCapture(e.pointerId); this.compareDrag = true; this.compareAt(e); return; }
     this.canvas.setPointerCapture(e.pointerId);
     const p = this.toDoc(e); this.down = true; this._hint = "";
     if (this.textEdit) { this.finishText(); }
@@ -285,6 +292,7 @@ export class PhotoEditor {
   onMove(e) {
     if (this.panDrag) { this.view.panX = this.panDrag.px + e.clientX - this.panDrag.x; this.view.panY = this.panDrag.py + e.clientY - this.panDrag.y; this.clampPan(); this.requestRender(); this.renderRulers(); return; }
     if (!this.doc) return;
+    if (this.compareDrag) { this.compareAt(e); return; }
     const p = this.toDoc(e); this.hover = p;
     if (this.guideMove) { this.guideMove.pos = Math.round(this.guideMove.axis === "x" ? p.x : p.y); this.requestRender(); return; }
     if (this.xf) { this.xfMove(p, e); this.renderStatus(); return; }
@@ -297,6 +305,7 @@ export class PhotoEditor {
   }
   onUp(e) {
     if (this.panDrag) { this.panDrag = null; this.setCursor(); return; }
+    if (this.compareDrag) { this.compareDrag = false; return; }
     if (this.guideMove) { const g = this.guideMove; this.guideMove = null; const r = this.stage.getBoundingClientRect(); if (e.clientX - r.left < 18 || e.clientY - r.top < 18 || g.pos < 0 || g.pos > (g.axis === "x" ? this.doc.width : this.doc.height)) this.doc.guides.splice(this.doc.guides.indexOf(g), 1); this.doc.commit(); return; }
     if (!this.down) return; this.down = false;
     if (this.xf) { this.xfUp(); return; }
@@ -328,6 +337,8 @@ export class PhotoEditor {
     if (sc) return run(sc);
     if (!mod && !e.altKey) {
       if (e.key === "Tab") return run(() => this.toggleSide());
+      if (this.compare && e.key === "Escape") return run(() => this.compareToggle(false));
+      if (e.key === "\\" || e.code === "Backslash") return run(() => this.compareToggle());
       if (e.key === "Escape") { if (this.doc.selection && !["polylasso", "crop"].includes(this.toolId)) return run(() => this.select(null, "new", t("ph_deselect"))); return false; }
       if (e.key === "Delete" || e.key === "Backspace") return run(() => this.clearSelection());
       if (k === "x") return run(() => this.swapColors());
@@ -651,8 +662,8 @@ export class PhotoEditor {
         ${l.type === "group" ? `<button class="ph-fold" data-fold="${l.id}">${picon(l.open ? "chevDown" : "chevRight")}</button><span class="ph-thumb grp">${picon("folder")}</span>` : `<canvas class="ph-thumb ${d.target === "layer" && l.id === d.activeId && l.mask ? "sel" : ""}" data-thumb="${l.id}" width="40" height="30"></canvas>`}
         ${l.mask ? `<canvas class="ph-thumb mask ${d.target === "mask" && l.id === d.activeId ? "sel" : ""} ${l.maskOn ? "" : "off"}" data-mthumb="${l.id}" width="40" height="30" title="${esc(t("ph_mask_thumb"))}"></canvas>` : ""}
         <span class="ph-lname" title="${esc(l.name)}">${l.type === "text" ? picon("text") : l.type === "shape" ? picon("shapes") : l.type === "svg" ? picon("vector") : ""}${esc(l.name)}</span>
-        ${l.locked ? `<span class="ph-lk">${picon("lock")}</span>` : ""}${l.blend !== "normal" ? `<span class="ph-lb" title="${esc(t("ph_blend_" + l.blend))}">${esc(t("ph_blend_" + l.blend).slice(0, 3))}</span>` : ""}</div>`).join("")}</div>
-      <div class="ph-lfoot">${[["newLayer", "plus", "ph_new_layer"], ["newGroup", "folder", "ph_new_group"], ["addMask", "mask", "ph_add_mask"], ["duplicateLayer", "copy", "ph_duplicate_layer"], ["mergeDown", "merge", "ph_merge_down"], ["deleteLayer", "trash", "ph_delete_layer"]].map(([c, ic, k]) => `<button class="icon-btn sm" data-cmd="${c}" title="${esc(t(k))}">${picon(ic)}</button>`).join("")}<span class="ph-sp"></span><button class="icon-btn sm" data-a="lmenu" title="${esc(t("ph_menu_layer"))}">${picon("more")}</button></div>`;
+        ${hasFx(l.fx) ? `<button class="ph-fxb" data-fxb="${l.id}" title="${esc(t("ph_layer_style"))}">fx</button>` : ""}${l.locked ? `<span class="ph-lk">${picon("lock")}</span>` : ""}${l.blend !== "normal" ? `<span class="ph-lb" title="${esc(t("ph_blend_" + l.blend))}">${esc(t("ph_blend_" + l.blend).slice(0, 3))}</span>` : ""}</div>`).join("")}</div>
+      <div class="ph-lfoot">${[["newLayer", "plus", "ph_new_layer"], ["newGroup", "folder", "ph_new_group"], ["addMask", "mask", "ph_add_mask"], ["duplicateLayer", "copy", "ph_duplicate_layer"], ["mergeDown", "merge", "ph_merge_down"], ["layerStyle", "fx", "ph_layer_style_dots"], ["deleteLayer", "trash", "ph_delete_layer"]].map(([c, ic, k]) => `<button class="icon-btn sm" data-cmd="${c}" title="${esc(t(k))}">${picon(ic)}</button>`).join("")}<span class="ph-sp"></span><button class="icon-btn sm" data-a="lmenu" title="${esc(t("ph_menu_layer"))}">${picon("more")}</button></div>`;
     body.querySelector("[data-lp=blend]").onchange = (e) => this.cmd("setLayerProp", "blend", e.target.value);
     const op = body.querySelector("[data-lp=opacity]"), op2 = body.querySelector("[data-lp=opacity2]");
     const opLive = (v) => { if (!a) return; if (!this.opDrag) { this.doc.begin(t("ph_opacity")); this.opDrag = true; } a.opacity = v / 100; this.layerChanged(); };
@@ -666,6 +677,7 @@ export class PhotoEditor {
       const id = row.dataset.id;
       row.onclick = (e) => {
         if (e.target.closest(".ph-eye,.ph-fold")) return;
+        if (e.target.closest("[data-fxb]")) { this.doc.activeId = id; this.doc.target = "layer"; this.refreshPanels(); this.cmd("layerStyle"); return; }
         if (e.ctrlKey && row.querySelector("[data-thumb]") && e.target.closest(".ph-thumb")) { this.cmd("selectionFromLayer", id); return; }
         const mask = !!e.target.closest("[data-mthumb]");
         if (mask && e.shiftKey) { this.cmd("toggleMask", id); return; }
@@ -716,15 +728,19 @@ export class PhotoEditor {
   }
   renderProps(body) {
     const d = this.doc, l = d.active;
-    const adj = [["brightnessContrast", "sun"], ["levels", "levels"], ["curves", "curve"], ["exposure", "exposure"], ["hueSaturation", "hue"], ["vibrance", "vibrance"], ["colorBalance", "balance"], ["temperature", "thermo"], ["blackWhite", "bw"], ["sepia", "sepia"], ["invert", "invert"], ["threshold", "threshold"], ["posterize", "posterize"], ["autoLevels", "auto"], ["replaceColor", "replace"]];
-    const flt = [["gaussianBlur", "drop"], ["motionBlur", "motion"], ["unsharpMask", "triangle"], ["sharpen", "triangle"], ["noise", "noise"], ["denoise", "denoise"], ["pixelate", "pixelate"], ["vignette", "vignette"], ["emboss", "emboss"], ["edges", "edges"], ["oilPaint", "brush"]];
+    const adj = [["brightnessContrast", "sun"], ["levels", "levels"], ["curves", "curve"], ["exposure", "exposure"], ["hueSaturation", "hue"], ["vibrance", "vibrance"], ["colorBalance", "balance"], ["temperature", "thermo"], ["blackWhite", "bw"], ["sepia", "sepia"], ["invert", "invert"], ["threshold", "threshold"], ["posterize", "posterize"], ["autoLevels", "auto"], ["replaceColor", "replace"], ["shadowsHighlights", "sh"], ["clarity", "clarity"], ["dehaze", "haze"], ["photoFilter", "pfilter"], ["splitToning", "split"], ["gradientMap", "gmap"], ["channelMixer", "mixer"]];
+    const flt = [["gaussianBlur", "drop"], ["motionBlur", "motion"], ["unsharpMask", "triangle"], ["sharpen", "triangle"], ["noise", "noise"], ["denoise", "denoise"], ["pixelate", "pixelate"], ["vignette", "vignette"], ["emboss", "emboss"], ["edges", "edges"], ["oilPaint", "brush"], ["zoomBlur", "zoomBlur"], ["tiltShift", "tilt"], ["chromatic", "rgb"], ["halftone", "halftone"], ["sketch", "pencil"]];
     let props = "";
     if (l?.type === "text") props = this.textPropsHtml(l);
     else if (l?.type === "shape") props = this.shapePropsHtml(l);
     body.innerHTML = `${props}<div class="ph-sec"><h4>${esc(t("ph_histogram"))}</h4><canvas class="ph-histo" width="256" height="72"></canvas></div>
+      <div class="ph-sec"><h4>${esc(t("ph_adj_look"))}</h4><div class="ph-grid"><button class="ph-gbtn wide" data-cmd2="looks">${picon("looks")}<span>${esc(t("ph_looks"))}</span></button><button class="ph-gbtn wide" data-cmd2="compare">${picon("compare")}<span>${esc(t("ph_compare"))}</span></button></div></div>
       <div class="ph-sec"><h4>${esc(t("ph_adjustments"))}</h4><div class="ph-grid">${adj.map(([k, ic]) => `<button class="ph-gbtn" data-adj="${k}">${picon(ic)}<span>${esc(t("ph_adj_" + k))}</span></button>`).join("")}</div></div>
-      <div class="ph-sec"><h4>${esc(t("ph_filters"))}</h4><div class="ph-grid">${flt.map(([k, ic]) => `<button class="ph-gbtn" data-adj="${k}">${picon(ic)}<span>${esc(t("ph_adj_" + k))}</span></button>`).join("")}</div></div>`;
+      <div class="ph-sec"><h4>${esc(t("ph_filters"))}</h4><div class="ph-grid">${flt.map(([k, ic]) => `<button class="ph-gbtn" data-adj="${k}">${picon(ic)}<span>${esc(t("ph_adj_" + k))}</span></button>`).join("")}</div></div>
+      <div class="ph-sec"><h4>${picon("fx")} ${esc(t("ph_layer_style"))}</h4><div class="ph-grid">${["shadow", "glow", "stroke", "overlay"].map((k) => `<button class="ph-gbtn ${l?.fx?.[k]?.on ? "on" : ""}" data-fx="${k}" ${l ? "" : "disabled"}>${picon({ shadow: "copy", glow: "sun", stroke: "frame", overlay: "palette" }[k])}<span>${esc(t("ph_fx_" + k))}</span></button>`).join("")}<button class="ph-gbtn" data-cmd2="frame">${picon("frame")}<span>${esc(t("ph_frame_dots"))}</span></button></div></div>`;
     body.querySelectorAll("[data-adj]").forEach((b) => (b.onclick = () => this.cmd("adjust", b.dataset.adj)));
+    body.querySelectorAll("[data-cmd2]").forEach((b) => (b.onclick = () => this.cmd(b.dataset.cmd2)));
+    body.querySelectorAll("[data-fx]").forEach((b) => (b.onclick = () => this.cmd("layerStyle", b.dataset.fx)));
     this.bindProps(body, l);
     this.drawHistogram(body.querySelector(".ph-histo"));
   }
@@ -833,6 +849,7 @@ export class PhotoEditor {
 }
 
 Object.assign(PhotoEditor.prototype, TRANSFORM);
+Object.assign(PhotoEditor.prototype, COMPARE);
 
 function checkerTile(n = 8) { const c = newCanvas(n * 2, n * 2), x = ctx2d(c); x.fillStyle = "#ffffff"; x.fillRect(0, 0, n * 2, n * 2); x.fillStyle = "#d6d6d6"; x.fillRect(0, 0, n, n); x.fillRect(n, n, n, n); return c; }
 function clampInt(v, a, b, d) { const n = Math.round(+v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; }

@@ -17,22 +17,6 @@ html[data-module-focus="1"] #app > .side:focus-within { opacity: 1; }
   will-change: transform, opacity;
 }
 
-[data-task].is-focus-parked {
-  position: relative;
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 60%, transparent);
-}
-[data-task].is-focus-parked::after {
-  content: "⤢";
-  position: absolute; top: 1px; right: 1px;
-  display: grid; place-items: center;
-  width: 14px; height: 14px; border-radius: 999px;
-  font: 700 9px/1 var(--sans, system-ui);
-  color: var(--accent-fg, #fff); background: var(--accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
-  animation: module-focus-pop .24s cubic-bezier(.2, .8, .2, 1);
-}
-@keyframes module-focus-pop { from { transform: scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   html[data-module-focus="1"] #app > .side { transition: none; }
-  [data-task].is-focus-parked::after { animation: none; }
 }

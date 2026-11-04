@@ -236,6 +236,8 @@ def _folder(root: Path, module_id: str) -> Path:
         raise CatalogError("Каталог модуля содержит ссылку / The module directory contains a link")
     return target
 
+_CATALOG_META = frozenset({".catalog.json", ".catalog.json.lock"})
+
 def _manifest_marker(folder: Path) -> dict:
     try:
         raw = json.loads((folder / ".catalog.json").read_text(encoding="utf-8"))
@@ -247,7 +249,7 @@ def _fingerprint(folder: Path) -> dict:
     host._reject_package_links(folder)
     records, total = {}, 0
     for path in sorted(folder.rglob("*")):
-        if not path.is_file() or path.name == ".catalog.json":
+        if not path.is_file() or path.name in _CATALOG_META:
             continue
         stat = path.stat()
         if stat.st_size > 8 * 1024 * 1024 or total + stat.st_size > 24 * 1024 * 1024:
@@ -265,7 +267,7 @@ def _modified(folder: Path, marker: dict, *, strict: bool = False) -> bool:
     if not isinstance(expected, dict) or not expected:
         return True
     host._reject_package_links(folder)
-    paths = {p.relative_to(folder).as_posix():p for p in folder.rglob("*") if p.is_file() and p.name != ".catalog.json"}
+    paths = {p.relative_to(folder).as_posix():p for p in folder.rglob("*") if p.is_file() and p.name not in _CATALOG_META}
     if set(paths) != set(expected):
         return True
     for name, path in paths.items():

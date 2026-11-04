@@ -7,7 +7,7 @@
   const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const API = "/api/pg/integrations/telegram-use";
   let state = null, voiceOptions = {}, bound = false, timer = 0, busy = false, qrURL = "", retryAt = 0, lastNotice = "";
-  let revision = 0, savedRevision = 0, saveTimer = 0, savePromise = null, quietValidation = false;
+  let revision = 0, savedRevision = 0, saveTimer = 0, savePromise = null, quietValidation = false, pendingAccount = "";
   const btn = (action, label) => `<button type="button" class="pbtn ghost" data-tgu="${action}">${esc(label)}</button>`;
   const field = (key, label, value, type = "text", attrs = "") => `<label class="tgu-field"><span>${esc(label)}</span><input class="pinput" data-tgu-field="${key}" type="${type}" value="${esc(value)}" ${attrs}><small class="tgu-field-error" hidden></small></label>`;
   const check = (key, label, value) => `<label class="tgu-check"><input type="checkbox" data-tgu-field="${key}" ${value ? "checked" : ""}> ${esc(label)}</label>`;
@@ -28,7 +28,7 @@
       <p class="tgu-note tgu-voice-command">${L("Источник, язык и очистка настраиваются в разделе «Распознавание речи и очистка диктовки» выше. Для обычной расшифровки текстовая модель не нужна.","Configure source, language and cleanup in Speech recognition and transcript cleanup above. Plain transcription needs no chat model.")}</p>
       <div class="tgu-arguments"><h4>${L("Аргументы команды", "Command arguments")}</h4><p class="tgu-note">${L("Аргументы идут по порядку. Последний текст или название чата может содержать пробелы. Подставляйте их в инструкцию: {count}, {chat} или {имя_аргумента}. Для пересказа нужны count и необязательный chat.", "Arguments follow their order. The last text or chat title can contain spaces. Insert them in the instruction with {count}, {chat} or {argument_name}. A summary needs count and an optional chat.")}</p>
       <div data-tgu-arguments>${(c.arguments || []).map((a,j) => argument(a,i,j)).join("")}</div>${btn("arg-add-"+i,L("Добавить аргумент","Add argument"))}</div>
-      <div class="tgu-grid">${field("context_messages", L("Сообщений контекста (0–200)", "Context messages (0–200)"), c.context_messages, "number", 'min="0" max="200"')}
+      <div class="tgu-grid">${field("context_messages", L("Сообщений контекста (0–2000)", "Context messages (0–2000)"), c.context_messages, "number", 'min="0" max="2000"')}
       ${field("allowed_users", L("Другие пользователи: числовые ID через запятую", "Other users: numeric IDs, comma separated"), (c.allowed_users || []).join(", "))}
       ${field("allowed_chats", L("Только чаты с ID (пусто — любые свои)", "Only chat IDs (empty: any for yourself)"), (c.allowed_chats || []).join(", "))}
       ${field("max_per_hour", L("Запросов на человека в час", "Requests per person per hour"), c.max_per_hour, "number", 'min="1" max="1000"')}
@@ -110,6 +110,7 @@
           <p class="tgu-note">${L("Нажмите один раз и дождитесь кода в Telegram. SMS может быть недоступна для сторонних клиентов.", "Press once and wait for the code in Telegram. SMS may be unavailable to third-party clients.")}</p>${btn("phone", L("Получить код в Telegram", "Request a Telegram code"))}
         </details>
         <p class="tgu-note">${L("Пароль и код входа не сохраняются. Локальная сессия защищена вашей учётной записью Windows. Отключить её можно здесь или в Telegram → Устройства.", "Passwords and login codes are not saved. Your local session is protected by your Windows account. Disconnect here or in Telegram → Devices.")}</p>
+        <div id="tgu-accounts" class="tgu-accounts-box">${accountsHtml()}</div>
       `, state.connected)}
       <section class="tgu-preferences"><h3>${L("После подключения", "After connecting")}</h3>
         ${check("enabled", L("Telegram Use включён", "Enable Telegram Use"), c.enabled)}
@@ -120,10 +121,13 @@
         ${check("web_enabled", L("Разрешить командам веб-поиск и чтение веб-страниц", "Allow commands to search and read web pages"), c.web_enabled !== false)}
         <label class="tgu-field"><span>${L("Дополнительная инструкция ассистента", "Additional assistant instruction")}</span><textarea class="pinput" rows="4" data-tgu-field="system_prompt" placeholder="${esc(L("Например: отвечай кратко и указывай источники", "For example: keep answers concise and cite sources"))}">${esc(c.system_prompt || "")}</textarea></label>
         <p class="tgu-note">${L("Команды используют общего ассистента MemuAI. !//question вопрос — ответ с доступным веб-поиском. !//summary 50 — последние 50 сообщений здесь; !//summary 50 AI Telegram News — пересказ другого чата в текущей переписке. Ответьте !//voice на голосовое для расшифровки.", "Commands use MemuAI's general assistant. !//question question answers with optional web search. !//summary 50 summarizes the last 50 messages here; !//summary 50 AI Telegram News summarizes another chat in your current conversation. Reply !//voice to a voice message to transcribe it.")}</p>
+        <div class="tgu-autos"><div class="tgu-autos-text"><b>${L("Автоматизации", "Automations")}</b><p class="tgu-note">${automationsNote(c)}</p></div>
+          ${check("automations_enabled", L("Выполнять автоматизации Telegram", "Run Telegram automations"), c.automations_enabled !== false)}
+          <div class="tgu-buttons">${btn("open-automations", L("Открыть автоматизации в Планировании", "Open automations in Planning"))}</div></div>
         ${voiceSettings(c)}
         <details class="tgu-help" id="tgu-command-settings"><summary>${L("Команды и ограничения", "Commands and limits")}</summary><div id="tgu-commands">${c.commands.map(command).join("")}</div><div class="tgu-buttons">${btn("add", L("Добавить команду", "Add command"))}</div>
           <div class="tgu-grid">${field("max_media_mb", L("Лимит вложения, МБ (1–50)", "Media limit, MB (1–50)"), c.max_media_mb, "number", 'min="1" max="50"')}
-          ${field("context_chars", L("Максимум символов контекста", "Context character budget"), c.context_chars, "number", 'min="1000" max="100000"')}
+          ${field("context_chars", L("Максимум символов контекста (1000–500000)", "Context character budget (1,000–500,000)"), c.context_chars, "number", 'min="1000" max="500000"')}
           ${field("max_parallel", L("Одновременных команд (1–4)", "Concurrent commands (1–4)"), c.max_parallel, "number", 'min="1" max="4"')}</div>
         </details><p class="tgu-note">${L("Доступны облачные чаты, изображения и видео. Секретные чаты Telegram сторонним клиентам недоступны. Базовое форматирование работает без Premium.", "Cloud chats, images and video are supported. Telegram secret chats are unavailable to third-party clients. Basic formatting works without Premium.")}</p>
       </section><div class="tgu-footer"><span id="tgu-save-status" role="status" aria-live="polite">${L("Изменения сохраняются автоматически", "Changes are saved automatically")}</span><div class="tgu-buttons">${btn("save", L("Сохранить сейчас", "Save now"))}<span id="tgu-disconnect" ${state.has_session ? "" : "hidden"}>${btn("disconnect", L("Отключить аккаунт", "Disconnect account"))}</span></div></div>`;
@@ -162,12 +166,132 @@
       }
     } else if (phase === "code") auth.innerHTML = `${field("code", L("Код из Telegram", "Code from Telegram"), "", "text", 'inputmode="numeric" autocomplete="one-time-code"')}${btn("code", L("Подтвердить код", "Confirm code"))}`;
     else if (phase === "password") auth.innerHTML = `${field("password", L("Облачный пароль Telegram (2FA)", "Telegram cloud password (2FA)"), "", "password", 'autocomplete="current-password"')}${btn("password", L("Войти", "Sign in"))}`;
-    else auth.innerHTML = phase === "expired" ? `<p>${L("QR истёк. Нажмите «Показать QR», чтобы получить новый.", "QR expired. Select Show QR to get a new one.")}</p>` : "";
+    else auth.innerHTML = phase === "expired" ? `<p>${L("QR истёк. Нажмите «Показать QR», чтобы получить новый.", "QR expired. Select Show QR to get a new one.")}</p>`
+      : phase === "duplicate" ? `<p>${L("Этот аккаунт уже подключён — войдите в другой.", "This account is already connected — sign in to another one.")}</p>` : "";
     auth.dataset.phase = phase;
+  }
+  /* Several Telegram accounts: the main one signs in above, the others here, each with its own QR code. */
+  const accountRows = () => (state && Array.isArray(state.accounts) ? state.accounts : []);
+  const accountTitle = a => { const me = a.account || {}; return a.label || me.name || (me.username ? "@" + me.username : "") || (a.main ? L("Основной аккаунт", "Main account") : L("Новый аккаунт", "New account")); };
+  const accBtn = (action, id, label, primary = false) => `<button type="button" class="pbtn ${primary ? "" : "ghost"}" data-tgu="${action}" data-tgu-acc-id="${esc(id)}">${esc(label)}</button>`;
+  const accField = (key, label, type, attrs) => field(key, label, "", type, attrs).replace('data-tgu-field="', 'data-tgu-acc-input="');
+  function automationsNote(c) {
+    const n = (c.automations || []).length;
+    const intro = L("Правила «если … — сделай …»: расшифровать голосовое от нужного человека, пересказать новый пост канала в Избранное, прислать утреннюю сводку чатов.", "“If … then …” rules: transcribe voice messages from a chosen person, summarize new channel posts into Saved Messages, send a morning digest of your chats.");
+    return esc(intro) + " " + esc(n ? L(`Сейчас правил: ${n}.`, `Rules now: ${n}.`) : L("Правил пока нет.", "No rules yet."));
+  }
+  function accountAuthHtml(a) {
+    const phase = a.flow?.phase || "idle", id = a.id;
+    const cancel = accBtn("acc-cancel", id, L("Отменить вход", "Cancel sign-in"));
+    const phone = `<details class="tgu-help"><summary>${L("Войти по номеру телефона вместо QR", "Sign in with a phone number instead")}</summary>${accField("phone", L("Номер с кодом страны", "Phone with country code"), "tel", 'autocomplete="tel" placeholder="+7 900 123-45-67"')}<div class="tgu-buttons">${accBtn("acc-phone", id, L("Получить код в Telegram", "Request a Telegram code"))}</div></details>`;
+    if (phase === "qr") return `<img class="tgu-qr" alt="Telegram login QR" data-tgu-acc-qr="${esc(id)}" src="${API}/qr.png?account=${encodeURIComponent(id)}&t=${Date.now()}"><p>${L("Откройте Telegram на телефоне нужного аккаунта → Настройки → Устройства → Подключить устройство. QR обновляется автоматически.", "Open Telegram on the phone of that account → Settings → Devices → Link Desktop Device. The QR refreshes automatically.")}</p>${phone}<div class="tgu-buttons">${cancel}</div>`;
+    if (phase === "code") return `${accField("code", L("Код из Telegram", "Code from Telegram"), "text", 'inputmode="numeric" autocomplete="one-time-code"')}<div class="tgu-buttons">${accBtn("acc-code", id, L("Подтвердить код", "Confirm code"), true)}${cancel}</div>`;
+    if (phase === "password") return `${accField("password", L("Облачный пароль Telegram (2FA)", "Telegram cloud password (2FA)"), "password", 'autocomplete="current-password"')}<div class="tgu-buttons">${accBtn("acc-password", id, L("Войти", "Sign in"), true)}${cancel}</div>`;
+    const why = phase === "duplicate" ? L("Этот аккаунт уже подключён — войдите в другой.", "This account is already connected — sign in to another one.")
+      : phase === "expired" ? L("QR истёк — покажите новый.", "The QR expired — show a new one.") : L("Покажите QR-код и отсканируйте его телефоном с нужным аккаунтом.", "Show the QR code and scan it with the phone of that account.");
+    return `<p>${esc(why)}</p>${phone}<div class="tgu-buttons">${accBtn("acc-qr", id, L("Показать QR", "Show QR"), true)}${cancel}</div>`;
+  }
+  function accountsHtml() {
+    const rows = accountRows();
+    if (!state || !state.configured || !rows.some(a => a.has_session)) return "";
+    const head = `<div class="tgu-accounts-head"><h4>${L("Аккаунты Telegram", "Telegram accounts")}</h4><p class="tgu-note">${rows.length > 1
+      ? L("У каждого аккаунта свои команды !// и свои автоматизации. Название видно только в MemuAI.", "Each account has its own !// commands and automations. The label is shown only in MemuAI.")
+      : L("Подключите ещё один аккаунт — например, рабочий. Команды и автоматизации будут работать в каждом, MemuAI отвечает от имени того аккаунта, где пришло сообщение.", "Connect one more account, e.g. a work one. Commands and automations work in each; MemuAI replies as the account that received the message.")}</p></div>`;
+    const list = rows.length > 1 || pendingAccount ? `<div class="tgu-acc-list">${rows.map(a => {
+      const me = a.account || {}, name = accountTitle(a), signing = ["qr", "code", "password"].includes(a.flow?.phase);
+      const stateText = a.connected ? L("подключён", "connected") : a.has_session ? L("нет связи", "offline") : signing ? L("выполняется вход…", "signing in…") : L("вход не выполнен", "signed out");
+      const letter = (String(name).match(/[\p{L}\p{N}]/u) || ["#"])[0].toUpperCase();
+      const tools = a.main ? "" : a.has_session ? accBtn("acc-disconnect", a.id, L("Отключить", "Disconnect"))
+        : a.id === pendingAccount ? "" : `${accBtn("acc-signin", a.id, L("Войти", "Sign in"), true)}${accBtn("acc-disconnect", a.id, L("Убрать", "Remove"))}`;
+      return `<div class="tgu-acc ${a.connected ? "is-on" : ""}" data-tgu-acc-row="${esc(a.id)}"><span class="tgu-acc-ava" aria-hidden="true">${esc(letter)}</span>
+        <div class="tgu-acc-main"><b>${esc(name)}</b><small>${[me.username ? "@" + esc(me.username) : "", a.main ? esc(L("основной", "main")) : "", `<span class="tgu-acc-state ${a.connected ? "on" : ""}">${esc(stateText)}</span>`].filter(Boolean).join(" · ")}</small>
+          ${a.last_error && !a.connected && !signing ? `<small class="tgu-acc-error">${esc(errorText(a.last_error))}</small>` : ""}</div>
+        <div class="tgu-acc-tools">${a.has_session ? `<label class="tgu-check" title="${esc(L("Обрабатывать команды !// в этом аккаунте", "Handle !// commands in this account"))}"><input type="checkbox" data-tgu-acc-commands="${esc(a.id)}" ${a.commands !== false ? "checked" : ""}> ${L("Команды !//", "!// commands")}</label>` : ""}${tools}</div>
+        ${a.has_session || a.main ? `<label class="tgu-acc-label"><span>${L("Название в MemuAI", "Label in MemuAI")}</span><input class="pinput" data-tgu-acc-label="${esc(a.id)}" value="${esc(a.label || "")}" maxlength="80" placeholder="${esc(me.name || L("Например: Рабочий", "For example: Work"))}"></label>` : ""}
+        ${a.id === pendingAccount && !a.connected ? `<div class="tgu-acc-auth">${accountAuthHtml(a)}</div>` : ""}</div>`;
+    }).join("")}</div>` : "";
+    const add = rows.length >= 10 || pendingAccount || !state.has_session ? "" : `<div class="tgu-buttons">${btn("acc-add", L("Добавить аккаунт", "Add an account"))}</div>`;
+    return `${head}${list}${add}`;
+  }
+  let accountsView = "", accountQr = "";
+  function paintAccounts(force = false) {
+    const box = document.getElementById("tgu-accounts"); if (!box || !state) return;
+    const pending = accountRows().find(a => a.id === pendingAccount);
+    if (pendingAccount && (!pending || pending.connected)) {
+      if (pending?.connected) notice(L("Аккаунт подключён: ", "Account connected: ") + accountTitle(pending));
+      pendingAccount = "";
+    }
+    const view = JSON.stringify([state.configured, state.has_session, pendingAccount, accountRows().map(a => [a.id, a.label, a.connected, a.has_session, a.flow?.phase, a.account?.name, a.account?.username, a.commands, a.last_error])]);
+    const url = pending?.flow?.phase === "qr" ? pending.flow.url || "" : "";
+    const typing = box.contains(document.activeElement) && document.activeElement.matches("input, textarea");
+    if (force || (view !== accountsView && !typing)) { accountsView = view; accountQr = url; box.innerHTML = accountsHtml(); return; }
+    if (url && url !== accountQr) {
+      accountQr = url;
+      const img = box.querySelector(`img[data-tgu-acc-qr="${CSS.escape(pendingAccount)}"]`);
+      if (img) img.src = `${API}/qr.png?account=${encodeURIComponent(pendingAccount)}&t=${Date.now()}`;
+    }
+  }
+  async function accountAct(action, el) {
+    if (busy || !state) return;
+    const id = el?.dataset?.tguAccId || pendingAccount || "";
+    const root = document.getElementById("tgu-root"), box = document.getElementById("tgu-accounts");
+    const input = key => box?.querySelector(`[data-tgu-acc-input="${key}"]`);
+    busy = true; root?.setAttribute("aria-busy", "true");
+    box?.querySelectorAll("[aria-invalid]").forEach(x => x.removeAttribute("aria-invalid"));
+    box?.querySelectorAll(".tgu-field-error").forEach(x => { x.hidden = true; });
+    let failed = false;
+    try {
+      if (action === "acc-add") {
+        if (savePromise) await savePromise;
+        state = await call("add_account");
+        pendingAccount = state.pending_account || "";
+        if (pendingAccount) state = await call("qr", {account: pendingAccount});
+      } else if (action === "acc-signin" || action === "acc-qr") {
+        pendingAccount = id;
+        state = await call("qr", {account: id});
+      } else if (action === "acc-phone") {
+        const phone = input("phone");
+        if (!/^\+[0-9 ()-]{7,29}$/.test(phone?.value?.trim() || "")) fieldError(phone, L("Введите номер с + и кодом страны, например +7 900 123-45-67.", "Enter a number with + and a country code, e.g. +1 202 555 0100."));
+        state = await call("phone", {account: id, phone: phone.value.trim()});
+      } else if (action === "acc-code") {
+        state = await call("code", {account: id, code: input("code")?.value || ""});
+      } else if (action === "acc-password") {
+        state = await call("password", {account: id, password: input("password")?.value || ""});
+      } else if (action === "acc-cancel") {
+        state = await call("cancel", {account: id});
+        if (id === pendingAccount) pendingAccount = "";
+      } else if (action === "acc-disconnect") {
+        const row = accountRows().find(a => a.id === id);
+        const ask = typeof askConfirm === "function" ? askConfirm : null;
+        if (ask && !(await ask(row?.has_session ? L("Отключить аккаунт?", "Disconnect the account?") : L("Убрать аккаунт?", "Remove the account?"), row ? accountTitle(row) : ""))) return;
+        state = await call("disconnect", {account: id});
+        if (id === pendingAccount) pendingAccount = "";
+        notice(L("Аккаунт отключён. Его автоматизации не будут работать, пока вы снова не войдёте.", "Account disconnected. Its automations stay idle until you sign in again."));
+      }
+    } catch (error) {
+      failed = true; notice(error.message, true);
+    } finally { busy = false; root?.removeAttribute("aria-busy"); paintAccounts(!failed); connection(); }
+  }
+  async function accountEdited(event) {
+    const input = event.target.closest?.("[data-tgu-acc-label], [data-tgu-acc-commands]");
+    if (!input?.closest("#tgu-root") || !state) return;
+    const id = input.dataset.tguAccLabel || input.dataset.tguAccCommands;
+    const data = input.dataset.tguAccLabel !== undefined ? {account: id, label: input.value.trim()} : {account: id, commands: input.checked};
+    try { state = await call("account_update", data); saveStatus(L("Все изменения сохранены", "All changes saved")); }
+    catch (error) { notice(error.message, true); }
+    if (!(document.getElementById("tgu-accounts")?.contains(document.activeElement) && document.activeElement.matches("input"))) paintAccounts(true);
+  }
+  function openAutomations() {
+    snapshotForNavigation();
+    try { localStorage.setItem("memuai.plan.tab.v1", "telegram"); } catch (_) {}
+    window.MemuPlan?.setTab?.("telegram", false);
+    if (typeof showSchedule === "function") showSchedule(true);
+    else window.MemuPlan?.open?.({tab: "telegram"});
   }
   function render() {
     const root = document.getElementById("tgu-root"); if (!root) return;
-    root.innerHTML = content(); qrURL = ""; connection(); if (lastNotice) notice(lastNotice);
+    if (!pendingAccount) pendingAccount = (accountRows().find(a => !a.main && !a.has_session && ["qr", "code", "password"].includes(a.flow?.phase)) || {}).id || "";
+    root.innerHTML = content(); qrURL = ""; accountsView = ""; connection(); paintAccounts(true); if (lastNotice) notice(lastNotice);
     root.querySelectorAll("[data-tgu-model]").forEach(s => window.MemuModelPicker?.enhanceSelect?.(s));
   }
   function values(root, nested = false) {
@@ -330,7 +454,7 @@
         const data = collect(); state.config = {...state.config, ...data};
         if (action === "add") {
           let n = 1; while (state.config.commands.some(c => c.trigger === `!//command${n}`)) n++;
-          state.config.commands.push({name:L("Новая команда","New command"),trigger:`!//command${n}`,enabled:true,kind:"question",prompt:"{question}",model:"",context_messages:30,output:"replace",arguments:[],allowed_users:[],allowed_chats:[],max_per_hour:10,max_per_day:50,cooldown_seconds:5,max_input_chars:8000});
+          state.config.commands.push({name:L("Новая команда","New command"),trigger:`!//command${n}`,enabled:true,kind:"question",prompt:"{question}",model:"",context_messages:60,output:"replace",arguments:[],allowed_users:[],allowed_chats:[],max_per_hour:10,max_per_day:50,cooldown_seconds:5,max_input_chars:8000});
         } else if (action.startsWith("arg-add-")) {
           const cmd = state.config.commands[Number(action.slice(8))];
           if (cmd.arguments.length >= 32) throw new Error(L("Доступно до 32 аргументов.","Up to 32 arguments are supported."));
@@ -388,8 +512,17 @@
       document.addEventListener("click", event => {
         const b = event.target.closest("[data-tgu]");
         if (!b?.closest("#tgu-root")) { if (!event.target.closest("#tgu-root")) snapshotForNavigation(); return; }
-        event.preventDefault(); act(b.dataset.tgu);
+        event.preventDefault();
+        if (b.dataset.tgu === "open-automations") return openAutomations();
+        if (b.dataset.tgu.startsWith("acc-")) return accountAct(b.dataset.tgu, b);
+        act(b.dataset.tgu);
       }, true);
+      document.addEventListener("change", accountEdited);
+      document.addEventListener("keydown", event => {
+        const input = event.target.closest?.("#tgu-root [data-tgu-acc-input]");
+        if (!input || event.key !== "Enter") return;
+        event.preventDefault(); accountAct({phone: "acc-phone", code: "acc-code", password: "acc-password"}[input.dataset.tguAccInput], input);
+      });
       const edited = event => {
         const input = event.target.closest("[data-tgu-field], [data-tgu-arg-field]");
         if (!input?.closest("#tgu-root") || ["phone","code","password"].includes(input.dataset.tguField)) return;
@@ -399,7 +532,7 @@
         if (event.type === "change" && input.dataset.tguField === "kind" && input.value === "summary") {
           const card = input.closest("[data-tgu-command]");
           if (!card.querySelector("[data-tgu-argument]")) card.querySelector("[data-tgu-arguments]").innerHTML = [
-            {name:"count",type:"integer",required:true,min:1,max:1000}, {name:"chat",type:"chat",required:false}
+            {name:"count",type:"integer",required:true,min:1,max:2000}, {name:"chat",type:"chat",required:false}
           ].map((a,j)=>argument(a,Number(card.dataset.tguCommand),j)).join("");
         }
         if (input.dataset.tguField === "stt_source") {
@@ -425,7 +558,7 @@
     Promise.all([call(), fetch(API+"/voice-options").then(r=>r.ok?r.json():{}).catch(()=>({}))]).then(([result,options]) => { state = result; voiceOptions=options; revision=savedRevision=0; render(); }).catch(error => { const root = document.getElementById("tgu-root"); if (root) root.textContent = error.message; });
     timer = setInterval(async () => {
       const root = document.getElementById("tgu-root"); if (!root) { clearInterval(timer); return; } if (busy || document.hidden || root.closest(".sx-sub")?.hidden) return;
-      try { const result = await call(); if (busy) return; state = {...state, connected:result.connected,account:result.account,flow:result.flow,last_error:result.last_error,has_session:result.has_session,configured:result.configured}; connection(); } catch (_) {}
+      try { const result = await call(); if (busy) return; state = {...state, connected:result.connected,account:result.account,flow:result.flow,last_error:result.last_error,has_session:result.has_session,configured:result.configured,accounts:result.accounts||state.accounts,automation_stats:result.automation_stats}; connection(); paintAccounts(); } catch (_) {}
     }, 2500);
   }
   window.MemuTelegramUse = {listHtml, subsHtml, mount};

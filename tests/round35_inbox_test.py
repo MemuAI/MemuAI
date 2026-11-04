@@ -367,7 +367,7 @@ def test_proxy_account_hooks(fresh):
         time.sleep(0.05)
     assert inbox.get("proxy:auth:acc1")
 
-def test_memucode_terminal_questions(fresh):
+def test_memucode_terminal_questions(fresh, monkeypatch):
     from app.cli import remote
     rc = "4242-deadbeef"
     d = remote.remote_dir()
@@ -379,6 +379,12 @@ def test_memucode_terminal_questions(fresh):
               "detail": {"tool": "bash", "preview": "$ npm test", "danger": False}}
     state = {"v": 1, "rc": rc, "heartbeat": time.time(), "started": time.time(), "root": "/p/memu", "dialog": dialog}
     (d / f"{rc}.json").write_text(json.dumps(state), encoding="utf-8")
+    # По умолчанию диалоги терминала во «Входящие» не попадают, старые карточки закрываются
+    leftover = inbox.post("question", "MemuCode спрашивает: Настройки", source="memucode", ref={}, dedupe_key="memucode:old:1")
+    inbox_hooks.memucode_scan()
+    assert inbox.get(f"memucode:{rc}:3") is None
+    assert inbox.get(leftover)["status"] != "open" and inbox.counts()["open"] == 0
+    monkeypatch.setattr(inbox_hooks, "MEMUCODE_INBOX", True)
     inbox_hooks.memucode_scan()
     it = inbox.get(f"memucode:{rc}:3")
     assert it and it["group"] == "confirm" and "bash" in it["title"]

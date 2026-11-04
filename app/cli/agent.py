@@ -753,7 +753,7 @@ class Agent:
         output.text = "".join(texts)
         output.reasoning = "".join(reasoning)
         if native:
-            output.visible = output.text.strip()
+            output.visible = protocol.strip_stray(output.text).strip()
             used = {str(call.get("id")) for message in self.session.messages if message.get("role") == "assistant"
                     for call in message.get("tool_calls") or []}
             for call in output.calls:
@@ -932,7 +932,7 @@ class Agent:
             # A hung tool must not hang the whole turn: with
             # ``tool_timeout_seconds`` set, the wait ends with a plain error
             # result the model can read (and the tool's own cancellation
-            # cleans up). 0 keeps the old behaviour — no timeout.
+            # cleans up). Default 300 s; 0 is an explicit opt-out.
             tool_timeout = 0.0
             try:
                 tool_timeout = float(runtime.settings.get("tool_timeout_seconds") or 0)

@@ -816,7 +816,9 @@
         renderLyrics(); return;
       }
       let data = null;
-      try { data = await api("music.lyrics", { id: t.id }); } catch (e) { data = null; }
+      // Wave #13: streamed tracks (online:...) need title/artist for the
+      // lyrics search — the server cannot search by id alone.
+      try { data = await api("music.lyrics", t.online ? { id: t.id, title: t.title, artist: t.artist, duration: t.duration || 0 } : { id: t.id }); } catch (e) { data = null; }
       if (M.lyricsFor !== t.id || !M.full) return;
       M.lyrics = data || {};
       renderLyrics();

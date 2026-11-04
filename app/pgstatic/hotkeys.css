@@ -24,7 +24,7 @@
 .hk-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 2;
   margin: 0 -8px; padding: 8px; background: color-mix(in srgb, var(--panel) 94%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .hk-search { flex: 1 1 300px; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px;
-  border: 1px solid var(--sx-line, var(--border)); border-radius: 10px; background: var(--sx-card, var(--panel)); color: var(--muted); }
+  border: 1px solid var(--sx-line, var(--border)); border-radius: 10px; background: var(--field-bg, var(--panel)); color: var(--muted); }
 .hk-search:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, var(--sx-line, var(--border))); box-shadow: 0 0 0 3px var(--accent-soft); }
 .hk-search .ui-icon { width: 15px; height: 15px; flex-shrink: 0; }
 .hk-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; }

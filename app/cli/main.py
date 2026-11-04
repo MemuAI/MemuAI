@@ -26,6 +26,13 @@ SUBCOMMANDS = ("doctor", "mcp", "config", "sessions", "models", "schedule", "ins
 class SessionNotFound(Exception):
     pass
 
+
+class SessionLoadError(Exception):
+    """The transcript exists but cannot be opened (permissions, I/O, bad data).
+
+    F30: --continue/--resume used to surface this as a raw traceback.
+    """
+
 def _prepare_console() -> None:
     if os.name == "nt":
         try:
@@ -148,6 +155,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         except SessionNotFound as exc:
             print(f"memucode: no conversation {exc}", file=sys.stderr)
             return 2
+        except SessionLoadError as exc:
+            print(f"memucode: cannot open conversation: {exc}", file=sys.stderr)
+            return 2
     if not sys.stdin.isatty():
         print("memucode: the interactive mode needs a terminal; use -p for pipes", file=sys.stderr)
         return 2
@@ -158,18 +168,36 @@ def main(argv: Optional[List[str]] = None) -> int:
     except SessionNotFound as exc:
         print(f"memucode: no conversation {exc}", file=sys.stderr)
         return 2
+    except SessionLoadError as exc:
+        print(f"memucode: cannot open conversation: {exc}", file=sys.stderr)
+        return 2
 
 def _session_for(root: Path, args: argparse.Namespace):
     from .session import Session, latest_session
+
+    def _load(session_id: str):
+        # F30: a transcript that exists but cannot be read (permissions,
+        # I/O error, undecodable bytes) is a clear message, not a traceback.
+        try:
+            return Session.load(root, session_id)
+        except FileNotFoundError:
+            raise
+        except (OSError, ValueError) as exc:
+            raise SessionLoadError(f"{session_id}: {exc}") from exc
+
     if args.continue_:
         latest = latest_session(root)
         if latest:
-            return Session.load(root, latest), True
+            try:
+                return _load(latest), True
+            except FileNotFoundError:
+                # The index named a session whose file is gone.
+                raise SessionNotFound(latest) from None
     if args.resume and args.resume != "__pick__":
         if not re.fullmatch(r"[A-Za-z0-9-]{1,80}", args.resume):
             raise SessionNotFound(args.resume)
         try:
-            return Session.load(root, args.resume), True
+            return _load(args.resume), True
         except FileNotFoundError:
             from . import paths
             matches = []
@@ -180,10 +208,18 @@ def _session_for(root: Path, args: argparse.Namespace):
                 try:
                     with matches[0].open("r", encoding="utf-8") as stream:
                         metadata = json.loads(stream.readline())
-                    if isinstance(metadata, dict) and metadata.get("root"):
-                        return Session.load(Path(metadata["root"]), matches[0].stem), True
                 except (OSError, ValueError):
                     pass
+                else:
+                    if isinstance(metadata, dict) and metadata.get("root"):
+                        # F30: same as _load() above — an unreadable
+                        # transcript is a clear error, not a traceback.
+                        try:
+                            return Session.load(Path(metadata["root"]), matches[0].stem), True
+                        except FileNotFoundError:
+                            pass
+                        except (OSError, ValueError) as exc:
+                            raise SessionLoadError(f"{matches[0].stem}: {exc}") from exc
             raise SessionNotFound(args.resume)
     return Session(root), False
 

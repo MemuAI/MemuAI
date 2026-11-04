@@ -22,6 +22,42 @@ import app.storage as storage_module
 from app.config import ConfigStore, Settings, hash_password
 from app.storage import load_json_with_recovery, mutate_json, save_json
 
+
+def test_webview_memory_target_follows_window_visibility_and_minimize():
+    class Event(list):
+        def __iadd__(self, handler):
+            self.append(handler)
+            return self
+
+        def emit(self):
+            for handler in self:
+                handler()
+
+    core = SimpleNamespace(MemoryUsageTargetLevel="normal")
+    control = SimpleNamespace(CoreWebView2=None, CoreWebView2InitializationCompleted=Event())
+    native = SimpleNamespace(webview=control, Visible=False, WindowState="Normal",
+                             VisibleChanged=Event(), Resize=Event())
+    sdk = SimpleNamespace(CoreWebView2MemoryUsageTargetLevel=SimpleNamespace(Low="low", Normal="normal"))
+    with patch.object(desktop.sys, "platform", "win32"), \
+            patch.dict(sys.modules, {"Microsoft.Web.WebView2.Core": sdk}), \
+            patch("app.win_titlebar.winforms_ui_invoker", return_value=lambda callback: callback()):
+        desktop.apply_webview_memory_policy(native)
+        desktop.apply_webview_memory_policy(native)
+    assert len(native.VisibleChanged) == len(native.Resize) == 1
+    control.CoreWebView2 = core
+    control.CoreWebView2InitializationCompleted.emit()
+    assert core.MemoryUsageTargetLevel == "low"
+    native.Visible = True
+    native.VisibleChanged.emit()
+    assert core.MemoryUsageTargetLevel == "normal"
+    native.WindowState = "Minimized"
+    native.Resize.emit()
+    assert core.MemoryUsageTargetLevel == "low"
+    native.WindowState = "Maximized"
+    native.Resize.emit()
+    assert core.MemoryUsageTargetLevel == "normal"
+
+
 def _increment_json_worker(path: str, start, iterations: int) -> None:
     start.wait()
     for _ in range(iterations):

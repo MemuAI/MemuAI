@@ -44,6 +44,39 @@ GEMINI_VOICES = (
 )
 _GEMINI_BY_LOWER = {name.lower(): name for name, _ in GEMINI_VOICES}
 
+# OpenRouter speech models report their voices in the models API
+# (``GET /models?output_modalities=speech`` → ``supported_voices``); there is
+# no separate voices endpoint.  HeyGen ships exactly these 10 voices and
+# streams 44.1 kHz mono PCM only — asking it for mp3 fails with
+# «HeyGen Voice only supports response_format "pcm"».
+HEYGEN_VOICES = ("nadine", "tabitha", "bram", "gareth", "noelle", "meredith",
+                  "sabrina", "lucian", "weston", "vincent")
+_GROK_VOICES = ("eve", "ara", "rex", "sal", "leo")
+# Verified live 2026-11-04 against https://openrouter.ai/api/v1/models?output_modalities=speech
+# (38 models at the time); the list in settings is refreshed from the same API.
+OPENROUTER_TTS_MODELS = (
+    "heygen/heygen-voice-1-turbo:free", "heygen/heygen-voice-1-turbo", "heygen/heygen-voice-1",
+    "hexgrad/kokoro-82m", "x-ai/grok-voice-tts-1.0", "mistralai/voxtral-mini-tts-2603",
+    "mistralai/voxtral-mini-tts-3-0", "elevenlabs/eleven-v4", "elevenlabs/eleven-flash-v2.5",
+    "google/gemini-3.8-flash-lite-tts", "google/gemini-3.8-flash-tts", "deepgram/aura-2",
+    "deepgram/flux-tts", "minimax/speech-2.8-turbo", "microsoft/mai-voice-2.1-flash",
+    "qwen/qwen-audio-3.0-tts-flash", "canopylabs/orpheus-3b-0.1-ft", "assemblyai/assemblyai-tts-1",
+)
+
+def response_format_for(model: str, wanted: str = "auto") -> str:
+    """Audio format to request: an explicit choice wins, otherwise HeyGen (and
+    other pcm-only models) get ``pcm`` and everything else gets ``mp3``."""
+    wanted = str(wanted or "auto").strip().lower()
+    if wanted in ("mp3", "pcm", "wav", "opus", "flac"):
+        return wanted
+    if str(model or "").strip().lower().startswith("heygen/"):
+        return "pcm"
+    return "mp3"
+
+def pcm_rate_for(model: str) -> int:
+    """Sample rate of a model's raw PCM output (HeyGen streams 44.1 kHz mono)."""
+    return 44100 if str(model or "").strip().lower().startswith("heygen/") else 24000
+
 PROVIDERS: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI", "base_url": "https://api.openai.com/v1",
@@ -83,6 +116,14 @@ PROVIDERS: dict[str, dict[str, Any]] = {
             "en-US-AndrewMultilingualNeural", "en-US-JennyNeural", "en-GB-SoniaNeural", "de-DE-KatjaNeural")],
         "default_voice": "ru-RU-SvetlanaNeural", "chunk": 3000, "speed": True,
     },
+    "openrouter": {
+        "label": "OpenRouter", "base_url": "https://openrouter.ai/api/v1",
+        "key_url": "https://openrouter.ai/keys",
+        "docs_url": "https://openrouter.ai/docs/use-cases/text-to-speech",
+        "models": list(OPENROUTER_TTS_MODELS), "default_model": "heygen/heygen-voice-1-turbo:free",
+        "voices": [{"id": v, "label": v} for v in HEYGEN_VOICES], "default_voice": "nadine",
+        "chunk": 5000, "speed": False,
+    },
     "custom": {
         "label": "OpenAI-compatible", "base_url": "", "key_url": "", "docs_url": "",
         "models": ["tts-1", "gpt-4o-mini-tts", "kokoro"], "default_model": "tts-1",
@@ -104,6 +145,8 @@ def provider_for_url(url: object) -> str:
         return "openai"
     if host == "generativelanguage.googleapis.com":
         return "gemini"
+    if host == "openrouter.ai" or host.endswith(".openrouter.ai"):
+        return "openrouter"
     if host == "elevenlabs.io" or host.endswith(".elevenlabs.io"):
         return "elevenlabs"
     if host.endswith((".tts.speech.microsoft.com", ".tts.speech.azure.us")):
@@ -118,6 +161,123 @@ def api_root(base: str) -> str:
 def public_providers() -> list[dict[str, Any]]:
     keys = ("label", "base_url", "key_url", "docs_url", "models", "default_model", "voices", "default_voice", "speed")
     return [{"id": pid, **{k: meta[k] for k in keys}} for pid, meta in PROVIDERS.items()]
+
+_LISTS_CACHE: dict[tuple[str, str], tuple[float, Any]] = {}
+_LISTS_TTL = 300.0
+
+async def fetch_provider_lists(base_url: str, api_key: str = "", kind: str = "tts",
+                               model: str = "", voices_from: str = "",
+                               transport: httpx.AsyncBaseTransport | None = None,
+                               lang: str = "ru") -> dict[str, Any]:
+    """Live model/voice lists from a provider's own API.
+
+    TTS/STT: ``GET {base}/models`` — OpenRouter answers ``?output_modalities=speech``
+    (or ``transcription``) and every model carries its ``supported_voices``; there is
+    no separate voices endpoint there. Gateways in the Mistral style also expose
+    ``GET {base}/audio/voices`` and it is tried when the models payload has no
+    voices for the requested model. Realtime: the same ``/models`` call, filtered
+    to realtime/live/voice models; voices come from the matching TTS voice list
+    (``voices_from``: openai/gemini/xai). Results are cached for 5 minutes.
+    Raises TTSApiError with a short human message when the provider cannot be read.
+    """
+    import time
+    from .voice_runtime import validate_api_base_url
+    try:
+        base = validate_api_base_url(base_url)
+    except ValueError as exc:
+        raise TTSApiError(str(exc)) from exc
+    host = (urllib.parse.urlsplit(base).hostname or "").lower()
+    is_openrouter = host == "openrouter.ai" or host.endswith(".openrouter.ai")
+    cache_key = (base, kind)
+    now = time.monotonic()
+    cached = _LISTS_CACHE.get(cache_key)
+    if cached and now - cached[0] < _LISTS_TTL:
+        payload = cached[1]
+        from_cache = True
+    else:
+        from_cache = False
+        params: dict[str, str] = {}
+        if is_openrouter:
+            params["output_modalities"] = {"tts": "speech", "stt": "transcription"}.get(kind, "speech")
+        if api_key.strip():
+            headers = ({"x-goog-api-key": api_key.strip()}
+                       if host == "generativelanguage.googleapis.com"
+                       else {"Authorization": "Bearer " + api_key.strip()})
+        else:
+            headers = {}
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=15), transport=transport,
+                                         trust_env=trusts_env(base)) as client:
+                response = await client.get(base + "/models", params=params or None, headers=headers)
+        except httpx.HTTPError as exc:
+            raise TTSApiError(connection_message(provider_for_url(base), base, exc, lang)) from exc
+        if response.status_code >= 400:
+            raise TTSApiError(error_message(provider_for_url(base), response.status_code, response.content,
+                                            lang=lang, secret=api_key.strip(), endpoint="/models"))
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise TTSApiError(_t(lang, "сервис вернул непонятный список моделей",
+                                 "the service returned an unreadable model list")) from exc
+        _LISTS_CACHE[cache_key] = (now, payload)
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise TTSApiError(_t(lang, "сервис вернул непонятный список моделей",
+                             "the service returned an unreadable model list"))
+    models: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        model_id = str(row.get("id") or "").strip()
+        if not model_id:
+            continue
+        voices = row.get("supported_voices")
+        models.append({"id": model_id,
+                       "voices": [str(v) for v in voices if isinstance(v, str)] if isinstance(voices, list) else None})
+    if kind == "realtime":
+        wanted = [m for m in models if any(word in m["id"].lower() for word in ("realtime", "live", "voice"))]
+        models = wanted or models
+    elif kind == "stt" and not is_openrouter:
+        # A generic /models list is narrowed by name; OpenRouter's transcription
+        # filter already returns only STT models, so it is trusted as is.
+        models = [m for m in models if any(word in m["id"].lower()
+                                           for word in ("whisper", "transcri", "voxtral", "scribe", "stt", "asr", "parakeet", "nova", "chirp", "nemotron", "scribe"))]
+    wanted_model = str(model or "").strip()
+    chosen = next((m for m in models if m["id"] == wanted_model), None) or (models[0] if models else None)
+    voices: list[str] | None = list(chosen["voices"]) if chosen and chosen.get("voices") else None
+    if kind == "realtime":
+        static = {"openai": list(OPENAI_VOICES),
+                  "gemini": [name for name, _ in GEMINI_VOICES],
+                  "xai": list(_GROK_VOICES)}.get(str(voices_from or "").lower(), [])
+        voices = static or voices
+    if kind == "tts" and voices is None and chosen is not None:
+        # Mistral-style gateways: GET {base}/audio/voices
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=15), transport=transport,
+                                         trust_env=trusts_env(base)) as client:
+                voice_headers = ({"x-goog-api-key": api_key.strip()}
+                                 if host == "generativelanguage.googleapis.com" and api_key.strip()
+                                 else ({"Authorization": "Bearer " + api_key.strip()} if api_key.strip() else {}))
+                response = await client.get(base + "/audio/voices", headers=voice_headers)
+            if response.status_code < 400:
+                data = response.json()
+                items = (data.get("data") or data.get("voices")) if isinstance(data, dict) else None
+                if isinstance(items, list):
+                    def _voice_id(item):
+                        if isinstance(item, str):
+                            return item.strip()
+                        if isinstance(item, dict):
+                            for key in ("id", "voice_id", "name"):
+                                value = str(item.get(key) or "").strip()
+                                if value:
+                                    return value
+                        return ""
+                    found = [_voice_id(item) for item in items]
+                    voices = [v for v in found if v] or None
+        except (httpx.HTTPError, ValueError):
+            pass
+    return {"live": True, "models": models, "model": chosen["id"] if chosen else "",
+            "voices": voices, "cached": from_cache}
 
 def speed_from_rate(rate: object) -> float:
     """Windows-style rate −10…10 → playback speed 0.5…2.0 (0 → 1.0)."""
@@ -183,6 +343,16 @@ def check_settings(kind: str, model: str, voice: str, lang: str = "ru") -> tuple
             raise TTSApiError(_t(lang,
                 f"Для {label} нужен voice_id из библиотеки голосов (например JBFqnCBsd6RMkjVDRZzb), а не «{voice}».",
                 f"{label} needs a voice_id from your voice library (e.g. JBFqnCBsd6RMkjVDRZzb), not “{voice}”."))
+    elif kind in ("openrouter", "custom"):
+        # HeyGen models (directly or through OpenRouter) ship exactly 10 voices
+        # and nothing else; a stray word such as «голос» fails at the provider.
+        if model.lower().startswith("heygen/"):
+            known = {v.lower(): v for v in HEYGEN_VOICES}
+            if voice.lower() not in known:
+                raise TTSApiError(_t(lang,
+                    f"У HeyGen всего 10 голосов: {', '.join(HEYGEN_VOICES)}. Голос «{voice}» модель не знает — выберите один из списка.",
+                    f"HeyGen has only 10 voices: {', '.join(HEYGEN_VOICES)}. The model does not know voice “{voice}” — pick one from the list."))
+            voice = known[voice.lower()]
     elif kind == "azure":
         if not re.fullmatch(r"[a-z]{2,3}-[A-Za-z0-9]{2,8}(?:-[A-Za-z0-9]+)+", voice):
             raise TTSApiError(_t(lang,
@@ -195,7 +365,7 @@ def _origin(base: str) -> str:
     return f"{parts.scheme}://{parts.netloc}"
 
 def build_request(kind: str, base: str, api_key: str, model: str, voice: str, text: str,
-                  speed: float = 1.0) -> dict[str, Any]:
+                  speed: float = 1.0, format: str = "auto") -> dict[str, Any]:
     """httpx request kwargs (method/url/headers/json|content) for one chunk."""
     key = api_key.strip()
     if kind == "gemini":
@@ -222,11 +392,13 @@ def build_request(kind: str, base: str, api_key: str, model: str, voice: str, te
                 "headers": {"Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml",
                             "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
                             "User-Agent": f"MemuAI/{APP_VERSION}"}}
-    body: dict[str, Any] = {"model": model, "voice": voice, "input": text, "response_format": "mp3"}
+    fmt = response_format_for(model, format)
+    body: dict[str, Any] = {"model": model, "voice": voice, "input": text, "response_format": fmt}
     if abs(speed - 1.0) > 0.01:
         body["speed"] = speed
     headers = {"Authorization": "Bearer " + key} if key else {}
-    return {"method": "POST", "url": base + "/audio/speech", "headers": headers, "json": body}
+    return {"method": "POST", "url": base + "/audio/speech", "headers": headers, "json": body,
+            "_format": fmt, "_pcm_rate": pcm_rate_for(model)}
 
 def sniff_mime(data: bytes, declared: str = "") -> str:
     if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
@@ -364,9 +536,15 @@ def error_message(kind: str, status: int, body: bytes, *, model: str = "", voice
     elif status == 413:
         human = _t(lang, "текст слишком длинный для одного запроса", "the text is too long for one request")
     elif status in (400, 422):
-        if "voice" in low:
+        if "response_format" in low:
+            human = _t(lang, "эта модель принимает только другой формат ответа — поставьте в настройках озвучки «Формат ответа: pcm» (для HeyGen pcm ставится автоматически)",
+                       "this model only accepts a different response format — set “Response format: pcm” in speech settings (HeyGen gets pcm automatically)")
+        elif "voice" in low:
             human = _t(lang, f"голос «{voice}» не подходит для этой модели — выберите голос из списка",
                        f"voice “{voice}” does not fit this model — pick a voice from the list")
+            if "heygen" in model.lower():
+                human += _t(lang, f" Голоса HeyGen: {', '.join(HEYGEN_VOICES)}.",
+                            f" HeyGen voices: {', '.join(HEYGEN_VOICES)}.")
         elif "model" in low and kind != "azure":
             human = _t(lang, f"модель «{model}» не подходит" + (f". Доступные: {models}" if models else ""),
                        f"model “{model}” is not supported" + (f". Available: {models}" if models else ""))
@@ -408,7 +586,7 @@ def connection_message(kind: str, base: str, exc: Exception, lang: str = "ru", s
 async def _send(client: httpx.AsyncClient, request: dict[str, Any], lang: str = "ru") -> tuple[int, str, bytes]:
     """Send with a running size limit (a huge body is never buffered whole)."""
     method, url = request["method"], request["url"]
-    kwargs = {k: v for k, v in request.items() if k not in ("method", "url")}
+    kwargs = {k: v for k, v in request.items() if k not in ("method", "url") and not k.startswith("_")}
     async with client.stream(method, url, **kwargs) as response:
         content = bytearray()
         async for chunk in response.aiter_bytes():
@@ -441,7 +619,7 @@ class _Cache:
 CACHE = _Cache()
 
 async def synthesize(text: str, *, base_url: str, api_key: str, model: str, voice: str,
-                     speed: float = 1.0, lang: str = "ru",
+                     speed: float = 1.0, lang: str = "ru", format: str = "auto",
                      transport: httpx.AsyncBaseTransport | None = None) -> tuple[bytes, str]:
     """Speak ``text`` with the service behind ``base_url`` → (audio bytes, mime)."""
     from .voice_runtime import validate_api_base_url
@@ -453,7 +631,7 @@ async def synthesize(text: str, *, base_url: str, api_key: str, model: str, voic
         raise TTSApiError(_t(lang, f"{meta['label']}: укажите API-ключ. Получить его: {meta['key_url']}",
                              f"{meta['label']}: enter an API key. Get one at {meta['key_url']}"))
     speed = speed if meta["speed"] else 1.0
-    cache_key = hashlib.sha256(json.dumps([kind, base, model, voice, speed, text,
+    cache_key = hashlib.sha256(json.dumps([kind, base, model, voice, speed, format, text,
                                            hashlib.sha256(api_key.encode()).hexdigest()]).encode()).hexdigest()
     cached = CACHE.get(cache_key)
     if cached:
@@ -464,7 +642,7 @@ async def synthesize(text: str, *, base_url: str, api_key: str, model: str, voic
     parts: list[tuple[bytes, str]] = []
     async with httpx.AsyncClient(timeout=_TIMEOUT, transport=transport, trust_env=trusts_env(base)) as client:
         for chunk in chunks:
-            request = build_request(kind, base, api_key, model, voice, chunk, speed)
+            request = build_request(kind, base, api_key, model, voice, chunk, speed, format)
 
             for attempt in range(2 if kind == "gemini" else 1):
                 try:
@@ -489,11 +667,20 @@ async def synthesize(text: str, *, base_url: str, api_key: str, model: str, voic
                             f"Gemini returned no audio — make sure “{model}” is a TTS model."))
                     parts.append(audio)
                 else:
-                    mime = sniff_mime(body, ctype)
-                    if not body or not mime:
-                        raise TTSApiError(_t(lang, f"{meta['label'] if kind != 'custom' else 'TTS-сервер'} вернул не аудио — проверьте Base URL",
-                                             f"{meta['label'] if kind != 'custom' else 'The TTS server'} did not return audio — check the Base URL"))
-                    parts.append((body, mime))
+                    fmt = str(request.get("_format") or "mp3")
+                    if fmt == "pcm" or (fmt == "wav" and not sniff_mime(body, ctype)):
+                        # Raw PCM: HeyGen streams it, and some gateways answer PCM to a
+                        # wav request. Wrap it so the player receives a WAV.
+                        if not body:
+                            raise TTSApiError(_t(lang, f"{meta['label'] if kind != 'custom' else 'TTS-сервер'} вернул не аудио — проверьте Base URL",
+                                                 f"{meta['label'] if kind != 'custom' else 'The TTS server'} did not return audio — check the Base URL"))
+                        parts.append((pcm_to_wav(body, int(request.get("_pcm_rate") or 24000)), "audio/wav"))
+                    else:
+                        mime = sniff_mime(body, ctype)
+                        if not body or not mime:
+                            raise TTSApiError(_t(lang, f"{meta['label'] if kind != 'custom' else 'TTS-сервер'} вернул не аудио — проверьте Base URL",
+                                                 f"{meta['label'] if kind != 'custom' else 'The TTS server'} did not return audio — check the Base URL"))
+                        parts.append((body, mime))
                 break
     result = merge_audio(parts, lang)
     CACHE.put(cache_key, result)

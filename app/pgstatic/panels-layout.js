@@ -14,7 +14,7 @@
     appbar: { kind: "bar", views: ["chips"], chats: false, width: false, start: false },
     top: { kind: "strip", views: ["cards", "chips"], chats: true, width: false, start: true },
     composer: { kind: "strip", views: ["chips", "cards"], chats: true, width: false, start: true },
-    home: { kind: "grid", views: ["cards"], chats: false, width: false, start: true },
+    home: { kind: "grid", views: ["cards"], chats: false, width: false, start: true, dock: true },
     left: { kind: "column", views: ["cards", "chips"], chats: true, width: true, start: true },
     right: { kind: "column", views: ["cards", "chips"], chats: true, width: true, start: true },
     sidebar: { kind: "stack", views: ["cards", "chips"], chats: false, width: false, start: false },
@@ -26,14 +26,21 @@
   const CHAT_MIN = 560;
   const RAIL_W = 60;
   const STRIP_W = { s: 196, m: 268, l: 340, w: 440 };
+
+  const DOCKS = ["side", "rail", "top"];
+  const DOCK_W = 300, DOCK_RAIL = 64;
   const SIZES = ["s", "m", "l", "w"];
   const zoneName = (id) => (P() ? P().placeName(id) : id);
   const zoneIcon = (id) => (P() ? P().placeIcon(id) : "dot");
   const ZONE_HINTS = () => ({
     appbar: t("Значения прямо в верхней панели, щелчок открывает карточку", "Values right in the top bar; a click opens the card"),
-    top: t("Лента карточек над приветствием стартового экрана", "A strip of cards above the greeting of the start screen"),
+    top: document.body.classList.contains("space-agent")
+      ? t("Лента карточек над разговором", "A strip of cards above the conversation")
+      : t("Лента карточек над приветствием стартового экрана", "A strip of cards above the greeting of the start screen"),
     composer: t("Ряд прямо над полем ввода — удобно для значков", "A row right above the message box — good for chips"),
-    home: t("Сетка под полем ввода; размер S·M·L·W задаёт ширину", "The grid below the message box; S·M·L·W sets the width"),
+    home: document.body.classList.contains("space-agent")
+      ? t("Колонка справа от разговора; в узком окне — полоска значков или ряд над разговором", "A column right of the conversation; a rail of chips or a row above it in a narrow window")
+      : t("Сетка под полем ввода; размер S·M·L·W задаёт ширину", "The grid below the message box; S·M·L·W sets the width"),
     left: t("Колонка слева от чата; в узком окне — полоса значков", "A column left of the chat; a rail of chips in a narrow window"),
     right: t("Колонка справа от чата; в узком окне — полоса значков", "A column right of the chat; a rail of chips in a narrow window"),
     sidebar: t("Под разделами боковой панели", "Under the sections of the sidebar"),
@@ -42,7 +49,7 @@
 
   const lay = {
     editing: false, undo: [], redo: [], listeners: new Set(), hover: null, resize: null, pop: null, saving: 0,
-    fold: { left: "", right: "" }, lastChange: 0, scrollers: new Set(),
+    fold: { left: "", right: "" }, dock: "", lastChange: 0, scrollers: new Set(),
   };
 
   function zoneCfg(id) {
@@ -51,7 +58,19 @@
     const out = { view: z.views.includes(raw.view) ? raw.view : z.views[0] };
     if (z.chats) out.chats = raw.chats === true;
     if (z.width) out.width = Math.max(WIDTH_MIN, Math.min(WIDTH_MAX, +raw.width || DEFAULT_WIDTH[id]));
+    if (z.dock) out.dock = DOCKS.includes(raw.dock) ? raw.dock : "side";
     return out;
+  }
+
+  // An agentic workspace has no empty start screen: its endless conversation is the home. The start-screen
+  // zones stay visible there, and the «home» grid becomes a dock beside the conversation.
+  function agentHome() {
+    const b = document.body.classList;
+    return b.contains("space-global") && !b.contains("code-mode") && !b.contains("temp-guide-on");
+  }
+  function docked() {
+    const wrap = $q("#chat-view-wrap");
+    return agentHome() && !!wrap && !wrap.classList.contains("empty-chat");
   }
   const viewOf = (id) => (ZONES[id] ? zoneCfg(id).view : "cards");
 
@@ -159,6 +178,7 @@
       scrollify(box, { axis: z.kind === "strip" ? "x" : "y" });
     });
 
+    renderDock();
     const cvw = $q("#chat-view-wrap");
     if (cvw) scrollify(cvw, { axis: "y", soft: true });
     const home = $q("#panels-home");
@@ -196,7 +216,14 @@
   function measureFold() {
     const main = $q("#main-content") || $q("#chat-view-wrap")?.parentElement;
     if (!main) return;
-    const W = main.clientWidth - ($q("#code-explorer:not([hidden])", main)?.offsetWidth || 0);
+    let W = main.clientWidth - ($q("#code-explorer:not([hidden])", main)?.offsetWidth || 0);
+
+    lay.dock = "";
+    if (docked() && (placed("home").length || lay.editing || document.body.classList.contains("mp-dragging"))) {
+      const want = zoneCfg("home").dock, room = W - CHAT_MIN;
+      lay.dock = want === "top" ? "top" : want === "side" && room >= DOCK_W ? "side" : room >= DOCK_RAIL ? "rail" : "top";
+      W -= lay.dock === "side" ? DOCK_W : lay.dock === "rail" ? DOCK_RAIL : 0;
+    }
     const cols = ["left", "right"].filter((id) => colShown(id));
     let need = CHAT_MIN;
     cols.forEach((id) => { need += zoneCfg(id).width; });
@@ -217,16 +244,106 @@
     if (!placed(id).length && !lay.editing && !document.body.classList.contains("mp-dragging")) return false;
     const wrap = $q("#chat-view-wrap");
     if (!wrap) return false;
-    return wrap.classList.contains("empty-chat") || zoneCfg(id).chats || lay.editing;
+    return wrap.classList.contains("empty-chat") || agentHome() || zoneCfg(id).chats || lay.editing;
   }
   let foldRaf = 0;
   function refold() {
     cancelAnimationFrame(foldRaf);
     foldRaf = requestAnimationFrame(() => {
-      const before = JSON.stringify([lay.fold, lay.colW]);
+      const before = JSON.stringify([lay.fold, lay.colW, lay.dock]);
       measureFold();
-      if (JSON.stringify([lay.fold, lay.colW]) !== before) P()?.render();
+      if (JSON.stringify([lay.fold, lay.colW, lay.dock]) !== before) P()?.render();
     });
+  }
+
+  // ── The dock of an agentic workspace ────────────────────────────────────
+  // «side» — a column of cards right of the conversation; «rail» — a slim column of chips; «top» — a row of
+  // chips above the conversation. A narrow window steps down side → rail → top on its own.
+  function dockEls() {
+    const wrap = $q("#chat-view-wrap");
+    if (!wrap) return {};
+    let side = document.getElementById("panels-dock");
+    if (!side || !side.isConnected) {
+      side = document.createElement("aside");
+      side.id = "panels-dock";
+      side.className = "mp-dock";
+      side.hidden = true;
+      side.dataset.zoneWrap = "home";
+      side.innerHTML = `<div class="mp-dock-head"></div><div class="mp-dock-body mp-drop-zone" data-mp-zone="home" data-ph="stack"></div>`;
+      wrap.after(side);
+    }
+    let top = document.getElementById("panels-dock-top");
+    if (!top || !top.isConnected) {
+      const chat = $q("#chat", wrap);
+      if (chat && chat.parentElement === wrap) {
+        top = document.createElement("section");
+        top.id = "panels-dock-top";
+        top.className = "mp-dock-top";
+        top.hidden = true;
+        top.dataset.zoneWrap = "home";
+        top.innerHTML = `<div class="mp-dock-body mp-drop-zone" data-mp-zone="home" data-axis="x" data-view="chips" data-ph="chip"></div>`;
+        wrap.insertBefore(top, chat);
+      } else top = null;
+    }
+    return { side, top };
+  }
+  function dockBtn(act, icon, label, extra = "") {
+    return `<button type="button" class="mp-dock-btn" data-dock="${act}" title="${esc(label)}" aria-label="${esc(label)}"${extra}>${ico(icon)}</button>`;
+  }
+  function renderDock() {
+    const { side, top } = dockEls();
+    if (!side) return;
+    const L = P();
+    const mode = lay.dock;
+    const list = placed("home");
+    const label = t("Панели", "Panels");
+    [side, top].forEach((el) => {
+      if (!el) return;
+      el.dataset.count = String(list.length);
+      el.dataset.zoneLabel = zoneName("home");
+      el.setAttribute("aria-label", label);
+    });
+    const sideOn = mode === "side" || mode === "rail";
+    side.hidden = !sideOn;
+    if (top) top.hidden = mode !== "top";
+    const sideBody = $q(".mp-dock-body", side), topBody = top ? $q(".mp-dock-body", top) : null;
+    if (!sideOn) { sideBody.innerHTML = ""; $q(".mp-dock-head", side).innerHTML = ""; }
+    if (topBody && mode !== "top") topBody.innerHTML = "";
+    if (sideOn) {
+      const rail = mode === "rail";
+      side.dataset.fold = rail ? "rail" : "";
+      $q(".mp-dock-head", side).innerHTML = rail
+        ? dockBtn("expand", "chevron", t("Развернуть панели", "Expand the panels"), ' data-flip="1"')
+        : `<span class="mp-dock-title">${lay.editing ? `${ico("zhome")}${esc(zoneName("home"))}` : esc(label)}</span><span class="grow"></span>${dockBtn("add", "plus", t("Добавить панель", "Add a panel"))}${dockBtn("menu", "more", t("Вид и расположение", "Look and layout"), ' aria-haspopup="menu"')}${dockBtn("fold", "chevron", t("Свернуть в полоску", "Fold into a rail"))}`;
+      sideBody.dataset.view = rail ? "chips" : "cards";
+      sideBody.dataset.ph = rail ? "chip" : "stack";
+      sideBody.innerHTML = list.map((p, i) => {
+        const enter = L.isNew("home", p.id);
+        if (rail) return L.chipHtml(p, { enter, index: i, place: "home" });
+        const size = p.size === "s" ? "s" : "m";
+        return L.cardHtml(p, "home", { enter, index: i, place: "home", size, zsize: p.size || "m" });
+      }).join("") + (rail ? dockBtn("add", "plus", t("Добавить панель", "Add a panel"), ' data-tail="1"') : (list.length < 2 ? `<button type="button" class="mp-add-tile mp-dock-add" data-mp-act="gallery">${ico("plus")}<span>${esc(t("Добавить панель", "Add a panel"))}</span></button>` : ""))
+        + zoneEmptyHtml("home");
+      scrollify(sideBody, { axis: "y" });
+    } else if (top && mode === "top") {
+      topBody.innerHTML = list.map((p, i) => L.chipHtml(p, { enter: L.isNew("home", p.id), index: i, place: "home" })).join("")
+        + dockBtn("menu", "more", t("Вид и расположение", "Look and layout"), ' aria-haspopup="menu"') + zoneEmptyHtml("home");
+      scrollify(topBody, { axis: "x" });
+    }
+  }
+  function dockMenu(anchor) {
+    if (typeof showContextMenu !== "function") return;
+    const r = anchor.getBoundingClientRect();
+    const cur = zoneCfg("home").dock;
+    const row = (dock, icon, ru, en) => ({ label: t(ru, en), icon: cur === dock ? "check" : icon, run: () => setZone("home", { dock }) });
+    showContextMenu([
+      { info: true, label: t("Панели рядом с разговором", "Panels beside the conversation"), icon: "layout" },
+      row("side", "sidebar", "Карточки справа", "Cards on the right"),
+      row("rail", "menu", "Узкая полоска значков", "A slim rail of chips"),
+      row("top", "arrowUp", "Значки над разговором", "Chips above the conversation"),
+      { sep: true },
+      { label: t("Расположение панелей…", "Panel layout…"), icon: "edit", run: () => enter() },
+    ], Math.min(r.left, innerWidth - 260), r.bottom + 6, { anchor });
   }
 
   function scrollify(el, { axis = "y", soft = false } = {}) {
@@ -456,6 +573,8 @@
       const cur = { ...zoneCfg(id), ...(patch || {}) };
       if (ZONES[id].width) cur.width = Math.max(WIDTH_MIN, Math.min(WIDTH_MAX, Math.round(+cur.width || DEFAULT_WIDTH[id])));
       if (!ZONES[id].views.includes(cur.view)) cur.view = ZONES[id].views[0];
+      if (ZONES[id].dock && !DOCKS.includes(cur.dock)) cur.dock = "side";
+      if (!ZONES[id].dock) delete cur.dock;
       layout.zones[id] = cur;
     });
   }
@@ -475,7 +594,7 @@
 
   function onStartScreen() {
     const wrap = $q("#chat-view-wrap");
-    return !!wrap && wrap.classList.contains("empty-chat") && !document.body.classList.contains("code-mode")
+    return !!wrap && (wrap.classList.contains("empty-chat") || agentHome()) && !document.body.classList.contains("code-mode")
       && !$q("#chat.work-mode, #chat.code-mode") && !$q("#temp-guide:not([hidden])");
   }
   function goStart() {
@@ -847,6 +966,15 @@
         if (edc.dataset.edc === "settings") { openPlaces(id, edc, { full: true }); return; }
         if (edc.dataset.edc === "unpin") { unpin(id, zone); return; }
       }
+      const dock = event.target.closest("[data-dock]");
+      if (dock && dock.closest("#panels-dock, #panels-dock-top")) {
+        event.preventDefault();
+        const a = dock.dataset.dock;
+        if (a === "add") P()?.openGallery("home");
+        else if (a === "menu") setTimeout(() => dockMenu(dock), 0);
+        else if (a === "fold" || a === "expand") setZone("home", { dock: a === "fold" ? "rail" : "side" });
+        return;
+      }
       const head = event.target.closest(".mp-zone-head");
       if (head) {
         const zone = head.closest("[data-zone-wrap]")?.dataset.zoneWrap;
@@ -954,6 +1082,16 @@
       const wrap = $q("#chat-view-wrap");
       if (!wrap) { setTimeout(watch, 400); return; }
       new MutationObserver(() => { refold(); requestAnimationFrame(() => { keepHomeMin(); updateAllScroll(); }); if (lay.editing && !onStartScreen()) placeChrome(); }).observe(wrap, { attributes: true, attributeFilter: ["class"] });
+
+      let homeKey = "";
+      new MutationObserver(() => {
+        const b = document.body.classList;
+        const key = ["space-global", "space-agent", "code-mode", "temp-guide-on"].map((c) => (b.contains(c) ? 1 : 0)).join("");
+        if (key === homeKey) return;
+        homeKey = key;
+        refold();
+        P()?.render();
+      }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
     };
     watch();
   }
@@ -970,7 +1108,7 @@
   function zones() {
     return ZONE_IDS.map((id) => {
       const cfg = zoneCfg(id);
-      const wrap = id === "home" ? $q("#panels-home") : id === "sidebar" ? $q("#group-panels") : id === "appbar" ? $q("#panels-appbar") : document.getElementById("panels-z-" + id);
+      const wrap = id === "home" ? (lay.dock ? $q(lay.dock === "top" ? "#panels-dock-top" : "#panels-dock") : $q("#panels-home")) : id === "sidebar" ? $q("#group-panels") : id === "appbar" ? $q("#panels-appbar") : document.getElementById("panels-z-" + id);
       return { id, kind: ZONES[id].kind, name: zoneName(id), view: cfg.view, chats: !!cfg.chats, width: cfg.width || null,
         fold: lay.fold[id] || "", count: placed(id).length, visible: !!wrap && wrap.getClientRects().length > 0 };
     });
@@ -978,6 +1116,7 @@
 
   const api = {
     ready: true, ZONES, ZONE_IDS, zoneName, zoneIcon, zones, viewOf, sized, ensureMounts, renderZones,
+    dockMode: () => lay.dock, isDocked: docked, agentHome,
     enter, exit, toggle: () => (lay.editing ? exit() : enter()), editing: () => lay.editing,
     undo, redo, reset, remember, movePanel, setSize, togglePlace, setZone,
     zoneMapHtml, placesField, openPlaces, scrollify, autoScroll,

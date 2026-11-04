@@ -198,7 +198,7 @@ class StaticContracts(unittest.TestCase):
         html = (ROOT / "app" / "pgstatic" / "quick" / "index.html").read_text("utf-8")
         import re
         for name in ("quick.js", "quick-md.js", "quick-ux.css", "quick-models.css"):
-            self.assertRegex(html, r'/quick/' + re.escape(name) + r'\?v=[\w.]+-r(?:3[4-9]|4\d)"')
+            self.assertRegex(html, r'/quick/' + re.escape(name) + r'\?v=[\w.]+-r(?:3[4-9]|[4-9]\d)"')
 
     def test_tables_signature_has_no_forced_layout(self):
         tables = (ROOT / "app" / "pgstatic" / "tables.js").read_text("utf-8")

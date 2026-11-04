@@ -52,7 +52,7 @@ class StaticTest(unittest.TestCase):
         for name in ("askuser.js", "bigdocs.js", "mentions.js"):
             self.assertRegex(html, re.escape(name) + r"\?v=3\.5-r36", name)
         for name in ("canvas.js", "canvas.css"):
-            self.assertRegex(html, re.escape(name) + r"\?v=3\.6-r40", name)
+            self.assertRegex(html, re.escape(name) + r"\?v=(?:3\.6-r40|\d+\.\d+-r(?:4[1-9]|[5-9]\d))", name)
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):

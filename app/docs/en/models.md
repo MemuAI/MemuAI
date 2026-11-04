@@ -19,7 +19,7 @@ The list is the same everywhere a model is picked — the chat, Settings, the ca
 
 The list refreshes by itself after you add an account in the Proxy and when you return to the MemuAI window.
 
-The same readable names (and your renames) appear in every other window too, with the full id beside them in muted monospace: in [Quick Ask](doc:quick-ask) (++Alt+M++; search works by name and by id), in the [Telegram](doc:telegram) bot and Mini App, in MemuCode's `/model` ([MemuCode](doc:memucode-cli)), in MemuNote, and in the model catalog and model card of [MemuAI Proxy](doc:proxy).
+The same readable names (and your renames) appear in every other window too, with the full id beside them in muted monospace: in [Quick Ask](doc:quick-ask) (++Alt+M++; search works by name and by id), in the [Telegram](doc:telegram) bot and Mini App, in `/model` of [MemuCode CLI](doc:memucode-cli), in MemuNote, and in the model catalog and model card of [MemuAI Proxy](doc:proxy).
 
 ## The model menu
 
@@ -76,7 +76,7 @@ Reasoning models (Claude, GPT-5 and newer, Gemini 3, DeepSeek, Qwen, GLM, Kimi a
 
 For an unknown new model the set is guessed from its family; if a model sends reasoning but had no levels, the common "Low / Medium / High" set appears. If a service still rejects a level, MemuAI repeats the request without it, remembers the rejection and stops offering that level.
 
-A saved level the new model does not have is not lost: the model gets its **nearest** one (for example, "Minimal" on Gemini 3.7 Flash becomes "Low"). The level is changed in a chat with the thinking chip. Defaults are set in **Settings → Models**: **Reasoning effort** — the general one (each model gets its nearest supported level) and **Reasoning by model** — a level for particular models, each with only its own choices. The chat setting always wins. The same levels appear in [Telegram](doc:telegram) (level buttons on the model screen, a chip in the Mini App) and [MemuCode](doc:memucode-cli) (`/effort`).
+A saved level the new model does not have is not lost: the model gets its **nearest** one (for example, "Minimal" on Gemini 3.7 Flash becomes "Low"). The level is changed in a chat with the thinking chip. Defaults are set in **Settings → Models**: **Reasoning effort** — the general one (each model gets its nearest supported level) and **Reasoning by model** — a level for particular models, each with only its own choices. The chat setting always wins. The same levels appear in [Telegram](doc:telegram) (level buttons on the model screen, a chip in the Mini App) and [MemuCode CLI](doc:memucode-cli) (`/effort`).
 
 **Setting it by hand.** If a service serves a model with different levels than expected, open its card in MemuAI Proxy (**Model catalog** → the ⓘ button) → **Reasoning levels**: it shows what clients offer, the provider default, where that is known from and how the level is sent to the API. **Set by hand** — tick the levels, allow "Off", pick how to send it; **Back to automatic** — drop the manual setting; **Forget the API rejections** — offer again the levels a service once rejected.
 

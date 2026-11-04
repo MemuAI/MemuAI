@@ -15,6 +15,7 @@ import { Ops } from "./ops.js";
 import * as dnd from "./dnd.js";
 import * as feat40 from "./feat40.js";
 import * as feat41 from "./feat41.js";
+import * as look from "./look.js";
 
 const ARCHIVE_EXT = new Set(["zip", "tar", "gz", "tgz", "bz2", "xz", "7z", "rar"]);
 
@@ -63,6 +64,8 @@ class App {
     const roomy = innerWidth > 760;
     if (session && session.layout) {
       if (session.layout.right && (roomy || session.layout.right !== "preview")) this.setRight(session.layout.right, false);
+      // A narrow start hides the preview for this run only: keep it in the saved layout for the next start.
+      else if (session.layout.right === "preview") this.rightDeferred = "preview";
     } else if (this.settings.preview_open && roomy) this.setRight("preview", false);
     document.body.classList.remove("booting");
     $(".boot-splash") && $(".boot-splash").remove();
@@ -79,14 +82,57 @@ class App {
     const root = document.documentElement;
     root.dataset.theme = theme.mode;
     const tokens = theme.tokens || {};
-    root.classList.toggle("fallback-tokens", !Object.keys(tokens).length);
+    root.classList.toggle("fallback-tokens", !tokens["--bg"]);
     for (const name of [...root.style]) if (name.startsWith("--")) root.style.removeProperty(name);
     for (const [k, v] of Object.entries(tokens)) root.style.setProperty(k, v);
     document.getElementById("mf-theme")?.remove();
+    look.markLook(theme);
     if (theme.font_scale && theme.font_scale !== 100) root.style.fontSize = theme.font_scale + "%";
     this.theme = theme;
     feat41.applyLook(this);
     api("window", { cmd: "theme", mode: theme.mode }).catch(() => {});
+  }
+
+  // Panel sides, tab style, tab bar visibility and custom CSS — one place, called at
+  // boot (build), after every settings change (applySettings) and from the CSS editor.
+  applyLayout() {
+    const s = this.settings || {};
+    const root = document.documentElement;
+    root.dataset.tabstyle = s.tab_style || "classic";
+    this.tabbar.classList.toggle("no-tabbar", !s.show_tab_bar);
+    this.bodyEl.classList.toggle("no-tabbar", !s.show_tab_bar);
+    this.bodyEl.dataset.side = s.sidebar_side || "left";
+    this.bodyEl.dataset.previewSide = s.preview_side || "right";
+    const sideRight = s.sidebar_side === "right";
+    const prevLeft = s.preview_side === "left";
+    if (this.tablistSide) this.tablistSide.style.order = 0;
+    this.sidebarEl.style.order = sideRight ? 80 : 10;
+    this.sideResizer.style.order = sideRight ? 90 : 20;
+    this.panesEl.style.order = 50;
+    this.rightEl.style.order = prevLeft ? 30 : 70;
+    this.rightResizer.style.order = prevLeft ? 40 : 60;
+    this.sidebarEl.hidden = !s.show_sidebar;
+    this.sideResizer.hidden = !s.show_sidebar;
+    this.layoutTabs();
+    this.applyCustomCss(s.custom_css);
+    this.renderTabs();
+  }
+  // Move the tab strip into the side column for the "vertical" tab style, back to the
+  // tab bar for the rest. The node itself moves, so its listeners move with it.
+  layoutTabs() {
+    if (!this.tabsEl || !this.tablistSide) return;
+    const vertical = this.settings.tab_style === "vertical";
+    if (vertical) { if (this.tabsEl.parentElement !== this.tablistSide) this.tablistSide.appendChild(this.tabsEl); }
+    else if (this.tabsEl.parentElement !== this.tabbar) this.tabbar.insertBefore(this.tabsEl, this.tabbar.querySelector(".tab-add"));
+  }
+  // The user's own CSS, applied to this window only. textContent (never innerHTML), so the
+  // text cannot break out of the <style> element; the server already strips @import and
+  // outside url() on save.
+  applyCustomCss(css) {
+    let st = document.getElementById("mf-custom-css");
+    if (!css) { st?.remove(); return; }
+    if (!st) { st = document.createElement("style"); st.id = "mf-custom-css"; document.head.appendChild(st); }
+    st.textContent = css;
   }
 
   setTags(rows) {
@@ -102,13 +148,14 @@ class App {
     this.navbar = h("div", { class: "navbar" });
     this.cmdbar = h("div", { class: "cmdbar" });
     this.bodyEl = h("main", { class: "body" });
+    this.tablistSide = h("div", { class: "tablist-side" });
     this.sidebarEl = h("aside", { class: "sidebar", style: { width: (this.settings.sidebar_width || 236) + "px" } });
     this.sideResizer = h("div", { class: "resizer side" });
     this.panesEl = h("section", { class: "panes" });
     this.rightResizer = h("div", { class: "resizer", hidden: true });
     this.rightEl = h("aside", { class: "rightpanel", hidden: true, style: { width: (this.settings.preview_width || 340) + "px" } });
     this.statusEl = h("footer", { class: "statusbar" });
-    this.bodyEl.append(this.sidebarEl, this.sideResizer, this.panesEl, this.rightResizer, this.rightEl);
+    this.bodyEl.append(this.tablistSide, this.sidebarEl, this.sideResizer, this.panesEl, this.rightResizer, this.rightEl);
     app.append(this.tabbar, this.navbar, this.cmdbar, this.bodyEl, this.statusEl);
     document.body.append(app);
     this.buildTabbar();
@@ -117,6 +164,7 @@ class App {
     this.buildCmdbar();
     this.buildStatus();
     this.bindResizers();
+    this.applyLayout();
     this.bindKeys();
     this.bindGlobalDrop();
 
@@ -147,9 +195,12 @@ class App {
     this.tabsEl.innerHTML = "";
     this.tabs.forEach((tab, index) => {
       const pane = tab.panes[tab.activePane] || tab.panes[0];
-      const el = h("div", { class: "tab" + (index === this.active ? " active" : "") + (tab.pinned ? " pinned" : ""), role: "tab", draggable: "true", tabindex: "0", title: pane.path && !isSpecial(pane.path) ? pane.path : pane.title, "data-tab": index });
+      const count = this.settings.tab_meta && pane.items ? pane.items.length : 0;
+      const meta = count ? plural(count, getLang() === "en" ? ["item", "items"] : ["объект", "объекта", "объектов"]) : "";
+      const el = h("div", { class: "tab" + (index === this.active ? " active" : "") + (tab.pinned ? " pinned" : ""), role: "tab", draggable: "true", tabindex: "0", title: meta ? `${pane.path || pane.title} — ${meta}` : (pane.path && !isSpecial(pane.path) ? pane.path : pane.title), "data-tab": index });
       const ico = pane.path === SPECIAL.HOME ? icon("home") : pane.path === SPECIAL.TRASH ? icon("trash") : pane.path === SPECIAL.SEARCH ? icon("search") : `<span class="ic tab-ico">${folderSvg()}</span>`;
-      el.innerHTML = ico + `<span class="tab-name">${esc(pane.title)}</span>` + (tab.panes.length > 1 ? `<span class="split-badge">${icon("split", "sm")}</span>` : "");
+      const sub = this.settings.tab_style === "preview" && pane.path && !isSpecial(pane.path) ? parentPath(pane.path) : "";
+      el.innerHTML = ico + `<span class="tab-label"><span class="tab-name">${esc(pane.title)}</span>${sub ? `<span class="tab-sub">${esc(sub)}</span>` : ""}</span>` + (tab.panes.length > 1 ? `<span class="split-badge">${icon("split", "sm")}</span>` : "");
       const close = h("button", { class: "icon-btn sm tab-close", title: t("tab.close") + " (Ctrl+W)", html: icon("x") });
       close.addEventListener("click", (e) => { e.stopPropagation(); this.closeTab(index); });
       if (!tab.pinned) el.append(close);
@@ -312,7 +363,7 @@ class App {
     clearTimeout(this.sessionTimer);
     const run = () => {
       const body = { tabs: this.tabs.map((tab) => this.serializeTab(tab)), active: this.active, closed: this.closed.slice(-10),
-        layout: { right: this.right } };
+        layout: { right: this.right || this.rightDeferred || null } };
       if (now && navigator.sendBeacon) {  }
       api("session", body).catch(() => {});
     };
@@ -423,7 +474,7 @@ class App {
     this.addrInput.addEventListener("input", debounce(() => this.suggest(), 90));
     this.addrInput.addEventListener("blur", () => setTimeout(() => this.endAddressEdit(), 150));
     this.searchEl = h("div", { class: "searchbox" });
-    this.searchInput = h("input", { placeholder: t("search.placeholder"), spellcheck: "false", "aria-label": t("search.placeholder") });
+    this.searchInput = h("input", { placeholder: t("search.placeholder"), spellcheck: "false", "aria-label": t("search.placeholder"), title: t("search.hint") });
     this.searchScope = h("button", { class: "search-scope", title: t("search.scope_hint") });
     this.searchScopeValue = "folder";
     this.searchScope.addEventListener("click", () => { this.searchScopeValue = this.searchScopeValue === "folder" ? "everywhere" : "folder"; this.updateSearchScope(); if (this.searchInput.value.trim()) this.doSearch(); });
@@ -668,7 +719,9 @@ class App {
       b.append(close);
     } else if (feat41.inArchive(pane)) {
       feat41.archiveBanner(this, pane, b);
-    } else if (pane.head && pane.head.protected && pane.mode === "dir") {
+    } else if (pane.head && pane.head.protected === "system" && pane.mode === "dir") {
+      // Only OS folders are read-only inside; Documents, the profile folder or a drive root are protected
+      // from being removed themselves, their contents stay editable, so no warning there.
       b.hidden = false; b.className = "banner warn";
       b.innerHTML = icon("lock") + `<span class="bn-text">${esc(t("banner.protected"))}</span>`;
     } else b.hidden = true;
@@ -838,6 +891,7 @@ class App {
 
   setRight(kind, save = true) {
     this.right = kind;
+    if (save) this.rightDeferred = null;
     this.rightEl.hidden = !kind;
     this.rightResizer.hidden = !kind;
     this.rightEl.innerHTML = "";
@@ -867,7 +921,7 @@ class App {
         const startX = e.clientX, startW = target.getBoundingClientRect().width;
         resizer.classList.add("on");
         document.body.classList.add("resizing");
-        const move = (ev) => { target.style.width = Math.max(160, Math.min(760, startW + sign * (ev.clientX - startX))) + "px"; const p = this.pane(); if (p) p.layout(); };
+        const move = (ev) => { const sg = typeof sign === "function" ? sign() : sign; target.style.width = Math.max(160, Math.min(760, startW + sg * (ev.clientX - startX))) + "px"; const p = this.pane(); if (p) p.layout(); };
         const up = () => {
           document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up);
           resizer.classList.remove("on"); document.body.classList.remove("resizing");
@@ -876,8 +930,8 @@ class App {
         document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
       });
     };
-    drag(this.sideResizer, this.sidebarEl, "sidebar_width", 1);
-    drag(this.rightResizer, this.rightEl, "preview_width", -1);
+    drag(this.sideResizer, this.sidebarEl, "sidebar_width", () => (this.bodyEl.dataset.side === "right" ? -1 : 1));
+    drag(this.rightResizer, this.rightEl, "preview_width", () => (this.bodyEl.dataset.previewSide === "left" ? 1 : -1));
   }
 
   async openItem(pane, item) {
@@ -915,7 +969,8 @@ class App {
   }
   async newFolder() {
     const pane = this.pane();
-    if (pane.mode !== "dir" || feat41.guardReadOnly(pane)) return;
+    if (pane.mode !== "dir") return;
+    if (feat41.inArchive(pane)) { feat41.archiveNewFolder(this, pane); return; }
     try {
       const res = await api("mkdir", { parent: pane.path, name: t("new.folder_name"), unique: true });
       pane.pendingSelect = [res.path];
@@ -984,7 +1039,7 @@ class App {
   }
   cmdRename() {
     const pane = this.pane();
-    if (feat41.guardReadOnly(pane)) return;
+    if (feat41.inArchive(pane)) { feat41.archiveRenameCmd(this, pane); return; }
     const sel = pane.selected();
     if (!sel.length) return;
     if (sel.length === 1) pane.startRename();
@@ -995,7 +1050,7 @@ class App {
     const sel = pane.selectedPaths();
     if (!sel.length) return;
     if (pane.mode === "trash") { this.trashPurge(pane.selected()); return; }
-    if (feat41.guardReadOnly(pane)) return;
+    if (feat41.inArchive(pane)) { feat41.archiveDelete(this, pane); return; }
     await this.deletePaths(sel, permanent);
   }
   async deletePaths(paths, permanent) {
@@ -1150,6 +1205,7 @@ class App {
       { label: t("x.editor"), icon: "code", disabled: !pane.folder, sub: () => extras.editorItems(sel[0] || pane.folder) },
       { sep: true },
       { label: t("cmd.properties"), icon: "info", kb: "Alt+Enter", run: () => dialogs.properties(this, sel.length ? sel : [pane.folder].filter(Boolean)) },
+      { label: t("lk.menu"), icon: "palette", sub: () => look.lookMenu(this, () => feat41.settingsDialog(this, "appearance")) },
       { label: t("cmd.settings"), icon: "gear", run: () => feat41.settingsDialog(this) },
     ], r.right - 240, r.bottom + 4);
   }
@@ -1164,6 +1220,7 @@ class App {
       return;
     }
     if (!onItem) { this.backgroundMenu(pane, x, y); return; }
+    if (feat41.inArchive(pane)) { menu(feat41.archiveItemMenu(this, pane), x, y); return; }
     const one = sel.length === 1 ? sel[0] : null;
     const ext = one ? extOf(one.n) : "";
     const isArchive = one && !one.d && ARCHIVE_EXT.has(ext);
@@ -1250,6 +1307,7 @@ class App {
       { label: t("nav.refresh"), icon: "refresh", kb: "F5", run: () => pane.reload(true) },
       { sep: true },
     ];
+    if (feat41.inArchive(pane)) { menu([...items, ...feat41.archiveBackItems(this, pane)], x, y); return; }
     if (pane.mode === "dir") {
       items.push(
         { label: t("cmd.paste"), icon: "paste", kb: "Ctrl+V", disabled: !this.clipboard && !isWin(), run: () => this.cmdPaste() },
@@ -1485,6 +1543,9 @@ class App {
     let res;
     try { res = await api("settings"); } catch (err) { return; }
     if (JSON.stringify(res.settings) !== JSON.stringify(this.settings)) this.applySettings(res);
+    // Settings unchanged, but MemuAI's language, theme, accent or design (followed on «auto») may have moved.
+    else if (res.lang !== getLang()) { setLang(res.lang); location.reload(); }
+    else if (JSON.stringify(res.theme) !== JSON.stringify(this.theme)) this.applyTheme(res.theme);
   }
 
   applySettings(res) {
@@ -1495,6 +1556,7 @@ class App {
     document.documentElement.dataset.density = res.settings.density;
     this.sidebarEl.style.width = res.settings.sidebar_width + "px";
     this.rightEl.style.width = res.settings.preview_width + "px";
+    this.applyLayout();
     resetCollator();
     this.tabs.forEach((tab) => tab.panes.forEach((p) => { if (p.el) p.refresh(true); }));
     this.updateChrome();

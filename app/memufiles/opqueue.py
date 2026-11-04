@@ -49,12 +49,18 @@ log = logging.getLogger("memufiles.ops")
 
 MAX_PARALLEL = 2
 CHUNK = 4 * 1024 * 1024
+# F34: hard caps for one written file (a lying Content-Length / zip header
+# used to let a single operation fill the disk).
+MAX_WRITE_BYTES = 100 * 1024 * 1024 * 1024  # 100 GiB per file
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024 * 1024
+MAX_REDIRECTS = 4
 KINDS = ("copy", "move", "trash", "delete", "rename", "extract", "compress", "undo", "mkdir", "upload", "download",
          "organize",
          "vpaste",
-         "arcadd", "write")
+         "arcadd", "write", "arcedit", "arctest", "arcconvert")
 CONFLICT_ACTIONS = ("replace", "skip", "keep_both", "rename", "cancel")
-BYTE_KINDS = ("copy", "move", "extract", "compress", "upload", "download", "vpaste", "arcadd")
+BYTE_KINDS = ("copy", "move", "extract", "compress", "upload", "download", "vpaste", "arcadd", "arcedit", "arctest",
+              "arcconvert")
 HIST_STEP = 0.5
 HIST_LEN = 120
 UPLOAD_STALL = 300.0
@@ -1174,7 +1180,12 @@ class OpQueue:
         proc = subprocess.Popen([tool, "x", "-y", "-bso0", "-bsp0", f"-o{dest}", archive],   # noqa: S603
                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                 creationflags=0x08000000 if os.name == "nt" else 0)
+        # F34: a hung 7z used to run forever (no timeout, only cancel).
+        deadline = time.monotonic() + 600
         while proc.poll() is None:
+            if time.monotonic() > deadline:
+                proc.kill()
+                raise FsError("extract_timeout", archive)
             if op._cancel.is_set():
                 proc.kill()
                 raise Cancelled()
@@ -1187,12 +1198,27 @@ class OpQueue:
     def _do_arcadd(self, op: Operation) -> None:
         archive_mod.add(self, op)
 
+    def _do_arcedit(self, op: Operation) -> None:
+        from . import archive_edit
+        archive_edit.edit(self, op)
+
+    def _do_arctest(self, op: Operation) -> None:
+        from . import archive_edit
+        archive_edit.test(self, op)
+
+    def _do_arcconvert(self, op: Operation) -> None:
+        from . import archive_edit
+        archive_edit.convert(self, op)
+
     def _write_stream(self, op: Operation, reader: Any, target: str, existed: bool, size: int = -1) -> int:
         """Write an archive member to *target*; on cancel / error the half-written file is removed (a replaced
         file is written to a temp name first, so the old copy survives a cancel)."""
         temp = target + f".~mfpart{os.getpid()}" if existed else target
         written = 0
         size = size if size >= 0 else 0
+        # F34: stop when the stream passes its declared size (a lying
+        # Content-Length / zip header) or the absolute per-file cap.
+        cap = min(MAX_WRITE_BYTES, size) if size > 0 else MAX_WRITE_BYTES
         op.start_file(op.current or target, size)
         try:
             with open(temp, "wb") as writer:
@@ -1203,6 +1229,8 @@ class OpQueue:
                         break
                     writer.write(block)
                     written += len(block)
+                    if written > cap:
+                        raise FsError("size_mismatch", target)
                     op.add_bytes(len(block))
                     self._notify(op)
             if existed:
@@ -1291,10 +1319,21 @@ class OpQueue:
         if not os.path.isdir(dest):
             raise FsError("no_destination", dest)
         items = op.args.get("items") or []
+        # F34: refuse an upload that cannot fit (or is absurdly large) before
+        # any file is written.
+        if len(items) > 200_000:
+            raise FsError("too_many_items", dest)
+        op.total_items = len(items)
+        op.total_bytes = sum(max(0, int(it.get("size") or 0)) if str(it.get("size") or "").lstrip("-").isdigit() else 0
+                             for it in items if isinstance(it, dict) and not it.get("dir"))
+        try:
+            free = shutil.disk_usage(dest).free
+        except OSError:
+            free = 0
+        if free and op.total_bytes > max(0, free - 100 * 1024 * 1024):
+            raise FsError("not_enough_space", dest)
         state = op.upload = {"items": [{"state": "pending"} for _ in items], "cv": threading.Condition(),
                              "seen": time.monotonic(), "tops": {}}
-        op.total_items = len(items)
-        op.total_bytes = sum(int(it.get("size") or 0) for it in items if not it.get("dir"))
         op.status = "running"
         self._notify(op, force=True)
         for index, item in enumerate(items):
@@ -1510,32 +1549,87 @@ class OpQueue:
         op.total_items = max(op.total_items, op.done_items)
 
     def _do_download(self, op: Operation) -> None:
+        """Download a URL into the destination folder.
+
+        F34 (SSRF): the old code only checked the scheme and let urlopen
+        follow redirects anywhere — a link (or a redirect) to
+        127.0.0.1 / 10.x / 169.254.169.254 would be fetched from this
+        machine. Every hop is now validated with media_cache.safe_url()
+        (DNS + public-IP only, no credentials) and redirects are followed
+        manually, at most MAX_REDIRECTS times.
+        """
         import urllib.parse
         import urllib.request
+        from ..media_cache import Unreachable, safe_url
         url = str(op.args.get("url") or "")
-        if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
-            raise FsError("bad_url", url[:200])
         if not os.path.isdir(op.dest):
             raise FsError("no_destination", op.dest)
-        request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 MemuFiles"})
-        with urllib.request.urlopen(request, timeout=30) as resp:    # noqa: S310 - http(s) only, checked above
-            name = _download_name(url, resp.headers)
-            op.total_bytes = int(resp.headers.get("Content-Length") or 0)
-            op.total_items = 1
-            op.status = "running"
-            target = self._target_for(op, url, os.path.join(op.dest, name),
-                                      {"name": name, "size": op.total_bytes, "path": url})
-            if target is None:
-                op.done_items = 1
-                return
-            existed = os.path.lexists(target)
-            op.current = name
-            try:
-                written = self._write_stream(op, resp, target, existed, op.total_bytes)
-            except SkipFile:
-                return
-            if not op.total_bytes:
-                op.total_bytes = written
+
+        class _Redirect(Exception):
+            def __init__(self, location: str) -> None:
+                super().__init__(location)
+                self.location = location
+
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001, ANN202
+                raise _Redirect(newurl)
+
+        opener = urllib.request.build_opener(_NoRedirect)
+        current = url
+        resp = None
+        try:
+            for _hop in range(MAX_REDIRECTS + 1):
+                try:
+                    current = safe_url(current)
+                except Unreachable as exc:
+                    raise FsError("bad_url", f"{url[:200]}: {exc}") from exc
+                request = urllib.request.Request(current, headers={"User-Agent": "Mozilla/5.0 MemuFiles"})
+                try:
+                    resp = opener.open(request, timeout=30)
+                except _Redirect as red:
+                    if _hop >= MAX_REDIRECTS:
+                        raise FsError("too_many_redirects", url[:200]) from None
+                    current = urllib.parse.urljoin(current, red.location)
+                    continue
+                break
+            if resp is None:
+                raise FsError("bad_url", url[:200])
+            with resp:
+                try:
+                    declared = int(resp.headers.get("Content-Length") or 0)
+                except ValueError:
+                    declared = 0
+                if declared > MAX_DOWNLOAD_BYTES:
+                    raise FsError("too_large", url[:200])
+                try:
+                    free = shutil.disk_usage(op.dest).free
+                except OSError:
+                    free = 0
+                if free and declared > max(0, free - 100 * 1024 * 1024):
+                    raise FsError("not_enough_space", op.dest)
+                name = _download_name(current, resp.headers)
+                op.total_bytes = declared
+                op.total_items = 1
+                op.status = "running"
+                target = self._target_for(op, current, os.path.join(op.dest, name),
+                                          {"name": name, "size": op.total_bytes, "path": current})
+                if target is None:
+                    op.done_items = 1
+                    return
+                existed = os.path.lexists(target)
+                op.current = name
+                try:
+                    written = self._write_stream(op, resp, target, existed, op.total_bytes)
+                except SkipFile:
+                    return
+                if not op.total_bytes:
+                    op.total_bytes = written
+        finally:
+            if resp is not None:
+                try:
+                    resp.close()
+                except Exception:  # noqa: BLE001
+                    pass
         if not existed:
             op.undo.append(("trash_created", target))
         op.created_paths.append(target)

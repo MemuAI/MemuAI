@@ -498,7 +498,14 @@ async def load(url: str, lang: str = "ru", fetch: Fetch = http_get, use_ytdlp: b
     return data
 
 async def analyze(url: str, complete: Complete, *, mode: str = "brief", lang: str = "ru", question: str = "",
-                  fetch: Fetch = http_get, use_ytdlp: bool = True, post: Optional[Post] = None) -> Dict[str, Any]:
+                  fetch: Fetch = http_get, use_ytdlp: bool = True, post: Optional[Post] = None,
+                  max_chunks: int = 12) -> Dict[str, Any]:
+    """One long video may cost up to ``max_chunks`` chunk calls + 1 reduce call.
+
+    Economy mode passes ``max_chunks=4``: the chunks are sampled evenly across the
+    whole video, so a 4-chunk summary still covers the beginning, middle and end —
+    and a long video costs 5 model calls instead of 13.
+    """
     data = await load(url, lang, fetch, use_ytdlp, post)
     meta = data["meta"]
     mode = mode if mode in MODES else "brief"
@@ -507,7 +514,8 @@ async def analyze(url: str, complete: Complete, *, mode: str = "brief", lang: st
     if cached:
         text = cached
     else:
-        text = await summarize(meta, data["segments"], complete, mode=mode, lang=lang, question=question)
+        text = await summarize(meta, data["segments"], complete, mode=mode, lang=lang, question=question,
+                               max_chunks=max_chunks)
         data["answers"][akey] = text
     words = sum(len(s["text"].split()) for s in data["segments"])
     return {"id": meta["id"], "title": meta.get("title", ""), "author": meta.get("author", ""), "url": meta["url"],

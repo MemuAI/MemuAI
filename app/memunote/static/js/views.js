@@ -1,6 +1,7 @@
 
 import { $, api, assetUrl, rawUrl, esc, icon, t, toast, debounce, dirname, showMenu, prompt, modal, plural } from "./core.js";
 import { CM } from "./editor.js";
+import { docContextMenu } from "./docmenu.js";
 
 let _md = null;
 export function markdownIt() {
@@ -302,6 +303,7 @@ export class DocEditor {
       if (a && (e.ctrlKey || e.metaKey)) { e.preventDefault(); api("external", { url: a.href }); }
     });
     this.page.addEventListener("keydown", (e) => this.keys(e));
+    this.el.querySelector(".doc-scroll").addEventListener("contextmenu", (e) => docContextMenu(this, e, this.opts.menu?.() || {}));
     this.el.querySelector(".doc-toolbar").addEventListener("mousedown", (e) => { if (e.target.closest("button")) e.preventDefault(); });
     this.el.querySelector(".doc-toolbar").addEventListener("click", (e) => { const b = e.target.closest("[data-cmd]"); if (b) this.command(b.dataset.cmd, b); });
     this.el.querySelectorAll(".doc-toolbar select").forEach((s) => s.addEventListener("change", () => this.command(s.dataset.cmd, s)));
@@ -320,7 +322,15 @@ export class DocEditor {
       <span class="tb-sep"></span>${B("link", "link", "fmt_link")}${B("table", "table", "fmt_table")}${B("image", "image", "fmt_image")}${B("insertHorizontalRule", "hr", "fmt_hr")}${B("pagebreak", "pageBreak", "fmt_pagebreak")}
       ${B("removeFormat", "eraser", "fmt_clear")}<span class="tb-sep"></span>${B("paper", "sun", "doc_paper")}`;
   }
-  exec(cmd, value = null) { this.page.focus(); document.execCommand(cmd, false, value); this.opts.onChange?.(); this.refreshState(); }
+  get palettes() { return { colors: COLORS, marks: MARKS, blocks: BLOCKS }; }
+  exec(cmd, value = null) { this.page.focus({ preventScroll: true }); document.execCommand(cmd, false, value); this.opts.onChange?.(); this.refreshState(); }
+  changed() { this.opts.onChange?.(); this.refreshState(); }
+  // Puts back the selection saved when a menu opened: clicking the menu moved the focus out of the page.
+  restore() {
+    this.page.focus({ preventScroll: true });
+    if (this._range && this.page.contains(this._range.startContainer)) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(this._range); }
+  }
+  setSpellcheck(on) { this.opts.spellcheck = !!on; this.page.spellcheck = !!on; }
   async command(cmd, el) {
     switch (cmd) {
       case "undo": case "redo": this.exec(cmd); break;
@@ -352,8 +362,8 @@ export class DocEditor {
     }
   }
   palette(anchor, colors, apply) {
-    showMenu([{ header: t("fmt_color") }, ...colors.map((c) => ({ label: c === "transparent" ? t("color_none") : c, icon: null, run: () => apply(c), hint: "" }))], anchor);
-    document.querySelectorAll(".menu .mi").forEach((mi, i) => { const c = colors[i]; if (c) mi.querySelector(".mi-ic").innerHTML = `<span class="swatch" style="background:${c}"></span>`; });
+    this.saveRange();
+    showMenu([{ header: t(colors === MARKS ? "fmt_highlight" : "fmt_color") }, { swatches: colors, noneLabel: t("color_none"), pick: (c) => { this.restore(); apply(c); } }], anchor);
   }
   fontSize(pt) {
     this.page.focus();

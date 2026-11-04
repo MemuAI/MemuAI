@@ -32,7 +32,9 @@ def _printable(text: str) -> bool:
 
 def decode(buffer: bytes, depth: int = 0) -> Optional[List[Node]]:
     """The fields of ``buffer`` as a list, or None when it is not a valid message."""
-    if not buffer or len(buffer) > MAX_BYTES:
+    # F31: a corrupt SQLite row can hand us a str/int instead of bytes;
+    # that used to raise TypeError out of _varint and kill the agy read.
+    if not isinstance(buffer, (bytes, bytearray)) or not buffer or len(buffer) > MAX_BYTES:
         return None
     out: List[Node] = []
     index = 0
@@ -60,7 +62,7 @@ def decode(buffer: bytes, depth: int = 0) -> Optional[List[Node]]:
                 out.append(_chunk(field, chunk, depth))
             else:
                 return None
-    except (IndexError, ValueError):
+    except (IndexError, ValueError, TypeError):
         return None
     return out
 

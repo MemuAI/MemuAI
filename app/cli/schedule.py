@@ -409,8 +409,74 @@ class Task:
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> "Task":
-        known = {name for name in Task.__dataclass_fields__}
-        return Task(**{key: value for key, value in data.items() if key in known})
+        """Build a Task from a stored dict, validating/coercing every field.
+
+        F35: the old code passed stored values straight into the dataclass,
+        so a hand-edited tasks.json (``timeout_minutes: "abc"``,
+        ``enabled: "yes"``, ``when: "soon"``) only exploded later, in the
+        scheduler loop. Bad values raise here; load_tasks() quarantines
+        the row instead of running it.
+        """
+        if not isinstance(data, dict):
+            raise TypeError("task is not an object")
+        task_id = data.get("id")
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise ValueError("task id is missing")
+        prompt = data.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("task prompt is missing")
+
+        def _text(value: Any, default: str = "") -> str:
+            return value if isinstance(value, str) else default
+
+        def _num(value: Any, default: float = 0.0) -> float:
+            if isinstance(value, bool):
+                return default
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _flag(value: Any, default: bool) -> bool:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.strip().lower() in ("1", "true", "yes", "on", "да")
+            if isinstance(value, (int, float)):
+                return bool(value)
+            return default
+
+        when = data.get("when")
+        if not isinstance(when, dict):
+            raise ValueError("task 'when' is not an object")
+        mode = _text(data.get("mode"), "acceptEdits")
+        if mode not in MODES:
+            raise ValueError(f"unknown mode {mode!r}")
+        runner = _text(data.get("runner"), "session")
+        if runner not in ("session", "cli"):
+            raise ValueError(f"unknown runner {runner!r}")
+        return Task(
+            id=task_id.strip(),
+            title=_text(data.get("title")),
+            prompt=prompt,
+            folder=_text(data.get("folder")),
+            when=when,
+            mode=mode,
+            model=_text(data.get("model")),
+            runner=runner,
+            enabled=_flag(data.get("enabled"), True),
+            notify=_flag(data.get("notify"), True),
+            timeout_minutes=max(1, min(1440, int(_num(data.get("timeout_minutes"), DEFAULT_TIMEOUT_MINUTES)))),
+            created=_num(data.get("created"), time.time()),
+            next_run=_num(data.get("next_run")),
+            last_run=_num(data.get("last_run")),
+            last_status=_text(data.get("last_status")),
+            last_summary=_text(data.get("last_summary")),
+            last_session=_text(data.get("last_session")),
+            last_result=_text(data.get("last_result")),
+            running_since=_num(data.get("running_since")),
+            runs=max(0, int(_num(data.get("runs")))),
+        )
 
 def home() -> Path:
     path = paths.home() / "schedule"
@@ -435,6 +501,21 @@ def _mutate(change: Callable[[Dict[str, Any]], bool]) -> None:
 
     mutate_json(store_path(), {"tasks": {}}, apply, backup=False, validator=lambda x: isinstance(x, dict))
 
+def _quarantine(task_id: str, row: Any, error: Exception) -> None:
+    """F35: park a broken stored task where it can be inspected instead of
+    silently dropping it (or crashing the scheduler on it every run)."""
+    import logging
+    folder = home() / "quarantine"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / f"{task_id}.json").write_text(
+            json.dumps({"task_id": task_id, "error": f"{type(error).__name__}: {error}",
+                        "row": row}, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+    logging.getLogger("memucode.schedule").warning("task %s quarantined: %s", task_id, error)
+
+
 def load_tasks() -> List[Task]:
     try:
         data = json.loads(store_path().read_text(encoding="utf-8"))
@@ -446,8 +527,8 @@ def load_tasks() -> List[Task]:
         if isinstance(row, dict) and row.get("id") and row.get("prompt"):
             try:
                 tasks.append(Task.from_dict(row))
-            except TypeError:
-                continue
+            except (TypeError, ValueError) as exc:
+                _quarantine(str(row.get("id") or "unknown"), row, exc)
     return sorted(tasks, key=lambda task: (not task.enabled, task.next_run or 1e18, task.created))
 
 def get_task(task_id: str) -> Optional[Task]:

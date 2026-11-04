@@ -34,6 +34,17 @@ _ID = re.compile(r"^[\w.-]{1,80}$")
 _COVER_ID = re.compile(r"/cover/([\w.-]{1,80})(?:\?[^#]*?[?&]v=(\w{1,16}))?")
 PC_ONLINE_SECONDS = 15
 
+
+def _number(value: Any, default: float = 0.0, low: float = 0.0, high: float = 1e9) -> float:
+    """A client- or state-supplied number, clamped; garbage ("abc", None, NaN) falls back to the default."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if number != number:  # NaN
+        return default
+    return max(low, min(high, number))
+
 class MusicUnavailable(RuntimeError):
     """The music backend (``app.music.api``) is not installed or failed to import."""
 
@@ -195,7 +206,9 @@ class Urls:
             return row
         out = dict(row)
         tid = str(out["id"])
-        for private in ("path", "file", "file_path"):
+        # Wave #7 (D-11): same as the MemuMusic copy — the original
+        # download URL and the dedup key never go to the phone.
+        for private in ("path", "file", "file_path", "source_key", "source_url"):
             out.pop(private, None)
         out["cover"] = self.cover_from(out.get("cover"), tid)
         out["stream"] = self.stream(tid)
@@ -261,13 +274,13 @@ def _player_view(state: Any, urls: Urls) -> Dict[str, Any]:
         return {"online": False, "available": True, "device": "phone"}
     track = state.get("track") if isinstance(state.get("track"), dict) else None
     ids = [str(x) for x in (state.get("queue") or []) if x]
-    index = int(state.get("index") if state.get("index") is not None else -1)
+    index = int(_number(state.get("index"), -1, -1, 1000000))
     queue: List[Dict[str, Any]] = []
     if ids:
         lo = max(0, index - 20) if index >= 0 else 0
         queue = _tracks_by_id(ids[lo:lo + 120])
         index = index - lo if index >= 0 else -1
-    ts = float(state.get("updated_at") or state.get("ts") or 0)
+    ts = _number(state.get("updated_at") if state.get("updated_at") is not None else state.get("ts"), 0, 0, 1e12)
     if ts > 1e12:
         ts /= 1000.0
     age = time.time() - ts if ts else None
@@ -275,9 +288,9 @@ def _player_view(state: Any, urls: Urls) -> Dict[str, Any]:
     fresh = age is not None and age < (PC_ONLINE_SECONDS * 4 if playing else 6 * 3600)
     position = state.get("position_now", state.get("position", 0))
     return {"online": bool(track) and fresh, "available": True, "playing": playing and fresh,
-            "track": urls.track(track) if track else None, "position": float(position or 0),
-            "duration": float(state.get("duration") or (track or {}).get("duration") or 0),
-            "volume": float(state.get("volume") if state.get("volume") is not None else 1),
+            "track": urls.track(track) if track else None, "position": _number(position, 0, 0, 86400),
+            "duration": _number(state.get("duration") or (track or {}).get("duration") or 0, 0, 0, 86400),
+            "volume": _number(state.get("volume"), 1, 0, 1),
             "shuffle": bool(state.get("shuffle")), "repeat": str(state.get("repeat") or "off"),
             "queue": urls.tracks(queue), "index": index, "device": str(state.get("device") or ""),
             "device_name": str(state.get("device_name") or ""), "age": round(age, 1) if age is not None else None}
@@ -310,7 +323,7 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
         except ValueError as exc:
             raise ApiError(400, "bad_request", str(exc)[:200] or "Некорректный запрос", str(exc)[:200] or "Bad request") from None
         except Exception as exc:
-            status = int(getattr(exc, "status", 0) or 0)
+            status = int(_number(getattr(exc, "status", 0), 0, 0, 599))
             if 400 <= status < 600:
                 message = str(getattr(exc, "message", "") or exc)[:300]
                 raise ApiError(status, str(getattr(exc, "code", "") or "music_error"), message,
@@ -329,11 +342,11 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             log.debug("music %s failed", name, exc_info=True)
             return default
 
-    @app.get("/tgapp/music/stream/{track_id}", include_in_schema=False)
+    @app.api_route("/tgapp/music/stream/{track_id}", methods=["GET", "HEAD"], include_in_schema=False)
     async def music_stream(track_id: str, request: Request):
         return await media(track_id, request, "track")
 
-    @app.get("/tgapp/music/cover/{track_id}", include_in_schema=False)
+    @app.api_route("/tgapp/music/cover/{track_id}", methods=["GET", "HEAD"], include_in_schema=False)
     async def music_cover(track_id: str, request: Request):
         return await media(track_id, request, "cover")
 
@@ -351,8 +364,12 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
         from .library import MIME
         media_type = MIME.get(path.suffix.lower(), "application/octet-stream") if kind == "track" else "image/jpeg"
         cache = "private, max-age=604800" if kind == "cover" else "private, max-age=3600"
+        # Wave #13 (D-A2): pass If-Range for tracks, like the MemuMusic
+        # copy — after a track file is replaced, a phone seeking with
+        # a stale ETag must get the whole file (200), not a wrong slice.
         return file_response(path, request.headers.get("range", "") if kind == "track" else "", media_type,
-                             {"Cache-Control": cache})
+                             {"Cache-Control": cache},
+                             request.headers.get("if-range", "") if kind == "track" else "")
 
     @op("music.home")
     async def music_home(ctx, body):
@@ -382,9 +399,11 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
 
     @op("music.list")
     async def music_list(ctx, body):
-        args: Dict[str, Any] = {"limit": max(1, min(int(body.get("limit") or 100), 500)),
-                                "offset": max(0, int(body.get("offset") or 0))}
-        for key in ("q", "sort", "filter", "source"):
+        args: Dict[str, Any] = {"limit": int(_number(body.get("limit"), 100, 1, 500)),
+                                "offset": int(_number(body.get("offset"), 0, 0, 10 ** 7))}
+        # Wave #13 (D-A4): "source" was forwarded but silently ignored by
+        # library.list — the MemuMusic copy never accepted it either.
+        for key in ("q", "sort", "filter"):
             if body.get(key):
                 args[key] = str(body[key])[:200]
         data = await run(ctx, "library.list", args) or {}
@@ -407,9 +426,18 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
 
     @op("music.lyrics")
     async def music_lyrics(ctx, body):
-        tid = _clean_id(body.get("id"))
+        from .lyrics import is_online  # wave #13: mirror the MemuMusic online branch
+        raw = str(body.get("id") or "")
+        empty = {"synced": None, "plain": None, "source": ""}
+        if is_online(raw):
+            args = {"id": raw[:420], "title": str(body.get("title") or "")[:300],
+                    "artist": str(body.get("artist") or "")[:300], "album": str(body.get("album") or "")[:300],
+                    "duration": _number(body.get("duration"), 0, 0, 86400)}
+            data = await optional(ctx, "lyrics.get", args, None)
+            return data if isinstance(data, dict) else empty
+        tid = _clean_id(raw)
         data = await optional(ctx, "lyrics.get", {"id": tid}, None) if tid else None
-        return data if isinstance(data, dict) else {"synced": None, "plain": None, "source": ""}
+        return data if isinstance(data, dict) else empty
 
     @op("music.browse")
     async def music_browse(ctx, body):
@@ -467,24 +495,58 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
 
     @op("music.sync")
     async def music_sync(ctx, body):
-        """Likes, plays and playlist additions made on the phone (maybe offline), oldest first."""
+        """Likes, plays and playlist additions made on the phone (maybe offline), oldest first.
+        At most 200 records per call in total; plays are deduped by (track, moment)
+        inside the request and count only when actually inserted -- a retried sync
+        must not count the same listen twice."""
         applied = {"likes": 0, "plays": 0, "playlists": 0}
-        for row in (body.get("likes") or [])[:500]:
-            tid = _clean_id((row or {}).get("id"))
-            if tid and await optional(ctx, "library.like", {"id": tid, "liked": bool(row.get("liked"))}, None) is not None:
+        budget = 200
+        likes = {}
+        for row in (body.get("likes") or []):
+            if not isinstance(row, dict):
+                continue
+            tid = _clean_id(row.get("id"))
+            if tid:
+                likes[tid] = bool(row.get("liked"))  # last value per track wins
+        for tid, liked in likes.items():
+            if budget <= 0:
+                break
+            budget -= 1
+            if await optional(ctx, "library.like", {"id": tid, "liked": liked}, None) is not None:
                 applied["likes"] += 1
-        for row in (body.get("plays") or [])[:500]:
-            tid = _clean_id((row or {}).get("id"))
+        seen_plays = set()
+        for row in (body.get("plays") or []):
+            if budget <= 0:
+                break
+            if not isinstance(row, dict):
+                continue
+            tid = _clean_id(row.get("id"))
             if not tid:
                 continue
-            args = {"id": tid, "seconds": float(row.get("seconds") or 0), "device": "phone",
-                    "at": float(row.get("at") or time.time())}
-            if await optional(ctx, "library.played", args, None) is not None:
+            args = {"id": tid, "seconds": _number(row.get("seconds"), 0, 0, 86400), "device": "phone",
+                    "at": _number(row.get("at"), time.time(), 0, time.time() + 60)}
+            key = (tid, args["at"])
+            if key in seen_plays:
+                continue
+            seen_plays.add(key)
+            budget -= 1
+            result = await optional(ctx, "library.played", args, None)
+            if isinstance(result, dict) and result.get("inserted"):
                 applied["plays"] += 1
-        for row in (body.get("playlist_adds") or [])[:200]:
-            pid = str((row or {}).get("playlist") or "")[:80]
-            ids = [i for i in (_clean_id(x) for x in (row or {}).get("ids") or []) if i]
-            if pid and ids and await optional(ctx, "playlist.update", {"id": pid, "add": ids}, None) is not None:
+        seen_adds = set()
+        for row in (body.get("playlist_adds") or []):
+            if budget <= 0:
+                break
+            if not isinstance(row, dict):
+                continue
+            pid = str(row.get("playlist") or "")[:80]
+            ids = [i for i in (_clean_id(x) for x in row.get("ids") or []) if i]
+            key = (pid, tuple(ids))
+            if not pid or not ids or key in seen_adds:
+                continue
+            seen_adds.add(key)
+            budget -= 1
+            if await optional(ctx, "playlist.update", {"id": pid, "add": ids}, None) is not None:
                 applied["playlists"] += 1
         return {"ok": True, "applied": applied}
 
@@ -520,7 +582,7 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
         q = str(body.get("q") or "").strip()[:200]
         if len(q) < 2:
             return {"results": []}
-        rows = await run(ctx, "search.online", {"q": q, "limit": max(1, min(int(body.get("limit") or 12), 25))}) or []
+        rows = await run(ctx, "search.online", {"q": q, "limit": int(_number(body.get("limit"), 12, 1, 25))}) or []
         return {"results": rows if isinstance(rows, list) else rows.get("results", [])}
 
     @op("music.remote")
@@ -536,7 +598,7 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             if body.get("track_id"):
                 args["track_id"] = _clean_id(body["track_id"])
             if body.get("position") is not None:
-                args["position"] = max(0.0, float(body.get("position") or 0))
+                args["position"] = _number(body.get("position"), 0, 0, 86400)
             if isinstance(body.get("queue"), list):
                 args["queue"] = [i for i in (_clean_id(x) for x in body["queue"][:5000]) if i]
             if cmd == "play_playlist":
@@ -573,17 +635,17 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
                 return {"ok": False, "reason": "pc_offline"}
             raise
         if isinstance(state, dict) and str(state.get("device") or "pc") != "phone" and state.get("playing"):
-            ts = float(state.get("updated_at") or 0)
+            ts = _number(state.get("updated_at"), 0, 0, 1e12)
             if ts and time.time() - ts < PC_ONLINE_SECONDS * 3:
                 return {"ok": False, "reason": "pc_playing"}
         lang_en = ctx["prefs"].get("language") == "en"
         fields: Dict[str, Any] = {"track_id": tid, "playing": bool(body.get("playing")), "device": "phone",
                                   "device_name": "Phone" if lang_en else "Телефон",
-                                  "position": max(0.0, float(body.get("position") or 0)),
-                                  "duration": max(0.0, float(body.get("duration") or 0))}
+                                  "position": _number(body.get("position"), 0, 0, 86400),
+                                  "duration": _number(body.get("duration"), 0, 0, 86400)}
         if isinstance(body.get("queue"), list):
             fields["queue"] = [i for i in (_clean_id(x) for x in body["queue"][:500]) if i]
-            fields["index"] = max(0, int(body.get("index") or 0))
+            fields["index"] = int(_number(body.get("index"), 0, 0, 1000000))
         await run(ctx, "player.update", fields)
         return {"ok": True}
 
@@ -598,7 +660,7 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
                 raise ApiError(400, "bad_request", "Нет трека", "No track")
             queue = [i for i in (_clean_id(x) for x in (body.get("queue") or [])[:5000]) if i]
             await run(ctx, "player.command", {"cmd": "play_track", "track_id": tid, "source": "phone", "handoff": True,
-                                              "position": max(0.0, float(body.get("position") or 0)),
+                                              "position": _number(body.get("position"), 0, 0, 86400),
                                               "queue": queue or [tid]})
             return {"ok": True}
         view = _player_view(await run(ctx, "player.state", {}), urls)

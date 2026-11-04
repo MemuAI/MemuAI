@@ -429,11 +429,8 @@ def build_system_prompt(*, model: str, prefs: Dict[str, Any], lang: str, temp: b
         block = meme_prompt_block(meme)
         return (block + "\n\n" + title_prompt) if block and title_prompt else block
     base = str(selected.get("text") if selected and "text" in selected else DEFAULT_PROMPT)
-    personality = "pragmatic" if prefs.get("ai_personality") == "pragmatic" else "friendly"
-    personality_text = internal_prompt("personality-" + personality) or (
-        "Be warm, attentive and encouraging while staying clear and substantive." if personality == "friendly"
-        else "Be direct, pragmatic, concise and precise, like a senior expert colleague.")
-    base += "\n\n<personality>" + personality_text + "</personality>"
+    from . import personalities
+    base += "\n\n" + personalities.block(prefs, internal_prompt)
     custom = str(prefs.get("custom_system_prompt") or "").strip()
     if custom:
         base += "\n\n<user_custom_instructions>\n" + custom + "\n</user_custom_instructions>"
@@ -598,15 +595,22 @@ def _set_meme_for_chat(chat_id: str, meme_id: str) -> None:
 
 def start_send(*, owner: str, profile_id: str, chat_id: str, text: str, attachments: Any, model: str,
                web_search: Optional[bool], thinking: Optional[bool], temp: bool, meme_id: str,
-               regenerate: bool, temp_history: Any, lang: str, effort: str = "") -> Job:
-    """Validate, create the job and start the generation task. Raises ValueError for the user."""
+               regenerate: bool, temp_history: Any, lang: str, effort: str = "", via: str = "telegram-app") -> Job:
+    """Validate, create the job and start the generation task. Raises ValueError for the user.
+
+    ``via`` marks where the message came from (the Mini App, Discord, WhatsApp)."""
+    from .spaces import active_space_id, workspace_scope
     from .pgdata import load_chats, load_preferences
-    prefs = load_preferences()
+    via = via if via in ("telegram-app", "discord", "whatsapp") else "telegram-app"
     profile = profile_by_id(profile_id)
     profile_id = str(profile.get("id") or "default")
+    space_id = active_space_id(profile_id)
     chat: Optional[Dict[str, Any]] = None
+    with workspace_scope(profile_id, space_id):
+        prefs = load_preferences()
+        if chat_id and not temp:
+            chat = next((row for row in load_chats(profile_id) if str(row.get("id")) == chat_id), None)
     if chat_id and not temp:
-        chat = next((row for row in load_chats(profile_id) if str(row.get("id")) == chat_id), None)
         if chat is None:
             raise ValueError(tr(lang, "Чат не найден", "Chat not found"))
         if jobs.active_for_chat(chat_id):
@@ -639,8 +643,9 @@ def start_send(*, owner: str, profile_id: str, chat_id: str, text: str, attachme
         chat = {"id": chat_id or ("temp-" + uuid.uuid4().hex[:10]), "temp": True, "messages": rows, "title": ""}
     elif chat is None:
         stamp = now_ms()
-        chat = {"id": "tga-" + uuid.uuid4().hex[:14], "title": "", "messages": [], "mode": "chat",
-                "created": stamp, "updated": stamp, "model": model, "via": "telegram-app", "_new": True}
+        prefix = {"discord": "dsc-", "whatsapp": "wha-"}.get(via, "tga-")
+        chat = {"id": prefix + uuid.uuid4().hex[:14], "title": "", "messages": [], "mode": "chat",
+                "created": stamp, "updated": stamp, "model": model, "via": via, "_new": True}
     chat = dict(chat)
     history = [dict(row) for row in chat.get("messages") or [] if isinstance(row, dict)]
     user_row: Optional[Dict[str, Any]] = None
@@ -656,7 +661,7 @@ def start_send(*, owner: str, profile_id: str, chat_id: str, text: str, attachme
                   and str(item.get("data") or "").startswith("data:image/")][:MAX_ATTACHMENTS]
         user_row = last
     else:
-        user_row = {"role": "user", "content": text, "createdAt": now_ms(), "via": "telegram-app"}
+        user_row = {"role": "user", "content": text, "createdAt": now_ms(), "via": via}
         if stored:
             user_row["attachments"] = stored
 
@@ -669,23 +674,24 @@ def start_send(*, owner: str, profile_id: str, chat_id: str, text: str, attachme
         job.meta = {"chat_id": chat["id"], "profile_id": profile_id, "model": model, "temp": temp,
                     "meme_id": meme["id"] if meme else "", "memory": False, "user_text": text[:280]}
         job.emit("start", chat_id=chat["id"], model=model, temp=temp, user=_public_row(user_row), regenerate=regenerate)
-        job.task = asyncio.ensure_future(telegram_media_gen.app_command_job(
-            job, chat, history, user_row, media_command[0], media_command[1], images, model, profile_id, lang, temp,
-            meme_id if meme else ""))
+        with workspace_scope(profile_id, space_id):
+            job.task = asyncio.ensure_future(telegram_media_gen.app_command_job(
+                job, chat, history, user_row, media_command[0], media_command[1], images, model, profile_id, lang, temp,
+                meme_id if meme else ""))
         return job
     asked = sum(1 for row in history if row.get("role") == "user") + 1
-    memory = profile_memory(profile) if not temp and caps["memory"] else {"enabled": False, "facts": []}
-    reference = profile_reference_context(profile, memory) if not temp and caps["memory"] else ""
+    reference = ""
     memory_protocol = ""
     if not temp and caps["memory"]:
-        try:
-            from . import memory_v2
-            pid = str(profile.get("id") or "")
-            reference = memory_v2.profile_context("telegram", text, name=str(profile.get("name") or ""),
-                                                  bio=str(profile.get("bio") or ""), profile_id=pid)
-            memory_protocol = memory_v2.protocol_prompt("telegram", profile_id=pid)
-        except Exception:
-            pass
+        with workspace_scope(profile_id, space_id):
+            reference = profile_reference_context(profile, profile_memory(profile))
+            try:
+                from . import memory_v2
+                reference = memory_v2.profile_context("telegram", text, name=str(profile.get("name") or ""),
+                                                      bio=str(profile.get("bio") or ""), profile_id=profile_id)
+                memory_protocol = memory_v2.protocol_prompt("telegram", profile_id=profile_id)
+            except Exception:
+                pass
     system = build_system_prompt(model=model, prefs=prefs, lang=lang, temp=temp, meme=meme,
                                  has_profile_context=bool(reference),
                                  title_prompt="" if temp else title_prompt_for(chat, prefs, asked))
@@ -716,9 +722,10 @@ def start_send(*, owner: str, profile_id: str, chat_id: str, text: str, attachme
                 "effort": effort if effort in ("auto", "off", "on", "minimal", "low", "medium", "high", "xhigh", "max") else ""}
     job.emit("start", chat_id=chat["id"], model=model, temp=temp, user=_public_row(user_row),
              regenerate=regenerate)
-    job.task = asyncio.ensure_future(_generate(job, chat, history, user_row, messages, model,
-                                               bool(web_search), bool(thinking), profile, lang, temp,
-                                               meme_id if meme else ""))
+    with workspace_scope(profile_id, space_id):
+        job.task = asyncio.ensure_future(_generate(job, chat, history, user_row, messages, model,
+                                                   bool(web_search), bool(thinking), profile, lang, temp,
+                                                   meme_id if meme else ""))
     return job
 
 def _public_row(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -875,9 +882,9 @@ async def _generate(job: Job, chat: Dict[str, Any], history: List[Dict[str, Any]
         else:
             if saved_chat is None:
                 error = error or tr(lang, "Чат удалён — ответ не сохранён", "The chat was deleted — the answer was not saved")
-        if answer and not stopped:
+        if saved_chat is not None and answer and not stopped:
 
-            memory_result = await asyncio.to_thread(remember_answer, profile, raw, chat=saved_chat or chat,
+            memory_result = await asyncio.to_thread(remember_answer, profile, raw, chat=saved_chat,
                                                     user_text=str(job.meta.get("user_text") or ""),
                                                     allowed=job.meta.get("memory", True) is not False)
             remembered = memory_event_facts(memory_result)

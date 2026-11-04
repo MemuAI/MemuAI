@@ -11,8 +11,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts,
-                    read_lines, short_args, tail_lines, text_of, title_from)
+from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, as_dict, clean_user_text, clip,
+                    iso_to_ts, read_lines, short_args, tail_lines, text_of, title_from)
 
 KEY = "claude"
 TITLE = "Claude Code"
@@ -35,10 +35,19 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     if not base.is_dir():
         return rows
-    for folder in base.iterdir():
+    # F31 (C-05.4): an unreadable folder must not kill the whole listing.
+    try:
+        folders = list(base.iterdir())
+    except OSError:
+        return rows
+    for folder in folders:
         if not folder.is_dir():
             continue
-        for file in folder.glob("*.jsonl"):
+        try:
+            files = list(folder.glob("*.jsonl"))
+        except OSError:
+            continue
+        for file in files:
             if file.name.startswith("agent-"):
                 continue
             info = _info(file)
@@ -72,7 +81,8 @@ def _info(file: Path) -> Optional[SessionInfo]:
                 if candidate and not (candidate.startswith("/") and " " not in candidate):
                     first = candidate
             if kind == "assistant" and not model:
-                model = str((event.get("message") or {}).get("model") or "")
+                # F31: a string "message" used to raise AttributeError here.
+                model = str(as_dict(event.get("message")).get("model") or "")
     if not first and not title:
         return None
     last = 0.0

@@ -50,6 +50,13 @@ body.reduce-motion .tga-pill i { animation: none !important; }
 .tga-progress { height: 4px; border-radius: 3px; background: var(--panel-2); overflow: hidden; margin-top: 8px; }
 .tga-progress i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
 .tga-error { color: var(--danger); font-size: 12.5px; margin-top: 6px; }
+.tga-tunerr { margin-top: 10px; padding: 12px; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border)); border-radius: 12px; background: color-mix(in srgb, var(--danger) 7%, var(--panel-2)); display: grid; gap: 8px; }
+.tga-tunerr .tl { font-size: 13px; font-weight: 700; color: var(--danger); }
+.tga-tunerr-text { font-size: 13px; line-height: 1.5; }
+.tga-tunerr code { display: block; white-space: pre-wrap; word-break: break-word; font-family: var(--mono, monospace); font-size: 11.5px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+.tga-tunerr details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.tga-tunerr ol { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.tga-tunerr .tga-actions { padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
 .tga-diag { margin-top: 10px; padding: 12px; border: 1px dashed var(--border); border-radius: 12px; background: var(--panel-2); display: grid; gap: 6px; }
 .tga-diag .tl { font-size: 13px; font-weight: 700; }
 .tga-diag code { font-family: var(--mono, monospace); font-size: 12px; word-break: break-all; }
@@ -115,7 +122,7 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     const status = (data && data.status) || {};
     const diag = (data && data.diagnostics) || status.diagnostics || {};
     const localMode = !!(diag.local_fallback || (data && data.config && data.config.local_fallback));
-    const show = ((diag.host || diag.error || diag.local_url) && ["dns_pending", "verifying", "error", "failed", "proxy_offline"].includes(status.state)) || localMode;
+    const show = ((diag.host || diag.error || diag.local_url || diag.last_error) && ["dns_pending", "verifying", "error", "failed", "proxy_offline", "starting", "connecting"].includes(status.state)) || localMode || !!diag.last_error;
     if (!show) return "";
     const checked = diag.checked_at ? new Date(diag.checked_at * 1000).toLocaleString(en() ? "en-US" : "ru-RU") : "";
     const lastAt = diag.last_working_at ? new Date(diag.last_working_at * 1000).toLocaleString(en() ? "en-US" : "ru-RU") : "";
@@ -123,6 +130,9 @@ body.reduce-motion .tga-pill i { animation: none !important; }
       <div class="tl">${tr("Диагностика адреса", "Address diagnostics")}</div>
       ${diag.host ? `<div class="td">${tr("Хост", "Host")}: <code>${esc(diag.host)}</code></div>` : ""}
       ${diag.error ? `<div class="td">${tr("Ошибка", "Error")}: ${esc(diag.error)}</div>` : ""}
+      ${diag.phase ? `<div class="td">${tr("Фаза", "Phase")}: ${esc(tunnelPhaseText(diag.phase))}</div>` : ""}
+      ${diag.edge_source ? `<div class="td">${tr("Край Cloudflare", "Cloudflare edge")}: ${esc(tunnelEdgeText(diag.edge_source))}${diag.dns_detail ? ` — ${esc(diag.dns_detail)}` : ""}</div>` : ""}
+      ${diag.phase && diag.attempts_left != null ? `<div class="td">${tr("Осталось попыток", "Attempts left")}: ${esc(diag.attempts_left)}</div>` : ""}
       ${checked ? `<div class="td">${tr("Проверено", "Checked")}: ${esc(checked)} · ${tr("резолвер: системный", "resolver: system")}</div>` : `<div class="td">${tr("Проверка ещё не выполнялась · резолвер: системный", "No check has run yet · resolver: system")}</div>`}
       ${diag.local_url ? `<div class="td">${tr("Локальный адрес", "Local address")}: <code>${esc(diag.local_url)}</code></div>` : ""}
       ${diag.last_working_url ? `<div class="td">${tr("Последний рабочий адрес", "Last working address")}: <code>${esc(diag.last_working_url)}</code>${lastAt ? ` · ${esc(lastAt)}` : ""}</div>` : ""}
@@ -135,16 +145,70 @@ body.reduce-motion .tga-pill i { animation: none !important; }
       </div></div>`;
   }
 
-  // A tunnel error is cloudflared's own report about its own connection
-  // attempt, not an established diagnosis: label its source so the
-  // misleading "cannot find Cloudflare's servers" wording is never
-  // presented as a verified fact. The real fix (host-scoped message,
-  // no stale hints) lives in the tunnel code; see the round report.
-  const DNS_HINT_RE = /не может найти серверы Cloudflare|cannot find Cloudflare's servers/i;
-  function tunnelErrorText(status) {
-    const text = statusText(status, "error");
-    if (DNS_HINT_RE.test(text)) return tr("Сообщение cloudflared: ", "cloudflared reports: ") + text;
-    return text;
+  function tunnelPhaseText(phase) {
+    switch (phase) {
+      case "dns_check": return tr("Проверяю DNS…", "Checking DNS…");
+      case "starting": return tr("Запускаю cloudflared…", "Starting cloudflared…");
+      case "connecting": return tr("Подключаюсь к Cloudflare…", "Connecting to Cloudflare…");
+      case "online": return tr("Работает", "Online");
+      case "failed": return tr("Не запустился", "Failed to start");
+      case "idle": return tr("Остановлен", "Stopped");
+      default: return phase || "";
+    }
+  }
+
+  function tunnelEdgeText(source) {
+    if (!source) return "";
+    if (source === "system") return tr("системный DNS", "system DNS");
+    if (source === "cache") return tr("адреса из кэша", "cached addresses");
+    if (source === "none") return tr("обход недоступен", "no bypass available");
+    if (source.indexOf("doh:") === 0) return tr("обход через DoH (", "DoH bypass (") + source.slice(4) + ")";
+    return source;
+  }
+
+  // The sticky tunnel error panel: the last error stays on
+  // screen in ANY state — while the next attempt starts, while it waits
+  // for a retry — until the tunnel comes online or the user dismisses it.
+  // The old error line (only in "error"/"failed") is what made errors
+  // "just disappear" before she could read them.
+  function tunnelErrorHtml(data) {
+    const diag = (data && data.diagnostics) || (data && data.status && data.status.diagnostics) || {};
+    if (!diag.last_error) return "";
+    const dismissed = +(localStorage.getItem("tga-tunerr-dismissed-at") || 0);
+    if (diag.last_error_at && dismissed >= diag.last_error_at) return "";
+    const when = diag.last_error_at ? new Date(diag.last_error_at * 1000).toLocaleString(en() ? "en-US" : "ru-RU") : "";
+    const history = Array.isArray(diag.error_history) ? diag.error_history : [];
+    const attempt = history.length ? history[history.length - 1].attempt : "";
+    const lines = Array.isArray(diag.recent_lines) ? diag.recent_lines : [];
+    return `<div class="tga-tunerr" role="alert">
+      <div class="tl">${tr("Последняя ошибка туннеля", "Last tunnel error")}${when ? ` · ${esc(when)}` : ""}${attempt !== "" && attempt != null ? ` · ${tr("попытка", "attempt")} ${esc(attempt)}` : ""}</div>
+      <div class="tga-tunerr-text">${esc(statusText(diag, "last_error"))}</div>
+      ${diag.next_step ? `<div class="td">${esc(statusText(diag, "next_step"))}</div>` : ""}
+      <div class="td">${tr("Фаза", "Phase")}: ${esc(tunnelPhaseText(diag.phase))}${diag.edge_source ? ` · ${tr("край", "edge")}: ${esc(tunnelEdgeText(diag.edge_source))}` : ""}${diag.phase && diag.attempts_left != null ? ` · ${tr("осталось попыток", "attempts left")}: ${esc(diag.attempts_left)}` : ""}</div>
+      ${diag.dns_detail ? `<div class="td">${esc(diag.dns_detail)}</div>` : ""}
+      ${diag.last_error_raw ? `<details><summary>${tr("Что именно написал cloudflared", "What cloudflared actually wrote")}</summary><code>${esc(diag.last_error_raw)}</code>${lines.length ? `<code>${esc(lines.join("\n"))}</code>` : ""}</details>` : ""}
+      ${history.length ? `<details><summary>${tr("История попыток", "Attempt history")} (${history.length})</summary><ol>${history.map((h) => `<li>${esc(h.at ? new Date(h.at * 1000).toLocaleTimeString(en() ? "en-US" : "ru-RU") : "")} · ${tr("попытка", "attempt")} ${esc(h.attempt)}: ${esc(h.error || "")}</li>`).join("")}</ol></details>` : ""}
+      <div class="tga-actions">
+        <button type="button" class="pbtn ghost small" id="tga-err-copy">${COPY}${tr("Скопировать ошибку", "Copy the error")}</button>
+        <button type="button" class="pbtn ghost small" id="tga-err-dismiss">${tr("Закрыть", "Dismiss")}</button>
+      </div></div>`;
+  }
+
+  function tunnelErrorCopyText(data) {
+    const diag = (data && data.diagnostics) || (data && data.status && data.status.diagnostics) || {};
+    const lines = [];
+    lines.push(tr("Ошибка туннеля Mini App", "Mini App tunnel error") + ": " + statusText(diag, "last_error"));
+    if (diag.last_error_at) lines.push(tr("Время", "Time") + ": " + new Date(diag.last_error_at * 1000).toLocaleString(en() ? "en-US" : "ru-RU"));
+    if (diag.last_error_kind) lines.push(tr("Вид", "Kind") + ": " + diag.last_error_kind);
+    if (diag.next_step) lines.push(statusText(diag, "next_step"));
+    if (diag.phase) lines.push(tr("Фаза", "Phase") + ": " + tunnelPhaseText(diag.phase));
+    if (diag.edge_source) lines.push(tr("Край Cloudflare", "Cloudflare edge") + ": " + tunnelEdgeText(diag.edge_source) + (diag.dns_detail ? " — " + diag.dns_detail : ""));
+    if (diag.last_error_raw) lines.push(tr("Строка cloudflared", "cloudflared line") + ": " + diag.last_error_raw);
+    const recent = Array.isArray(diag.recent_lines) ? diag.recent_lines : [];
+    if (recent.length) lines.push(tr("Последние строки cloudflared:", "Last cloudflared lines:") + "\n" + recent.join("\n"));
+    const history = Array.isArray(diag.error_history) ? diag.error_history : [];
+    if (history.length) lines.push(tr("История попыток:", "Attempt history:") + "\n" + history.map((h) => (h.at ? new Date(h.at * 1000).toLocaleString(en() ? "en-US" : "ru-RU") : "") + " · " + tr("попытка", "attempt") + " " + h.attempt + ": " + (h.error || "")).join("\n"));
+    return lines.join("\n");
   }
 
   function render(root) {
@@ -175,7 +239,7 @@ body.reduce-motion .tga-pill i { animation: none !important; }
         ${url ? `<div class="tga-url"><code title="${esc(url)}">${esc(url)}</code><button type="button" class="pbtn ghost small" id="tga-copy">${COPY}${tr("Копировать", "Copy")}</button></div>
           <ol class="tga-steps"><li>${tr("Откройте своего бота в Telegram.", "Open your bot in Telegram.")}</li><li>${tr("Нажмите кнопку меню <b>MemuAI</b> слева от поля ввода (или «Открыть MemuAI» в сообщении бота).", "Tap the <b>MemuAI</b> menu button left of the input field (or “Open MemuAI” in a bot message).")}</li><li>${(config.web_login !== false ? tr("В обычном браузере адрес попросит подтвердить вход из Telegram (QR-код или /web).", "In a regular browser the address asks you to confirm the sign-in from Telegram (QR code or /web).") : tr("Не открывайте адрес в обычном браузере: вход возможен только из Telegram.", "Do not open the address in a regular browser: sign-in only works from Telegram."))}</li></ol>` :
           `<div class="td">${esc(problemText(data))}</div>`}
-        ${(status.state === "error" || status.state === "failed") && status.error ? `<div class="tga-error">${esc(tunnelErrorText(status))}</div>` : ""}
+        ${tunnelErrorHtml(data)}
         ${status.detail && status.state !== "failed" ? `<div class="tga-note">${esc(statusText(status, "detail"))}</div>` : ""}
         ${diagHtml(data)}
         ${status.state === "error" && status.retry_at ? `<div class="tga-note">${tr("Следующая попытка через", "Next attempt in")} ${Math.max(0, Math.round(status.retry_at - Date.now() / 1000))} ${tr("с", "s")}${status.protocol && status.protocol !== "auto" ? " · " + esc(status.protocol.toUpperCase()) : ""}</div>` : ""}
@@ -256,6 +320,22 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     if (copy) copy.onclick = async () => {
       const url = (state.data.status || {}).url || "";
       try { if (typeof window.copyText === "function") await window.copyText(url, true); else await navigator.clipboard.writeText(url); } catch (e) {  }
+    };
+    const errCopy = root.querySelector("#tga-err-copy");
+    if (errCopy) errCopy.onclick = async () => {
+      const text = tunnelErrorCopyText(state.data);
+      try {
+        if (typeof window.copyText === "function") await window.copyText(text, true);
+        else await navigator.clipboard.writeText(text);
+        errCopy.textContent = tr("Скопировано", "Copied");
+        setTimeout(() => { if (errCopy.isConnected) errCopy.textContent = tr("Скопировать ошибку", "Copy the error"); }, 1500);
+      } catch (e) { }
+    };
+    const errDismiss = root.querySelector("#tga-err-dismiss");
+    if (errDismiss) errDismiss.onclick = () => {
+      const diag = (state.data && state.data.diagnostics) || (state.data && state.data.status && state.data.status.diagnostics) || {};
+      try { localStorage.setItem("tga-tunerr-dismissed-at", String(diag.last_error_at || Date.now() / 1000)); } catch (e) { }
+      render(root);
     };
     const reset = root.querySelector("#tga-reset");
     if (reset) reset.onclick = async () => {

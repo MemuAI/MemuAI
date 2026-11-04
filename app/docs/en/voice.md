@@ -60,13 +60,14 @@ What speaks is one list in **Settings → Voice & Live → Reading replies aloud
 | Windows voices | nothing: the voices installed in the system; works offline |
 | Downloaded Piper voice | neural voices, downloaded once and then offline; the message language is detected |
 | OpenAI | an OpenAI API key; models `gpt-4o-mini-tts`, `tts-1`, `tts-1-hd`, voices alloy, nova, coral and others |
+| OpenRouter | one key for dozens of TTS models: free HeyGen Voice Turbo, Kokoro, Grok Voice, Voxtral and more; voices load for the selected model |
 | Google Gemini (AI Studio) | a Google AI Studio key; 30 Gemini voices (Kore, Puck, Zephyr…), multilingual |
 | ElevenLabs | an ElevenLabs key; the voice is a `voice_id` from your ElevenLabs library |
 | Microsoft Azure Speech | the Speech resource key and its region in the address (instead of `westeurope`); hundreds of neural voices |
 | Other OpenAI-compatible API | the address (the API root — `/audio/speech` is appended), key, model and voice |
 | Your local server | an OpenAI-compatible speech server on this computer (Kokoro-FastAPI, XTTS…) |
 
-For cloud services MemuAI fills in the address, suggests models and voices and gives a **Get a key →** link. Each service gets requests in its own native format, and a long answer is split by the service's limit. When something is wrong — a bad key, no such model, the quota is used up — you see a short readable message instead of the service's error page. If the voice or the key belongs to another service (say, the OpenAI voice "alloy" chosen for Gemini), a warning appears under the field — and switching the service resets the model and voice to its defaults. **▶ Test** saves the settings and plays a sample the same way real speech is played. Reading the same answer aloud again comes from a cache and is not paid for twice.
+For cloud services MemuAI fills in the address, suggests models and voices and gives a **Get a key →** link. **↻ Refresh lists** loads the provider’s live lists — models and voices per model (OpenRouter’s lists come from its catalog without a key). When the model changes, the voice switches to the new model’s first voice when the old one does not fit it. Each service’s settings — key, address, model and voice — are kept separately and come back when you switch back. **Response format** is usually "Auto": mp3, except models that only return pcm, such as HeyGen Voice Turbo (pcm is automatic there, and raw pcm is wrapped into a WAV). Each service gets requests in its own native format, and a long answer is split by the service's limit. When something is wrong — a bad key, no such model, the quota is used up — you see a short readable message instead of the service's error page. If the voice or the key belongs to another service (say, the OpenAI voice "alloy" chosen for Gemini), a warning appears under the field — and switching the service resets the model and voice to its defaults. **▶ Test** saves the settings and plays a sample the same way real speech is played. Reading the same answer aloud again comes from a cache and is not paid for twice.
 
 Older "TTS API" settings keep working: the service is detected from the address.
 
@@ -101,10 +102,10 @@ Classic Live is a chain: speech recognition → chat model → speech. **Live mo
 
 1. Turn the switch on and pick a provider.
 2. Paste the key — it is stored in the MemuAI data folder and never reaches the window: MemuAI itself opens the connection to the provider.
-3. Optionally set the model and voice — the lists suggest values, but any ID can be typed.
+3. Optionally set the model and voice — the lists suggest values, but any ID can be typed. **↻ Refresh lists** loads the provider’s live lists — models and voices.
 4. Click **Test connection**: MemuAI opens a session, waits for confirmation and closes it right away.
 
-**Advanced** holds turn detection (semantic waits for a finished thought, server VAD reacts to silence) and, for a custom API, the protocol dialect: GA or the older beta.
+**Advanced** holds turn detection (semantic waits for a finished thought, server VAD reacts to silence), default instructions (used when the Live window starts without its own) and the transcription model (for OpenAI Realtime: `gpt-4o-mini-transcribe`, `gpt-4o-transcribe`, `whisper-1`), and, for a custom API, the protocol dialect: GA or the older beta.
 
 ### How the conversation goes
 

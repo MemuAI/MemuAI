@@ -25,7 +25,8 @@ class Static(unittest.TestCase):
         self.assertIn("save({ quick_ask_monitor: e.target.value })", src)
         for value in ('["cursor"', '["window"', '["primary"'):
             self.assertIn(value, src)
-        self.assertIn("/quick-settings.js?v=1.2-r34", (STATIC / "index.html").read_text(encoding="utf-8"))
+        # E13: quick-settings now ships with the 5.0 dated cache-buster.
+        self.assertIn("/quick-settings.js?v=5.0-20261103", (STATIC / "index.html").read_text(encoding="utf-8"))
 
     def test_canvas_settings_describe_the_screen(self):
         src = (STATIC / "quick" / "plugins" / "canvas-settings.js").read_text(encoding="utf-8")

@@ -126,7 +126,10 @@ class WorkAgentsTest(unittest.TestCase):
         job, model, used = asyncio.run(scenario("ask"))
         self.assertEqual(used, [])
         self.assertIn("not available to an agent", model.requests[1][1][-1]["content"])
-        self.assertIn("You may read and search only", model.requests[0][1][0]["content"])
+        # E12: prompt reworded to "File changes and commands are
+        # unavailable. Describe any required change in the report." —
+        # same read-only meaning, other asserts (no work_patch) still hold.
+        self.assertIn("File changes and commands are unavailable. Describe any required change in the report.", model.requests[0][1][0]["content"])
         self.assertNotIn("work_patch {", model.requests[0][1][0]["content"])
         self.assertNotIn("code_run", job.tools())
         job, model, used = asyncio.run(scenario("full"))
@@ -380,17 +383,17 @@ class ContextInTheWindowTest(unittest.TestCase):
         self.assertEqual(out["chat"]["imageCount"], 17)
         self.assertTrue(out["chat"]["sums"])
         self.assertTrue(out["withoutImages"])
-        self.assertEqual(out["compressed"], {"smaller": True, "summary": 73, "count": 2, "firstImageGone": True})
+        self.assertEqual(out["compressed"], {"smaller": True, "summary": 77, "count": 2, "firstImageGone": True})
         self.assertLess(out["staleReport"], 100)
         self.assertGreater(out["freshReport"], 4000)
 
-    def test_the_providers_own_count_replaces_the_estimate(self) -> None:
+    def test_last_request_count_is_independent_of_the_context_estimate(self) -> None:
         out = self.out
-        self.assertEqual(out["measured"], {"flag": True, "total": 9005})
+        self.assertEqual(out["measured"], {"label": "Last request: 9000 input tokens (reported by the provider)", "unchanged": True})
         self.assertEqual(out["measuredPlusNew"], 47)
-        self.assertEqual(out["sentOnly"], {"flag": False, "total": 5052})
-        self.assertFalse(out["otherModel"])
-        self.assertFalse(out["movedMessage"])
+        self.assertEqual(out["sentOnly"], "Last request: ≈5000 input tokens")
+        self.assertEqual(out["imagesOffLast"], out["sentOnly"])
+        self.assertIsNone(out["otherModel"])
 
     def test_the_window_records_the_request_size_and_the_tooltip_names_its_source(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
@@ -398,7 +401,7 @@ class ContextInTheWindowTest(unittest.TestCase):
         self.assertLess(html.index("/context.js"), html.index("/app.js"))
         self.assertIn("MemuContext.payload(apiMessages, model)", js)
         self.assertIn("roundUsage.estimated === false", js)
-        self.assertIn("посчитано провайдером за последний запрос", js)
+        self.assertIn("входных токенов по данным провайдера", js)
         self.assertIn("Изображения и кадры видео", js)
 
 class RealTokenCountsTest(unittest.TestCase):

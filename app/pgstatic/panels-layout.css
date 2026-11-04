@@ -60,7 +60,7 @@ body.project-mode .chat-view-wrap > .mp-zone-strip, body.temp-guide-on .chat-vie
 .mp-zone-strip .mp-card[data-zsize="l"], .mp-placeholder[data-ph="strip"][data-zsize="l"] { --mp-sw: 340px; }
 .mp-zone-strip .mp-card[data-zsize="w"], .mp-placeholder[data-ph="strip"][data-zsize="w"] { --mp-sw: 440px; }
 .mp-zone-strip .mp-zone-body > .mp-zone-end { flex: 1 1 auto; }
-#panels-z-composer .mp-chip { background: color-mix(in srgb, var(--panel) 70%, transparent); border-color: var(--mp-line); height: 30px; }
+#panels-z-composer .mp-chip { background: transparent; border-color: var(--mp-line); height: 30px; }
 #panels-z-composer .mp-chip:hover { border-color: var(--mp-line-strong); }
 .main-content > .mp-zone-col {
   display: none; flex: 0 0 var(--mp-col-w, 280px); width: var(--mp-col-w, 280px); min-height: 0; flex-direction: column;
@@ -130,12 +130,12 @@ body.mp-layout-edit.mp-dragging #group-panels .mp-drop-zone { outline: none; bac
 .mp-zone-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: color-mix(in srgb, var(--accent) 70%, var(--text)); }
 .mp-zone-name b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-zone-name .mp-ico { font-size: 15px; }
-.mp-zone-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mp-zone-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: transparent; box-shadow: inset 0 0 0 1px var(--mp-line); }
 .mp-zone-seg button, .mp-zone-tog, .mp-zone-add {
   height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--mp-muted);
   font: 600 11px/1 var(--mp-text); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
 }
-.mp-zone-seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, .12); }
+.mp-zone-seg button[aria-pressed="true"] { background: var(--d-selected, color-mix(in srgb, var(--accent) 13%, transparent)); color: color-mix(in srgb, var(--accent) 65%, var(--text)); box-shadow: none; }
 .mp-zone-tog { border: 1px solid var(--mp-line); }
 .mp-zone-tog[aria-pressed="true"] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .mp-zone-tog .mp-ico { font-size: 12px; }
@@ -282,3 +282,64 @@ body.mp-layout-edit .panels-home-head .mp-home-label { color: color-mix(in srgb,
 .mp-tbox .mp-ico { font-size: 10px; }
 :root[data-design="focus"] .empty-chat > #panels-z-top { margin-bottom: 18px; }
 body:not(.project-mode):not(.temp-guide-on) #chat-view-wrap.empty-chat:has(> .panels-home:not([hidden])) { overflow-y: auto; overflow-x: hidden; }
+/* Agentic workspace: the endless conversation is the start screen — its zones stay on, the home grid docks beside it. */
+body.space-global:not(.code-mode) .chat-view-wrap > .mp-zone-strip:not([data-count="0"]),
+body.mp-layout-edit.space-global:not(.code-mode) .chat-view-wrap > .mp-zone-strip,
+body.mp-dragging.space-global:not(.code-mode) .chat-view-wrap > .mp-zone-strip { display: block; }
+body.space-global .main-content > .mp-zone-col:not([data-count="0"]),
+body.mp-layout-edit.space-global .main-content > .mp-zone-col,
+body.mp-dragging.space-global .main-content > .mp-zone-col { display: flex; }
+body.space-global .chat-view-wrap:not(.empty-chat) > #panels-home { display: none !important; }
+.main-content > .mp-dock {
+  display: flex; flex-direction: column; flex: 0 0 300px; width: 300px; min-width: 0; min-height: 0; box-sizing: border-box;
+  padding: 12px 14px 14px 2px; position: relative; animation: mp-dock-in var(--mp-dur, 240ms) var(--mp-ease, ease) both;
+}
+.main-content > .mp-dock[hidden], body:not(.space-global) .mp-dock, body.code-mode .mp-dock,
+body:not(.space-global) .mp-dock-top, body.code-mode .mp-dock-top, .mp-dock-top[hidden] { display: none !important; }
+.main-content:has(> #live-preview-pane:not([style*="none"])) > .mp-dock { display: none !important; }
+.main-content > .mp-dock[data-fold="rail"] { flex-basis: 64px; width: 64px; padding: 12px 10px 14px 0; align-items: center; }
+.mp-dock-head { display: flex; align-items: center; gap: 2px; min-height: 30px; padding: 0 0 8px 8px; flex: none; }
+.mp-dock[data-fold="rail"] .mp-dock-head { padding: 0 0 8px; justify-content: center; }
+.mp-dock-title { font: 600 12px/1 var(--mp-text); letter-spacing: .02em; color: var(--mp-muted); }
+.mp-dock-head .grow { flex: 1; }
+.mp-dock-btn {
+  display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; border-radius: 8px; border: 0;
+  background: transparent; color: var(--mp-muted); cursor: pointer; transition: background-color .14s, color .14s;
+}
+.mp-dock-btn:hover, .mp-dock-btn:focus-visible, .mp-dock-btn[aria-expanded="true"] { background: var(--d-hover, var(--hover)); color: var(--text); }
+.mp-dock-btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
+.mp-dock-btn .mp-ico { font-size: 15px; }
+.mp-dock-btn[data-flip] .mp-ico { rotate: 180deg; }
+.mp-dock-head .mp-dock-btn[data-dock="add"], .mp-dock-head .mp-dock-btn[data-dock="menu"] { opacity: 0; transition: opacity .16s, background-color .14s, color .14s; }
+.mp-dock:hover .mp-dock-head .mp-dock-btn, .mp-dock:focus-within .mp-dock-head .mp-dock-btn, body.mp-layout-edit .mp-dock-head .mp-dock-btn { opacity: 1; }
+@media (hover: none) { .mp-dock-head .mp-dock-btn { opacity: 1 !important; } }
+.mp-dock-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column;
+  gap: var(--mp-gap, 10px); padding: 2px 2px 12px; overscroll-behavior: contain; box-sizing: border-box;
+}
+.mp-dock-body > .mp-card, .mp-dock-body > .mp-add-tile { flex: none; }
+.mp-dock-body > .mp-card[data-mode="home"] { min-height: 0; }
+.mp-dock .mp-card { background: linear-gradient(160deg, color-mix(in srgb, var(--mp-tint) 12%, transparent), transparent 62%), var(--mp-bg); box-shadow: none; }
+.mp-dock .mp-card:hover { box-shadow: var(--mp-shadow); }
+.mp-dock-add.mp-add-tile { min-height: 76px; }
+.mp-dock[data-fold="rail"] .mp-dock-body { align-items: center; gap: 6px; width: 100%; }
+.mp-dock[data-fold="rail"] .mp-chip { flex-direction: column; height: auto; width: 48px; padding: 8px 2px 7px; gap: 4px; justify-content: center; background: transparent; border-color: var(--mp-line); }
+.mp-dock[data-fold="rail"] .mp-chip:hover, .mp-dock[data-fold="rail"] .mp-chip[aria-expanded="true"] { background: var(--d-hover, var(--hover)); }
+.mp-dock[data-fold="rail"] .mp-chip .mp-chip-label, .mp-dock[data-fold="rail"] .mp-chip .mp-chip-unit { display: none; }
+.mp-dock[data-fold="rail"] .mp-chip .mp-chip-value { font-size: 11px; max-width: 44px; overflow: hidden; text-overflow: ellipsis; }
+.mp-dock[data-fold="rail"] .mp-dock-btn[data-tail] { width: 48px; height: 34px; border-radius: 10px; border: 1.5px dashed var(--mp-line-strong); flex: none; }
+.mp-dock-body > .mp-zone-end { display: none; }
+.mp-dock[data-count="0"] .mp-dock-body > .mp-zone-end, .mp-dock-top[data-count="0"] .mp-dock-body > .mp-zone-end { display: flex; }
+.mp-dock .mp-zone-end { flex: 0 0 auto; min-height: 120px; min-width: 0; }
+.mp-dock[data-fold="rail"] .mp-zone-end { min-height: 60px; width: 48px; padding: 4px; font-size: 0; }
+.chat-view-wrap > .mp-dock-top {
+  flex-shrink: 0; order: 0; width: 100%; max-width: calc(var(--conversation-width, 780px) + 48px); margin: 0 auto; padding: 8px 24px 2px; box-sizing: border-box;
+}
+.mp-dock-top .mp-dock-body { flex-direction: row; align-items: center; justify-content: safe center; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 6px; overscroll-behavior-x: contain; }
+.mp-dock-top .mp-chip { background: transparent; border-color: var(--mp-line); }
+.mp-dock-top .mp-chip:hover, .mp-dock-top .mp-chip[aria-expanded="true"] { background: var(--d-hover, var(--hover)); border-color: var(--mp-line-strong); }
+.mp-dock-top .mp-dock-btn { width: 30px; height: 30px; }
+.mp-dock-top .mp-zone-end { min-height: 34px; }
+body.mp-layout-edit .mp-dock, body.mp-layout-edit .mp-dock-top { outline-offset: -4px; }
+@keyframes mp-dock-in { from { opacity: 0; translate: 10px 0; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .main-content > .mp-dock { animation: none; } }

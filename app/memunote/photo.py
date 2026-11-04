@@ -41,10 +41,17 @@ Operations (applied in order; adjustments and filters affect the current selecti
   levels {inBlack:0..255, inWhite:0..255, gamma:0.2..5}; hueSaturation {hue:-180..180, saturation:-100..100, lightness:-100..100, colorize:bool};
   vibrance {vibrance:-100..100, saturation:-100..100}; temperature {temperature:-100..100 (positive = warmer), tint:-100..100};
   colorBalance {cyanRed:-100..100, magentaGreen:-100..100, yellowBlue:-100..100}; curves {points:[[0,0],[x,y],...,[255,255]]};
-  autoLevels {}; blackWhite {}; sepia {amount:0..100}; invert {}; threshold {level:0..255}; posterize {levels:2..32}
+  autoLevels {}; blackWhite {}; sepia {amount:0..100}; invert {}; threshold {level:0..255}; posterize {levels:2..32};
+  shadowsHighlights {shadows:-100..100 (lift shadows), highlights:-100..100 (positive = recover highlights)}; clarity {amount:-100..100};
+  dehaze {amount:-100..100}; photoFilter {color:"#rrggbb", density:1..100}; gradientMap {from:"#rrggbb", to:"#rrggbb", amount:0..100};
+  splitToning {shadowHue:0..360, shadowSat:0..100, highlightHue:0..360, highlightSat:0..100, balance:-100..100};
+  channelMixer {rr,rg,rb,gr,gg,gb,br,bg,bb:-200..200 (percent; identity rr=gg=bb=100), mono:bool};
+  look {name:vivid|warm|cool|golden|matte|fade|vintage|film|cinematic|dramatic|noir|mono|lomo|pastel|duotone, amount:0..100} (ready-made style)
 {"op":"filter","name":F,"params":{...}} where F is gaussianBlur {radius:1..60}, sharpen {amount:0..200}, unsharpMask {amount:0..300, radius:0.5..10},
   noise {amount:0..100}, denoise {radius:1..3}, pixelate {size:2..100}, vignette {amount:0..100, size:5..100}, emboss {}, edges {},
-  motionBlur {angle:-180..180, distance:1..80}, oilPaint {radius:1..6}
+  motionBlur {angle:-180..180, distance:1..80}, oilPaint {radius:1..6}, zoomBlur {amount:1..100, cx:0..100, cy:0..100},
+  tiltShift {position:0..100 (sharp band centre, % of height), band:2..90, radius:1..60}, chromatic {distance:0..40},
+  halftone {size:3..60, angle:0..90, colored:bool}, sketch {radius:1..40, strength:10..200}
 {"op":"crop","box":[x0,y0,x1,y1]}            boxes are ALWAYS integers 0..1000 relative to the image width/height
 {"op":"rotate","degrees":D}  {"op":"flip","axis":"horizontal"|"vertical"}  {"op":"resize","width":W,"height":H}
 {"op":"select","box":[x0,y0,x1,y1],"target":"what"}   select an object (refined to its outline locally)
@@ -191,17 +198,21 @@ def image_models(base: str) -> List[Dict[str, Any]]:
     return rows
 
 def _fetch_data_url(url: str) -> str:
+    """Fetch a picture the Proxy's image model returned.
+
+    F19: the URL comes from provider data, not from the user — the old
+    code let urlopen follow redirects anywhere (loopback, LAN, cloud
+    metadata) and read up to 40 MiB in one go. The shared safe fetcher
+    validates every hop (public IP only) and streams with a cap.
+    """
     if url.startswith("data:image/"):
         return url
-    parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme not in ("https", "http"):
-        raise ValueError("bad image url")
-    req = urllib.request.Request(url, headers={"User-Agent": "MemuNote"})
-    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 - result URL given by the user's own Proxy
-        raw = resp.read(40 * 1024 * 1024 + 1)
-        ctype = (resp.headers.get("Content-Type") or "image/png").split(";")[0]
-    if len(raw) > 40 * 1024 * 1024:
-        raise ValueError("image too large")
+    from ..media_cache import Unreachable, fetch_public_sync
+    try:
+        raw, ctype = fetch_public_sync(url, limit=40 * 1024 * 1024, timeout=60,
+                                       headers={"User-Agent": "MemuNote"})
+    except Unreachable as exc:
+        raise ValueError(f"bad image url: {exc}") from exc
     if not ctype.startswith("image/"):
         ctype = "image/png"
     return f"data:{ctype};base64," + base64.b64encode(raw).decode("ascii")

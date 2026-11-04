@@ -16,6 +16,34 @@ from typing import Any, Dict, Iterator, List, Optional
 
 HEAD_BYTES = 96_000
 
+# F31: one foreign file must never be able to exhaust memory or break /import.
+# A whole session file is read at most this much; SQL readers use LIMITs of
+# the same order (see agy/cursor/opencode). Legit sessions are far smaller.
+MAX_READ_BYTES = 200 * 1024 * 1024
+MAX_TURNS = 100_000
+
+
+def as_dict(value: Any) -> Dict[str, Any]:
+    """``value`` when it is a dict, else {} — the guard every ``.get`` on
+    foreign data needs (a string where a dict was expected used to raise
+    AttributeError and kill the whole /import listing)."""
+    return value if isinstance(value, dict) else {}
+
+
+def time_of(data: Any, key: str) -> float:
+    """``iso_to_ts(data[key])`` that tolerates ``data``/``data[key]`` of any type."""
+    return iso_to_ts(as_dict(data).get(key))
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    """int() that never raises on foreign data ("abc"/None/floats)."""
+    try:
+        if isinstance(value, bool):
+            return default
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError, OverflowError):
+        return default
+
 RESULT_CHARS = 1_800
 TEXT_CHARS = 12_000
 
@@ -101,7 +129,8 @@ def iso_to_ts(value: Any) -> float:
         return 0.0
 
 def read_lines(path: Path, *, limit_bytes: int = 0) -> Iterator[Dict[str, Any]]:
-    """The JSON objects of a JSONL file, skipping damaged lines. ``limit_bytes`` stops after about that much."""
+    """The JSON objects of a JSONL file, skipping damaged lines. ``limit_bytes`` stops after about that much.
+    A full read also stops at MAX_READ_BYTES: one giant foreign file must not OOM the import."""
     read = 0
     try:
         with Path(path).open("r", encoding="utf-8", errors="replace") as handle:
@@ -115,7 +144,7 @@ def read_lines(path: Path, *, limit_bytes: int = 0) -> Iterator[Dict[str, Any]]:
                         continue
                     if isinstance(data, dict):
                         yield data
-                if limit_bytes and read >= limit_bytes:
+                if (limit_bytes and read >= limit_bytes) or read >= MAX_READ_BYTES:
                     return
     except OSError as exc:
         raise ReadError(str(exc)) from exc

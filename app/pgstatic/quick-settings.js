@@ -216,8 +216,8 @@
             pref("quick_ask_on_leave", "stay"), { width: 220 }), key: "quick_ask_on_leave", def: "stay" })
 
       + K.row({ label: tr("Держать окно наготове", "Keep the window ready"), keywords: "memory память ram warm тёплое быстрый запуск renderer процесс",
-          desc: tr("Скрытое окно занимает отдельный процесс WebView2. «Авто» — мгновенно открывается, а после 30 минут без использования освобождает память.",
-            "The hidden window is a separate WebView2 process. “Auto” opens instantly and frees its memory after 30 minutes unused."),
+          desc: tr("«Авто» загружает окно при первом вызове и освобождает память после 5 минут простоя. «Всегда» готовит окно при запуске.",
+            "“Auto” loads the window on first use and releases it after 5 minutes idle. “Always” prepares it at startup."),
           control: K.select("st-qa-warm", [["auto", tr("Авто", "Auto")], ["always", tr("Всегда (быстрее)", "Always (fastest)")], ["never", tr("Экономить память", "Save memory")]],
             pref("quick_ask_warm", "auto"), { width: 220 }), key: "quick_ask_warm", def: "auto" })
       + K.row({ label: tr("Личность", "Personality"), keywords: "personality личность характер пресет",
@@ -236,7 +236,7 @@
       desc: tr("Необязательные возможности. Всё работает и без них.", "Optional features. Everything works without them."),
       body: `<div id="qs-plugin-links">${K.link({ label: tr("Выделенный текст", "Selected text"), sub: "quick-selection", icon: ICONS.text, keywords: "selection выделение выделенный текст перевести исправить ctrl c",
           desc: tr("Перевести, объяснить, исправить выделенное в любой программе", "Translate, explain, fix the selection in any program"), value: pref("quick_ask_selection", true) ? "" : tr("выкл", "off") })}
-        ${K.link({ label: tr("Команды", "Commands"), sub: "quick-commands", icon: ICONS.cmd, desc: tr("«Открой телеграм», «громкость 30», свои сценарии", "“Open Telegram”, “volume 30”, your own routines") })}
+        ${K.link({ label: tr("Команды", "Commands"), sub: "quick-commands", icon: ICONS.cmd, keywords: "команды commands экономный economy экономия режим standard стандартный токены tokens режим команд", desc: tr("«Открой телеграм», «громкость 30», свои сценарии", "“Open Telegram”, “volume 30”, your own routines") })}
         ${K.link({ label: tr("Голос", "Voice"), sub: "quick-voice", icon: ICONS.mic, desc: tr("Говорить вместо того, чтобы печатать; озвучка ответов", "Speak instead of typing; spoken answers") })}
         ${K.link({ label: tr("Компаньон", "Companion"), sub: "quick-companion", icon: ICONS.face, desc: tr("Живой персонаж рядом с ответом", "An animated character next to the answer") })}</div>` });
 
@@ -259,7 +259,7 @@
 
     const subs = K.sub({ id: "quick-selection", title: tr("Выделенный текст", "Selected text"), desc: tr("Выделите текст в любой программе и нажмите сочетание быстрого доступа.", "Select text in any program and press the Quick Ask hotkey."),
         body: `<div class="qs-sub-body" id="qs-sub-selection"></div>` })
-      + K.sub({ id: "quick-commands", title: tr("Команды", "Commands"), desc: tr("Пишите или говорите обычными фразами — частые команды выполняются мгновенно, без модели.", "Type or say plain phrases — common commands run instantly, without a model."),
+      + K.sub({ id: "quick-commands", title: tr("Команды", "Commands"), desc: tr("Пишите или говорите обычными фразами — частые команды выполняются мгновенно, без модели. Здесь же — режим выполнения: стандартный или экономный.", "Type or say plain phrases — common commands run instantly, without a model. The run mode — standard or economy — is right here too."),
         body: `<div class="qs-sub-body" id="qs-sub-commands"></div>` })
       + K.sub({ id: "quick-voice", title: tr("Голос", "Voice"), desc: tr("Удерживайте микрофон или Ctrl+Space и говорите. Esc прерывает.", "Hold the mic or Ctrl+Space and speak. Esc interrupts."),
         body: `<div class="qs-sub-body" id="qs-sub-voice"></div>` })

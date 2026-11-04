@@ -300,7 +300,9 @@ def stream_chat(base: str, body: Dict[str, Any], cancel: threading.Event,
     for path, openai in (("/api/admin/playground/chat", False), ("/v1/chat/completions", True)):
         if cancel.is_set():
             return
-        conn = _conn(base, 900)
+        # F35: a streaming reply that stays silent for 120 s is a
+        # timeout, not a hang (was 900 s per recv).
+        conn = _conn(base, 120)
         if on_conn:
             on_conn(conn)
         try:

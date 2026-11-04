@@ -39,6 +39,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Deque, Dict, Iterable, List, Optional, Tuple
@@ -88,6 +89,13 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "ai_router": "auto",
     "router_model": "",
     "router_timeout": 4,
+
+    # Token mode: "standard" runs the full pipeline, "economy" trims prompts and
+    # re-checks (see MODES below). Default standard — existing users notice nothing.
+    "mode": "standard",
+    # Optional cheaper model for the router's classification call, used only in
+    # economy mode; empty = the same model as usual.
+    "router_model_eco": "",
 }
 SOUNDS = ("chime", "bell", "soft", "digital", "off")
 VOICE_PROVIDERS_STT = ("", "local", "api")
@@ -97,6 +105,44 @@ MAX_STEPS = 40
 MAX_TRIGGERS = 12
 MAX_LAYOUTS = 30
 TIER_RANK = {"safe": 0, "confirm": 1, "dangerous": 2}
+
+# Execution modes for commands ("Команды"): standard vs economy.
+#
+# standard — the full pipeline as before: the full tool catalog in the model
+# prompt, the full router prompt (all actions with enums, running apps with
+# window titles), live context on every router call, full system prompts, full
+# YouTube transcript chunks.
+#
+# economy — the same results whenever possible, fewer tokens:
+#   router prompt: action ids + required params only (no enums, no descriptions),
+#     running apps capped at 12, window titles dropped, command names capped at 10,
+#     live context cached 10 s, max_tokens 120 -> 100;
+#   model tool description: short catalog (ids + required params only);
+#   ask-AI steps and text tools: short system prompt, no local-time suffix;
+#   YouTube summaries: at most 4 transcript chunks instead of 12;
+#   tool results sent back to the model: tighter caps (message 800, answer 1500).
+# What economy NEVER does: it never truncates the user's own text, never skips
+# the safe layer (validation, confirmations, rate limits), never changes which
+# actions run, and never drops a retry that exists for a reason — the retries in
+# the endpoint path are targeted (reasoning-field rejection, max_completion_tokens
+# fallback), not blind repeats, so both modes keep them.
+MODES = ("standard", "economy")
+COMMAND_MODES = ("inherit", "standard", "economy")
+
+
+def effective_mode(settings: Optional[Dict[str, Any]] = None,
+                   command: Optional[Dict[str, Any]] = None) -> str:
+    """The mode a command runs in: the command's own mode, else the global one.
+
+    A command stores "inherit" by default, so the global switch applies to every
+    command that does not override it; storing "standard" for old commands would
+    have frozen them out of the global switch. The effective default is "standard".
+    """
+    if isinstance(command, dict) and command.get("mode") in MODES:
+        return str(command["mode"])
+    if isinstance(settings, dict) and settings.get("mode") in MODES:
+        return str(settings["mode"])
+    return "standard"
 
 def _bool(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
@@ -152,6 +198,8 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
     out["ai_router"] = src.get("ai_router") if src.get("ai_router") in ("auto", "always", "off") else "auto"
     out["router_model"] = str(src.get("router_model") or "").strip()[:300]
     out["router_timeout"] = _int(src.get("router_timeout"), 4, 1, 15)
+    out["mode"] = src.get("mode") if src.get("mode") in MODES else "standard"
+    out["router_model_eco"] = str(src.get("router_model_eco") or "").strip()[:300]
     return out
 
 _HHMM = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
@@ -231,7 +279,7 @@ def validate_step(raw: Any, depth: int = 0) -> Dict[str, Any]:
         step["note"] = note[:200]
     return step
 
-def validate_command(raw: Any, existing_ids: Optional[set] = None) -> Dict[str, Any]:
+def validate_command(raw: Any) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         raise CommandError("command must be an object")
     name = re.sub(r"\s+", " ", str(raw.get("name") or "")).strip()[:60]
@@ -255,9 +303,11 @@ def validate_command(raw: Any, existing_ids: Optional[set] = None) -> Dict[str, 
     if not isinstance(steps_raw, list) or not steps_raw:
         raise CommandError("add at least one step")
     steps = [validate_step(step) for step in steps_raw[:MAX_STEPS]]
+    mode = str(raw.get("mode") or "inherit")
     now = int(time.time())
     return {"id": command_id, "name": name, "enabled": _bool(raw.get("enabled"), True), "triggers": triggers,
             "hotkey": hotkey, "trusted": _bool(raw.get("trusted"), False), "steps": steps,
+            "mode": mode if mode in COMMAND_MODES else "inherit",
             "description": str(raw.get("description") or "")[:300],
             "created": int(raw.get("created") or now) if str(raw.get("created") or "").isdigit() or isinstance(raw.get("created"), int) else now,
             "updated": now}
@@ -696,6 +746,13 @@ class Engine:
         self.seq = 0
         self.lock = threading.RLock()
 
+        # Mode stack for the routine currently running (empty = the global setting).
+        # run_routine pushes the routine's effective mode so nested ask-AI steps
+        # and text tools inherit it; it is popped on exit, even on error.
+        self._routine_mode: ContextVar[Optional[str]] = ContextVar("assistant_routine_mode", default=None)
+        # Economy router cache: (monotonic timestamp, live_context dict), 10 s.
+        self._router_ctx_cache: Optional[Tuple[float, Dict[str, Any]]] = None
+
         self.completion: Optional[Callable[..., Awaitable[str]]] = None
         self.proxy_sse: Optional[Callable[[str, bytes], Any]] = None
         self.proxy_json: Optional[Callable[..., Awaitable[Any]]] = None
@@ -727,6 +784,20 @@ class Engine:
 
     def settings(self) -> Dict[str, Any]:
         return self.store.load()["settings"]
+
+    def mode(self, command: Optional[Dict[str, Any]] = None) -> str:
+        """Effective mode right now: the command's own mode wins; otherwise the mode of the
+        routine it runs inside (so a nested command.run inherits the outer run); otherwise
+        the global setting."""
+        if isinstance(command, dict) and command.get("mode") in MODES:
+            return str(command["mode"])
+        mode = self._routine_mode.get()
+        if mode is not None:
+            return mode
+        return effective_mode(self.settings())
+
+    def economy(self, command: Optional[Dict[str, Any]] = None) -> bool:
+        return self.mode(command) == "economy"
 
     def emit(self, card: Dict[str, Any]) -> Dict[str, Any]:
         with self.lock:
@@ -2152,6 +2223,14 @@ class Engine:
                 "answer": "\n\n".join(s.get("answer", "") for s in report if s.get("answer")).strip() or None}
 
     async def run_routine(self, command: Dict[str, Any], *, lang: str = "ru", depth: int = 1) -> List[Dict[str, Any]]:
+        """Run a custom command's steps in its effective mode (see MODES)."""
+        token = self._routine_mode.set(self.mode(command))
+        try:
+            return await self._run_routine_steps(command, lang=lang, depth=depth)
+        finally:
+            self._routine_mode.reset(token)
+
+    async def _run_routine_steps(self, command: Dict[str, Any], *, lang: str = "ru", depth: int = 1) -> List[Dict[str, Any]]:
         from .safe_mode import is_safe_mode
         if is_safe_mode():
             raise ActionError("Безопасный режим: свои сценарии не выполняются", "safe_mode",
@@ -2239,8 +2318,19 @@ class Engine:
         """One model answer for a routine step or a text tool (translate, summarize, YouTube), reasoning removed."""
         from .pgdata import load_preferences
         prefs = load_preferences()
-        system = (system or "You are MemuAI Quick Ask running a step of the user's routine. Answer briefly and directly, "
-                  "in the language of the request.") + " Local time: " + self.now_fn().strftime("%Y-%m-%d %H:%M (%A)") + "."
+        if self.economy():
+            # Short system prompt; the two known long systems have short equivalents.
+            # A caller-passed custom system stays untouched. The local-time suffix is
+            # dropped: ask-AI steps and text tools do not need the time.
+            known = {"": ASK_AI_SYSTEM_ECO, ASK_AI_SYSTEM: ASK_AI_SYSTEM_ECO}
+            try:
+                from .assistant_r24 import TOOL_SYSTEM
+                known[TOOL_SYSTEM] = TEXT_TOOL_SYSTEM_ECO
+            except Exception:
+                pass
+            system = known.get(system or "", system)
+        else:
+            system = (system or ASK_AI_SYSTEM) + " Local time: " + self.now_fn().strftime("%Y-%m-%d %H:%M (%A)") + "."
         messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
 
         from . import quick_ask_endpoint as endpoint
@@ -2414,13 +2504,13 @@ def telegram_problem(status: Dict[str, Any], lang: str) -> str:
     reason code — «(telegram_enabled=false)», «(no token)» — or a raw exception text)."""
     reason = str(status.get("reason") or "")
     if reason == "telegram_enabled=false":
-        return tr(lang, "Telegram-бот MemuAI выключен: включите его в Настройки → Telegram.",
-                  "The MemuAI Telegram bot is turned off: turn it on in Settings → Telegram.")
+        return tr(lang, "Telegram-бот MemuAI выключен: включите его в Настройки → Мессенджеры → Telegram.",
+                  "The MemuAI Telegram bot is turned off: turn it on in Settings → Messengers → Telegram.")
     if reason == "no token":
-        return tr(lang, "У Telegram-бота MemuAI нет токена: Настройки → Telegram.",
-                  "The MemuAI Telegram bot has no token: Settings → Telegram.")
-    return tr(lang, "Telegram-бот MemuAI не подключён: Настройки → Telegram.",
-              "The MemuAI Telegram bot is not paired: Settings → Telegram.")
+        return tr(lang, "У Telegram-бота MemuAI нет токена: Настройки → Мессенджеры → Telegram.",
+                  "The MemuAI Telegram bot has no token: Settings → Messengers → Telegram.")
+    return tr(lang, "Telegram-бот MemuAI не подключён: Настройки → Мессенджеры → Telegram.",
+              "The MemuAI Telegram bot is not paired: Settings → Messengers → Telegram.")
 
 def add_reminder_task(text: str, when: datetime, lang: str = "ru") -> str:
     """A one-shot task in schedules.json with ``kind: "reminder"`` — ``scheduler._run_task`` delivers it
@@ -2574,9 +2664,27 @@ def voice_prefs(prefs: Dict[str, Any], body: Any, store: Optional[Store] = None)
 
 TOOL_NAME = "assistant_action"
 
-def tool_prompt(settings: Dict[str, Any], lang: str = "ru") -> str:
+# System prompts for _ask_ai: the standard text tool/routine prompt and their
+# short economy equivalents (same meaning, fewer tokens).
+ASK_AI_SYSTEM = ("You are MemuAI Quick Ask running a step of the user's routine. Answer briefly and directly, "
+                 "in the language of the request.")
+ASK_AI_SYSTEM_ECO = "You are MemuAI Quick Ask. Answer briefly, in the request's language."
+TEXT_TOOL_SYSTEM_ECO = "You are a MemuAI text tool. Output only the result."
+
+
+def tool_prompt(settings: Dict[str, Any], lang: str = "ru", economy: bool = False) -> str:
     enabled = [a for a in catalog.BY_ID if a not in settings["disabled_actions"]
                and (settings["advanced_shell"] or not catalog.BY_ID[a]["advanced"])]
+    if economy:
+        # Short catalog: ids + required params only (see compact_catalog(short=True)).
+        # The model still sees the whole vocabulary; the full parameter schemas travel
+        # with the tool itself, and the safe layer re-validates what the model sends.
+        return (
+            f"  {TOOL_NAME} {{action, params}} — run MemuAI actions on this PC. One call per action; "
+            "several actions may go in one block. [confirm]/[dangerous] actions ask the user first — "
+            "never claim they are done until the result says so. Reminder times: local 'YYYY-MM-DDTHH:MM' "
+            "or in_minutes. Never order, pay or book anything: food/shop/taxi only open the site.\n"
+            "  Actions:\n" + catalog.compact_catalog(enabled, short=True))
     return (
         f"  {TOOL_NAME} {{action, params}} — control the user's Windows PC and MemuAI (open/close apps, volume, "
         "brightness, windows, timers, reminders incl. Telegram, Pomodoro, screenshots, images, notes, power…). "
@@ -2595,20 +2703,25 @@ def tool_schema() -> Dict[str, Any]:
             "params": {"type": "object", "description": "Parameters of the action"}},
             "required": ["action"]}}}
 
-def model_result(card: Dict[str, Any]) -> Dict[str, Any]:
-    """What the model sees after a tool call (short, honest about confirmation)."""
+def model_result(card: Dict[str, Any], economy: bool = False) -> Dict[str, Any]:
+    """What the model sees after a tool call (short, honest about confirmation).
+
+    Economy trims the caps: this is the previous turn's result fed back to the model,
+    so a shorter summary is enough — the card itself stays full in the UI.
+    """
+    msg_cap, ans_cap, det_cap, list_cap = (800, 1500, 6, 15) if economy else (1500, 3000, 12, 30)
     out = {"tool": TOOL_NAME, "action": card.get("action"), "status": card.get("status"),
-           "message": str(card.get("message") or "")[:1500]}
+           "message": str(card.get("message") or "")[:msg_cap]}
     if card.get("status") == "confirm":
         out["note"] = ("Waiting for the user to press Confirm on the card. Tell the user to confirm; do NOT say it is done.")
     if card.get("details"):
-        out["details"] = card["details"][:12]
+        out["details"] = card["details"][:det_cap]
     if card.get("list"):
-        out["list"] = card["list"][:30]
+        out["list"] = card["list"][:list_cap]
     if card.get("images"):
         out["images"] = card["images"][:4]
     if card.get("answer"):
-        out["answer"] = str(card["answer"])[:3000]
+        out["answer"] = str(card["answer"])[:ans_cap]
     return out
 
 _ENGINE: Optional[Engine] = None
@@ -2716,7 +2829,7 @@ def register_quick_tools(eng: Engine) -> bool:
             return {"action": action, "status": "running",
                     "message": "Still running; the result will appear on a card in the window. Tell the user it is in progress."}
         card = job.result()
-        out = model_result(card)
+        out = model_result(card, economy=eng.economy())
         out.pop("tool", None)
         out["ui"] = card
         return out
@@ -2738,7 +2851,7 @@ def register_quick_tools(eng: Engine) -> bool:
             current = eng.settings()
         except Exception:
             current = normalize_settings({})
-        return tool_prompt(current, "en").strip()[len(TOOL_NAME):].strip()
+        return tool_prompt(current, "en", economy=current.get("mode") == "economy").strip()[len(TOOL_NAME):].strip()
 
     try:
         register_tool(TOOL_NAME, description, handler, label=label, enabled=enabled)
@@ -2958,13 +3071,21 @@ def register(app, *, proxy_sse=None, proxy_json=None, completion=None) -> Engine
             elif op == "delete":
                 ref = str(body.get("id") or "")
                 data = await asyncio.to_thread(eng.store.update, lambda d: d.__setitem__("commands", [c for c in d["commands"] if c["id"] != ref]))
-            elif op == "toggle":
+            elif op in ("toggle", "mode"):
                 ref = str(body.get("id") or "")
+                mode = str(body.get("mode") or "")
+                if op == "mode" and mode not in COMMAND_MODES:
+                    raise CommandError(tr(lang, "Неизвестный режим команды.", "Unknown command mode."))
 
                 def toggle(d):
                     for c in d["commands"]:
                         if c["id"] == ref:
-                            c["enabled"] = bool(body.get("enabled"))
+                            if op == "mode":
+                                c["mode"] = mode
+                            else:
+                                c["enabled"] = bool(body.get("enabled"))
+                            return
+                    raise CommandError(tr(lang, "Команда не найдена.", "Command not found."))
                 data = await asyncio.to_thread(eng.store.update, toggle)
             elif op == "import":
                 raw = body.get("commands")

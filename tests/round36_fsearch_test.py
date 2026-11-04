@@ -32,6 +32,7 @@ JS = ROOT / "app" / "pgstatic" / "quick" / "plugins" / "fsearch.js"
 
 @pytest.fixture()
 def tree(tmp_path, monkeypatch):
+    from PIL import Image
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("MEMUFILES_TRASH_DIR", str(tmp_path / "trash"))
     monkeypatch.setattr(fsindex, "_SERVICE", None)
@@ -44,6 +45,7 @@ def tree(tmp_path, monkeypatch):
     (root / "Отчёт за март.pdf").write_bytes(b"%PDF" + b"x" * 5000)
     (root / "report.docx").write_bytes(b"d" * 2048)
     (root / "notes.txt").write_text("hello")
+    Image.new("RGB", (80, 60), "black").save(root / "0001.png")
     fsindex.save_settings({"roots": [str(root)], "live": False, "backend": "own"})
     fsindex.rebuild(wait=True)
     yield root
@@ -143,7 +145,7 @@ def test_frontend_contract():
     for action in ("rename", "duplicate", "compress", "trash", "undo", "properties", "attach", "open_with"):
         assert f'"{action}"' in js or f"'{action}'" in js
     manifest = (ROOT / "app" / "pgstatic" / "quick" / "plugins" / "index.json").read_text(encoding="utf-8")
-    assert next(row for row in json.loads(manifest)["plugins"] if row["id"] == "fsearch")["v"] == "4.1"
+    assert next(row for row in json.loads(manifest)["plugins"] if row["id"] == "fsearch")["v"] == "4.1-20261103"
 
 def _free_port() -> int:
     with socket.socket() as s:
@@ -213,6 +215,10 @@ async def _ui_flow(base: str, tree: Path, shots: str = "") -> list:
                 rows = await page.evaluate("[...document.querySelectorAll('.fs-row .tx')].map(e => e.textContent)")
                 if rows != ["report.docx"]:
                     problems.append(f"rows {rows}")
+                await page.fill("#fs-q", "")
+                example = "чёрная картинка" if lang == "ru" else "black image"
+                await page.locator(".fs-tip").get_by_text(example, exact=True).click()
+                await page.locator(".fs-row .tx", has_text="0001.png").wait_for()
                 await page.fill("#fs-q", "")
                 await page.keyboard.type("*.*", delay=10)
                 await page.wait_for_function("document.querySelectorAll('.fs-row').length >= 3", timeout=5000)

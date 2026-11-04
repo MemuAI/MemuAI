@@ -1,3 +1,1 @@
 «Персонажи» — ролевые чаты с персонажами (карточки SillyTavern). Когда пользователь просит «открой чат с X», «поговорить с X», «продолжи с X» — вызови characters.open с name: X (без имени — последний чат). Сам чат идёт в модуле: не изображай персонажа в этом чате и не пересказывай его карточку.
-
-Model selector: the connection panel model select uses the shared MemuModelSelector (dropdown preset via mountSelect) and the model picker popup groups favourites/recent models (getFavorites/getRecent) above provider groups with real catalogue names via providerName(), never a raw "custom" provider; picking a model records it with noteRecent().

@@ -1,7 +1,7 @@
 
 
 import { api, rawUrl, API } from "../core.js";
-import { PhotoDoc, newCanvas, ctx2d, renderVector, loadSvgImage, DEFAULT_TEXT, fontString, wrapText, textBox, shapePath } from "./doc.js";
+import { PhotoDoc, newCanvas, ctx2d, renderVector, loadSvgImage, DEFAULT_TEXT, fontString, wrapText, textBox, shapePath, hasFx, cloneFx, sanitizeFx } from "./doc.js";
 
 export const BROWSER_EXT = new Set([".png", ".jpg", ".jpeg", ".jfif", ".pjpeg", ".pjp", ".webp", ".gif", ".bmp", ".ico", ".cur", ".avif", ".apng", ".svg"]);
 export const SAVE_FORMATS = {
@@ -170,6 +170,7 @@ function layerMeta(l) {
   if (l.shape) m.shape = { ...l.shape };
   if (l.svg) { const { img, ...rest } = l.svg; m.svg = rest; }
   if (l.type === "group") m.open = l.open !== false;
+  if (hasFx(l.fx)) m.fx = cloneFx(l.fx);
   return m;
 }
 export async function writeMemuimg(doc) {
@@ -207,6 +208,7 @@ export async function readMemuimg(buf) {
     for (const m of list || []) {
       const l = doc.makeLayer({ ...m, canvas: m.type === "group" ? undefined : (m.src ? await img(m.src) : newCanvas(doc.width, doc.height)) || newCanvas(doc.width, doc.height), children: undefined, src: undefined });
       delete l.src;
+      if (l.fx) l.fx = sanitizeFx(l.fx); if (!l.fx) delete l.fx;
       if (m.type === "group") { l.children = await build(m.children); l.open = m.open !== false; }
       if (m.mask) l.mask = await img(m.mask);
       if (l.type === "svg" && l.svg?.source) { try { l.svg.img = await loadSvgImage(l.svg.source); } catch {  } }
@@ -246,6 +248,7 @@ export async function writeSvg(doc) {
       if (!l.visible) continue;
       const style = `${l.opacity < 1 ? ` opacity="${+l.opacity.toFixed(3)}"` : ""}${l.blend && l.blend !== "normal" ? ` style="mix-blend-mode:${l.blend}"` : ""}`;
       let maskAttr = "";
+      if (l.type !== "group" && hasFx(l.fx)) { out.push(`<g id="${xmlEsc(l.id)}" data-name="${xmlEsc(l.name)}"${style}><image x="0" y="0" width="${doc.width}" height="${doc.height}" href="data:image/png;base64,${await canvasToB64(doc.layerPixelsWithFx(l))}"/></g>`); continue; }
       if (l.mask && l.maskOn !== false) {
         const id = "m" + n++;
         defs += `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${doc.width}" height="${doc.height}"><image x="${l.x}" y="${l.y}" width="${l.mask.width}" height="${l.mask.height}" href="data:image/png;base64,${await canvasToB64(maskToGrey(l.mask))}"/></mask>`;
@@ -277,6 +280,7 @@ async function psdLayers(doc, list) {
   for (const l of list) {
     const m = { name: l.name, opacity: l.opacity, blend: l.blend, visible: l.visible };
     if (l.type === "group") { m.type = "group"; m.open = l.open !== false; m.children = await psdLayers(doc, l.children); }
+    else if (hasFx(l.fx)) { m.png = await canvasToB64(doc.layerPixelsWithFx(l)); m.x = 0; m.y = 0; out.push(m); continue; }
     else { m.png = await canvasToB64(l.canvas); m.x = l.x; m.y = l.y; }
     if (l.mask) { m.mask = { png: await canvasToB64(maskToGrey(l.mask)), x: l.type === "group" ? 0 : l.x, y: l.type === "group" ? 0 : l.y, default: 0, disabled: l.maskOn === false }; }
     out.push(m);

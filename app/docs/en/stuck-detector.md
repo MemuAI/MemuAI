@@ -5,7 +5,7 @@ summary: When the AI goes in circles in Work, Do For You, Browser, Computer Use 
 
 # Stuck detector
 
-MemuAI agents work on their own for many steps in a row: they continue the plan and the goal in [Work](doc:work), press buttons in [Do For You](doc:dfy), drive [Browser and Computer Use](doc:browser-computer) and call tools in [MemuCode](doc:memucode-cli). Sometimes a model gets stuck: it clicks the same button that does nothing, hits the same error or writes "continuing" without changing anything. Such a loop used to burn steps and money until it reached the limit.
+MemuAI agents work on their own for many steps in a row: they continue the plan and the goal in [Work](doc:work), press buttons in [Do For You](doc:dfy), drive [Browser and Computer Use](doc:browser-computer) and call tools in [MemuCode](doc:memucode) and [MemuCode CLI](doc:memucode-cli). Sometimes a model gets stuck: it clicks the same button that does nothing, hits the same error or writes "continuing" without changing anything. Such a loop used to burn steps and money until it reached the limit.
 
 The stuck detector notices it and **pauses** the work — it does not end it, it holds it until you decide. While the pause is open nothing runs: the action that kept repeating is not performed one more time.
 

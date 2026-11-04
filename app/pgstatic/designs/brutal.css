@@ -197,6 +197,7 @@
 :root[data-design="brutal"] .mp-chip { border-radius: 999px; border: var(--b-line); }
 :root[data-design="brutal"] :is(.mp-menu, .mp-modal) { border-radius: 12px; border: var(--b-line); box-shadow: var(--b-sh-2); }
 :root[data-design="brutal"] :is(.docs-search, .docs-find) { border-radius: 10px; border: var(--b-line); background: var(--b-card); }
+:root[data-design="brutal"]:not([data-theme="light"]) :is(.docs-search, .docs-find) { background: transparent; }
 :root[data-design="brutal"] :is(.docs-page-link, .docs-group-head, .docs-result) { border-radius: 8px; }
 :root[data-design="brutal"] .docs-page-link.active { background: var(--b-ink); color: var(--b-paper); }
 :root[data-design="brutal"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 12px; border: var(--b-line); }

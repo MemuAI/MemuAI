@@ -37,6 +37,11 @@ _SCHEMA = """CREATE TABLE IF NOT EXISTS hashes (
 CacheKey = Tuple[str, int, int, int, int]
 
 
+def _sqlite_identity(value: int) -> int | str:
+    # Volume and file IDs on Windows can exceed SQLite's signed integer range.
+    return value if -(1 << 63) <= value < (1 << 63) else hex(value)
+
+
 def stat_key(path: str) -> Optional[CacheKey]:
     """The cache key of ``path`` from a fresh stat, or None when it is gone."""
     try:
@@ -87,7 +92,7 @@ class HashCache:
                     row = conn.execute(
                         "SELECT path, full, prefix FROM hashes"
                         " WHERE path = ? AND size = ? AND mtime_ns = ? AND dev = ? AND ino = ?",
-                        key).fetchone()
+                        (*key[:3], _sqlite_identity(key[3]), _sqlite_identity(key[4]))).fetchone()
                     if row is not None:
                         found[row[0]] = (row[1], row[2])
         except sqlite3.Error:
@@ -101,7 +106,7 @@ class HashCache:
         if conn is None:
             return
         now = time.time_ns()
-        rows = [(key[0], key[1], key[2], key[3], key[4], full, prefix, now)
+        rows = [(*key[:3], _sqlite_identity(key[3]), _sqlite_identity(key[4]), full, prefix, now)
                 for key, full, prefix in entries if key[1] >= self.min_size]
         if not rows:
             return

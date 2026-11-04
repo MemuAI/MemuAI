@@ -81,7 +81,8 @@ async def edit_file(ctx: Any, path: Path, *, title: str = "", create: str = "") 
     if command and await open_external(ui, path, command):
         return True
     try:
-        text = path.read_text(encoding="utf-8") if path.exists() else create
+        # F33: a file with a bad byte used to be unopenable in the editor.
+        text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else create
     except OSError as exc:
         ctx.say(str(exc), "error")
         return False

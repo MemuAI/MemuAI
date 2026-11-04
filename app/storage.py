@@ -170,6 +170,27 @@ def _prune_backups(path: PathValue) -> None:
 
 _PRETTY_JSON_LIMIT = 256 * 1024
 
+
+def _fsync_dir(directory: str) -> None:
+    """Persist a directory entry (rename) the way fsync persists file data.
+
+    On Windows there is no directory fsync; os.open on a directory fails
+    there, so this is a no-op. Every failure is swallowed: durability is
+    best-effort, the write itself already succeeded.
+    """
+    if os.name == "nt":
+        return
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
 def _write_unlocked(path: PathValue, data: Any) -> None:
     path = os.fspath(path)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -192,6 +213,9 @@ def _write_unlocked(path: PathValue, data: Any) -> None:
                     raise
 
                 time.sleep(min(0.01 * (2 ** attempt), 0.1))
+        # F28: fsync the directory too — a file fsync alone does not persist
+        # the rename itself across a crash/power loss.
+        _fsync_dir(os.path.dirname(os.path.abspath(path)))
     finally:
         try:
             os.remove(tmp)

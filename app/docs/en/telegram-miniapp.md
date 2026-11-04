@@ -18,7 +18,7 @@ The Mini App is MemuAI as an app inside Telegram: the chat list with folders and
 
 ## Turning it on
 
-1. **Settings → Telegram**, below the bot panel — the **Mini App — MemuAI in Telegram** card.
+1. **Settings → Messengers → Telegram**, below the bot panel — the **Mini App — MemuAI in Telegram** card.
 2. Switch on **Enable the Mini App**.
 3. Keep the **Cloudflare** address (default) or choose **Own URL**.
 4. Wait until the status reads **Online**: a public address appears and the bot updates its menu button itself.

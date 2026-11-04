@@ -388,7 +388,7 @@ def tool_skill(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[s
     from . import code_skills
     action = str(args.get("action") or "get").lower()
     if action == "list":
-        return {"skills": code_skills.catalogue(root)}
+        return {"skills": code_skills.window_catalogue(root)}
     if action == "match":
         return {"skills": code_skills.match_skills(str(args.get("query") or ""))}
     skill_id = str(args.get("id") or "").strip().lower()

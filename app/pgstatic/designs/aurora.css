@@ -320,7 +320,8 @@
 :root[data-design="aurora"] :is(.table-wrap, .body) td { padding: 12px 18px; border-bottom: 1px solid var(--au-hair-soft); }
 :root[data-design="aurora"] :is(.table-wrap table, .body table) { font-size: .95em; }
 :root[data-design="aurora"] .table-wrap tr:last-child td { border-bottom: 0; }
-:root[data-design="aurora"] .table-wrap tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+:root[data-design="aurora"] .table-wrap tr:hover { --tw-row-hover: color-mix(in srgb, var(--accent) 5%, transparent); }
+:root[data-design="aurora"] .table-wrap tr:nth-child(n) td { background: var(--tw-row-hover, transparent); }
 :root[data-design="aurora"] .msg-assistant .body .katex { font-size: 1.12em; }
 :root[data-design="aurora"] .msg-assistant .body .katex-display { padding: 14px 0; }
 :root[data-design="aurora"] .msg-tool { border-radius: 50%; }
@@ -368,7 +369,7 @@
 }
 :root[data-design="aurora"] .settings-title { font: 560 18px/1.35 var(--au-serif); letter-spacing: -.01em; border-bottom-color: var(--au-hair-soft); }
 :root[data-design="aurora"] .p-toggle { border-bottom-color: var(--au-hair-soft); }
-:root[data-design="aurora"] :is(.pinput, .ptexta) { border-radius: 14px; background: color-mix(in srgb, var(--bg) 70%, var(--panel)); }
+:root[data-design="aurora"] :is(.pinput, .ptexta) { border-radius: 14px; background: var(--field-bg, var(--panel)); }
 :root[data-design="aurora"] .pinput { min-height: 40px; }
 :root[data-design="aurora"] .pbtn { border-radius: 999px; padding: 8px 18px; min-height: 40px; background: var(--brand); }
 :root[data-design="aurora"] .pbtn:not(.ghost):not(.danger) { box-shadow: 0 10px 22px -14px color-mix(in srgb, var(--accent) 80%, transparent); }

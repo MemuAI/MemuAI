@@ -108,7 +108,7 @@
           }, 1000);
           poll();
         } catch (error) {
-          const text = error.code === "web_off" ? tr("Вход из браузера выключен на компьютере: MemuAI → Настройки → Telegram → Mini App.", "Browser sign-in is off on the computer: MemuAI → Settings → Telegram → Mini App.")
+          const text = error.code === "web_off" ? tr("Вход из браузера выключен на компьютере: MemuAI → Настройки → Мессенджеры → Telegram → Mini App.", "Browser sign-in is off on the computer: MemuAI → Settings → Messengers → Telegram → Mini App.")
             : error.code === "disabled" ? tr("Mini App выключен в настройках MemuAI.", "The Mini App is turned off in MemuAI settings.") : error.message;
           draw("", text);
         }

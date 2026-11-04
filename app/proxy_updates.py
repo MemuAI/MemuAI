@@ -31,6 +31,11 @@ from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urljoin, urlsplit
 
+# E07: Request must be importable at module level so route annotations
+# resolve before register_proxy_update_routes() runs (fastapi is a hard
+# dependency of the project, so this import is always available).
+from fastapi import Request
+
 from . import update_release
 from .config import DATA_DIR, UPDATE_CHANNELS, UPDATE_INTERVAL_HOURS, config_store
 from .storage import load_json_with_recovery, save_json
@@ -601,9 +606,10 @@ def register_proxy_update_routes(app: Any, updater: ProxyUpdater | None = None) 
     from fastapi import Request
     from fastapi.responses import JSONResponse
 
-    # Аннотации обработчиков — строки из-за ``from __future__ import annotations``,
-    # а FastAPI разрешает их через глобальное пространство модуля: без этого
-    # ``request`` превращается в обязательный query-параметр (422).
+    # E07: Request must be importable at module level — the old code only
+    # put it into globals() inside register(), so the annotation was
+    # unresolvable before registration (and a static test flagged it).
+    # The globals() line stays as a belt-and-braces for the same reason.
     globals()["Request"] = Request
 
     from .admin_api import _auth

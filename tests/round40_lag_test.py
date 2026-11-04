@@ -91,14 +91,23 @@ class LiveTest(unittest.TestCase):
         cls.server = uvicorn.Server(uvicorn.Config(create_app(), host="127.0.0.1", port=cls.port, log_level="error"))
         threading.Thread(target=cls.server.run, daemon=True).start()
         import httpx
+        # E03: same no_proxy/[::1] crash as mcp_client; and the old loop
+        # swallowed every exception for the full 90 s, hiding the real
+        # error. Fail fast on non-network errors (e.g. InvalidURL).
         deadline = time.time() + 90
+        last_error = None
         while time.time() < deadline:
             try:
-                if httpx.get(cls.base + "/quick/", timeout=2).status_code == 200:
+                if httpx.get(cls.base + "/quick/", timeout=2, trust_env=False).status_code == 200:
                     break
-            except Exception:
+            except httpx.InvalidURL:
+                raise
+            except Exception as exc:  # noqa: BLE001 - wait loop, error kept below
+                last_error = exc
                 time.sleep(0.3)
-        cls.http = httpx.Client(base_url=cls.base, timeout=10)
+        else:
+            raise AssertionError(f"test server did not start: {last_error!r}")
+        cls.http = httpx.Client(base_url=cls.base, timeout=10, trust_env=False)
         cls.http.post("/api/pg/modules/configure", json={"id": "music", "enabled": True})
         cls.http.post("/api/pg/music/call", json={"op": "player.update", "args": {"track_id": "abcdefabcdef", "playing": True,
                       "position": 3, "duration": 100000, "queue": ["abcdefabcdef"], "index": 0, "device": "pc"}})

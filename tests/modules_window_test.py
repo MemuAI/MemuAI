@@ -76,7 +76,7 @@ class ModuleRouteTest(unittest.TestCase):
     def test_listing_exposes_the_full_module_surface(self) -> None:
         with self.client() as client:
             rows = client.get("/api/pg/modules").json()["modules"]
-            self.assertEqual([row["id"] for row in rows], ["translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb"])
+            self.assertEqual([row["id"] for row in rows], ["translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet", "utils"])
             for row in rows:
                 self.assertTrue(row["builtin"])
                 self.assertFalse(row["enabled"])
@@ -91,8 +91,9 @@ class ModuleRouteTest(unittest.TestCase):
             templates = client.get("/api/pg/modules/templates").json()
             self.assertGreaterEqual(len(templates["templates"]), 4)
 
-            self.assertEqual(len(templates["permissions"]), 15)
+            self.assertEqual(len(templates["permissions"]), 16)
             self.assertIn("background", templates["permissions"])
+            self.assertIn("utils", templates["permissions"])
             self.assertEqual(templates["slots"],
                              ["sidebar", "chat-list", "topbar", "composer"])
             for item in templates["templates"]:
@@ -378,7 +379,7 @@ class ModuleRouteTest(unittest.TestCase):
                                   json={"order": ["design", "studio", "translator"]})
             self.assertEqual(ordered.status_code, 200)
             self.assertEqual([row["id"] for row in ordered.json()["modules"]],
-                         ["design", "studio", "translator", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb"])
+                         ["design", "studio", "translator", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet", "utils"])
             self.assertEqual(client.post("/api/pg/modules/reset",
                                          json={"id": "translator"}).status_code, 200)
             self.assertEqual(client.post("/api/pg/modules/reset",

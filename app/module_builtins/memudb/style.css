@@ -66,7 +66,7 @@
 .db :is(input:not([type="checkbox"]), select, textarea) {
   border: 1px solid var(--db-line);
   border-radius: 8px;
-  background: var(--bg);
+  background: var(--field-bg, var(--bg));
   padding: 7px 10px;
   min-height: 34px;
   min-width: 0;
@@ -162,7 +162,7 @@
 .db-connection select {
   width: 100%;
   font-weight: 560;
-  background: var(--bg);
+  background: var(--field-bg, var(--bg));
 }
 .db-mode {
   border-radius: 999px !important;

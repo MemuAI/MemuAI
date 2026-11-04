@@ -16,6 +16,8 @@ Where skills live (the user and the agent see the same list):
 * **personal** — ``%APPDATA%\\MemuAI\\memucode\\skills\\<id>\\SKILL.md`` (every project);
 * **built-in** — compiled into MemuCode. They cannot be deleted, only *disabled* (``skills.disabled`` in the
   settings) or replaced by a skill with the same id.
+* **MemuAI library** — the skills of the MemuAI window (Skills) switched on for MemuCode CLI there. They are
+  edited in MemuAI; here they can only be disabled.
 
 Deleting never destroys: the folder moves to ``memucode\\trash\\skills`` and can be restored.
 """
@@ -74,7 +76,7 @@ def _inside(path: Path, parent: Path) -> bool:
 
 def scope_label(source: str) -> str:
     return {"project": tr("проект", "project"), "personal": tr("личный", "personal"),
-            "builtin": tr("встроенный", "built-in")}.get(source, source)
+            "builtin": tr("встроенный", "built-in"), "library": tr("библиотека MemuAI", "MemuAI library")}.get(source, source)
 
 def parse(text: str) -> Tuple[Dict[str, str], str]:
     from .project import split_front_matter

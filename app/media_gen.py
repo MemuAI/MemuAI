@@ -277,18 +277,94 @@ def _urls_in(value: Any, depth: int = 0) -> List[str]:
             found.extend(_urls_in(child, depth + 1))
     return found
 
-async def _download(session: Any, url: str, headers: Dict[str, str]) -> Tuple[bytes, str]:
-    resp = await session.get(url, headers=headers, timeout=_timeout(), allow_redirects=True)
-    if resp.status_code != 200:
-        raise ProviderServerError(f"Could not download the generated video (HTTP {resp.status_code})",
-                                  resp.status_code)
-    raw = bytes(resp.content or b"")
-    if not raw:
-        raise ProviderServerError("The generated video is empty")
-    if len(raw) > MAX_MEDIA_BYTES:
-        raise ProviderServerError("The generated video is larger than 160 MB", 413)
-    mime = str((getattr(resp, "headers", {}) or {}).get("content-type") or "").split(";", 1)[0]
-    return raw, mime if mime.startswith("video/") else _sniff_video(raw)
+def _download_allowed(url: str, trusted_base: str = "") -> bool:
+    """F19: may this video URL be fetched? The ``/content`` endpoint of
+    the configured provider (its own host, loopback included — a local
+    custom endpoint is legitimate) and Veo's ``*.googleapis.com`` URIs
+    are trusted; anything else must be a public URL (``safe_url``: DNS +
+    public IP only, no credentials)."""
+    try:
+        parsed = urllib.parse.urlparse(str(url or ""))
+    except ValueError:
+        return False
+    if not parsed.hostname:
+        return False
+    if trusted_base:
+        try:
+            base = urllib.parse.urlparse(trusted_base)
+        except ValueError:
+            base = None
+        if base is not None and parsed.hostname == base.hostname:
+            return True
+    if parsed.scheme == "https" and parsed.hostname.endswith(".googleapis.com"):
+        return True
+    from .media_cache import Unreachable, safe_url
+    try:
+        safe_url(url)
+    except Unreachable:
+        return False
+    return True
+
+
+async def _download(session: Any, url: str, headers: Dict[str, str], trusted_base: str = "") -> Tuple[bytes, str]:
+    """Download a generated video.
+
+    F19: the URL comes from provider JSON (or a Veo operation) — the old
+    code followed redirects anywhere with ``allow_redirects=True`` and
+    read the whole body before checking its 160 MiB cap. Redirects are
+    now followed manually (max 4, every hop re-checked with
+    ``_download_allowed``), ``Authorization``/API-key headers are
+    dropped on a cross-host hop, and the body is streamed with a running
+    cap (``Content-Length`` is checked before the first byte).
+    """
+    current = str(url or "")
+    heads = dict(headers)
+    for hop in range(5):
+        if not _download_allowed(current, trusted_base):
+            raise ProviderServerError("The video URL is not allowed")
+        try:
+            resp = await session.get(current, headers=heads, timeout=_timeout(), allow_redirects=False, stream=True)
+        except Exception as exc:
+            raise ProviderNetworkError(f"Network error while downloading the video: {type(exc).__name__}: {exc}") from exc
+        if resp.status_code in (301, 302, 303, 307, 308):
+            if hop >= 4:
+                raise ProviderServerError("Too many redirects while downloading the video")
+            location = str((getattr(resp, "headers", {}) or {}).get("location") or "")
+            if not location:
+                raise ProviderServerError("The video URL redirected without a target")
+            nxt = urllib.parse.urljoin(current, location)
+            if urllib.parse.urlparse(nxt).hostname != urllib.parse.urlparse(current).hostname:
+                heads = {k: v for k, v in heads.items()
+                         if k.lower() not in ("authorization", "x-goog-api-key")}
+            current = nxt
+            continue
+        if resp.status_code != 200:
+            raise ProviderServerError(f"Could not download the generated video (HTTP {resp.status_code})",
+                                      resp.status_code)
+        try:
+            declared = int(str((getattr(resp, "headers", {}) or {}).get("content-length") or 0))
+        except ValueError:
+            declared = 0
+        if declared > MAX_MEDIA_BYTES:
+            raise ProviderServerError("The generated video is larger than 160 MB", 413)
+        chunks: List[bytes] = []
+        total = 0
+        try:
+            async for block in resp.aiter_content(chunk_size=1024 * 1024):
+                chunks.append(block)
+                total += len(block)
+                if total > MAX_MEDIA_BYTES:
+                    raise ProviderServerError("The generated video is larger than 160 MB", 413)
+        except ProviderServerError:
+            raise
+        except Exception as exc:
+            raise ProviderNetworkError(f"Network error while downloading the video: {type(exc).__name__}: {exc}") from exc
+        raw = b"".join(chunks)
+        if not raw:
+            raise ProviderServerError("The generated video is empty")
+        mime = str((getattr(resp, "headers", {}) or {}).get("content-type") or "").split(";", 1)[0]
+        return raw, mime if mime.startswith("video/") else _sniff_video(raw)
+    raise ProviderServerError("Too many redirects while downloading the video")
 
 async def _openai_video(provider: Any, account: Any, prompt: str, model: str, aspect: str,
                         seconds: int, images: List[str], on_status=None) -> List[str]:
@@ -351,11 +427,22 @@ async def _openai_video(provider: Any, account: Any, prompt: str, model: str, as
                 on_status({"progress": job.get("progress"), "state": status})
             except Exception:
                 pass
-    direct = _urls_in(job)
+    # F19: like Veo's _trusted() — a provider-returned URL is only handed
+    # to the browser when it lives under the provider itself; anything
+    # else falls through to the safe /content download below.
+    def _trusted_openai(uri: str) -> bool:
+        try:
+            host = urllib.parse.urlparse(uri).hostname or ""
+        except ValueError:
+            return False
+        return uri.startswith(base + "/") or host == (urllib.parse.urlparse(base).hostname or "")
+
+    direct = [u for u in _urls_in(job) if _trusted_openai(u)]
     if direct:
         return direct
     raw, mime = await _download(session, f"{base}/videos/{urllib.parse.quote(job_id, safe='')}/content",
-                                {k: v for k, v in headers.items() if k.lower() != "content-type"})
+                                {k: v for k, v in headers.items() if k.lower() != "content-type"},
+                                trusted_base=base)
     return [_data_url(raw, mime)]
 
 async def _veo_video(provider: Any, account: Any, root: str, prompt: str, model: str, aspect: str,
@@ -421,7 +508,7 @@ async def _veo_video(provider: Any, account: Any, root: str, prompt: str, model:
     if not uris:
         filtered = (response.get("generateVideoResponse") or {}).get("raiMediaFilteredReasons")
         raise ProviderServerError("Veo returned no video" + (f": {str(filtered)[:240]}" if filtered else ""))
-    raw, mime = await _download(session, uris[0], {"x-goog-api-key": key})
+    raw, mime = await _download(session, uris[0], {"x-goog-api-key": key}, trusted_base=root)
     return [_data_url(raw, mime)]
 
 async def generate_video(provider: Any, account: Any, prompt: str, model: str, aspect: str = "16:9",

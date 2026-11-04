@@ -29,12 +29,17 @@ html:root[data-te-side="right"] .side.hidden { transform: translateX(18px); bord
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .brand-dot { flex: none; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .create-row { flex-direction: column; align-items: stretch; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .btn-new { justify-content: flex-start; padding-left: 12px; }
-  html:root[data-te-sidemode="compact"] .side:not(.hidden) .btn-new > span:not(.ico),
-  html:root[data-te-sidemode="compact"] .side:not(.hidden) .side-btn > span:not(.ico),
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .profile-info,
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .profile-dots,
-  html:root[data-te-sidemode="compact"] .side:not(.hidden) #hub-status-text,
-  html:root[data-te-sidemode="compact"] .side:not(.hidden) .hub-status-row > button { opacity: 0; transition: opacity var(--m-dur-1, 120ms) ease; }
+  html:root[data-te-sidemode="compact"] .side:not(.hidden) #hub-status-text { opacity: 0; transition: opacity var(--m-dur-1, 120ms) ease; }
+  /* Labels without a class of their own follow the open sidebar through inherited variables: a hover rule
+     that ends in a bare tag makes every hover change in the window restyle all such tags below it. */
+  html:root[data-te-sidemode="compact"] .side:not(.hidden) .btn-new > span:not(.ico),
+  html:root[data-te-sidemode="compact"] .side:not(.hidden) .side-btn > span:not(.ico),
+  html:root[data-te-sidemode="compact"] .side:not(.hidden) .hub-status-row > button {
+    opacity: var(--side-peek-opacity, 0); pointer-events: var(--side-peek-events);
+    transition: opacity var(--m-dur-1, 120ms) ease var(--side-peek-delay, 0s);
+  }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .mode-switch { display: flex; flex-direction: column; gap: 2px; padding: 4px; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .mode-switch .side-btn { flex-direction: row; justify-content: flex-start; gap: 10px; min-height: 36px; padding-left: 9px; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .side-btn { justify-content: flex-start; }
@@ -46,13 +51,14 @@ html:root[data-te-side="right"] .side.hidden { transform: translateX(18px); bord
     background: var(--side-bg, var(--bg-deep)); transition-delay: 260ms;
     box-shadow: 18px 0 44px -24px color-mix(in srgb, var(--text) 30%, transparent);
     border-radius: 0 var(--r-lg, 16px) var(--r-lg, 16px) 0;
+    --side-peek-opacity: 1; --side-peek-events: auto; --side-peek-delay: 200ms;
   }
   html:root[data-te-sidemode="compact"][data-te-side="right"] .side:not(.hidden):is(:hover, :focus-within, .te-peek) {
     margin-right: 0; margin-left: calc(var(--te-rail) - var(--te-peek));
     box-shadow: -18px 0 44px -24px color-mix(in srgb, var(--text) 30%, transparent);
     border-radius: var(--r-lg, 16px) 0 0 var(--r-lg, 16px);
   }
-  html:root[data-te-sidemode="compact"] .side:not(.hidden):is(:hover, :focus-within, .te-peek) :is(.btn-new > span:not(.ico), .side-btn > span:not(.ico), .profile-info, .profile-dots, #hub-status-text, .hub-status-row > button, #group-pinned, #group-folders, #group-memes, #group-chats, #group-panels, .side-label) {
+  html:root[data-te-sidemode="compact"] .side:not(.hidden):is(:hover, :focus-within, .te-peek) :is(.profile-info, .profile-dots, #hub-status-text, #group-pinned, #group-folders, #group-memes, #group-chats, #group-panels, .side-label) {
     opacity: 1; pointer-events: auto; transition-delay: 200ms;
   }
   html:root[data-te-sidemode="compact"] .side:not(.hidden):is(:hover, :focus-within, .te-peek) .brand { font-size: 16px; gap: 10px; }

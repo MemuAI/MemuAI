@@ -6,6 +6,9 @@ A copy of Claude's «Reflect» for MemuAI. Settings → «Рефлексия» s
 * «Ваше время с ИИ» — most active weekday, peak hour, total conversations, a
   daily activity chart and an estimate of the time spent (sessions split by an
   idle gap) — all computed here, deterministically, from message timestamps;
+* «Токены» — how much text the models read and wrote for the user: input/output, per day, per model and per
+  place (chat, Work, MemuCode, Quick Ask, Telegram). Real provider counts are used when the window recorded them
+  (``message.tokens`` / ``message.ctx.real``), otherwise an honest estimate from the text length (marked as such);
 * «На что ушло время» — topics with a short description and a percentage;
 * «Развитие навыков» — the 4D AI Fluency framework (Delegation, Description,
   Discernment, Diligence): an observation from the user's own chats plus one
@@ -32,6 +35,7 @@ window and Quick Ask, :func:`quiet_now` checks the user's quiet hours.
 import asyncio
 import hashlib
 import json
+import math
 import re
 import time
 import uuid
@@ -170,6 +174,39 @@ def _user_words(text: str) -> str:
     text = _INJECTED.sub(" ", text or "")
     return re.sub(r"\s+", " ", text).strip()
 
+CHARS_PER_TOKEN = 3.4
+SYSTEM_TOKENS_ESTIMATE = 1000
+QUICK_SYSTEM_TOKENS_ESTIMATE = 600
+TOKENS_CAP = 50_000_000
+
+def _tokens_of(chars: int) -> int:
+    return int(math.ceil(round(max(0, int(chars)) / CHARS_PER_TOKEN, 6))) if chars > 0 else 0
+
+def _count(value: Any) -> int:
+    try:
+        number = int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return max(0, min(TOKENS_CAP, number))
+
+def message_tokens(message: Dict[str, Any], text: str, history_chars: int) -> Tuple[int, int, bool, str]:
+    """``(input, output, estimated, model)`` of one assistant message.
+
+    ``message.tokens`` (recorded by the window for every round: real provider usage or its own estimate) wins;
+    then ``message.ctx`` (the prompt actually sent in the last round, ``real`` when the provider reported it);
+    otherwise the conversation so far plus a typical system prompt is estimated from the text length."""
+    raw = message.get("tokens") if isinstance(message.get("tokens"), dict) else {}
+    ctx = message.get("ctx") if isinstance(message.get("ctx"), dict) else {}
+    model = str(raw.get("model") or ctx.get("model") or message.get("model") or "")[:160]
+    written = len(text) + len(str(message.get("reasoning") or ""))
+    if _count(raw.get("in")) or _count(raw.get("out")):
+        return _count(raw.get("in")), _count(raw.get("out")) or _tokens_of(written), bool(raw.get("est", True)), model
+    real = _count(ctx.get("real"))
+    sent = real or _count(ctx.get("sent"))
+    if not sent:
+        sent = _tokens_of(history_chars) + SYSTEM_TOKENS_ESTIMATE
+    return sent, _tokens_of(written), True, model
+
 def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Every saved conversation of the active profile as ``{id, title, source, messages: [{role, text, ts}]}``.
 
@@ -190,17 +227,22 @@ def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Op
             continue
         fallback = _ms(chat.get("created")) or _ms(chat.get("updated"))
         rows = []
+        history = 0
         for message in chat.get("messages") or []:
             if not isinstance(message, dict) or message.get("internal") or message.get("role") not in ("user", "assistant"):
                 continue
             if message.get("via") == "telegram" and not prefs.get("reflect_include_telegram", True):
                 continue
-            text = _text(message.get("content"))
-            if message.get("role") == "user":
-                text = _user_words(text)
+            raw_text = _text(message.get("content"))
+            text = _user_words(raw_text) if message.get("role") == "user" else raw_text
             if not text.strip():
+                history += len(raw_text)
                 continue
-            rows.append({"role": message["role"], "text": text, "ts": _ms(message.get("createdAt")) or 0})
+            row = {"role": message["role"], "text": text, "ts": _ms(message.get("createdAt")) or 0}
+            if message["role"] == "assistant":
+                row["tin"], row["tout"], row["est"], row["model"] = message_tokens(message, raw_text, history)
+            history += len(raw_text)
+            rows.append(row)
         if not rows:
             continue
 
@@ -225,6 +267,7 @@ def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Op
         for chat in quick:
             rows = []
             fallback = _ms(chat.get("created")) or _ms(chat.get("updated"))
+            history = 0
             for turn in chat.get("turns") or []:
                 if not isinstance(turn, dict):
                     continue
@@ -232,9 +275,14 @@ def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Op
                 question = _user_words(str(turn.get("q") or ""))
                 if question:
                     rows.append({"role": "user", "text": question, "ts": ts})
+                history += len(str(turn.get("q") or ""))
                 answer = str(turn.get("a") or "")
                 if answer.strip():
-                    rows.append({"role": "assistant", "text": answer, "ts": ts})
+                    model = str(turn.get("model") or chat.get("model") or "")[:160]
+                    rows.append({"role": "assistant", "text": answer, "ts": ts,
+                                 "tin": _tokens_of(history) + QUICK_SYSTEM_TOKENS_ESTIMATE, "tout": _tokens_of(len(answer)),
+                                 "est": True, "model": model})
+                history += len(answer)
             if rows and any(row["ts"] for row in rows):
                 out.append({"id": "quick:" + str(chat.get("id")), "title": str(chat.get("title") or "")[:160],
                             "source": "quick", "messages": rows})
@@ -341,6 +389,7 @@ def compute_stats(conversations: List[Dict[str, Any]], start: datetime, end: dat
             hours[moment.hour] += 1
             weekdays[moment.weekday()] += 1
             weekday_convs[moment.weekday()].add((conv["id"], moment.date()))
+    tokens = token_stats(conversations, index, tz)
     spans = sessions(all_stamps)
     total_minutes = 0.0
     longest = 0.0
@@ -374,6 +423,63 @@ def compute_stats(conversations: List[Dict[str, Any]], start: datetime, end: dat
                  "average_session": round(total_minutes / len(spans)) if spans else 0,
                  "longest_session": round(longest), "idle_gap": IDLE_GAP_MIN},
         "sources": _source_counts(conversations),
+        "tokens": tokens,
+    }
+
+TOKEN_MODELS_SHOWN = 6
+TOKENS_PER_PAGE = 600
+
+def token_stats(conversations: List[Dict[str, Any]], index: Dict[date, int], tz: Any) -> Dict[str, Any]:
+    """Tokens of the period's answers: totals, the share that is estimated, per day (``series`` follows the days of
+    ``compute_stats``), per model and per place. Rows without counts (old or external data) are estimated from text."""
+    per_day = [0] * len(index)
+    models: Dict[str, Dict[str, int]] = {}
+    places: Dict[str, int] = {}
+    per_conv: Dict[str, int] = {}
+    tin = tout = answers = estimated = 0
+    for conv in conversations:
+        for row in conv["messages"]:
+            if row.get("role") != "assistant":
+                continue
+            a = _count(row.get("tin"))
+            b = _count(row.get("tout")) if row.get("tout") is not None else _tokens_of(len(row.get("text") or ""))
+            if not a and not b:
+                continue
+            answers += 1
+            tin += a
+            tout += b
+            if row.get("est", True):
+                estimated += a + b
+            pos = index.get(datetime.fromtimestamp(row["ts"] / 1000, tz).date()) if row.get("ts") else None
+            if pos is not None:
+                per_day[pos] += a + b
+            slot = models.setdefault(str(row.get("model") or ""), {"tokens": 0, "answers": 0})
+            slot["tokens"] += a + b
+            slot["answers"] += 1
+            places[conv["source"]] = places.get(conv["source"], 0) + a + b
+            per_conv[conv["id"]] = per_conv.get(conv["id"], 0) + a + b
+    total = tin + tout
+    ranked = sorted(models.items(), key=lambda item: (-item[1]["tokens"], item[0]))
+    shown = [{"model": name, "tokens": row["tokens"], "answers": row["answers"]} for name, row in ranked[:TOKEN_MODELS_SHOWN]]
+    rest = ranked[TOKEN_MODELS_SHOWN:]
+    if rest:
+        shown.append({"model": "", "other": len(rest), "tokens": sum(r["tokens"] for _n, r in rest),
+                      "answers": sum(r["answers"] for _n, r in rest)})
+    for item, pct in zip(shown, percents([float(item["tokens"]) for item in shown])):
+        item["share"] = pct
+    busiest = max(range(len(per_day)), key=lambda i: (per_day[i], -i)) if any(per_day) else None
+    days = sorted(index, key=index.get)
+    return {
+        "total": total, "input": tin, "output": tout, "answers": answers,
+        "estimated_share": round(estimated / total, 2) if total else 0.0,
+        "average_answer": round(tout / answers) if answers else 0,
+        "average_request": round(tin / answers) if answers else 0,
+        "series": per_day,
+        "busiest_day": {"date": days[busiest].isoformat(), "tokens": per_day[busiest]} if busiest is not None else None,
+        "largest_conversation": max(per_conv.values()) if per_conv else 0,
+        "models": shown,
+        "places": dict(sorted(places.items(), key=lambda item: -item[1])),
+        "pages": round(tout / TOKENS_PER_PAGE, 1),
     }
 
 def _source_counts(conversations: List[Dict[str, Any]]) -> Dict[str, int]:

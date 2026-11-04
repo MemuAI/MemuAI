@@ -130,11 +130,24 @@ def authorizer(writable: bool):
     return authorize
 
 def connect(path: Path, writable=False):
+    # F28: timeout 2s -> 10s, WAL + busy_timeout so concurrent writers wait
+    # instead of failing immediately with "database is locked".
     connection = sqlite3.connect(path.as_uri() + ("?mode=rw" if writable else "?mode=ro"), uri=True,
-                                 timeout=2, check_same_thread=False, isolation_level=None)
+                                 timeout=10, check_same_thread=False, isolation_level=None)
     connection.enable_load_extension(False)
     connection.execute("PRAGMA trusted_schema=OFF")
     connection.execute("PRAGMA foreign_keys=ON")
+    connection.execute("PRAGMA busy_timeout=10000")
+    if writable:
+        wal = False
+        try:
+            wal = connection.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+        except sqlite3.DatabaseError:
+            pass  # e.g. a FS that cannot do WAL — keep the rollback journal
+        if wal:
+            # synchronous=NORMAL is only safe with WAL (with a rollback
+            # journal it risks corruption on power loss).
+            connection.execute("PRAGMA synchronous=NORMAL")
     connection.setlimit(sqlite3.SQLITE_LIMIT_SQL_LENGTH, MAX_SQL)
     connection.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 16 * 1024**2)
     connection.setlimit(sqlite3.SQLITE_LIMIT_COLUMN, 200)
@@ -231,6 +244,16 @@ class Workspace:
             with target.open("rb") as stream:
                 if stream.read(16) != b"SQLite format 3\x00":
                     raise DBError("Это не база SQLite / This is not a SQLite database")
+            # F28: convert to WAL here, before the session connection is
+            # created. The conversion rewrites the DB header (data_version
+            # changes), so doing it any later — while a pre-conversion
+            # connection is alive — makes every preview fingerprint look
+            # "changed" and breaks preview/apply.
+            try:
+                _tmp = connect(target, writable=True)
+                _tmp.close()
+            except sqlite3.DatabaseError:
+                pass  # keep the rollback journal; busy_timeout still helps
             conn = connect(target)
             try:
                 conn.execute("SELECT name FROM sqlite_schema LIMIT 1").fetchall()
@@ -260,6 +283,17 @@ class Workspace:
         if not readonly and not confirmed:
             raise DBError("Включение записи требует подтверждения / Enabling writes requires confirmation")
         with session.lock:
+            if not readonly and session.readonly:
+                # F28: convert the database to WAL once, when writes are
+                # enabled — before any preview fingerprint is taken. The
+                # conversion rewrites the DB header (data_version changes),
+                # so doing it later, inside apply(), invalidated every
+                # sealed preview ("База изменилась после просмотра").
+                try:
+                    tmp = connect(session.path, writable=True)
+                    tmp.close()
+                except sqlite3.DatabaseError:
+                    pass  # keep the rollback journal; busy_timeout still helps
             session.readonly = bool(readonly)
         return self.public(session)
 

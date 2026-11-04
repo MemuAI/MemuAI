@@ -11,10 +11,12 @@ after per-key validation.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import mimetypes
 import re
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -23,6 +25,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 
+from . import personalities
 from . import tg_webapp
 from . import telegram_focus
 from . import tgapp_chat as tchat
@@ -36,9 +39,37 @@ STREAM_SEGMENT = 22.0
 
 auth_limiter = tg_webapp.RateLimiter(60, 60)
 auth_failures = tg_webapp.RateLimiter(12, 60)
+# Wave #2 (D-04/D-C3): a global auth budget no header spoofing can dodge.
+auth_global = tg_webapp.RateLimiter(300, 60)
 api_limiter = tg_webapp.RateLimiter(600, 60)
 pin_limiter = tg_webapp.RateLimiter(6, 300)
 send_limiter = tg_webapp.RateLimiter(40, 60)
+
+
+# One-time bypass grants (``code.run`` mode "bypassPermissions"): a grant is
+# issued only after a separate proof of presence -- fresh initData (<=5 min)
+# or a profile PIN -- and lives 5 minutes for a single run. The flag lives
+# only on the server (in memory); the Mini App cannot grant itself bypass
+# by sending ``confirm: true`` any more.
+_BYPASS_TTL = 300.0
+_BYPASS_GRANTS: Dict[str, float] = {}
+_BYPASS_LOCK = threading.Lock()
+
+
+def _grant_bypass(user_id: str, ttl: float = _BYPASS_TTL) -> float:
+    expires = time.time() + ttl
+    with _BYPASS_LOCK:
+        _BYPASS_GRANTS[str(user_id)] = expires
+    return expires
+
+
+def _take_bypass(user_id: str) -> Optional[float]:
+    """Take a live grant (one grant = one run); None when absent or expired."""
+    with _BYPASS_LOCK:
+        expires = _BYPASS_GRANTS.pop(str(user_id), None)
+    if expires is None or expires <= time.time():
+        return None
+    return expires
 
 class ApiError(Exception):
     """``message`` is Russian; ``en`` is its English twin — the response picks the Mini App's language
@@ -59,6 +90,32 @@ class ApiError(Exception):
 
 def _lang(prefs: Dict[str, Any]) -> str:
     return "en" if prefs.get("language") == "en" else "ru"
+
+
+def _arg_int(value: Any, default: int, low: int, high: int) -> int:
+    """A client-supplied integer, clamped; garbage ("abc", None, NaN, bool) falls back to the default."""
+    if isinstance(value, bool):
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if number != number:  # NaN
+        return default
+    return int(max(low, min(high, number)))
+
+
+def _arg_float(value: Any, default: float, low: float, high: float) -> float:
+    """A client-supplied float, clamped; garbage falls back to the default."""
+    if isinstance(value, bool):
+        return default
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if number != number:  # NaN
+        return default
+    return max(low, min(high, number))
 
 def _t(prefs: Dict[str, Any], ru: str, en: str) -> str:
     return en if _lang(prefs) == "en" else ru
@@ -87,8 +144,57 @@ async def _read_json(request: Request, limit: int = SMALL_BODY) -> Dict[str, Any
     return data
 
 def _client_key(request: Request) -> str:
+    """The TCP peer only — never a forwarded header.
 
-    return (request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?"))[:64]
+    Wave #2 (D-04/D-C3): the listener binds 127.0.0.1, so the peer is
+    cloudflared or a local process. Either can set ``cf-connecting-ip`` /
+    ``x-forwarded-for`` to anything, so a header must never be the rate
+    limit identity: a spoofer would rotate it and dodge the limit. The
+    auth endpoints additionally key on the initData hash (see auth()).
+    """
+    return (request.client.host if request.client else "?")[:64]
+
+
+def _claimed_user_id(raw: str) -> str:
+    """The Telegram user id claimed by an (unverified) initData string, or "".
+
+    Only a rate-limit key — never an identity: the HMAC is checked later
+    by validate_init_data(). A garbage string with no usable user id
+    yields "" and the caller falls back to the initData hash.
+    """
+    try:
+        from urllib.parse import parse_qsl
+        fields = dict(parse_qsl(raw, keep_blank_values=True))
+        user = json.loads(fields.get("user") or "")
+    except (ValueError, TypeError):
+        return ""
+    if not isinstance(user, dict):
+        return ""
+    ident = user.get("id")
+    if isinstance(ident, bool):
+        return ""
+    text = str(ident or "")
+    return text if text.isdigit() and 0 < len(text) <= 19 else ""
+
+
+def _auth_key(request: Request, body: Dict[str, Any]) -> str:
+    """Rate-limit identity for a sign-in attempt: the claimed Telegram user.
+
+    Wave #2 (D-04/D-C3): no header is ever read — a local client can set
+    cf-connecting-ip / x-forwarded-for to anything. The key is the user
+    id the initData CLAIMS (unverified here, but rotating it only reaches
+    the global budget), or the initData hash when no usable id parses,
+    or the TCP peer when there is no initData at all. Forging initData
+    for one user therefore accumulates against that user — which is
+    exactly what the failure limiter (12/min) is for.
+    """
+    raw = str(body.get("init_data") or "")
+    if raw:
+        user_id = _claimed_user_id(raw)
+        if user_id:
+            return "u:" + user_id
+        return "h:" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    return "p:" + _client_key(request)
 
 def _accent_options() -> List[str]:
     from . import themes
@@ -122,7 +228,7 @@ SETTINGS: Dict[str, Dict[str, Any]] = {
     "visualizations_enabled": {"type": "bool"},
     "chat_titles": {"type": "enum", "options": ["ai", "off"]},
     "chat_titles_update": {"type": "bool"},
-    "ai_personality": {"type": "enum", "options": ["friendly", "pragmatic"]},
+    "ai_personality": {"type": "enum", "options": list(personalities.IDS)},
     "custom_system_prompt": {"type": "text", "max": 12000},
     "profile_name": {"type": "text", "max": 80},
     "profile_bio": {"type": "text", "max": 1000},
@@ -284,7 +390,7 @@ def _chat_summary(chat: Dict[str, Any], memes: Dict[str, str]) -> Dict[str, Any]
     if last is not None:
         snippet = plain_snippet(tchat.clean_answer(str(last.get("content") or "")))
     return {"id": str(chat.get("id")), "title": str(chat.get("title") or "")[:120],
-            "updated": float(chat.get("updated") or 0), "pinned": bool(chat.get("pinned")),
+            "updated": _arg_float(chat.get("updated"), 0, 0, 1e12), "pinned": bool(chat.get("pinned")),
             "unread": bool(chat.get("unread")), "folder_id": str(chat.get("folder_id") or ""),
             "mode": str(chat.get("mode") or "chat"), "count": len(messages), "snippet": snippet,
             "last_role": str(last.get("role")) if last else "", "meme_id": memes.get(str(chat.get("id")), ""),
@@ -292,7 +398,24 @@ def _chat_summary(chat: Dict[str, Any], memes: Dict[str, str]) -> Dict[str, Any]
             "telegram": bool(chat.get("telegram")) or str(chat.get("id", "")).startswith(("tg-", "tga-")),
             "model": str(chat.get("model") or "")}
 
-def _message_out(row: Dict[str, Any], index: int) -> Dict[str, Any]:
+# Total inline attachment bytes one ``chats.get`` answer may carry. Links
+# (https://, /api/pg/media/file/) cost nothing; inline data: URLs beyond
+# this budget are left out and only the metadata/link is sent.
+CHAT_ATTACHMENTS_BUDGET = 10 * 1024 * 1024
+
+
+def _take_budget(budget: Optional[List[int]], size: int) -> bool:
+    """Spend ``size`` bytes of the shared attachment budget (``[left, dropped]``)."""
+    if budget is None:
+        return True
+    if size > budget[0]:
+        budget[1] += size
+        return False
+    budget[0] -= size
+    return True
+
+
+def _message_out(row: Dict[str, Any], index: int, budget: Optional[List[int]] = None) -> Dict[str, Any]:
     out = {"i": index, "role": row.get("role"), "content": str(row.get("content") or ""),
            "createdAt": row.get("createdAt"), "model": row.get("model") or "",
            "via": row.get("via") or ""}
@@ -310,16 +433,32 @@ def _message_out(row: Dict[str, Any], index: int) -> Dict[str, Any]:
     for item in row.get("attachments") or []:
         if not isinstance(item, dict):
             continue
-        data = str(item.get("data") or item.get("url") or "")
-        is_img = bool(item.get("isImg")) or data.startswith("data:image/") or item.get("kind") == "image"
+        raw = str(item.get("data") or "")
+        url = str(item.get("url") or "")
+        inline = raw if raw.startswith("data:") else (url if url.startswith("data:") else "")
+        link = url if url.startswith(("https://", "http://", "/api/pg/media/file/")) else ""
+        is_img = bool(item.get("isImg")) or inline.startswith("data:image/") or item.get("kind") == "image"
+        data = ""
+        if is_img and inline and len(inline) < 3_000_000 and _take_budget(budget, len(inline)):
+            data = inline
+        elif link:
+            data = link  # a link, not inline bytes: it does not spend the budget
         attachments.append({"name": str(item.get("name") or "file")[:120], "isImg": is_img,
-                            "data": data if is_img and len(data) < 3_000_000 else "",
-                            "size": item.get("size") or 0})
+                            "data": data, "size": _arg_int(item.get("size"), 0, 0, 10 ** 9)})
     if attachments:
         out["attachments"] = attachments
     if row.get("role") == "assistant" and (row.get("media") or row.get("images") or row.get("videos")):
         from . import telegram_media_gen
         out.update(telegram_media_gen.app_media_out(row))
+        for key in ("images", "videos"):
+            kept = []
+            for value in out.get(key) or []:
+                if isinstance(value, str) and value.startswith("data:"):
+                    if len(value) < 3_000_000 and _take_budget(budget, len(value)):
+                        kept.append(value)
+                elif value:
+                    kept.append(value)
+            out[key] = kept
     return out
 
 def _find_chat(profile_id: str, chat_id: str) -> Dict[str, Any]:
@@ -376,12 +515,17 @@ def create_tgapp() -> FastAPI:
         return {"user": paired, "prefs": prefs, "config": config, "token": data}
 
     async def auth(request: Request):
-        key = _client_key(request)
         prefs = _prefs()
-        if auth_failures.full("f:" + key) or not auth_limiter.hit("a:" + key):
+        # Wave #2: the global budget is checked before the body is read,
+        # so a flood cannot dodge it by rotating headers or initData.
+        if not auth_global.hit("g"):
             raise ApiError(429, "rate_limited", _t(prefs, "Слишком много попыток входа — подождите минуту",
                                                    "Too many sign-in attempts — wait a minute"))
         body = await _read_json(request, 16 * 1024)
+        key = _auth_key(request, body)
+        if auth_failures.full("f:" + key) or not auth_limiter.hit("a:" + key):
+            raise ApiError(429, "rate_limited", _t(prefs, "Слишком много попыток входа — подождите минуту",
+                                                   "Too many sign-in attempts — wait a minute"))
         config = tg_webapp.load_config()
         if not config["enabled"]:
             raise ApiError(403, "disabled", _t(prefs, "Mini App выключен в настройках MemuAI",
@@ -443,9 +587,19 @@ def create_tgapp() -> FastAPI:
             return JSONResponse(result)
         except ApiError as exc:
             return JSONResponse(exc.payload(), exc.status)
+        except (TypeError, ValueError) as exc:
+            return JSONResponse({"error": f"Некорректный запрос: {str(exc)[:200]}", "code": "bad_request"}, 400)
         except Exception as exc:
+            # Wave #1 (D-05/D-C4): the client gets a generic bilingual
+            # message only. The exception class, message, paths and
+            # traceback stay in the server log (log.exception above).
             log.exception("tgapp %s failed", name)
-            return JSONResponse({"error": f"{type(exc).__name__}: {str(exc)[:300]}", "code": "internal"}, 500)
+            try:
+                message = _t(_prefs(), "Внутренняя ошибка — попробуйте ещё раз",
+                             "Internal error — please try again")
+            except Exception:
+                message = "Внутренняя ошибка — попробуйте ещё раз"
+            return JSONResponse({"error": message, "code": "internal"}, 500)
 
     def profile_id_of(ctx: Dict[str, Any], body: Dict[str, Any]) -> str:
         """The Mini App works in the desktop's active profile unless a PIN-checked switch was made."""
@@ -471,7 +625,7 @@ def create_tgapp() -> FastAPI:
         return {
             "lang": lang, "version": APP_VERSION,
             "appearance": appearance(prefs), "themes": theme_catalog(lang),
-            "settings": public_settings(prefs),
+            "settings": public_settings(prefs), "personalities": personalities.catalog(lang),
             "models": tchat.chat_models(prefs),
             "folders": prefs.get("chat_folders") or [],
             "memes": [_meme_out(row) for row in prefs.get("memes") or [] if isinstance(row, dict)],
@@ -515,6 +669,7 @@ def create_tgapp() -> FastAPI:
             pin = str(body.get("pin") or "")
             if not pin or not await asyncio.to_thread(verify_profile_pin, wanted, pin):
                 raise ApiError(403, "bad_pin", _t(ctx["prefs"], "Неверный PIN-код", "Wrong PIN"))
+            _grant_bypass(ctx["user"])  # a PIN just proved the owner is present
         token, expires = tg_webapp.issue_token(ctx["user"], ctx["config"]["secret"], extra=wanted)
         return {"ok": True, "profile_id": wanted, "token": token, "expires": expires}
 
@@ -547,7 +702,7 @@ def create_tgapp() -> FastAPI:
         messages = [row for row in chat.get("messages") or [] if isinstance(row, dict)]
         visible = [(index, row) for index, row in enumerate(messages)
                    if row.get("role") in ("user", "assistant") and not row.get("internal")]
-        limit = max(10, min(400, int(body.get("limit") or 120)))
+        limit = _arg_int(body.get("limit"), 120, 10, 400)
         memes = {str(k): str(v) for k, v in (ctx["prefs"].get("chat_memes") or {}).items()}
         job = tchat.jobs.active_for_chat(str(chat.get("id")))
         if chat.get("unread"):
@@ -555,16 +710,18 @@ def create_tgapp() -> FastAPI:
 
         from . import chat_tree
         versions = chat_tree.info(chat)
+        budget = [CHAT_ATTACHMENTS_BUDGET, 0]  # inline bytes left, inline bytes dropped
         out_rows = []
         for index, row in visible[-limit:]:
-            item = _message_out(row, index)
+            item = _message_out(row, index, budget)
             if index in versions:
                 item["versions"] = {"key": versions[index]["key"], "cur": versions[index]["cur"], "n": versions[index]["n"]}
             out_rows.append(item)
         return {"chat": {**_chat_summary(chat, memes), "titleManual": bool(chat.get("titleManual")),
                          "other_versions": chat_tree.stats(chat)["versions"]},
                 "messages": out_rows,
-                "total": len(visible), "job": job.id if job and job.owner == ctx["user"] else ""}
+                "total": len(visible), "job": job.id if job and job.owner == ctx["user"] else "",
+                "attachments_limited": budget[1] > 0}
 
     def _patch_chat(profile_id: str, chat_id: str, patch: Dict[str, Any], touch: bool = True) -> Dict[str, Any]:
         from .pgdata import load_chats, upsert_chat
@@ -686,15 +843,15 @@ def create_tgapp() -> FastAPI:
     @op("jobs.poll")
     async def jobs_poll(ctx, body):
         job = job_of(ctx, body)
-        offset = max(0, int(body.get("from") or 0))
-        events = await job.wait(offset, min(10.0, float(body.get("wait") or 0)))
+        offset = _arg_int(body.get("from"), 0, 0, 10 ** 9)
+        events = await job.wait(offset, _arg_float(body.get("wait"), 0, 0, 10))
         return {"events": events, "next": offset + len(events), "done": job.done}
 
     @op("jobs.stream")
     async def jobs_stream(ctx, body):
         """Newline-delimited JSON over a POST (quick tunnels buffer GET streams); ends after a segment."""
         job = job_of(ctx, body)
-        offset = max(0, int(body.get("from") or 0))
+        offset = _arg_int(body.get("from"), 0, 0, 10 ** 9)
 
         async def produce():
             nonlocal offset
@@ -760,7 +917,7 @@ def create_tgapp() -> FastAPI:
                 if str(chat.get("folder_id") or "") in removed:
                     row = dict(chat)
                     row["folder_id"] = ""
-                    row["updated"] = max(float(row.get("updated") or 0), tchat.now_ms())
+                    row["updated"] = max(_arg_float(row.get("updated"), 0, 0, 1e12), tchat.now_ms())
                     changed.append(row)
             if changed:
                 await asyncio.to_thread(merge_chats_partial, changed, [], profile_id)
@@ -815,7 +972,8 @@ def create_tgapp() -> FastAPI:
     async def settings_get(ctx, body):
         prefs = ctx["prefs"]
         return {"settings": public_settings(prefs), "models": tchat.chat_models(prefs),
-                "themes": theme_catalog(_lang(prefs)), "appearance": appearance(prefs)}
+                "themes": theme_catalog(_lang(prefs)), "appearance": appearance(prefs),
+                "personalities": personalities.catalog(_lang(prefs))}
 
     @op("settings.save")
     async def settings_save(ctx, body):
@@ -949,7 +1107,7 @@ def create_tgapp() -> FastAPI:
         theme = themes.normalize_mode(prefs.get("theme") or "dark")
         env = {"lang": _lang(prefs), "theme": theme, "accent_name": themes.normalize_accent(prefs.get("accent_color")),
                "surface": str(prefs.get(f"surface_{theme}") or ""), "density": "normal",
-               "font_scale": max(85, min(125, int(prefs.get("font_scale") or 100))), "platform": "telegram",
+               "font_scale": _arg_int(prefs.get("font_scale"), 100, 85, 125), "platform": "telegram",
                "host": "MemuAI Telegram"}
         page = Response(module_document(package, saved, env=env), media_type="text/html; charset=utf-8")
         page.headers["Content-Security-Policy"] = (
@@ -1094,7 +1252,7 @@ def create_tgapp() -> FastAPI:
     async def code_transcript(ctx, body):
         require_code(ctx)
         session_id = str(body.get("session_id") or "")
-        data = await asyncio.to_thread(tcode.read_transcript, session_id, int(body.get("cursor") or 0))
+        data = await asyncio.to_thread(tcode.read_transcript, session_id, _arg_int(body.get("cursor"), 0, 0, 10 ** 9))
         terminal = await asyncio.to_thread(tcode.terminal_for, session_id)
         data["live"] = terminal
         return data
@@ -1113,7 +1271,7 @@ def create_tgapp() -> FastAPI:
                 body = {**body, "cursor": 0}
         if tcode.find_transcript(session_id) is None and tcode.terminal_for(session_id) is None:
             raise ApiError(404, "not_found", "Сессия не найдена", "Session not found")
-        cursor = int(body.get("cursor") or 0)
+        cursor = _arg_int(body.get("cursor"), 0, 0, 10 ** 9)
         seen = str(body.get("live_hash") or "")
 
         async def produce():
@@ -1131,7 +1289,7 @@ def create_tgapp() -> FastAPI:
                 if data.get("items") or data.get("reset"):
                     yield (json.dumps({"type": "items", **{k: data.get(k) for k in ("items", "cursor", "reset")}},
                                       ensure_ascii=False) + "\n").encode()
-                cursor = int(data.get("cursor") or cursor)
+                cursor = _arg_int(data.get("cursor"), cursor, 0, 10 ** 9)
                 terminal = await asyncio.to_thread(tcode.terminal_for, session_id)
                 state = dict(terminal or {})
                 state.pop("heartbeat", None)
@@ -1167,29 +1325,62 @@ def create_tgapp() -> FastAPI:
             raise ApiError(400, "bad_request", "Некорректная команда", "Invalid command") from None
         return {"ok": True, "id": command_id}
 
+    @op("code.bypass.confirm")
+    async def code_bypass_confirm(ctx, body):
+        """Separate confirmation for one bypass run: fresh Telegram initData
+        (auth_date at most 5 minutes old) from the same user. The grant lives
+        5 minutes and is spent by the next ``code.run`` with mode
+        "bypassPermissions"; without it that mode is forbidden."""
+        require_code(ctx)
+        token = tg_webapp.bot_token(ctx["prefs"])
+        if not token:
+            raise ApiError(403, "no_bot", _t(ctx["prefs"], "Бот не настроен", "The bot is not set up"))
+        try:
+            data = tg_webapp.validate_init_data(str(body.get("init_data") or ""), token, max_age=300)
+        except tg_webapp.InitDataError as exc:
+            raise ApiError(401, exc.code, _t(ctx["prefs"], str(exc),
+                                           tg_webapp.INIT_DATA_ERRORS_EN.get(exc.code, str(exc)))) from None
+        if str((data.get("user") or {}).get("id") or "") != ctx["user"]:
+            raise ApiError(403, "not_paired", _t(ctx["prefs"], "Эти данные Telegram — не ваши",
+                                               "This Telegram data is not yours"))
+        return {"ok": True, "expires": _grant_bypass(ctx["user"])}
+
     @op("code.run")
     async def code_run(ctx, body):
         require_code(ctx)
         mode = str(body.get("mode") or "default")
-        if mode == "bypassPermissions" and body.get("confirm") is not True:
-            raise ApiError(409, "confirm", _t(ctx["prefs"], "Режим без разрешений нужно подтвердить",
-                                              "Bypassing permissions needs confirmation"))
-        try:
-            job = tcode.start_headless(ctx["user"], str(body.get("session_id") or ""), str(body.get("text") or ""),
-                                       mode)
-        except LookupError as exc:
-            missing_folder = "folder" in str(exc)
-            raise ApiError(404, "not_found", "Папка проекта не найдена" if missing_folder else "Сессия не найдена",
-                           "The project folder is missing" if missing_folder else "Session not found") from None
-        except RuntimeError as exc:
-            message = {"live": _t(ctx["prefs"], "Сессия открыта в терминале — пишите в неё напрямую",
-                                  "The session is open in a terminal — send to it directly"),
-                       "busy": _t(ctx["prefs"], "Эта сессия уже выполняется", "This session is already running")}
-            raise ApiError(409, str(exc), message.get(str(exc), str(exc))) from None
-        except FileNotFoundError:
-            raise ApiError(400, "no_cli", _t(ctx["prefs"], "MemuCode CLI не установлен", "MemuCode CLI is not installed")) from None
-        except ValueError:
-            raise ApiError(400, "bad_request", "Пустой или слишком длинный запрос", "The request is empty or too long") from None
+        grant_expires = None
+        if mode == "bypassPermissions":
+            # The old client-side ``confirm: true`` flag is not proof of
+            # anything: bypass needs a server-side grant from
+            # ``code.bypass.confirm`` (fresh initData) or a profile PIN.
+            grant_expires = _take_bypass(ctx["user"])
+            if grant_expires is None:
+                raise ApiError(403, "bypass_confirm",
+                               _t(ctx["prefs"],
+                                  "Режим без разрешений требует отдельного подтверждения: подтвердите его свежими данными Telegram (откройте приложение заново — данным не больше 5 минут) или PIN-кодом профиля",
+                                  "Bypassing permissions needs a separate confirmation: confirm it with fresh Telegram data (reopen the app — the data must be at most 5 minutes old) or with the profile PIN"))
+        try:  # outer: a failed start keeps the grant for a retry
+            try:
+                job = tcode.start_headless(ctx["user"], str(body.get("session_id") or ""), str(body.get("text") or ""),
+                                           mode)
+            except LookupError as exc:
+                missing_folder = "folder" in str(exc)
+                raise ApiError(404, "not_found", "Папка проекта не найдена" if missing_folder else "Сессия не найдена",
+                               "The project folder is missing" if missing_folder else "Session not found") from None
+            except RuntimeError as exc:
+                message = {"live": _t(ctx["prefs"], "Сессия открыта в терминале — пишите в неё напрямую",
+                                      "The session is open in a terminal — send to it directly"),
+                           "busy": _t(ctx["prefs"], "Эта сессия уже выполняется", "This session is already running")}
+                raise ApiError(409, str(exc), message.get(str(exc), str(exc))) from None
+            except FileNotFoundError:
+                raise ApiError(400, "no_cli", _t(ctx["prefs"], "MemuCode CLI не установлен", "MemuCode CLI is not installed")) from None
+            except ValueError:
+                raise ApiError(400, "bad_request", "Пустой или слишком длинный запрос", "The request is empty or too long") from None
+        except ApiError:
+            if grant_expires is not None:  # the run did not start: keep the grant
+                _grant_bypass(ctx["user"], ttl=max(0.0, grant_expires - time.time()))
+            raise
         return {"job": job.id}
 
     from . import tgapp_code_api, tgapp_extras

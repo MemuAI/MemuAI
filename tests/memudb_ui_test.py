@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
+import importlib.util
 import unittest
 from unittest.mock import patch
 
@@ -16,6 +17,7 @@ from app.memudb import Workspace
 
 ROOT=Path(__file__).resolve().parents[1]
 
+@unittest.skipUnless(importlib.util.find_spec("playwright"), "playwright is not installed")
 class MemuDBUI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -35,7 +37,8 @@ class MemuDBUI(unittest.TestCase):
         self.workspace=Workspace();app=FastAPI();memudb_api.register(app,workspace=self.workspace,picker=lambda create:str(self.path),allowed=lambda module:module=="memudb")
         self.profile=patch.object(memudb_api.pgdata,"load_profiles",return_value={"active_id":"default"});self.profile.start()
         self.client=TestClient(app);self.client.__enter__();self.calls=[];self.ai=[];self.saved={};self.errors=[]
-        self.context=self.browser.new_context(viewport={"width":1200,"height":850},reduced_motion="reduce")
+        # bypass_csp: Page.wait_for_function eval()s its string once it has to poll, which the module CSP refuses
+        self.context=self.browser.new_context(viewport={"width":1200,"height":850},reduced_motion="reduce",bypass_csp=True)
         self.page=self.context.new_page();self.page.on("pageerror",lambda e:self.errors.append(str(e)))
         self.page.route("http://**/*",lambda route:route.abort());self.page.route("https://**/*",lambda route:route.abort())
         self.page.expose_function("__host",self.host)

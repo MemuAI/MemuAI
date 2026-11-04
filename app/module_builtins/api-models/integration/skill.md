@@ -1,3 +1,1 @@
 «Новые модели API» следит за каталогами API (OpenRouter и лаборатории) в фоне. На «какие новые модели вышли», «что нового у OpenAI/Anthropic», «сколько стоит новая модель» вызови api-models.recent и ответь по его списку (цены — $ за 1M токенов вход → выход, из публичного каталога OpenRouter). Не выдумывай модели, которых нет в результате; если список пуст — скажи, что новых пока не было, и предложи открыть модуль.
-
-Model selector: the feed's connected-models strip uses the shared MemuModelSelector (inline-list preset, app/pgstatic/model-selector.js); provider names come from the catalogue via providerName(), never a raw "custom" provider. Picking a connected model filters the feed to it.

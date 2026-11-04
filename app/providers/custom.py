@@ -157,6 +157,11 @@ class CustomProvider(Provider):
             Field("base_url", "Base URL", "url", placeholder="https://api.example.com/v1",
                   help="Корень OpenAI-совместимого API (обычно заканчивается на /v1)",
                   help_en="Root of the OpenAI-compatible API (usually ends with /v1)"),
+            Field("allow_private_network", "Разрешить частную сеть (LAN)", "select", required=False,
+                  options=["no", "yes"], default="no",
+                  help="Только для вашего локального сервера в домашней сети (Ollama/LM Studio по LAN, например http://192.168.1.10:11434). Без этого HTTP разрешён только на loopback, а адреса частной сети отклоняются: ключ не должен уходить на незнакомый хост.",
+                  label_en="Allow a private network (LAN)",
+                  help_en="Only for your own server on the home network (Ollama/LM Studio over LAN, e.g. http://192.168.1.10:11434). Without this, plain HTTP is allowed only on loopback and private-network addresses are rejected, so the key never goes to an unfamiliar host."),
             Field("api_protocol", "Протокол чата", "select", required=False,
                   options=["auto", "chat", "responses"], default="auto",
                   help="auto — Responses для пути …/responses, иначе Chat Completions. chat — /chat/completions; responses — /responses.",
@@ -233,6 +238,14 @@ class CustomProvider(Provider):
             return f"Префикс «{name}» зарезервирован встроенным провайдером"
         if not base.startswith(("http://", "https://")):
             return "Base URL должен начинаться с http(s)://"
+        # F19: SSRF at save time — no userinfo, plain HTTP only on
+        # loopback, private/link-local hosts only with the explicit
+        # opt-in above (a LAN Ollama stays possible, deliberately).
+        from ..media_cache import validate_api_base_url
+        allow_private = str(fields.get("allow_private_network") or "no").strip().lower() in ("yes", "true", "1")
+        error = validate_api_base_url(base, allow_private=allow_private)
+        if error:
+            return error
         if str(fields.get("api_protocol", "auto") or "auto") not in ("auto", "chat", "responses"):
             return "Неизвестный протокол чата / Unknown chat protocol"
         try:
@@ -271,6 +284,13 @@ class CustomProvider(Provider):
     def chat_url(cls, account) -> str:
         """User-owned route, always on the configured origin (never leak its key)."""
         base = cls.base_of(account)
+        # F19: runtime gate for accounts saved before the save-time check
+        # (or edited outside the UI): a bad base never reaches the network.
+        from ..media_cache import validate_api_base_url
+        allow_private = str(account.fields.get("allow_private_network") or "no").strip().lower() in ("yes", "true", "1")
+        error = validate_api_base_url(base, allow_private=allow_private)
+        if error:
+            raise ValueError(error)
         endpoint = str(account.fields.get("chat_endpoint", "") or "").strip()
         if not endpoint:
             endpoint = "responses" if cls.chat_protocol(account) == "responses" else "chat/completions"

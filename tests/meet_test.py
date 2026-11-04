@@ -70,10 +70,12 @@ class ManifestTest(unittest.TestCase):
         # so no change to module_integration_handlers.py is needed.
         for command in contributes["commands"]:
             self.assertEqual(command["run"], {"open": True})
-        # Planning actions were added by the planning round: two default
-        # actions, both disabled until the user enables them.
+        # Planning actions: the original two plus the later digests/archives,
+        # every one disabled until the user enables it.
         self.assertIn("planning", contributes)
-        self.assertEqual(len(contributes["planning"]), 2)
+        self.assertGreaterEqual(len(contributes["planning"]), 2)
+        ids = {a.get("id") for a in contributes["planning"]}
+        self.assertTrue({"unprocessed", "weekly-digest"} <= ids, ids)
         self.assertTrue(all(not a.get("enabled", False) for a in contributes["planning"]))
         self.assertNotIn("widgets", contributes)
         for panel in contributes["panels"]:

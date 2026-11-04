@@ -307,7 +307,10 @@ class DownloaderTest(Base):
         track = self.lib.get(job.track_ids[0])
 
         self.assertEqual((track["title"], track["artist"], track["album"], track["source"]), ("Song", "Band", "LP", "spotify"))
-        self.assertEqual(track["source_url"], "https://open.spotify.com/track/abc")
+        # Wave #7 (D-11): _public() no longer exposes source_url to clients;
+        # the stored provenance is still there — read it via the raw row().
+        self.assertEqual(self.lib.row(job.track_ids[0])["source_url"], "https://open.spotify.com/track/abc")
+        self.assertNotIn("source_url", track)
         self.assertGreater(int(track["accent"][3:5], 16), 150)
         with patch("app.music.sources.resolve_meta", return_value=meta):
             again = self.run_job(mgr, "https://open.spotify.com/track/abc")

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MemuAI Proxy</title>
-  <link rel="stylesheet" href="/style.css?v=3.8-r48">
+  <link rel="stylesheet" href="/style.css?v=5.0-r78">
   <link rel="stylesheet" href="/model_caps.css">
   <link rel="stylesheet" href="/settings.css">
   <link rel="stylesheet" href="/public.css">
@@ -191,6 +191,88 @@
           <div class="grow"></div>
           <div class="chip-row" id="provider-filter"></div>
         </div>
+        <details class="plugins-box" id="plugins-box" style="margin-bottom:10px">
+          <summary><span data-i18n="acc.plugins">Плагины провайдеров</span> <span class="dim" id="plugins-summary"></span></summary>
+          <p class="muted" data-i18n="acc.plugins.what">Свой провайдер — без правок исходников MemuAI: файл плагина в папке ниже, и его модели появляются в общем API. Бывают кодовые (.py) и декларативные (.yaml/.json — для OpenAI-совместимых API без кода).</p>
+          <p class="muted" data-i18n="acc.plugins.warn">Файлы из папки плагинов (%APPDATA%\MemuAI\providers). Плагин выполняется с полными правами процесса Proxy — песочницы нет, поэтому ставьте только код, которому доверяете.</p>
+          <div class="row plugins-dir-row" style="margin:8px 0">
+            <code class="plugins-dir" id="plugins-dir">…</code>
+            <button class="btn small" type="button" id="plugins-open-folder" data-i18n="acc.plugins.dir.open">📁 Открыть папку</button>
+            <button class="btn small" type="button" id="plugins-copy-dir" data-i18n="acc.plugins.dir.copy">Копировать путь</button>
+          </div>
+          <div id="plugins-list"></div>
+          <div class="row plugins-install-row" style="margin-top:8px">
+            <label class="btn" for="plugins-file" data-i18n="acc.plugins.install">📤 Установить из файла</label>
+            <input type="file" id="plugins-file" accept=".py,.yaml,.yml,.json" hidden>
+            <span class="dim" data-i18n="acc.plugins.install.hint">.py, .yaml или .json, до 512 КБ</span>
+            <div class="grow"></div>
+            <button class="btn" type="button" id="plugins-reload" data-i18n="acc.plugins.reload">↻ Обновить плагины</button>
+          </div>
+          <div class="plugins-templates" id="plugins-templates">
+            <div class="plugins-templates-title" data-i18n="acc.plugins.templates">Из шаблона</div>
+            <div class="plugins-templates-grid" id="plugins-templates-grid"></div>
+          </div>
+          <details class="plugins-guide" id="plugins-guide">
+            <summary data-i18n="acc.plugins.guide">Как написать свой плагин</summary>
+            <ol class="plugins-guide-steps">
+              <li data-i18n="acc.plugins.guide.s1">Создайте плагин: из шаблона выше или с нуля (примеры кода ниже).</li>
+              <li data-i18n="acc.plugins.guide.s2">Положите файл в папку плагинов или установите его здесь кнопкой «Установить из файла».</li>
+              <li data-i18n="acc.plugins.guide.s3">Нажмите «Обновить плагины» — провайдер появится в списке выше.</li>
+              <li data-i18n="acc.plugins.guide.s4">Добавьте аккаунт этого провайдера (кнопка «＋ Аккаунт» на карточке) — его модели появятся в /v1/models.</li>
+            </ol>
+            <p class="muted" data-i18n="acc.plugins.guide.code">Минимальный кодовый плагин (.py):</p>
+            <pre class="code-block">PLUGIN_API = 1
+from app.providers.base import Field, Provider
+
+class MyProvider(Provider):
+    id = "my-api"          # латиница, цифры, дефис
+    title = "Мой API"
+    description = "..."
+
+    def account_fields(self):
+        return [Field("api_key", "API-ключ", "password")]
+
+    def seed_models(self):
+        return [("model-a", "Модель A")]
+
+    async def chat_stream(self, account, model, messages, params):
+        yield {"type": "text", "text": "..."}</pre>
+            <p class="muted" data-i18n="acc.plugins.guide.decl">Декларативный плагин — то же без кода (.yaml):</p>
+            <pre class="code-block">plugin_api: 1
+id: my-api
+title: Мой API
+kind: openai-chat
+base_url: https://api.example.com/v1
+auth: bearer
+models: [model-a, model-b]</pre>
+            <p class="muted" data-i18n="acc.plugins.guide.docs">Полная документация — в README.md из папки плагинов.</p>
+          </details>
+          <details class="plugins-mcp" id="plugins-mcp">
+            <summary data-i18n="acc.plugins.mcp">MCP: провайдеры для любого клиента</summary>
+            <p class="muted" data-i18n="acc.plugins.mcp.what">MemuAI Proxy — это ещё и MCP-сервер: любой MCP-клиент (например, Claude Desktop) может вызывать модели и плагины Proxy по протоколу MCP.</p>
+            <p><span data-i18n="acc.plugins.mcp.endpoint">Адрес MCP-сервера</span>: <code class="plugins-dir" id="mcp-url">…</code>
+              <button class="btn small" type="button" id="mcp-copy-url" data-i18n="acc.plugins.dir.copy">Копировать путь</button></p>
+            <p class="muted" data-i18n="acc.plugins.mcp.key">Ключ API хаба: если ключи заданы (раздел «Настройки → API»), клиент передаёт ключ в заголовке Authorization. Без ключей с этого компьютера работает и без ключа.</p>
+            <p class="muted" data-i18n="acc.plugins.mcp.tools">Инструменты: list_providers, list_models, list_plugins, reload_plugins, chat.</p>
+            <pre class="code-block" id="mcp-config">{
+  "mcpServers": {
+    "memuai": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:8317/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_HUB_API_KEY"
+      }
+    }
+  }
+}</pre>
+            <div class="row" style="margin-top:8px">
+              <button class="btn" type="button" id="mcp-copy-config" data-i18n="acc.plugins.mcp.copycfg">Скопировать конфиг</button>
+              <button class="btn" type="button" id="mcp-new-key" data-i18n="acc.plugins.mcp.newkey">Создать ключ</button>
+              <button class="btn" type="button" id="mcp-check" data-i18n="acc.plugins.mcp.check">Проверить MCP</button>
+              <span class="dim" id="mcp-check-result"></span>
+            </div>
+          </details>
+        </details>
         <div class="row" style="margin-bottom:10px; gap:8px; flex-wrap:wrap">
           <div style="flex:1 1 220px; min-width:180px">
             <input type="search" id="acc-search" data-i18n-ph="acc.search" placeholder="Поиск по метке, статусу, тегу…">
@@ -794,15 +876,15 @@
 <div class="modal-back" id="modal-back" aria-hidden="true"><div class="modal" id="modal-box" role="dialog" aria-modal="true" tabindex="-1"></div></div>
 <div id="toasts" role="status" aria-live="polite" aria-atomic="true"></div>
 <script src="/icons.js"></script>
-<script src="/i18n.js"></script>
+<script src="/i18n.js?v=5.0-r78"></script>
 <script src="/i18n-tools.js"></script>
 <script src="/settings-i18n.js"></script>
 <script src="/proxy-r33-i18n.js?v=3.5-r33"></script>
 <script src="/quota-planner-i18n.js?v=3.5-r35"></script>
 <script src="/composite-i18n.js?v=3.5-r35"></script>
-<script src="/model-names.js?v=3.5-r33"></script>
+<script src="/model-names.js?v=5.0-r78"></script>
 <script src="/geminiweb.js?v=3.7-r41"></script>
-<script src="/app.js?v=3.8-r48"></script>
+<script src="/app.js?v=5.0-r78"></script>
 <script src="/proxy-r33.js?v=3.5-r33"></script>
 <script src="/proxy-catalog-r33.js?v=3.5-r33"></script>
 <script src="/guide-video.js?v=3.5-r33"></script>

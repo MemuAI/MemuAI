@@ -44,7 +44,7 @@ class ProviderDetection(unittest.TestCase):
 
     def test_public_descriptors_have_gemini_voices_and_key_links(self):
         rows = {row["id"]: row for row in tp.public_providers()}
-        self.assertEqual(set(rows), {"openai", "gemini", "elevenlabs", "azure", "custom"})
+        self.assertEqual(set(rows), {"openai", "gemini", "elevenlabs", "azure", "openrouter", "custom"})
         self.assertEqual(len(rows["gemini"]["voices"]), 30)
         self.assertIn("gemini-3.8-flash-tts", rows["gemini"]["models"])
         self.assertTrue(rows["gemini"]["key_url"].startswith("https://aistudio.google.com"))
@@ -259,7 +259,7 @@ class SpeakRoute(unittest.TestCase):
             self.assertNotIn("<", error)
             catalog = client.get("/api/voice/catalog").json()
             self.assertEqual(catalog["tts_api_provider"], "gemini")
-            self.assertEqual(len(catalog["tts_api_providers"]), 5)
+            self.assertEqual(len(catalog["tts_api_providers"]), 6)
 
 class UiContracts(unittest.TestCase):
     def test_settings_ui_uses_provider_presets_and_test_button(self):

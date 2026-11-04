@@ -969,7 +969,8 @@ var CharEngine = (function () {
       charDepthPrompt: depthPrompt.prompt || "", creatorNotes: card.creator_notes || "",
       charVersion: card.character_version || "", model: opts.model || "", variables: meta.variables,
       globals: opts.globals || {}, chat: opts.chat || [], chatId: opts.chatId || "", lang: opts.lang || "en",
-      maxContext: maxContext, maxResponse: maxTokens, maxPrompt: maxContext - maxTokens, input: opts.input || ""
+      maxContext: maxContext, maxResponse: maxTokens, maxPrompt: maxContext - maxTokens, input: opts.input || "",
+      summary: str(opts.memory)
     };
     macroCtx.mesExamples = parseMesExamples(card.mes_example).join("");
     function sub(text, extra) {
@@ -1002,6 +1003,12 @@ var CharEngine = (function () {
     });
 
     var extensionPrompts = {};
+    // Chat memory written by Planning ("long chat → AI memory"): injected as a
+    // system note a few messages deep, like SillyTavern's Summarize extension.
+    if (str(opts.memory).trim()) {
+      extensionPrompts["1_chat_memory"] = { value: (opts.lang === "ru" ? "[Память чата — события до этого момента]\n" : "[Chat memory — events so far]\n") + str(opts.memory).trim(),
+        position: 1, depth: num(opts.memoryDepth, 6), role: 0 };
+    }
     var note = opts.note || {};
     var userCount = (opts.chat || []).filter(function (m) { return m.is_user; }).length;
     var interval = num(note.interval, 1);
@@ -1805,6 +1812,8 @@ var ICONS = {
   heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/>',
   attach: '<path d="m21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  chatPlus: '<path d="M12 18H8l-5 3V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5M17 13v8m-4-4h8"/>',
+  characterCard: '<rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M6 16c0-2 1-3 3-3s3 1 3 3m3-6h3m-3 4h3"/>',
   regex: '<path d="M17 3v10M12.7 5.5l8.6 5M12.7 10.5l8.6-5"/><rect x="3" y="15" width="6" height="6" rx="1"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
   pin: '<path d="M12 17v5M9 10.8V4h6v6.8l3 3.2H6z"/>',
@@ -1910,9 +1919,9 @@ function promptBox(title, value, opts) {
   });
 }
 
-function popMenu(anchor, items) {
+function popMenu(anchor, items, className) {
   closeMenus();
-  var menu = h("div", { class: "ch-menu", role: "menu" });
+  var menu = h("div", { class: "ch-menu" + (className ? " " + className : ""), role: "menu" });
   items.forEach(function (item) {
     if (!item) return;
     if (item.sep) { menu.appendChild(h("div", { class: "ch-menu-sep" })); return; }
@@ -1995,6 +2004,36 @@ function safeFileName(name, ext) {
   return (String(name || "file").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").trim().slice(0, 80) || "file") + (ext || "");
 }
 
+function bindAvatarMenu(button, img, name) {
+  button.addEventListener("contextmenu", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    popMenu(button, [
+      { icon: "copy", label: t("copy_avatar"), onClick: function () {
+        try {
+          if (!img.naturalWidth || !img.naturalHeight) throw new Error(t("avatar_unavailable"));
+          var source = img.currentSrc || img.src;
+          if (!source.startsWith("data:image/png;base64,")) {
+            var canvas = document.createElement("canvas");
+            canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            canvas.getContext("2d").drawImage(img, 0, 0);
+            source = canvas.toDataURL("image/png");
+          }
+          Memu.copyImage(source).then(function () { toast(t("avatar_copied"), "ok"); }, function () { toast(t("avatar_unavailable"), "error"); });
+        } catch (error) { toast(t("avatar_unavailable"), "error"); }
+      } },
+      { icon: "download", label: t("download_avatar"), onClick: function () {
+        var source = img.currentSrc || img.src;
+        var ext = (source.match(/^data:image\/(png|webp|jpeg|gif|svg\+xml);/i) || [])[1];
+        ext = ext === "jpeg" ? "jpg" : ext === "svg+xml" ? "svg" : ext || (source.match(/\.(png|webp|jpe?g|gif)(?:[?#]|$)/i) || [])[1] || "png";
+        var filename = safeFileName(name() || t("unnamed"), "." + ext);
+        Memu.download({ url: source, name: filename }).then(function (r) {
+          toast(t("saved_to", { path: (r && r.path) || filename }), "ok");
+        }, function (error) { toast(errText(error), "error"); });
+      } }
+    ]);
+  });
+}
+
 function defaultAvatar(name, seed) {
   var hue = (E.hashString(seed || name || "x") % 360);
   var letter = String(name || "?").trim().charAt(0).toUpperCase() || "?";
@@ -2016,7 +2055,7 @@ var DEFAULT_SETTINGS = {
     blur: 10, accent: "", quoteColor: "", italicColor: "", userBubble: "", bg: "", bgDim: 45, sidebar: true,
     showTimestamps: true, showTokens: true, showModel: true, showIds: false, reasoningOpen: false,
     enterSends: true, animations: true, gallerySort: "recent", galleryView: "grid", theme: "host", density: "normal",
-    swipeAnim: true, hideAvatars: false, centerChat: true,
+    swipeAnim: true, hideAvatars: false, centerChat: true, libraryWidth: 276, characterPanelWidth: 340,
 
     variantCount: 3, variantLeftClick: false
   },
@@ -2028,7 +2067,8 @@ var DEFAULT_SETTINGS = {
     wiIncludeNames: true, contextOverride: 0, autoTitle: false, keepSwipes: true
   },
   wi: Object.assign({ global: [] }, E.WI_DEFAULTS),
-  regex: [], quickReplies: [], globals: {}, favorites: [], bookmarksOnly: false, lastCharId: "", tagFilter: ""
+  regex: [], quickReplies: [], globals: {}, favorites: [], bookmarksOnly: false, lastCharId: "", tagFilter: "",
+  catalog: { source: "chub", hideLow: false, nsfw: false, sort: "default" }
 };
 var Store = {
   cache: {},
@@ -2097,10 +2137,17 @@ var saveChatNow = function () {
   return Store.set("chats/" + S.char.id + "/" + chat.id, chat);
 };
 var saveChat = debounce(saveChatNow, 700);
+function chatTokens(chat) {
+  // Planning's per-chat trigger ("chat grew by 500 000 tokens") reads this
+  // estimate from the chat list; the cache in E.estimateTokens keeps it cheap.
+  var total = 0;
+  (chat.messages || []).forEach(function (m) { if (m && !m.hidden) total += E.estimateTokens(m.mes || ""); });
+  return total;
+}
 function chatSummary(chat) {
   var last = (chat.messages || []).slice(-1)[0];
   return { id: chat.id, title: chat.title || "", created: chat.created, updated: chat.updated || chat.created,
-    count: (chat.messages || []).length, preview: last ? String(last.mes || "").slice(0, 140) : "",
+    count: (chat.messages || []).length, tokens: chatTokens(chat), preview: last ? String(last.mes || "").slice(0, 140) : "",
     bookmarks: (chat.messages || []).filter(function (m) { return m.bookmark; }).length, parent: chat.parent || "" };
 }
 function flushAll() {
@@ -2220,21 +2267,30 @@ function makeThumb(avatar) {
   if (!avatar) return Promise.resolve("");
   return resizeImage(avatar, 160, 240, "image/webp", 0.86).catch(function () { return ""; });
 }
+var openToken = 0;
 function openCharacter(id, chatId) {
   if (S.busy) { toast(t("busy_wait"), "warn"); return Promise.resolve(); }
   saveChat.flush();
+  // A fast double-click on two characters used to interleave the two
+  // async loads: the first character's chat list landed while S.char
+  // already pointed at the second one, and startNewChat() then saved
+  // that foreign list under the second character. The token drops every
+  // continuation of a superseded open.
+  var token = ++openToken;
   return loadChar(id).then(function (char) {
+    if (token !== openToken) return;
     if (!char) { toast(t("char_missing"), "error"); return; }
     S.char = char;
     S.settings.lastCharId = id; saveSettings();
     return Store.get("chatlist/" + id, []).then(function (list) {
+      if (token !== openToken) return;
       S.chatList = list || [];
       var row = S.index.find(function (c) { return c.id === id; });
       var target = chatId || (row && row.lastChat) || (S.chatList[0] && S.chatList[0].id);
       if (target) return openChat(target).then(function (ok) { if (!ok) return startNewChat(); });
       return startNewChat();
     });
-  }).then(function () { S.view = "chat"; render(); });
+  }).then(function () { if (token !== openToken) return; S.view = "chat"; render(); });
 }
 function greetingMessage(char) {
   var greetings = [char.data.first_mes || ""].concat(char.data.alternate_greetings || []).filter(function (g, i) { return i === 0 || g; });
@@ -2244,6 +2300,7 @@ function greetingMessage(char) {
 }
 function startNewChat(silent) {
   var char = S.char;
+  if (!char) return Promise.resolve();
   var now = Date.now();
   var chat = { id: E.uid("chat"), charId: char.id, title: char.data.name + " — " + Memu.i18n.date(new Date(now), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
     created: now, updated: now, messages: [], meta: { variables: {}, timedWorldInfo: {}, note: { text: "", position: "chat", depth: 4, role: 0, interval: 1 } } };
@@ -2255,11 +2312,16 @@ function startNewChat(silent) {
 }
 function openChat(chatId) {
   return Store.get("chats/" + S.char.id + "/" + chatId, null).then(function (chat) {
-    if (!chat) { S.chatList = S.chatList.filter(function (c) { return c.id !== chatId; }); return false; }
+    if (!chat) {
+      S.chatList = S.chatList.filter(function (c) { return c.id !== chatId; });
+      Store.set("chatlist/" + S.char.id, S.chatList).catch(function () {});
+      return false;
+    }
     chat.meta = chat.meta || {};
     chat.meta.note = Object.assign({ text: "", position: "chat", depth: 4, role: 0, interval: 1 }, chat.meta.note || {});
     dropStalePending(chat);
     S.chat = chat;
+    loadChatMemory();
     var idx = S.index.find(function (c) { return c.id === S.char.id; });
     if (idx) { idx.lastChat = chat.id; saveIndex(); }
     return true;
@@ -2339,6 +2401,24 @@ function activeWorlds() {
   return list;
 }
 function modelInfo() { return S.models.find(function (m) { return m.id === S.settings.model; }) || null; }
+var chatMemory = { key: "", text: "", info: null };
+function chatMemoryKey() { return S.char && S.chat ? S.char.id + "/" + S.chat.id : ""; }
+function loadChatMemory() {
+  var key = chatMemoryKey();
+  if (!key || chatMemory.key === key) return Promise.resolve(chatMemory);
+  chatMemory = { key: key, text: "", info: null };
+  return Store.get("memory/" + key, null).then(function (row) {
+    if (chatMemory.key !== key) return chatMemory;
+    chatMemory = { key: key, text: row && row.text ? String(row.text) : "", info: row || null };
+    refreshComposerBar();
+    return chatMemory;
+  }).catch(function () { return chatMemory; });
+}
+function chatMemoryText() {
+  if (!S.chat || (S.chat.meta && S.chat.meta.memoryOff) || S.settings.useChatMemory === false) return "";
+  if (chatMemory.key !== chatMemoryKey()) { loadChatMemory(); return ""; }
+  return chatMemory.text;
+}
 function buildFor(type, messages, opts) {
   opts = opts || {};
   E.setTokenModel(S.settings.model);
@@ -2358,7 +2438,7 @@ function buildFor(type, messages, opts) {
       modelContext: info && info.context ? info.context : 0, extendedSamplers: gen.extendedSamplers, promptCaching: gen.promptCaching,
       inlineImages: gen.inlineImages, thinking: gen.thinking, stop: gen.stop, sendReasoning: gen.sendReasoning, wiIncludeNames: gen.wiIncludeNames },
     globals: globals, lang: Memu.lang, chatId: S.chat.id, model: S.settings.model, dryRun: !!opts.dryRun,
-    quietPrompt: opts.quietPrompt || "", input: opts.input || "",
+    quietPrompt: opts.quietPrompt || "", input: opts.input || "", memory: chatMemoryText(),
     regexPrompt: function (text, kind, depth) { return E.runRegexScripts(text, S.settings.regex, kind === "user" ? 1 : 2, { isPrompt: true, depth: depth }); }
   });
   if (!opts.dryRun) saveSettings();
@@ -3206,6 +3286,24 @@ function refreshComposerBar() {
   ]);
   search.addEventListener("click", function () { setChatWebSearch(!chatWebSearch()); });
   holder.appendChild(search);
+  if (chatMemory.key === chatMemoryKey() && chatMemory.text) {
+    var memOn = !(S.chat && S.chat.meta && S.chat.meta.memoryOff);
+    var info = chatMemory.info || {};
+    var mem = h("button", { class: "ch-cchip ch-memory-chip" + (memOn ? " on" : ""), id: "memory-chip", type: "button",
+      "aria-pressed": memOn ? "true" : "false", "aria-label": t("chat_memory"),
+      title: t("chat_memory_hint", { n: info.messages || 0, date: info.at ? Memu.i18n.date(new Date(info.at), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—" }) + "\n\n" + chatMemory.text.slice(0, 600) }, [
+      h("span", { class: "ch-cchip-ic", html: icon("book", 15) }),
+      h("span", { class: "ch-cchip-text", text: t("chat_memory") })
+    ]);
+    mem.addEventListener("click", function () {
+      if (!S.chat) return;
+      S.chat.meta = S.chat.meta || {};
+      S.chat.meta.memoryOff = memOn;
+      saveChat();
+      refreshComposerBar();
+    });
+    holder.appendChild(mem);
+  }
 }
 var EFFORTS = ["auto", "off", "min", "low", "medium", "high", "max"];
 
@@ -3772,24 +3870,110 @@ function applyAppearance() {
     layer.classList.toggle("on", !!bg);
   }
   $("#app").classList.toggle("no-side", !ui.sidebar);
+  applyPaneWidths();
 }
 function render() {
   applyAppearance();
   E.setTokenModel(S.settings.model);
   renderSidebar();
-  if (S.view === "chat" && S.char && S.chat) renderChatView(); else renderHome();
+  if (S.view === "catalog") renderCatalog();
+  else if (S.view === "chat" && S.char && S.chat) renderChatView(); else renderHome();
+  syncCharacterPanel();
   if (S.drawerOpen) renderDrawer();
   syncToolbar();
 }
 
 function hostBar() { return !!(window.Memu && Memu.toolbar && Memu.toolbar.supported && Memu.toolbar.supported()); }
 function svgOf(name) { return '<svg viewBox="0 0 24 24">' + (ICONS[name] || "") + "</svg>"; }
+var catalogSidebarOpen = false;
+var characterPanelOpen = false;
+var CHARACTER_PANES = [
+  { handle: "#library-resize", pane: "#side", key: "libraryWidth", css: "--ch-side", min: 180, max: 480, direction: 1 },
+  { handle: "#character-resize", pane: "#character-panel", key: "characterPanelWidth", css: "--ch-character-panel", min: 220, max: 560, direction: -1 }
+];
+function applyPaneWidths() {
+  var app = $("#app");
+  CHARACTER_PANES.forEach(function (spec) {
+    var handle = $(spec.handle);
+    var width = clamp(Number(S.settings.ui[spec.key]) || DEFAULT_SETTINGS.ui[spec.key], spec.min, spec.max);
+    app.style.setProperty(spec.css, width + "px");
+    if (!handle) return;
+    handle.setAttribute("aria-valuemin", spec.min);
+    handle.setAttribute("aria-valuemax", spec.max);
+    handle.setAttribute("aria-valuenow", width);
+  });
+}
+function bindPaneResizing() {
+  var app = $("#app");
+  CHARACTER_PANES.forEach(function (spec) {
+    var handle = $(spec.handle), pane = $(spec.pane), drag = null;
+    if (!handle || !pane) return;
+    function resize(width) {
+      S.settings.ui[spec.key] = Math.round(clamp(width, spec.min, spec.max));
+      applyPaneWidths();
+    }
+    function finish(e) {
+      if (!drag || drag.id !== e.pointerId) return;
+      drag = null;
+      app.classList.remove("ch-resizing");
+      saveSettings();
+    }
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || !e.isPrimary) return;
+      drag = { id: e.pointerId, x: e.clientX, width: pane.getBoundingClientRect().width };
+      handle.focus({ preventScroll: true });
+      handle.setPointerCapture(e.pointerId);
+      app.classList.add("ch-resizing");
+      e.preventDefault();
+    });
+    handle.addEventListener("pointermove", function (e) {
+      if (drag && drag.id === e.pointerId) resize(drag.width + (e.clientX - drag.x) * spec.direction);
+    });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (event) { handle.addEventListener(event, finish); });
+    handle.addEventListener("keydown", function (e) {
+      var width = pane.getBoundingClientRect().width;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") width += (e.key === "ArrowRight" ? 1 : -1) * spec.direction * 16;
+      else if (e.key === "Home") width = spec.min;
+      else if (e.key === "End") width = spec.max;
+      else return;
+      e.preventDefault(); resize(width); saveSettings();
+    });
+  });
+}
+function sidebarVisible() {
+  return S.view === "catalog" ? catalogSidebarOpen :
+    S.settings.ui.sidebar && !$("#app").classList.contains("ch-side-hidden");
+}
+function syncCharacterPanel() {
+  var panel = $("#character-panel");
+  if (!panel) return;
+  if (S.view !== "chat" || !S.char) characterPanelOpen = false;
+  $("#app").classList.toggle("character-panel-open", characterPanelOpen);
+  panel.hidden = !characterPanelOpen;
+  panel.inert = !characterPanelOpen;
+  if (characterPanelOpen) renderChatSidebar();
+  else panel.replaceChildren();
+}
+function toggleCharacterPanel() {
+  characterPanelOpen = !characterPanelOpen;
+  syncCharacterPanel();
+  syncToolbar();
+  if (characterPanelOpen) $("#character-panel button")?.focus({ preventScroll: true });
+  else ($(".ch-chat-head [data-character-toggle]") || $("#composer-text"))?.focus({ preventScroll: true });
+  $(".ch-chat-head [data-character-toggle]")?.setAttribute("aria-expanded", String(characterPanelOpen));
+}
 function syncNarrowSidebar(chat) {
   var app = $("#app"); if (!app) return;
+  app.classList.toggle("catalog-view", S.view === "catalog");
+  app.classList.toggle("catalog-side-open", S.view === "catalog" && catalogSidebarOpen);
   app.classList.toggle("ch-side-hidden", !!chat && window.innerWidth <= 760 && !!S.settings.ui.sidebar);
 }
 function toggleSidebar() {
   var app = $("#app");
+  if (S.view === "catalog") {
+    catalogSidebarOpen = !catalogSidebarOpen;
+    syncNarrowSidebar(false); syncToolbar(); return;
+  }
   if (window.innerWidth <= 760 && S.view === "chat" && app && !app.classList.contains("no-side")) { app.classList.toggle("ch-side-hidden"); syncToolbar(); return; }
   S.settings.ui.sidebar = !S.settings.ui.sidebar; saveSettings(); applyAppearance(); syncToolbar();
 }
@@ -3825,9 +4009,8 @@ function tokenMeter() {
 }
 function syncToolbar() {
   if (!hostBar()) return;
-  var ui = S.settings.ui;
-  var sidebar = { id: "sidebar", kind: "toggle", icon: svgOf("sidebar"), label: t("toggle_sidebar"), pressed: !!ui.sidebar, onClick: toggleSidebar };
-  var drawer = { id: "drawer", kind: "toggle", icon: svgOf("panel"), label: t("settings_panel"), pressed: !!S.drawerOpen, pin: true, onClick: function () { toggleDrawer(); } };
+  var sidebar = { id: "sidebar", kind: "toggle", icon: svgOf("sidebar"), label: t("toggle_sidebar"), pressed: !!sidebarVisible(), onClick: toggleSidebar };
+  var drawer = { id: "drawer", kind: "toggle", icon: svgOf("sliders"), label: t("settings_panel"), pressed: !!S.drawerOpen, pin: true, onClick: function () { toggleDrawer(); } };
   if (S.view === "chat" && S.char && S.chat) {
     var note = S.chat.meta && S.chat.meta.note && S.chat.meta.note.text;
     Memu.toolbar.set({
@@ -3835,15 +4018,15 @@ function syncToolbar() {
       title: S.chat.title && S.chat.title.indexOf(S.char.data.name) === 0 ? S.chat.title : S.char.data.name + (S.chat.title ? " — " + S.chat.title : ""),
       items: [
         S.lastBuilt ? tokenMeter() : null,
-        { id: "chats", icon: svgOf("chat"), label: t("chats"), onClick: function () { openChatManager(); } },
-        { id: "new-chat", icon: svgOf("plus"), label: t("new_chat"), onClick: function () { startNewChat(); } },
+        { id: "chats", icon: svgOf("list"), label: t("chats"), showLabel: true, onClick: openChatManager },
+        { id: "new-chat", icon: svgOf("chatPlus"), label: t("new_chat"), showLabel: true, onClick: function () { startNewChat(); } },
         { id: "note", icon: svgOf("note"), label: t("authors_note"), dot: !!note, onClick: function () { openAuthorsNote(); } },
         { id: "search", icon: svgOf("search"), label: t("search_chat"), onClick: function () { openSearch(); } },
         { id: "more", icon: svgOf("more"), label: t("more"), pin: true, menu: chatMenuEntries().map(function (e, i) {
           return e.sep ? { sep: true } : { id: "m" + i, label: e.label, icon: svgOf(e.icon), danger: !!e.danger, onClick: e.onClick };
         }) },
         { kind: "separator" },
-        sidebar, drawer
+        sidebar, { id: "character-panel", kind: "toggle", icon: svgOf("characterCard"), label: t("character_panel"), showLabel: true, pressed: characterPanelOpen, pin: true, onClick: toggleCharacterPanel }, drawer
       ]
     });
   } else {
@@ -3864,8 +4047,10 @@ function renderSidebar() {
     hostBar() ? h("button", { class: "ch-ib", type: "button", title: t("home"), "aria-label": t("home"), html: icon("home"), onclick: goHome })
       : h("button", { class: "ch-brand", type: "button", onclick: goHome, title: t("home") }, [h("span", { class: "ch-brand-ic", html: icon("users", 18) }), h("span", { text: t("title") })]),
     hostBar() ? searchWrap : h("span", { class: "mu-grow" }),
+    iconBtn("globe", "catalog", function () { openCatalog(); }),
     iconBtn("upload", "import", function () { importFlow(); }),
-    iconBtn("plus", "new_character", function () { openCharacterEditor(null); })
+    iconBtn("plus", "new_character", function () { openCharacterEditor(null); }),
+    S.view === "catalog" ? iconBtn("close", "close", toggleSidebar) : null
   ]);
   side.appendChild(head);
   if (!hostBar()) side.appendChild(searchWrap);
@@ -3895,6 +4080,64 @@ function renderSidebar() {
   ]);
   side.appendChild(foot);
 }
+
+function renderChatSidebar() {
+  var side = $("#character-panel");
+  if (!side || !S.char) return;
+  side.replaceChildren();
+  var char = S.char;
+  var d = char.data || {};
+  side.appendChild(h("div", { class: "ch-side-head" }, [
+    h("strong", { text: t("character_panel") }),
+    h("span", { class: "mu-grow" }),
+    iconBtn("close", "close", toggleCharacterPanel)
+  ]));
+  var tokens = E.estimateTokens([d.description, d.personality, d.scenario, d.first_mes, d.mes_example, d.system_prompt].join("\n"));
+  var avatar = h("img", { src: charAvatar(char), alt: "" });
+  var avatarButton = h("button", { class: "ch-side-av", type: "button", title: t("edit_character_full"), onclick: function () { openCharacterEditor(char.id); } }, [avatar]);
+  bindAvatarMenu(avatarButton, avatar, function () { return d.name; });
+  var body = h("div", { class: "ch-inspector-body" }, [
+    h("div", { class: "ch-inspector-identity" }, [avatarButton,
+      h("div", { class: "ch-side-info" }, [
+        h("div", { class: "ch-side-name", text: d.name || t("unnamed") }),
+        d.creator ? h("div", { class: "ch-side-creator", text: t("catalog_by", { name: d.creator }) }) : null,
+        h("div", { class: "ch-side-meta", text: "≈" + fmtNum(tokens) + " " + t("catalog_tokens_short") })
+      ])
+    ]),
+    h("div", { class: "ch-inspector-actions" }, [
+      characterAction("chatPlus", "new_chat", function () { startNewChat(); }, "primary"),
+      characterAction("list", "chats", function (e) { openCharacterChats(e.currentTarget); }),
+      characterAction("edit", "edit", function () { openCharacterEditor(char.id); }),
+      characterAction("user", "ed_personality", function () { openCharacterEditor(char.id, "persona"); }),
+      characterAction("sliders", "ed_advanced", function () { openCharacterEditor(char.id, "advanced"); })
+    ]),
+    (d.tags || []).length ? h("div", { class: "ch-chips" }, d.tags.map(function (tag) { return h("span", { class: "ch-chip small", text: tag }); })) : null
+  ]);
+  [["f_description", d.description], ["f_personality", d.personality], ["f_scenario", d.scenario],
+    ["f_first_mes", d.first_mes], ["f_creator_notes", d.creator_notes]].forEach(function (section) {
+    if (!String(section[1] || "").trim()) return;
+    var text = String(section[1]).replace(/\{\{(char|user)\}\}/gi, function (_, key) { return key.toLowerCase() === "char" ? d.name : userName(); });
+    body.appendChild(h("section", { class: "ch-inspector-section" }, [h("h3", { text: t(section[0]) }), h("p", { text: text })]));
+  });
+  side.appendChild(body);
+}
+
+function characterAction(symbol, label, onClick, kind) {
+  return h("button", { class: "mu-btn small ch-chat-action" + (kind ? " " + kind : ""), type: "button", title: t(label),
+    html: icon(symbol, 15) + "<span>" + esc(t(label)) + "</span>", onclick: onClick });
+}
+
+function openCharacterChats(anchor) {
+  var items = S.chatList.slice().sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); }).map(function (row) {
+    var active = S.chat && S.chat.id === row.id;
+    return { icon: active ? "check" : "chat", label: row.title || t("untitled_chat"), active: active,
+      onClick: function () { if (!active) openChat(row.id).then(render); } };
+  });
+  if (!items.length) items.push({ label: t("no_chats"), disabled: true });
+  items.push({ sep: true }, { icon: "settings", label: t("manage_chats"), onClick: openChatManager });
+  popMenu(anchor, items, "ch-chat-menu").querySelector(".ch-menu-item:not(:disabled)")?.focus({ preventScroll: true });
+}
+
 
 function fitTagBar(bar) {
   if (!bar) return;
@@ -4007,6 +4250,7 @@ function renderHome() {
       h("button", { class: "mu-btn primary", type: "button", html: icon("plus", 16) + esc(t("new_character")), onclick: function () { openCharacterEditor(null); } }),
       h("button", { class: "mu-btn ghost ch-hero-ai", type: "button", title: t("ai_char_btn_title"), "aria-label": t("ai_char_btn"), html: icon("wand", 16) + "<span>" + esc(t("ai_char_btn")) + "</span>", onclick: function () { openAiCreator("character"); } }),
       h("button", { class: "mu-btn", type: "button", html: icon("upload", 16) + esc(t("import")), onclick: function () { importFlow(); } }),
+      h("button", { class: "mu-btn", type: "button", html: icon("globe", 16) + esc(t("catalog")), onclick: function () { openCatalog(); } }),
       hostBar() ? null : iconBtn("sidebar", "toggle_sidebar", toggleSidebar)
     ])
   ]);
@@ -4066,9 +4310,14 @@ function renderChatView() {
   main.className = "ch-main chat";
   var char = S.char;
   if (hostBar()) { S.lastBuilt = null; S.lastUsage = null; }
+  var panelToggle = characterAction("characterCard", "character_panel", toggleCharacterPanel);
+  panelToggle.setAttribute("data-character-toggle", "");
+  panelToggle.setAttribute("aria-controls", "character-panel");
+  panelToggle.setAttribute("aria-expanded", String(characterPanelOpen));
   var header = hostBar() ? null : h("header", { class: "ch-chat-head" }, [
     iconBtn("sidebar", "toggle_sidebar", toggleSidebar),
-    h("button", { class: "ch-head-char", type: "button", title: t("edit_character"), onclick: function () { openCharacterEditor(char.id); } }, [
+    panelToggle,
+    h("button", { class: "ch-head-char", type: "button", title: t("edit_character_full"), onclick: function () { openCharacterEditor(char.id); } }, [
       h("img", { src: charAvatar(char), alt: "" }),
       h("span", { class: "ch-head-text" }, [
         h("span", { class: "ch-head-name", text: char.data.name }),
@@ -4077,12 +4326,12 @@ function renderChatView() {
     ]),
     h("span", { class: "mu-grow" }),
     h("button", { class: "ch-token-badge", id: "token-badge", type: "button", title: t("prompt_inspector"), onclick: function () { openInspector(); } }),
-    iconBtn("chat", "chats", function () { openChatManager(); }),
-    iconBtn("plus", "new_chat", function () { startNewChat(); }),
+    characterAction("list", "chats", function (e) { openCharacterChats(e.currentTarget); }),
+    characterAction("chatPlus", "new_chat", function () { startNewChat(); }),
     iconBtn("note", "authors_note", function () { openAuthorsNote(); }, { class: "ch-ib" + (S.chat.meta.note && S.chat.meta.note.text ? " dot" : "") }),
     iconBtn("search", "search_chat", function () { openSearch(); }),
     iconBtn("more", "more", function (e) { chatMenu(e.currentTarget); }),
-    iconBtn("panel", "settings_panel", function () { toggleDrawer(); })
+    iconBtn("sliders", "settings_panel", function () { toggleDrawer(); })
   ]);
   if (header) main.appendChild(header);
   var log = h("div", { class: "ch-messages", id: "messages", role: "log", "aria-live": "polite" });
@@ -4324,7 +4573,7 @@ function textInput(value, onChange, opts) {
   return el;
 }
 
-function openCharacterEditor(id) {
+function openCharacterEditor(id, startTab) {
   var loading = id ? loadChar(id) : Promise.resolve(null);
   loading.then(function (existing) {
     var char = existing ? E.clone(existing) : newCharacter({});
@@ -4341,17 +4590,19 @@ function openCharacterEditor(id) {
       tokenLine.textContent = t("char_tokens", { total: fmtNum(all), perm: fmtNum(perm) });
     }
     var avatarImg = h("img", { class: "ch-ed-avatar-img", src: char.avatar || defaultAvatar(d.name || "?", char.id), alt: "" });
-    var avatarBox = h("div", { class: "ch-ed-avatar" }, [avatarImg,
-      h("div", { class: "ch-ed-avatar-actions" }, [
-        h("button", { class: "mu-btn small", type: "button", html: icon("image", 14) + esc(t("change_avatar")), onclick: function () {
-          pickFile("image/*").then(function (files) {
-            if (!files[0]) return;
-            readAs(files[0], "dataurl").then(function (url) { return resizeImage(url, 1024, 1536, "image/png"); }).then(function (url) { char.avatar = url; avatarImg.src = url; mark(); });
-          });
-        } }),
-        char.avatar ? h("button", { class: "mu-btn small ghost", type: "button", text: t("remove"), onclick: function () { char.avatar = ""; avatarImg.src = defaultAvatar(d.name || "?", char.id); mark(); } }) : null
-      ])
-    ]);
+    var removeAvatar = h("button", { class: "mu-btn small ghost", type: "button", text: t("remove"), hidden: !char.avatar, onclick: function () {
+      char.avatar = ""; avatarImg.src = defaultAvatar(d.name || "?", char.id); removeAvatar.hidden = true; mark();
+    } });
+    var avatarPick = h("button", { class: "ch-ed-avatar-pick", type: "button", title: t("change_avatar"), onclick: function () {
+      pickFile("image/*").then(function (files) {
+        if (!files[0]) return;
+        return readAs(files[0], "dataurl").then(function (url) { return resizeImage(url, 1024, 1536, "image/png"); }).then(function (url) {
+          char.avatar = url; avatarImg.src = url; removeAvatar.hidden = false; mark();
+        });
+      }).catch(function (error) { toast(errText(error), "error"); });
+    } }, [avatarImg, h("span", { class: "ch-ed-avatar-label", html: icon("image", 14) + esc(t("change_avatar")) })]);
+    bindAvatarMenu(avatarPick, avatarImg, function () { return d.name; });
+    var avatarBox = h("div", { class: "ch-ed-avatar" }, [avatarPick, removeAvatar]);
     function fieldFor(key, labelKey, opts) {
       opts = opts || {};
       var el = textInput(d[key], function (v) { d[key] = v; mark(); if (key === "name" && !char.avatar) avatarImg.src = defaultAvatar(v || "?", char.id); }, Object.assign({ live: true }, opts));
@@ -4482,7 +4733,7 @@ function openCharacterEditor(id) {
         ]);
       }]
     ];
-    var current = "basic";
+    var current = tabs.some(function (tab) { return tab[0] === startTab; }) ? startTab : "basic";
     var tabBar = h("div", { class: "mu-tabs" });
     var pane = h("div", { class: "ch-ed-pane" });
     function drawTab() {
@@ -6221,6 +6472,7 @@ function importBackup() {
 /* @memu-part:ai-create.js */
 /* @memu-part:assist-prompts.js */
 /* @memu-part:assist.js */
+/* @memu-part:catalog.js */
 function boot() {
   var app = $("#app");
   app.classList.add("loading");
@@ -6283,6 +6535,7 @@ document.addEventListener("keydown", function (e) {
     if (modalStack.length) { e.preventDefault(); modalStack[modalStack.length - 1].close(); return; }
     if (S.busy) { e.preventDefault(); stopGeneration(); return; }
     if (S.drawerOpen) { e.preventDefault(); S.drawerOpen = false; renderDrawer(); return; }
+    if (characterPanelOpen) { e.preventDefault(); toggleCharacterPanel(); return; }
   }
   if (S.view === "chat" && !modalStack.length && !S.busy && e.altKey && !e.ctrlKey && !e.metaKey) {
     var last = lastMessage();
@@ -6306,6 +6559,9 @@ window.MemuCharacters = { S: S, E: E, generate: generate, swipe: swipe, runSlash
   dropStalePending: dropStalePending, shortModel: shortModel, newCharacter: newCharacter, saveCharacter: saveCharacter,
   syncToolbar: syncToolbar, fitTagBar: fitTagBar, generateVariants: generateVariants, variantMenu: variantMenu, openModelPicker: openModelPicker, chatWebSearch: chatWebSearch, setChatWebSearch: setChatWebSearch, normalizeSearchUsed: normalizeSearchUsed,
   openVariantCompare: openVariantCompare, setChatModel: setChatModel, loadModels: loadModels, openAiCreator: openAiCreator, aiParseJson: aiParseJson,
+  openCatalog: openCatalog, renderChatSidebar: renderChatSidebar, catalogParseChub: catalogParseChub, catalogNormalizeChub: catalogNormalizeChub,
+  catalogFilterRows: catalogFilterRows, catalogChubSearchUrl: catalogChubSearchUrl, catalogParseTokenLabel: catalogParseTokenLabel,
   aiNormCard: aiNormCard, aiNormBook: aiNormBook, assistDiff: assistDiff, assistClean: assistClean, assistJsonList: assistJsonList, assistLocalChecks: assistLocalChecks,
   assistFieldMessages: assistFieldMessages, openCharacterEditor: openCharacterEditor, openWorldEditor: openWorldEditor, modelEfforts: modelEfforts, clampEffort: clampEffort, effortValue: effortValue, setEffort: setEffort };
+bindPaneResizing();
 boot().then(function () { Memu.ready(); });

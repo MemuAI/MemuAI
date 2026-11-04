@@ -280,7 +280,7 @@ async def detector_run(request: Request):
     try:
         return await detector.start(str(body.get("model") or ""), str(body.get("depth") or "quick"),
                                     str(body.get("judge") or ""), str(body.get("claimed") or ""),
-                                    str(body.get("lang") or "ru"))
+                                    str(body.get("lang") or "ru"), body.get("web", True) is not False)
     except ValueError as exc:
         return _error(str(exc))
 
@@ -680,7 +680,7 @@ async def cli_codex_apply(request: Request):
     default = body.get("default") if isinstance(body.get("default"), str) else None
     try:
         connection = _cli_connection(body)
-        return await asyncio.to_thread(cli.apply_codex, profiles, default=default, **connection)
+        return await asyncio.to_thread(cli.apply_codex, profiles, default=default, app=body.get("app") is True, **connection)
     except cli.IntegrationError as exc:
         return _cli_error(exc)
 

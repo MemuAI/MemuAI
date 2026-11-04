@@ -154,7 +154,8 @@ def status() -> Dict[str, Any]:
     dev = p["root"] is None
     result: Dict[str, Any] = {"dev": dev, "platform": os.name, "app_version": _app_version(),
                               "installed": False, "version": "", "package": {"present": False},
-                              "open_with": {"supported": False, "enabled": False}, "running": _running_instance()}
+                              "open_with": {"supported": False, "enabled": False},
+                              "explorer_menu": {"supported": False, "enabled": False}, "running": _running_instance()}
     if dev:
         entry = _dev_entry()
         result.update(installed=entry is not None, source=str(entry or ""))
@@ -170,6 +171,7 @@ def status() -> Dict[str, Any]:
             from .memunote import winsys
             winsys.migrate()
             result["open_with"] = winsys.open_with_state(str(exe))
+            result["explorer_menu"] = winsys.explorer_menu_state(str(exe))
         except Exception:  # noqa: BLE001
             pass
     result["package"] = package_info(p["package"])
@@ -344,6 +346,8 @@ def install() -> Dict[str, Any]:
             pass
         _update_state(root, True)
         _start_menu_shortcut(exe, True)
+        if os.name == "nt" and _run(exe, ["--sync-explorer-menu"]) != 0:
+            log.warning("Could not register the MemuNote Explorer menu")
         log.info("MemuNote %s into %s (%d bytes)", "updated" if updating else "installed", folder, size)
         return {"ok": True, "updated": updating, **status()}
 
@@ -466,5 +470,20 @@ def register(app) -> None:
         body = await body_of(request)
         try:
             return set_open_with(bool(body.get("enable")))
+        except Exception as exc:  # noqa: BLE001
+            return fail(exc)
+
+    @app.post("/api/pg/memunote/explorer-menu")
+    async def memunote_explorer_menu(request: Request):
+        body = await body_of(request)
+        try:
+            enable = body.get("enable")
+            if not isinstance(enable, bool):
+                raise ManagerError("invalid_request", "enable must be a boolean")
+            exe = paths()["exe"]
+            if exe is None or not exe.is_file():
+                raise ManagerError("not_installed", "MemuNote is not installed")
+            from .memunote import winsys
+            return winsys.sync_explorer_menu(exe=str(exe), enable=enable)
         except Exception as exc:  # noqa: BLE001
             return fail(exc)

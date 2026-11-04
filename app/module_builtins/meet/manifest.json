@@ -107,55 +107,184 @@
     "planning": [
       {
         "id": "unprocessed",
-        "title": "Необработанные записи встреч",
-        "title_en": "Unprocessed meeting recordings",
-        "description": "Напомнить обработать записи встреч, когда появятся новые встречи без итогов.",
-        "description_en": "Remind to process meeting recordings when new meetings appear.",
+        "title": "Конспект новых встреч",
+        "title_en": "Summaries of new meetings",
+        "description": "Когда появляется встреча с транскриптом без конспекта, ИИ делает конспект (решения, задачи), сохраняет его во встречу и в Markdown.",
+        "description_en": "When a meeting has a transcript but no summary, the AI writes one (decisions, tasks), stores it in the meeting and as Markdown.",
         "trigger": {
           "kind": "threshold",
-          "metric": "items",
+          "metric": "pending",
           "threshold": 1,
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "Есть записи встреч, которые стоит обработать: откройте MemuMeet, посмотрите расшифровку и сохраните итоги.",
-          "text_en": "meet"
+          "kind": "module",
+          "handler": "meet.summarize_pending"
         },
         "settings": [
           {
             "key": "threshold",
             "type": "number",
-            "label": "Встреч не меньше",
-            "label_en": "At least this many meetings",
+            "label": "Встреч без конспекта",
+            "label_en": "Meetings without a summary",
             "default": 1,
             "min": 1,
-            "max": 20
+            "max": 100
+          },
+          {
+            "key": "max_meetings",
+            "type": "number",
+            "label": "Встреч за запуск",
+            "label_en": "Meetings per run",
+            "default": 5,
+            "min": 1,
+            "max": 12
+          },
+          {
+            "key": "export",
+            "type": "bool",
+            "label": "Сохранять Markdown",
+            "label_en": "Save Markdown",
+            "default": true
           }
         ]
       },
       {
-        "id": "weekly-digest",
-        "title": "Итоги встреч за неделю",
-        "title_en": "Weekly meeting digest",
-        "description": "Раз в неделю напомнить проверить последние записи встреч.",
-        "description_en": "Remind once a week to check the latest meeting recordings.",
+        "id": "tasks-daily",
+        "title": "Задачи из встреч за день",
+        "title_en": "Tasks from today's meetings",
+        "description": "Каждый вечер — список задач и решений из конспектов встреч за день (без ИИ).",
+        "description_en": "Every evening — the list of tasks and decisions from the day's meeting summaries (no AI).",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 1440
+        },
+        "action": {
+          "kind": "module",
+          "handler": "meet.tasks_digest"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "За сколько дней",
+            "label_en": "Days to cover",
+            "default": 1,
+            "min": 1,
+            "max": 365
+          }
+        ]
+      },
+      {
+        "id": "tasks-weekly",
+        "title": "Задачи и решения недели",
+        "title_en": "Tasks and decisions of the week",
+        "description": "Раз в неделю все задачи и решения встреч одним чек-листом в Markdown.",
+        "description_en": "Once a week every task and decision of the meetings as one Markdown checklist.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Итоги недели во встречах: откройте MemuMeet и проверьте последние записи, расшифровки и субтитры.",
-          "text_en": "meet"
-        }
+          "kind": "module",
+          "handler": "meet.tasks_digest"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "За сколько дней",
+            "label_en": "Days to cover",
+            "default": 7,
+            "min": 1,
+            "max": 365
+          }
+        ]
+      },
+      {
+        "id": "weekly-digest",
+        "title": "ИИ-обзор встреч недели",
+        "title_en": "AI review of the week's meetings",
+        "description": "ИИ сводит встречи недели: темы, решения, задачи с ответственными, риски.",
+        "description_en": "The AI reviews the week's meetings: topics, decisions, tasks with owners, risks.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "meet.weekly_digest"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "За сколько дней",
+            "label_en": "Days to cover",
+            "default": 7,
+            "min": 1,
+            "max": 365
+          }
+        ]
+      },
+      {
+        "id": "meetings-three-day-review",
+        "title": "ИИ-обзор встреч за три дня",
+        "title_en": "AI review of three days of meetings",
+        "description": "Короткий ИИ-обзор встреч за последние три дня.",
+        "description_en": "A short AI review of the meetings of the last three days.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "module",
+          "handler": "meet.weekly_digest"
+        },
+        "settings": [
+          {
+            "key": "days",
+            "type": "number",
+            "label": "За сколько дней",
+            "label_en": "Days to cover",
+            "default": 3,
+            "min": 1,
+            "max": 365
+          }
+        ]
+      },
+      {
+        "id": "weekly-export",
+        "title": "Архив встреч раз в неделю (ZIP)",
+        "title_en": "Weekly meetings archive (ZIP)",
+        "description": "Все встречи — конспект и транскрипт в Markdown — одним архивом; аудио не выгружается.",
+        "description_en": "Every meeting — summary and transcript in Markdown — in one archive; audio is not exported.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "meet.export_all"
+        },
+        "settings": [
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
       },
       {
         "id": "meetings-milestone-10",
-        "title": "Десять встреч в архиве",
-        "title_en": "Ten meetings in the archive",
-        "description": "Сообщить, когда в архиве накопится десять встреч.",
-        "description_en": "Notify when the archive holds ten meetings.",
+        "title": "Десять встреч → архив",
+        "title_en": "Ten meetings → archive",
+        "description": "Когда в архиве набирается 10 встреч, они выгружаются в Markdown-архив.",
+        "description_en": "When the archive reaches 10 meetings, they are exported into a Markdown archive.",
         "trigger": {
           "kind": "threshold",
           "metric": "items",
@@ -163,60 +292,45 @@
           "scope": "any"
         },
         "action": {
-          "kind": "notify",
-          "text": "В архиве уже десять встреч — проверьте, у всех ли есть конспекты, и наведите порядок в записях.",
-          "text_en": "The archive already holds ten meetings — check that every one has notes, and tidy up the recordings."
-        }
-      },
-      {
-        "id": "meetings-milestone-50",
-        "title": "Пятьдесят встреч в архиве",
-        "title_en": "Fifty meetings in the archive",
-        "description": "Попросить модель предложить, как упорядочить большой архив встреч.",
-        "description_en": "Ask the model to suggest how to organise a large meetings archive.",
-        "trigger": {
-          "kind": "threshold",
-          "metric": "items",
-          "threshold": 50,
-          "scope": "any"
+          "kind": "module",
+          "handler": "meet.export_all"
         },
-        "action": {
-          "kind": "chat",
-          "prompt": "Предложи, как упорядочить архив из пятидесяти встреч: по темам, участникам и итогам, и что стоит сохранить в первую очередь. Коротко, списком.",
-          "prompt_en": "Suggest how to organise an archive of fifty meetings — by topic, participants and outcomes — and what to keep first. Briefly, as a list."
-        }
+        "settings": [
+          {
+            "key": "threshold",
+            "type": "number",
+            "label": "Встреч",
+            "label_en": "Meetings",
+            "default": 10,
+            "min": 2,
+            "max": 10000
+          },
+          {
+            "key": "keep",
+            "type": "number",
+            "label": "Хранить копий",
+            "label_en": "Copies to keep",
+            "default": 10,
+            "min": 1,
+            "max": 100
+          }
+        ]
       },
       {
-        "id": "meetings-daily-check",
-        "title": "Ежедневная проверка встреч",
-        "title_en": "Daily meetings check",
-        "description": "Каждый день напомнить проверить сегодняшние записи и встречи без конспекта.",
-        "description_en": "Remind every day to check today's recordings and meetings without notes.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 1440
-        },
-        "action": {
-          "kind": "notify",
-          "text": "Загляните в MemuMeet: проверьте сегодняшние записи и встречи, у которых ещё нет конспекта.",
-          "text_en": "Open MemuMeet: check today's recordings and any meetings that still have no notes."
-        }
-      },
-      {
-        "id": "meetings-three-day-review",
-        "title": "Обзор встреч за три дня",
-        "title_en": "Three-day meetings review",
-        "description": "Раз в три дня попросить модель подвести итог недавних встреч.",
-        "description_en": "Every three days, ask the model to sum up the recent meetings.",
+        "id": "meetings-report",
+        "title": "Отчёт по архиву встреч",
+        "title_en": "Meetings archive report",
+        "description": "Сколько встреч и часов записи, сколько без транскрипта и без конспекта.",
+        "description_en": "How many meetings and hours of recording, how many lack a transcript or a summary.",
         "trigger": {
           "kind": "periodic",
-          "every_minutes": 4320
+          "every_minutes": 10080
         },
         "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог встреч за последние три дня: темы, принятые решения и задачи. Коротко, списком.",
-          "prompt_en": "Sum up the meetings of the last three days: topics, decisions made and tasks. Briefly, as a list."
-        }
+          "kind": "module",
+          "handler": "meet.stats"
+        },
+        "settings": []
       }
     ]
   },

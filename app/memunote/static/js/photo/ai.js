@@ -4,13 +4,13 @@ import { esc, t, toast, api, copyText, I18N, API } from "../core.js";
 import { renderMarkdown } from "../views.js";
 import { newCanvas, ctx2d, DEFAULT_TEXT, renderVector } from "./doc.js";
 import { canvasToBlob, blobToDataURL, loadImage, canvasFromImage } from "./io.js";
-import { palette as dominant, invertMask, growMask } from "./pixels.js";
+import { palette as dominant, invertMask, growMask, LOOK_NAMES } from "./pixels.js";
 import { picon } from "./icons.js";
 import { COMMANDS } from "./commands.js";
 
 const LS = "mn_photo_";
-const ADJ_NAMES = new Set(["brightnessContrast", "exposure", "levels", "hueSaturation", "vibrance", "temperature", "colorBalance", "curves", "autoLevels", "blackWhite", "sepia", "invert", "threshold", "posterize", "grayscale"]);
-const FILTER_NAMES = new Set(["gaussianBlur", "sharpen", "unsharpMask", "noise", "denoise", "pixelate", "vignette", "emboss", "edges", "motionBlur", "oilPaint", "boxBlur"]);
+const ADJ_NAMES = new Set(["brightnessContrast", "exposure", "levels", "hueSaturation", "vibrance", "temperature", "colorBalance", "curves", "autoLevels", "blackWhite", "sepia", "invert", "threshold", "posterize", "grayscale", "shadowsHighlights", "clarity", "dehaze", "channelMixer", "gradientMap", "photoFilter", "splitToning", "look"]);
+const FILTER_NAMES = new Set(["gaussianBlur", "sharpen", "unsharpMask", "noise", "denoise", "pixelate", "vignette", "emboss", "edges", "motionBlur", "oilPaint", "boxBlur", "zoomBlur", "tiltShift", "chromatic", "halftone", "sketch"]);
 
 export class PhotoAI {
   constructor(ed) { this.ed = ed; this.msgs = []; this.caps = null; this.mode = localStorage.getItem(LS + "ai_mode") || "ask"; this.busyN = 0; }
@@ -379,7 +379,7 @@ function rasterTargetFor(ed) { const l = ed.doc.active; if (l?.type === "raster"
 export function sanitizeOps(ops) {
   if (!Array.isArray(ops)) return [];
   return ops.filter((o) => o && typeof o === "object" && typeof o.op === "string").slice(0, 12).filter((o) => {
-    if (o.op === "adjust") return ADJ_NAMES.has(o.name);
+    if (o.op === "adjust") return ADJ_NAMES.has(o.name) && (o.name !== "look" || LOOK_NAMES.includes(o.params?.name));
     if (o.op === "filter") return FILTER_NAMES.has(o.name);
     return ["crop", "rotate", "flip", "resize", "select", "select_all", "deselect", "invert_selection", "remove_background", "blur_background", "remove_object", "text", "fill"].includes(o.op);
   }).map((o) => ({ ...o, params: o.params && typeof o.params === "object" ? clampParams(o.params) : o.params }));
@@ -387,6 +387,7 @@ export function sanitizeOps(ops) {
 function clampParams(p) { const out = {}; for (const [k, v] of Object.entries(p)) out[k] = typeof v === "number" ? Math.max(-1000, Math.min(1000, v)) : Array.isArray(v) ? v.slice(0, 16) : typeof v === "boolean" || typeof v === "string" ? v : undefined; return out; }
 export function opLabel(o) {
   const p = o.params ? Object.entries(o.params).filter(([, v]) => typeof v === "number" || typeof v === "boolean").map(([k, v]) => `${t("ph_p_" + k)} ${typeof v === "boolean" ? (v ? "✓" : "✗") : Math.round(v * 100) / 100}`).join(", ") : "";
+  if (o.op === "adjust" && o.name === "look") return `${t("ph_adj_look")}: ${t("ph_look_" + o.params?.name)}${typeof o.params?.amount === "number" && o.params.amount < 100 ? ` ${Math.round(o.params.amount)}%` : ""}`;
   if (o.op === "adjust" || o.op === "filter") return t("ph_adj_" + o.name) + (p ? ` (${p})` : "");
   if (o.op === "text") return `${t("ph_layer_text")}: «${String(o.text).slice(0, 40)}»`;
   if (o.op === "rotate") return `${t("ph_rotate_canvas")} ${o.degrees}°`;

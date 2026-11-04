@@ -107,6 +107,18 @@ async function flush() {
 }
 export function markKnown(word) { status.set(word, false); for (const fn of listeners) fn(); }
 export function isBad(word) { return status.get(word) === true; }
+// One word outside CodeMirror (the document editor's right-click menu): the cached verdict or a quick check.
+export async function checkWord(word) {
+  if (!word || wordSkipped(word)) return false;
+  if (status.has(word)) return status.get(word) === true;
+  try {
+    const r = await api("spell/check", { words: [word] });
+    if (!r.ready) return false;
+    const bad = (r.bad || []).includes(word);
+    status.set(word, bad);
+    return bad;
+  } catch { return false; }
+}
 
 const errMark = Decoration.mark({ class: "mn-spell-err" });
 

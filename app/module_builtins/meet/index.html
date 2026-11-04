@@ -7,6 +7,7 @@
         <span data-i18n="app.tagline"></span>
       </div>
     </div>
+    <button type="button" class="mm-rec-pill" id="bar-rec" hidden data-i18n-title="record.pill_title"><i aria-hidden="true"></i><span id="bar-rec-time">0:00</span></button>
     <nav class="mm-nav" role="tablist" aria-label="MemuMeet">
       <button type="button" role="tab" id="tab-meetings" aria-selected="true" aria-controls="view-meetings" data-view="meetings" class="active" data-i18n="nav.meetings"></button>
       <button type="button" role="tab" id="tab-record" aria-selected="false" aria-controls="view-record" data-view="record" data-i18n="nav.record"></button>
@@ -17,37 +18,69 @@
 
   <main class="mm-main">
     <section class="mm-view" id="view-meetings" role="tabpanel" aria-labelledby="tab-meetings">
-      <div class="mm-head">
-        <h1 data-i18n="meetings.title"></h1>
-        <p class="mm-lead" data-i18n="meetings.lead"></p>
+      <div class="mm-head mm-head-row">
+        <div class="mm-head-text">
+          <h1 data-i18n="meetings.title"></h1>
+          <p class="mm-lead" data-i18n="meetings.lead"></p>
+        </div>
+        <div class="mm-head-actions">
+          <button type="button" class="mm-btn ghost" id="import-open"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19h14"/></svg><span data-i18n="meetings.import"></span></button>
+          <button type="button" class="mm-btn primary" id="record-open"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6"/></svg><span data-i18n="meetings.new"></span></button>
+        </div>
       </div>
+      <div class="mm-stats" id="stats" hidden></div>
       <div class="mm-toolbar">
-        <input class="mm-input mm-search" id="search" type="search" data-i18n-placeholder="meetings.search_ph">
-        <span class="mm-grow"></span>
-        <button type="button" class="mm-btn ghost" id="import-open" data-i18n="meetings.import"></button>
-        <button type="button" class="mm-btn primary" id="record-open" data-i18n="meetings.new"></button>
+        <label class="mm-search-wrap">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+          <input class="mm-input mm-search" id="search" type="search" data-i18n-placeholder="meetings.search_ph" data-i18n-aria-label="meetings.search_ph">
+        </label>
+        <label class="mm-sort-wrap"><span class="mm-sr" data-i18n="meetings.sort"></span>
+          <select class="mm-select mm-sort" id="sort" data-i18n-aria-label="meetings.sort">
+            <option value="new" data-i18n="meetings.sort_new"></option>
+            <option value="old" data-i18n="meetings.sort_old"></option>
+            <option value="long" data-i18n="meetings.sort_long"></option>
+            <option value="title" data-i18n="meetings.sort_title"></option>
+          </select>
+        </label>
+      </div>
+      <div class="mm-chips" id="filters" role="group" data-i18n-aria-label="meetings.filters">
+        <button type="button" class="mm-chip active" data-filter="all" aria-pressed="true"><span data-i18n="meetings.filter_all"></span><em data-count="all"></em></button>
+        <button type="button" class="mm-chip" data-filter="starred" aria-pressed="false"><span data-i18n="meetings.filter_starred"></span><em data-count="starred"></em></button>
+        <button type="button" class="mm-chip" data-filter="todo" aria-pressed="false"><span data-i18n="meetings.filter_todo"></span><em data-count="todo"></em></button>
+        <button type="button" class="mm-chip" data-filter="nosummary" aria-pressed="false"><span data-i18n="meetings.filter_nosummary"></span><em data-count="nosummary"></em></button>
+        <button type="button" class="mm-chip" data-filter="tasks" aria-pressed="false"><span data-i18n="meetings.filter_tasks"></span><em data-count="tasks"></em></button>
       </div>
       <div class="mm-status" id="list-status" role="status"></div>
       <div class="mm-list" id="list"></div>
+      <p class="mm-empty-text mm-nomatch" id="list-nomatch" hidden data-i18n="meetings.no_match"></p>
       <div class="mm-empty" id="list-empty" hidden>
         <span class="mm-empty-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>
         <b data-i18n="meetings.empty"></b>
         <span data-i18n="meetings.empty_hint"></span>
+        <ol class="mm-empty-steps">
+          <li><b>1</b><span data-i18n="meetings.how_1"></span></li>
+          <li><b>2</b><span data-i18n="meetings.how_2"></span></li>
+          <li><b>3</b><span data-i18n="meetings.how_3"></span></li>
+        </ol>
         <button type="button" class="mm-btn primary" id="empty-new" data-i18n="meetings.empty_cta"></button>
       </div>
     </section>
 
-    <section class="mm-view" id="view-detail" hidden>
-      <div class="mm-row">
+    <section class="mm-view mm-view-wide" id="view-detail" hidden>
+      <div class="mm-row mm-detail-bar">
         <button type="button" class="mm-btn ghost" id="back" data-i18n="detail.back"></button>
         <span class="mm-grow"></span>
-        <button type="button" class="mm-btn ghost" id="export-md" data-i18n="detail.export_md"></button>
-        <button type="button" class="mm-btn ghost" id="export-txt" data-i18n="detail.export_txt"></button>
+        <button type="button" class="mm-btn ghost icon" id="detail-star" aria-pressed="false" data-i18n-title="detail.star" data-i18n-aria-label="detail.star"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></button>
+        <button type="button" class="mm-btn ghost" id="detail-rename" data-i18n="detail.rename"></button>
         <button type="button" class="mm-btn ghost danger" id="delete-meeting" data-i18n="common.delete"></button>
       </div>
       <div class="mm-card mm-detail-head">
-        <h1 id="detail-title"></h1>
+        <div class="mm-title-row">
+          <h1 id="detail-title"></h1>
+          <input class="mm-input mm-title-input" id="detail-title-input" hidden maxlength="160" data-i18n-aria-label="detail.rename">
+        </div>
         <p class="mm-meta" id="detail-meta"></p>
+        <div class="mm-detail-chips" id="detail-chips"></div>
         <audio id="player" controls preload="metadata"></audio>
         <div id="player-mic-wrap" hidden>
           <p class="mm-hint" data-i18n="detail.mic_audio"></p>
@@ -56,27 +89,136 @@
         <p class="mm-hint" id="audio-missing" hidden data-i18n="detail.audio_missing"></p>
         <div class="mm-detail-actions">
           <button type="button" class="mm-btn primary" id="transcribe" data-i18n="detail.transcribe"></button>
-          <button type="button" class="mm-btn primary" id="summarize" data-i18n="detail.summarize"></button>
+          <div class="mm-split">
+            <button type="button" class="mm-btn primary" id="summarize" data-i18n="detail.summarize"></button>
+            <select class="mm-select mm-style-select" id="summary-style" data-i18n-aria-label="detail.summary_style" data-i18n-title="detail.summary_style">
+              <option value="standard" data-i18n="summary.style_standard"></option>
+              <option value="brief" data-i18n="summary.style_brief"></option>
+              <option value="detailed" data-i18n="summary.style_detailed"></option>
+              <option value="protocol" data-i18n="summary.style_protocol"></option>
+              <option value="actions" data-i18n="summary.style_actions"></option>
+              <option value="decisions" data-i18n="summary.style_decisions"></option>
+              <option value="followup" data-i18n="summary.style_followup"></option>
+            </select>
+          </div>
           <span class="mm-status inline" id="detail-status" role="status"></span>
         </div>
         <p class="mm-hint" data-i18n="detail.summary_hint"></p>
       </div>
-      <div class="mm-card mm-summary-card" id="summary-card" hidden>
-        <h2 data-i18n="detail.summary"></h2>
-        <div class="mm-prose" id="summary"></div>
+
+      <nav class="mm-dtabs" id="detail-tabs" role="tablist" data-i18n-aria-label="detail.sections">
+        <button type="button" role="tab" class="active" aria-selected="true" data-dtab="summary"><span data-i18n="detail.summary"></span></button>
+        <button type="button" role="tab" aria-selected="false" data-dtab="transcript"><span data-i18n="detail.transcript"></span><em id="dtab-transcript-count"></em></button>
+        <button type="button" role="tab" aria-selected="false" data-dtab="tasks"><span data-i18n="detail.tasks"></span><em id="dtab-tasks-count"></em></button>
+        <button type="button" role="tab" aria-selected="false" data-dtab="notes"><span data-i18n="detail.notes"></span><em id="dtab-notes-count"></em></button>
+        <button type="button" role="tab" aria-selected="false" data-dtab="ask"><span data-i18n="detail.ask"></span><em id="dtab-ask-count"></em></button>
+        <button type="button" role="tab" aria-selected="false" data-dtab="export"><span data-i18n="detail.export"></span></button>
+      </nav>
+
+      <div class="mm-dpane" data-dpane="summary">
+        <div class="mm-card mm-summary-card" id="summary-card" hidden>
+          <div class="mm-card-head">
+            <h2 data-i18n="detail.summary"></h2>
+            <span class="mm-meta" id="summary-meta"></span>
+            <span class="mm-grow"></span>
+            <button type="button" class="mm-btn ghost small" id="summary-copy" data-i18n="detail.copy"></button>
+          </div>
+          <div class="mm-prose" id="summary"></div>
+        </div>
+        <div class="mm-card mm-pane-empty" id="summary-empty">
+          <b data-i18n="detail.summary_none"></b>
+          <span data-i18n="detail.summary_none_hint"></span>
+        </div>
       </div>
-      <div class="mm-card">
-        <h2 data-i18n="detail.transcript"></h2>
-        <p class="mm-hint" data-i18n="detail.speakers_hint"></p>
-        <div class="mm-segments" id="segments"></div>
-        <p class="mm-empty-text" id="no-transcript" data-i18n="detail.no_transcript"></p>
+
+      <div class="mm-dpane" data-dpane="transcript" hidden>
+        <div class="mm-card">
+          <div class="mm-card-head">
+            <h2 data-i18n="detail.transcript"></h2>
+            <span class="mm-grow"></span>
+            <label class="mm-search-wrap small">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+              <input class="mm-input" id="seg-search" type="search" data-i18n-placeholder="detail.seg_search" data-i18n-aria-label="detail.seg_search">
+            </label>
+            <span class="mm-meta" id="seg-count"></span>
+          </div>
+          <div class="mm-speakers" id="speaker-stats" hidden></div>
+          <div class="mm-markers" id="detail-markers" hidden></div>
+          <p class="mm-hint" data-i18n="detail.speakers_hint"></p>
+          <div class="mm-segments" id="segments"></div>
+          <p class="mm-empty-text" id="no-transcript" data-i18n="detail.no_transcript"></p>
+        </div>
       </div>
-      <div class="mm-card">
-        <h2 data-i18n="detail.export"></h2>
-        <textarea class="mm-textarea" id="export-text" rows="8" readonly></textarea>
-        <div class="mm-row wrap">
-          <button type="button" class="mm-btn ghost" id="copy-export" data-i18n="detail.copy"></button>
-          <button type="button" class="mm-btn ghost" id="refresh-export" data-i18n="detail.export"></button>
+
+      <div class="mm-dpane" data-dpane="tasks" hidden>
+        <div class="mm-card">
+          <div class="mm-card-head">
+            <h2 data-i18n="detail.tasks"></h2>
+            <span class="mm-meta" id="tasks-progress"></span>
+            <span class="mm-grow"></span>
+            <button type="button" class="mm-btn ghost small" id="tasks-extract" data-i18n="detail.tasks_extract"></button>
+            <button type="button" class="mm-btn ghost small" id="tasks-copy" data-i18n="detail.tasks_copy"></button>
+          </div>
+          <div class="mm-progress" aria-hidden="true"><i id="tasks-bar"></i></div>
+          <form class="mm-task-add" id="task-form">
+            <input class="mm-input" id="task-input" maxlength="300" data-i18n-placeholder="detail.task_ph" data-i18n-aria-label="detail.task_ph">
+            <input class="mm-input mm-task-owner" id="task-owner" maxlength="60" data-i18n-placeholder="detail.task_owner_ph" data-i18n-aria-label="detail.task_owner_ph">
+            <button type="submit" class="mm-btn primary" id="task-add" data-i18n="detail.task_add"></button>
+          </form>
+          <ul class="mm-tasks" id="tasks"></ul>
+          <p class="mm-empty-text" id="tasks-empty" data-i18n="detail.tasks_empty"></p>
+        </div>
+      </div>
+
+      <div class="mm-dpane" data-dpane="notes" hidden>
+        <div class="mm-card">
+          <div class="mm-card-head">
+            <h2 data-i18n="detail.notes"></h2>
+            <span class="mm-grow"></span>
+            <span class="mm-status inline" id="notes-status" role="status"></span>
+          </div>
+          <p class="mm-hint" data-i18n="detail.notes_hint"></p>
+          <textarea class="mm-textarea mm-notes" id="notes" rows="10" maxlength="20000" data-i18n-placeholder="detail.notes_ph" data-i18n-aria-label="detail.notes"></textarea>
+        </div>
+      </div>
+
+      <div class="mm-dpane" data-dpane="ask" hidden>
+        <div class="mm-card">
+          <div class="mm-card-head">
+            <h2 data-i18n="detail.ask_title"></h2>
+            <span class="mm-grow"></span>
+            <button type="button" class="mm-btn ghost small" id="ask-clear" data-i18n="detail.ask_clear"></button>
+          </div>
+          <p class="mm-hint" data-i18n="detail.ask_hint"></p>
+          <div class="mm-chips" id="ask-chips">
+            <button type="button" class="mm-chip" data-ask="detail.ask_q_decisions"><span data-i18n="detail.ask_q_decisions"></span></button>
+            <button type="button" class="mm-chip" data-ask="detail.ask_q_owners"><span data-i18n="detail.ask_q_owners"></span></button>
+            <button type="button" class="mm-chip" data-ask="detail.ask_q_open"><span data-i18n="detail.ask_q_open"></span></button>
+            <button type="button" class="mm-chip" data-ask="detail.ask_q_email"><span data-i18n="detail.ask_q_email"></span></button>
+            <button type="button" class="mm-chip" data-ask="detail.ask_q_risks"><span data-i18n="detail.ask_q_risks"></span></button>
+          </div>
+          <form class="mm-ask-form" id="ask-form">
+            <input class="mm-input" id="ask-input" maxlength="600" data-i18n-placeholder="detail.ask_ph" data-i18n-aria-label="detail.ask_ph">
+            <button type="submit" class="mm-btn primary" id="ask-send" data-i18n="detail.ask_send"></button>
+          </form>
+          <div class="mm-qa" id="ask-list"></div>
+        </div>
+      </div>
+
+      <div class="mm-dpane" data-dpane="export" hidden>
+        <div class="mm-card">
+          <div class="mm-card-head">
+            <h2 data-i18n="detail.export"></h2>
+            <span class="mm-grow"></span>
+            <button type="button" class="mm-btn ghost small" id="export-md" data-i18n="detail.export_md"></button>
+            <button type="button" class="mm-btn ghost small" id="export-txt" data-i18n="detail.export_txt"></button>
+          </div>
+          <p class="mm-hint" data-i18n="detail.export_hint"></p>
+          <textarea class="mm-textarea" id="export-text" rows="14" readonly></textarea>
+          <div class="mm-row wrap">
+            <button type="button" class="mm-btn ghost" id="copy-export" data-i18n="detail.copy"></button>
+            <button type="button" class="mm-btn ghost" id="refresh-export" data-i18n="detail.export_refresh"></button>
+          </div>
         </div>
       </div>
     </section>
@@ -123,6 +265,10 @@
           <p class="mm-hint" id="mic-permission" role="status"></p>
         </div>
         <p class="mm-hint" id="system-note" hidden data-i18n="record.system_unavailable"></p>
+        <div id="native-block" hidden>
+          <p class="mm-hint" id="native-status" role="status"></p>
+          <div id="native-devices"></div>
+        </div>
         <div class="mm-row mm-step-foot">
           <span class="mm-grow"></span>
           <button type="button" class="mm-btn primary" id="to-check" data-i18n="record.to_check"></button>
@@ -141,6 +287,7 @@
           </div>
           <p class="mm-hint" id="check-system-hint" data-i18n="record.check_system_hint"></p>
           <p class="mm-status" id="system-check-status" role="status"></p>
+          <div id="native-levels" hidden></div>
         </div>
         <div class="mm-check-block" id="check-mic-block">
           <h3 data-i18n="record.mic"></h3>
@@ -178,7 +325,9 @@
         <p class="mm-hint" id="level-live-label"></p>
         <div class="mm-meter" id="level-live-wrap" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria-label="record.level_system"><i id="level-live"></i></div>
         <p class="mm-hint" id="rec-note" data-i18n="record.captions_note"></p>
+        <div class="mm-markers mm-rec-markers" id="rec-markers" hidden></div>
         <div class="mm-row wrap mm-hero-actions">
+          <button type="button" class="mm-btn ghost" id="rec-mark" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V4h10l-1.6 3.5L16 11H6"/></svg><span data-i18n="record.mark"></span></button>
           <button type="button" class="mm-btn ghost" id="rec-cancel" hidden data-i18n="record.cancel"></button>
           <label class="mm-btn ghost file" for="import-file" data-i18n="meetings.import"></label>
           <input type="file" id="import-file" accept=".wav,.mp3,.m4a,.ogg,.webm,.flac,.aac,.mp4" hidden>
@@ -191,7 +340,9 @@
         <p class="mm-meta" id="pending-meta"></p>
         <div class="mm-tracks" id="pending-tracks"></div>
         <p class="mm-hint" id="pending-tracks-note" hidden></p>
+        <p class="mm-hint" id="pending-markers" hidden></p>
         <p class="mm-hint" data-i18n="record.pending_hint"></p>
+        <label class="mm-check"><input type="checkbox" id="pending-auto"><span data-i18n="record.pending_auto"></span></label>
         <div class="mm-row wrap">
           <button type="button" class="mm-btn primary" id="pending-save" data-i18n="record.save"></button>
           <button type="button" class="mm-btn ghost" id="pending-discard" data-i18n="common.delete"></button>
@@ -204,8 +355,10 @@
         <h1 data-i18n="captions.title"></h1>
         <p class="mm-lead" data-i18n="captions.live_note"></p>
       </div>
-      <div class="mm-row">
+      <div class="mm-row wrap">
+        <span class="mm-meta" id="captions-meta"></span>
         <span class="mm-grow"></span>
+        <button type="button" class="mm-btn ghost small" id="captions-copy" data-i18n="captions.copy"></button>
         <label class="mm-check"><input type="checkbox" id="captions-large"><span data-i18n="captions.large"></span></label>
       </div>
       <p class="mm-hint" data-i18n="captions.chunk_note"></p>
@@ -228,6 +381,18 @@
             <select class="mm-select" id="set-model"></select>
             <small data-i18n="settings.model_hint"></small>
           </label>
+          <label class="mm-field"><span data-i18n="settings.summary_style"></span>
+            <select class="mm-select" id="set-style">
+              <option value="standard" data-i18n="summary.style_standard"></option>
+              <option value="brief" data-i18n="summary.style_brief"></option>
+              <option value="detailed" data-i18n="summary.style_detailed"></option>
+              <option value="protocol" data-i18n="summary.style_protocol"></option>
+              <option value="actions" data-i18n="summary.style_actions"></option>
+              <option value="decisions" data-i18n="summary.style_decisions"></option>
+              <option value="followup" data-i18n="summary.style_followup"></option>
+            </select>
+            <small data-i18n="settings.summary_style_hint"></small>
+          </label>
           <label class="mm-field"><span data-i18n="settings.summary_lang"></span>
             <select class="mm-select" id="set-lang">
               <option value="auto" data-i18n="settings.summary_lang_auto"></option>
@@ -249,11 +414,34 @@
           <label class="mm-check"><input type="checkbox" id="set-keep-audio"><span data-i18n="settings.keep_audio"></span></label>
           <small data-i18n="settings.keep_audio_hint"></small>
         </div>
+        <div class="mm-card mm-section" id="diag-block">
+          <h2 data-i18n="settings.section_diag"></h2>
+          <p class="mm-hint" id="diag-status" role="status"></p>
+          <div id="diag-devices"></div>
+          <div id="diag-levels"></div>
+          <p class="mm-status" id="diag-error" role="status"></p>
+          <div class="mm-row wrap">
+            <button type="button" class="mm-btn ghost" id="diag-check" data-i18n="record.diag_check"></button>
+            <button type="button" class="mm-btn ghost" id="diag-refresh" data-i18n="record.diag_refresh"></button>
+          </div>
+        </div>
         <div class="mm-card mm-section">
           <h2 data-i18n="settings.section_captions"></h2>
           <label class="mm-check"><input type="checkbox" id="set-large"><span data-i18n="settings.captions_large"></span></label>
           <label class="mm-check"><input type="checkbox" id="set-confirm"><span data-i18n="settings.confirm_summary"></span></label>
           <small data-i18n="settings.confirm_summary_hint"></small>
+        </div>
+        <div class="mm-card mm-section">
+          <h2 data-i18n="settings.section_auto"></h2>
+          <label class="mm-check"><input type="checkbox" id="set-auto-transcribe"><span data-i18n="settings.auto_transcribe"></span></label>
+          <small data-i18n="settings.auto_transcribe_hint"></small>
+          <label class="mm-check"><input type="checkbox" id="set-auto-tasks"><span data-i18n="settings.auto_tasks"></span></label>
+          <small data-i18n="settings.auto_tasks_hint"></small>
+          <div class="mm-field">
+            <span data-i18n="settings.storage"></span>
+            <div class="mm-storage"><div class="mm-progress" aria-hidden="true"><i id="storage-bar"></i></div><span class="mm-meta" id="storage-info"></span></div>
+            <small data-i18n="settings.storage_hint"></small>
+          </div>
         </div>
         <div class="mm-card mm-section mm-savebar">
           <div class="mm-row">

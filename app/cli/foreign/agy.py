@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from . import protobuf
-from .model import (ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts, short_args,
-                    title_from)
+from .model import (MAX_TURNS, ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts,
+                    short_args, title_from)
 
 KEY = "agy"
 TITLE = "Antigravity (agy)"
@@ -44,7 +44,10 @@ def present() -> bool:
 
 def _cache(name: str) -> Dict[str, Any]:
     try:
-        data = json.loads((home() / "cache" / name).read_text(encoding="utf-8"))
+        target = home() / "cache" / name
+        if target.stat().st_size > 1_000_000:
+            return {}
+        data = json.loads(target.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
@@ -84,13 +87,19 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     meta = _cache("conversation_metadata.json").get("conversations")
     meta = meta if isinstance(meta, dict) else {}
     folders = _folders()
-    for file in base.glob("*.db"):
+    try:
+        files = list(base.glob("*.db"))
+    except OSError:
+        return rows
+    for file in files:
         try:
             stat = file.stat()
         except OSError:
             continue
         conversation = file.stem
-        row = meta.get(conversation) or {}
+        # F31: a non-dict metadata row used to raise AttributeError here.
+        row = meta.get(conversation)
+        row = row if isinstance(row, dict) else {}
         if row.get("is_internal"):
             continue
         title, count, first_text, cwd = _quick(file)
@@ -148,12 +157,15 @@ def read(info: SessionInfo) -> ForeignSession:
     except sqlite3.Error as exc:
         raise ReadError(str(exc)) from exc
     try:
-        rows = con.execute("select idx, step_type, step_payload from steps order by idx").fetchall()
+        # F31: cap the steps read from one conversation (was unbounded fetchall).
+        rows = con.execute("select idx, step_type, step_payload from steps order by idx limit 200000").fetchall()
     except sqlite3.Error as exc:
         raise ReadError(str(exc)) from exc
     finally:
         con.close()
     for _index, step_type, payload in rows:
+        if len(session.turns) >= MAX_TURNS:
+            break
         tree = protobuf.decode(payload) if payload else None
         if not tree:
             continue

@@ -110,8 +110,6 @@ window.MemuLocal = (() => {
         </div>
         <div class="card">
           <h3>${esc(L("Поиск на Hugging Face", "Search Hugging Face"))}</h3>
-          <p class="sub">${esc(L("Только репозитории с файлами GGUF. Рядом с каждым файлом — оценка, поместится ли он на этот компьютер.",
-            "Only repositories with GGUF files. Each file shows whether it fits on this computer."))}</p>
           <form class="row lm-search" id="lm-search">
             <input class="grow" id="lm-q" type="search" autocomplete="off" spellcheck="false"
               placeholder="${esc(L("Например: qwen3.8 27b, gemma 4 12b, gpt-oss 20b…", "For example: qwen3.8 27b, gemma 4 12b, gpt-oss 20b…"))}">

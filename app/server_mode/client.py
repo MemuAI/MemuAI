@@ -239,8 +239,10 @@ class ServerClient:
     def _save_queue(self, ops: List[Dict[str, Any]]) -> None:
         if not self.queue_path:
             return
-        self.queue_path.parent.mkdir(parents=True, exist_ok=True)
-        self.queue_path.write_text(json.dumps(ops, ensure_ascii=False), "utf-8")
+        # F28: atomic write (tmp+replace+fsync) via storage — a crash during
+        # the old direct write_text left a torn queue file behind.
+        from ..storage import save_json
+        save_json(str(self.queue_path), ops, backup=False)
 
     def enqueue(self, op: QueuedOp) -> int:
         ops = self._load_queue()

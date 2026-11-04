@@ -62,7 +62,10 @@ class DomHarnessTests(unittest.TestCase):
             results = json.loads(proc.stdout)
         except json.JSONDecodeError:
             self.fail(f"harness did not emit JSON (exit {proc.returncode}):\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
-        if len(results) == 1 and "skip" in str(results[0].get("name", "")).lower():
+        # E06: the harness reports [{"name": "jsdom", "skipped": True}] when
+        # jsdom is missing — the name contains no "skip", so the old check
+        # never fired and the test failed instead of skipping.
+        if len(results) == 1 and results[0].get("skipped"):
             self.skipTest(f"jsdom unavailable: {results[0].get('details', '')}")
         self.assertEqual(proc.returncode, 0, f"harness exit {proc.returncode}: {proc.stderr[-1000:]}")
         failed = [r for r in results if not r.get("pass")]

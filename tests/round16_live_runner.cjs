@@ -101,7 +101,7 @@ async function ownership() {
       if (path.endsWith("speak")) return {audio:"data:audio/wav;base64,AA=="};
     }, storeLiveAudio:async()=>{apiStep="store"; await new Promise(resolve=>resolver=resolve);},
   });
-  vm.runInContext(fn("finishVoiceRecording") + "\n" + fn("speakMessage"), c);
+  vm.runInContext(fn("finishVoiceRecording") + "\n" + fn("speakMessage") + "\n" + fn("bubbleMarks"), c);
   const waitFor = async step => {
     for (let i=0; i<100; i++) { if (apiStep===step) return; await new Promise(resolve=>setImmediate(resolve)); }
     throw new Error("Fixture did not reach " + step + "; reached " + apiStep);

@@ -1,18 +1,23 @@
-
-
+// MemuAI help: the «?» menu in the top bar and one-time tips for complex
+// features. The first-run introduction lives in onboarding.js.
 (function () {
   "use strict";
-  if (window.MemuTour) return;
+  if (window.MemuHelp) return;
   const KEY = "memu_tips_v1";
 
-  const AUTO = (!navigator.webdriver || localStorage.getItem("memu_tips_force") === "1") && !document.documentElement.dataset.moduleApp;
-  const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG : localStorage.getItem("memu_lang")) === "en";
+  // B-ONB-M4: localStorage throws when storage is blocked (private mode,
+  // disabled cookies) — a top-level read here would kill the whole module.
+  const tipsForced = () => { try { return localStorage.getItem("memu_tips_force") === "1"; } catch (_) { return false; } };
+  const langStored = () => { try { return localStorage.getItem("memu_lang"); } catch (_) { return null; } };
+  const AUTO = (!navigator.webdriver || tipsForced()) && !document.documentElement.dataset.moduleApp;
+  const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG : langStored()) === "en";
   const L = (ru, enText) => (en() ? enText : ru);
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const $ = (s, root = document) => root.querySelector(s);
   const SVG = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const ICON = {
     help: SVG('<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.2-2.4 3.9"/><path d="M12 17.2h.01"/>'),
+    start: SVG('<path d="M12 3.5 13.9 9l5.6.2-4.4 3.5 1.6 5.4L12 15l-4.7 3.1 1.6-5.4L4.5 9.2l5.6-.2z"/>'),
     route: SVG('<circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/>'),
     slash: SVG('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m14 8-4 8"/>'),
     keys: SVG('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'),
@@ -31,8 +36,7 @@
   function init() {
     if (st) return;
     const chats = typeof S !== "undefined" && Array.isArray(S.chats) ? S.chats.length : 0;
-    const veteran = chats >= 3;
-    st = { v: 1, welcome: veteran ? "done" : "", seen: {}, off: veteran, dot: false };
+    st = { v: 1, seen: {}, off: chats >= 3, dot: false };
     save();
   }
 
@@ -44,9 +48,8 @@
     return cs.visibility !== "hidden" && cs.display !== "none" && +cs.opacity > 0.05;
   };
   const panelOpen = () => !!$("#panel-back.visible");
-  const somethingOpen = () => panelOpen() || !!(window.MemuLayers && MemuLayers.isOpen && MemuLayers.isOpen())
-    || !!$(".memu-tour-spot, .memu-hint, .msearch-back.visible, #msx-root:not([hidden]), .live-call.visible, body.booting");
-  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches || /off|reduced/.test(document.documentElement.dataset.motion || "");
+  // The first-run wizard and the setup conversation come first: tips wait.
+  const introActive = () => !!$(".onb-back") || (!!(window.MemuOnboarding && MemuOnboarding.active && MemuOnboarding.active()) && !!$("#messages .msg-setup"));
 
   function placeBubble(bubble, rect, pref = "bottom") {
     const pad = 10, gap = 12, bw = bubble.offsetWidth, bh = bubble.offsetHeight, vw = innerWidth, vh = innerHeight;
@@ -54,8 +57,7 @@
       bottom: rect.bottom + gap + bh <= vh - pad, top: rect.top - gap - bh >= pad,
       right: rect.right + gap + bw <= vw - pad, left: rect.left - gap - bw >= pad,
     };
-    const order = [pref, "bottom", "top", "right", "left"];
-    const side = order.find((s) => fits[s]) || "center";
+    const side = [pref, "bottom", "top", "right", "left"].find((s) => fits[s]) || "center";
     let x, y;
     if (side === "bottom" || side === "top") {
       x = rect.left + rect.width / 2 - bw / 2;
@@ -69,157 +71,11 @@
     bubble.style.left = Math.round(x) + "px";
     bubble.style.top = Math.round(y) + "px";
     bubble.dataset.side = side;
-
     const ax = Math.max(16, Math.min(rect.left + rect.width / 2 - x, bw - 16));
     const ay = Math.max(16, Math.min(rect.top + rect.height / 2 - y, bh - 16));
-    bubble.style.setProperty("--tour-ax", Math.round(ax) + "px");
-    bubble.style.setProperty("--tour-ay", Math.round(ay) + "px");
+    bubble.style.setProperty("--hint-ax", Math.round(ax) + "px");
+    bubble.style.setProperty("--hint-ay", Math.round(ay) + "px");
   }
-
-  function steps() {
-    return [
-      { sel: "#btn-new", title: L("Новый чат", "New chat"),
-        text: L("Каждый разговор — отдельный чат в списке слева. Кнопка рядом открывает временный чат: он не сохраняется и не попадает в память.",
-          "Every conversation is its own chat in the list on the left. The button next to it opens a temporary chat: it isn't saved and doesn't reach memory.") },
-      { sel: ".mode-switch", title: L("Три режима", "Three modes"),
-        text: L("<b>Чат</b> — просто разговор. <b>Work</b> — ИИ читает и меняет файлы выбранной папки (с вашего разрешения). <b>MemuCode</b> — агент-программист для репозитория.",
-          "<b>Chat</b> is a plain conversation. <b>Work</b> lets the AI read and change files in a folder you choose (with your approval). <b>MemuCode</b> is a coding agent for a repository.") },
-      { sel: "#model-dd-btn", title: L("Модель", "Model"),
-        text: L("Какая нейросеть отвечает. Список берётся из MemuAI Proxy — там добавляются аккаунты и ключи. Быстро открыть: Ctrl+M.",
-          "Which AI model answers. The list comes from MemuAI Proxy, where accounts and keys are added. Shortcut: Ctrl+M.") },
-      { sel: "#btn-plus", title: L("Файлы и инструменты", "Files and tools"),
-        text: L("Фото и документы, снимок экрана, веб-поиск, глубокое исследование, картинки, Do For You. А если ввести <b>/</b> в поле — появятся быстрые команды.",
-          "Photos and documents, screenshots, web search, deep research, images, Do For You. Type <b>/</b> in the message box for quick commands.") },
-      { sel: "#nav-sched", title: L("Планирование", "Planning"),
-        text: L("Задачи, которые MemuAI выполняет сам: по расписанию, при запуске программы или по условию. Можно описать словами.",
-          "Tasks MemuAI runs on its own: on a schedule, when a program starts or when a condition is met. You can describe them in plain words.") },
-      { sel: ".chat-search, #chat-search", title: L("Поиск везде", "Search everything"),
-        text: L("Ctrl+K — чаты, память, файлы, настройки и команды в одном окне.", "Ctrl+K — chats, memory, files, settings and commands in one place.") },
-      { sel: "#profile-card", title: L("Профиль и настройки", "Profile and settings"),
-        text: L("Память, внешний вид, голос, интеграции, модули и документация. Здесь же включается <b>Быстрый доступ</b>: окно ИИ по Alt+Space поверх любых программ.",
-          "Memory, appearance, voice, integrations, modules and documentation. This is also where you turn on <b>Quick Ask</b>: an AI window over any program on Alt+Space.") },
-      { sel: "#btn-help", title: L("Справка всегда рядом", "Help is always here"),
-        text: L("Здесь можно снова пройти тур, открыть документацию и горячие клавиши, включить или выключить подсказки.",
-          "Take the tour again, open the documentation and shortcuts, or turn tips on and off.") },
-    ];
-  }
-
-  let tour = null;
-  function start() {
-    init();
-    endTour(); closeWelcome(); closeHint(); closeMenu();
-    try { typeof closePanel === "function" && closePanel(); } catch (_) {}
-    try { window.MemuLayers && MemuLayers.closeAll && MemuLayers.closeAll("api"); } catch (_) {}
-
-    try { if (document.body.classList.contains("sidebar-hidden") && typeof toggleSidebar === "function") toggleSidebar(); } catch (_) {}
-    const list = steps();
-    const spot = document.createElement("div");
-    spot.className = "memu-tour-spot";
-    spot.setAttribute("aria-hidden", "true");
-    const bubble = document.createElement("div");
-    bubble.className = "memu-tour-bubble";
-    bubble.setAttribute("role", "dialog");
-    bubble.setAttribute("aria-modal", "false");
-    bubble.setAttribute("aria-live", "polite");
-    const block = document.createElement("div");
-    block.className = "memu-tour-block";
-    block.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); });
-    document.body.append(block, spot, bubble);
-    tour = { list, i: -1, spot, bubble, block, prevFocus: document.activeElement };
-    document.addEventListener("keydown", tourKeys, true);
-    addEventListener("resize", tourPlace);
-    st.welcome = "done"; st.dot = false; save(); refreshButton();
-    go(1);
-  }
-  function go(dir) {
-    if (!tour) return;
-    let i = tour.i;
-    do { i += dir; } while (i >= 0 && i < tour.list.length && !visible($(tour.list[i].sel)));
-    if (i < 0) return;
-    if (i >= tour.list.length) { endTour(); return; }
-    tour.i = i;
-    render();
-  }
-  function render() {
-    const { list, i, bubble } = tour;
-    const step = list[i];
-    const shown = list.filter((s) => visible($(s.sel)));
-    const n = shown.indexOf(step) + 1, total = shown.length;
-    const last = n === total;
-    bubble.innerHTML = `<div class="tour-head"><span class="tour-count">${esc(L(`${n} из ${total}`, `${n} of ${total}`))}</span>
-        <button type="button" class="tour-x" data-tour="end" aria-label="${esc(L("Закрыть тур", "Close the tour"))}">${ICON.close}</button></div>
-      <h3 class="tour-title">${esc(step.title)}</h3><p class="tour-text">${step.text}</p>
-      <div class="tour-foot"><button type="button" class="tour-skip" data-tour="end">${esc(last ? "" : L("Пропустить", "Skip"))}</button>
-        <span class="tour-grow"></span>
-        ${n > 1 ? `<button type="button" class="pbtn ghost tour-btn" data-tour="prev">${esc(L("Назад", "Back"))}</button>` : ""}
-        <button type="button" class="pbtn tour-btn" data-tour="next">${esc(last ? L("Готово", "Done") : L("Далее", "Next"))}</button></div>`;
-    if (last) bubble.querySelector(".tour-skip").hidden = true;
-    bubble.querySelectorAll("[data-tour]").forEach((b) => b.onclick = () => {
-      const a = b.dataset.tour; if (a === "next") go(1); else if (a === "prev") go(-1); else endTour();
-    });
-    tourPlace();
-    bubble.querySelector('[data-tour="next"]').focus({ preventScroll: true });
-  }
-  function tourPlace() {
-    if (!tour || tour.i < 0) return;
-    const el = $(tour.list[tour.i].sel);
-    if (!visible(el)) { go(1); return; }
-    const r = el.getBoundingClientRect(), p = 6;
-    Object.assign(tour.spot.style, { left: r.left - p + "px", top: r.top - p + "px", width: r.width + p * 2 + "px", height: r.height + p * 2 + "px" });
-    placeBubble(tour.bubble, { left: r.left - p, top: r.top - p, right: r.right + p, bottom: r.bottom + p, width: r.width + p * 2, height: r.height + p * 2 }, "bottom");
-  }
-  function tourKeys(e) {
-    if (!tour) return;
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endTour(); }
-    else if (e.key === "ArrowRight" || e.key === "Enter" && !/^(BUTTON)$/.test(document.activeElement?.tagName)) { e.preventDefault(); e.stopPropagation(); go(1); }
-    else if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); go(-1); }
-    else if (e.key === "Tab") {
-      const items = [...tour.bubble.querySelectorAll("button:not([hidden])")];
-      if (!items.length) return;
-      const k = items.indexOf(document.activeElement);
-      e.preventDefault(); e.stopPropagation();
-      items[(k + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus();
-    }
-  }
-  function endTour() {
-    if (!tour) return;
-    const t = tour; tour = null;
-    document.removeEventListener("keydown", tourKeys, true);
-    removeEventListener("resize", tourPlace);
-    const gone = () => { t.spot.remove(); t.bubble.remove(); t.block.remove(); };
-    if (reduced()) gone(); else { t.spot.classList.add("leaving"); t.bubble.classList.add("leaving"); setTimeout(gone, 180); }
-    t.block.remove();
-    const back = $("#btn-help");
-    try { (back && visible(back) ? back : t.prevFocus)?.focus?.({ preventScroll: true }); } catch (_) {}
-  }
-
-  let welcomeEl = null;
-  function welcome(force) {
-    init();
-    if (!force && (st.welcome === "done" || !AUTO)) return false;
-    if (!force && somethingOpen()) return false;
-    closeWelcome();
-    const card = document.createElement("div");
-    card.className = "memu-welcome";
-    card.setAttribute("role", "dialog");
-    card.setAttribute("aria-label", L("Знакомство с MemuAI", "Getting started with MemuAI"));
-    card.innerHTML = `<button type="button" class="mw-x" data-w="later" aria-label="${esc(L("Закрыть", "Close"))}">${ICON.close}</button>
-      <div class="mw-mark" aria-hidden="true">${ICON.route}</div>
-      <h3>${esc(L("Показать, что где?", "Want a quick look around?"))}</h3>
-      <p>${esc(L("Минута: чаты, модели, инструменты и настройки. Тур всегда можно открыть снова в меню «?» сверху.",
-        "One minute: chats, models, tools and settings. You can always reopen the tour from the «?» menu at the top."))}</p>
-      <div class="mw-actions"><button type="button" class="pbtn ghost" data-w="later">${esc(L("Не сейчас", "Not now"))}</button>
-        <button type="button" class="pbtn" data-w="go">${esc(L("Показать", "Show me"))}</button></div>`;
-    card.querySelectorAll("[data-w]").forEach((b) => b.onclick = () => {
-      st.welcome = "done"; save(); closeWelcome();
-      if (b.dataset.w === "go") start();
-      else if (window.toast) { try { toast(L("Тур — в меню «?» вверху справа", "The tour is in the «?» menu, top right"), "info"); } catch (_) {} }
-    });
-    document.body.appendChild(card);
-    welcomeEl = card;
-    return true;
-  }
-  function closeWelcome() { if (welcomeEl) { welcomeEl.remove(); welcomeEl = null; } }
 
   const HINTS = {
     work: { when: () => typeof S !== "undefined" && S.mode === "work" && !panelOpen() && visible($("#workbar")), anchor: "#work-access, #workbar",
@@ -256,7 +112,7 @@
     init();
     const h = HINTS[id];
     if (!h) return false;
-    if (!force && (!AUTO || st.off || st.seen[id] || tour || hintEl || welcomeEl || Date.now() - lastHint < 25000)) return false;
+    if (!force && (!AUTO || st.off || st.seen[id] || hintEl || introActive() || Date.now() - lastHint < 25000)) return false;
     if (!force && !h.when()) return false;
 
     const anchor = h.anchor.split(",").map((sel) => [...document.querySelectorAll(sel.trim())].find(visible)).find(Boolean);
@@ -298,7 +154,7 @@
     checkTimer = setTimeout(() => {
       checkTimer = 0;
       if (hintEl) { placeHint(); return; }
-      if (!st || st.off || !AUTO || tour || welcomeEl) return;
+      if (!st || st.off || !AUTO || introActive()) return;
       for (const id of Object.keys(HINTS)) if (!st.seen[id] && HINTS[id].when()) { if (hint(id)) break; }
     }, 700);
   }
@@ -332,12 +188,13 @@
     init();
     closeMenu();
     anchor = anchor || $("#btn-help");
+    if (!anchor) return;
     const m = document.createElement("div");
     m.className = "memu-help-menu";
     m.setAttribute("role", "menu");
-    const item = (act, ico, label, sub = "", extra = "") => `<button type="button" role="menuitem" data-help="${act}"${extra}><span class="ui-icon">${ico}</span><span class="hm-text"><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
+    const item = (act, ico, label, sub = "") => `<button type="button" role="menuitem" data-help="${act}"><span class="ui-icon">${ico}</span><span class="hm-text"><span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`;
     m.innerHTML = `<div class="hm-title">${esc(L("Справка", "Help"))}</div>`
-      + item("tour", ICON.route, L("Тур по интерфейсу", "Interface tour"), L("Что где — за минуту", "What's where, in a minute"))
+      + (window.MemuOnboarding ? item("onboarding", ICON.start, L("Знакомство с MemuAI", "Getting started"), L("Модель, вопросы и главные настройки", "Model, questions and the main settings")) : "")
       + item("commands", ICON.slash, L("Быстрые команды", "Quick commands"), L("Введите / в поле сообщения", "Type / in the message box"))
       + item("keys", ICON.keys, L("Горячие клавиши", "Keyboard shortcuts"), "Ctrl+/")
       + item("team", ICON.route, L("Команда", "Team"), L("Роли моделей и общий результат", "Model roles and a shared result"))
@@ -350,15 +207,9 @@
     menuEl = m;
     anchor.setAttribute("aria-expanded", "true");
     st.dot = false; save(); refreshButton();
-    const place = () => {
-      const r = anchor.getBoundingClientRect();
-      if (window.MemuLayers && MemuLayers.place) { MemuLayers.place(m, anchor, { gap: 6, maxHeight: innerHeight - 24, align: "end" }); return; }
-      m.style.top = Math.round(r.bottom + 6) + "px";
-      m.style.left = Math.round(Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8))) + "px";
-    };
-    place();
-
     const r = anchor.getBoundingClientRect();
+    if (window.MemuLayers && MemuLayers.place) MemuLayers.place(m, anchor, { gap: 6, maxHeight: innerHeight - 24, align: "end" });
+    else m.style.top = Math.round(r.bottom + 6) + "px";
     m.style.left = Math.round(Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8))) + "px";
     if (window.MemuLayers && MemuLayers.open) {
       menuLayer = MemuLayers.open({ el: m, anchor, kind: "menu", focus: true, items: "[role=menuitem], input", close: () => closeMenu(true) });
@@ -389,9 +240,13 @@
     document.removeEventListener("keydown", menuKeys, true);
     $("#btn-help")?.setAttribute("aria-expanded", "false");
   }
+  function startIntro() {
+    closeHint();
+    if (window.MemuOnboarding && MemuOnboarding.restart) MemuOnboarding.restart();
+  }
   function run(act) {
     closeMenu();
-    if (act === "tour") start();
+    if (act === "onboarding") startIntro();
     else if (act === "commands") {
       try { typeof closePanel === "function" && closePanel(); } catch (_) {}
       const input = $("#input");
@@ -421,22 +276,26 @@
   }
   function settingsHtml({ K, L2 }) {
     init();
-    return K.section({ id: "settings-tips", title: L2("Подсказки и обучение", "Tips and learning"), keywords: "tips tour help onboarding подсказки тур обучение справка помощь",
+    const btn = (id, ru, enText) => `<button type="button" class="pbtn ghost sx-btn-sm" id="${id}">${L2(ru, enText)}</button>`;
+    const intro = window.MemuOnboarding
+      ? K.row({ label: L2("Знакомство с MemuAI", "Getting started"), desc: L2("Выбор модели, пара вопросов о ваших задачах и главные настройки — кратко или по разделам. Также — в меню «?» сверху", "Choosing a model, a few questions about your tasks and the main settings — briefly or section by section. Also in the «?» menu at the top"),
+        control: btn("st-intro-start", "Пройти заново", "Start again") })
+      : "";
+    return K.section({ id: "settings-tips", title: L2("Подсказки и обучение", "Tips and learning"), keywords: "tips help onboarding getting started подсказки обучение справка помощь знакомство",
       body: K.row({ label: L2("Подсказки к сложным разделам", "Tips for complex features"),
         desc: L2("Короткое пояснение при первом открытии Work, Планирования, Памяти, Do For You, Модулей, Быстрого доступа и MemuNote", "A short note the first time you open Work, Planning, Memory, Do For You, Modules, Quick Ask and MemuNote"),
         control: K.toggle ? K.toggle("st-tips", !st.off) : `<label class="switch"><input type="checkbox" role="switch" id="st-tips" ${st.off ? "" : "checked"}><span class="sl"></span></label>` })
         + K.row({ label: L2("Показать подсказки снова", "Show tips again"), desc: L2("Все подсказки станут непрочитанными", "Every tip becomes unseen again"),
-          control: `<button type="button" class="pbtn ghost sx-btn-sm" id="st-tips-reset">${L2("Сбросить", "Reset")}</button>` })
-        + K.row({ label: L2("Тур по интерфейсу", "Interface tour"), desc: L2("Минута: где чаты, модели, инструменты и настройки. Также — в меню «?» сверху", "One minute: chats, models, tools and settings. Also in the «?» menu at the top"),
-          control: `<button type="button" class="pbtn ghost sx-btn-sm" id="st-tour-start">${L2("Начать", "Start")}</button>` }) });
+          control: btn("st-tips-reset", "Сбросить", "Reset") })
+        + intro });
   }
   function bindSettings() {
     const box = $("#st-tips");
     if (box) box.onchange = () => setEnabled(box.checked);
     const r = $("#st-tips-reset");
     if (r) r.onclick = () => { reset(); try { window.toast && toast(L("Подсказки покажутся снова", "Tips will show again"), "ok"); } catch (_) {} };
-    const t = $("#st-tour-start");
-    if (t) t.onclick = () => start();
+    const t = $("#st-intro-start");
+    if (t) t.onclick = () => startIntro();
   }
 
   function boot() {
@@ -447,17 +306,6 @@
       new MutationObserver(refreshButton).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
       addEventListener("resize", () => { if (hintEl) placeHint(); });
       document.addEventListener("scroll", () => { if (hintEl) placeHint(); }, true);
-
-      if (AUTO && st.welcome !== "done") {
-        let tries = 0;
-        const tryWelcome = () => {
-          tries += 1;
-          const onboarded = typeof pref === "function" ? pref("profile_onboarded", false) : true;
-          if (onboarded && !somethingOpen() && welcome()) return;
-          if (st.welcome !== "done" && tries < 40) setTimeout(tryWelcome, 3000);
-        };
-        setTimeout(tryWelcome, 2500);
-      }
     };
     if (document.body.classList.contains("boot-ready")) go();
     else new MutationObserver((_, obs) => { if (document.body.classList.contains("boot-ready")) { obs.disconnect(); go(); } })
@@ -465,6 +313,6 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
 
-  window.MemuTour = Object.freeze({ start, welcome, hint, menu, reset, setEnabled, settingsHtml, bindSettings,
-    state: () => JSON.parse(JSON.stringify(st || load() || {})), HINTS: Object.freeze(Object.keys(HINTS)), end: endTour });
+  window.MemuHelp = Object.freeze({ hint, menu, reset, setEnabled, settingsHtml, bindSettings, start: startIntro,
+    state: () => JSON.parse(JSON.stringify(st || load() || {})), HINTS: Object.freeze(Object.keys(HINTS)) });
 })();

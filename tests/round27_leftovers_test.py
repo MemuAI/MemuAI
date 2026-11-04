@@ -72,7 +72,9 @@ class DesktopChatTitles(unittest.TestCase):
         self.js = _read("app/pgstatic/app.js")
 
     def test_title_instruction_only_with_system_prompt(self):
-        self.assertIn('if (titleRequest && sys) sys += "\\n\\n" + titleRequest;', self.js)
+        # Work and MemuCode keep the system prompt stable and send the title request next to the user's request.
+        self.assertIn('if (titleRequest && sys && !pinProject) sys += "\\n\\n" + titleRequest;', self.js)
+        self.assertIn('(sys ? titleRequest : "")', self.js)
         self.assertIn("const integrationsBlock = sys ? integrationsPromptBlock() : \"\";", self.js)
 
     def test_background_title_after_the_answer(self):

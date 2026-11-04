@@ -13,7 +13,7 @@
   --f-hover: color-mix(in srgb, var(--text) 6%, transparent);
   --f-active: color-mix(in srgb, var(--text) 9.5%, transparent);
   --f-bubble: var(--user-bubble, color-mix(in srgb, var(--text) 8%, var(--bg)));
-  --f-field: color-mix(in srgb, var(--text) 5.5%, var(--bg));
+  --f-field: var(--field-bg, var(--panel));
   --f-composer: var(--composer-bg, color-mix(in srgb, var(--text) 6%, var(--bg)));
   --f-pop: color-mix(in srgb, var(--text) 5%, var(--panel));
   --f-ink: var(--text);
@@ -36,7 +36,7 @@
   --f-composer: var(--composer-bg, var(--panel));
   --f-pop: var(--panel);
   --f-bubble: var(--user-bubble, color-mix(in srgb, var(--text) 6.5%, var(--bg)));
-  --f-field: color-mix(in srgb, var(--text) 4%, var(--bg));
+  --f-field: var(--field-bg, var(--panel));
   --f-shadow-pop: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 12px 32px -10px rgba(20, 18, 14, .18), 0 2px 6px -2px rgba(20, 18, 14, .08);
   --f-shadow-modal: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 28px 70px -24px rgba(20, 18, 14, .28);
   --f-shadow-composer: 0 0 0 1px color-mix(in srgb, var(--text) 11%, transparent), 0 6px 22px -12px rgba(20, 18, 14, .16);
@@ -104,8 +104,8 @@
   font: 500 12px/1.3 var(--f-ui); letter-spacing: 0; text-transform: none; color: var(--muted); opacity: 1; padding: 14px 10px 6px;
 }
 :root[data-design="focus"] .side-group { margin-bottom: 4px; }
-:root[data-design="focus"] .chat-list-heading button { width: 26px; height: 26px; border-radius: 8px; opacity: 0; color: var(--muted); transition: opacity .15s, background .15s; }
-:root[data-design="focus"] .chat-list-heading:hover button, :root[data-design="focus"] .chat-list-heading button:focus-visible { opacity: 1; }
+:root[data-design="focus"] .chat-list-heading button { width: 26px; height: 26px; border-radius: 8px; opacity: var(--list-heading-tools, 0); color: var(--muted); transition: opacity .15s, background .15s; }
+:root[data-design="focus"] .chat-list-heading button:focus-visible { opacity: 1; }
 :root[data-design="focus"] .chat-list-heading button:hover { background: var(--f-hover); color: var(--text); }
 :root[data-design="focus"] .chat-item {
   min-height: 34px; padding: 6px 6px 6px 10px; margin: 0; border-radius: 10px; box-shadow: none !important;
@@ -160,8 +160,8 @@
   -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: var(--f-r-pop);
 }
 :root[data-design="focus"] .dd-pop { padding: 6px; width: 420px; border-radius: 16px; }
-:root[data-design="focus"] .dd-search input { min-height: 38px; border-radius: 10px; background: var(--f-hover); border: 0; font: 400 14px/1.2 var(--f-ui); }
-:root[data-design="focus"] .dd-search input:focus { background: var(--f-active); border: 0; box-shadow: none; }
+:root[data-design="focus"] .dd-search input { min-height: 38px; border-radius: 10px; background: var(--f-field); border: 1px solid var(--f-line-strong); font: 400 14px/1.2 var(--f-ui); }
+:root[data-design="focus"] .dd-search input:focus { background: var(--f-field); border-color: color-mix(in srgb, var(--text) 30%, transparent); box-shadow: none; }
 :root[data-design="focus"] .dd-item { min-height: 40px; border-radius: 10px; padding: 7px 10px; }
 :root[data-design="focus"] .dd-item:hover, :root[data-design="focus"] .dd-item.kb { background: var(--f-hover); }
 :root[data-design="focus"] .dd-item.sel { background: var(--f-active); }
@@ -253,7 +253,7 @@
 :root[data-design="focus"] .attach-chip { border-radius: 14px; background: var(--f-hover); border: 0; }
 :root[data-design="focus"] .composer .attach-card { border-radius: 14px; }
 :root[data-design="focus"] .plus-menu { border-radius: 18px; padding: 6px; }
-:root[data-design="focus"] .plus-search { border-radius: 11px; background: var(--f-hover); }
+:root[data-design="focus"] .plus-search { border-radius: 11px; background: var(--f-field); border-color: var(--f-line-strong); }
 :root[data-design="focus"] .plus-section { font: 500 12px/1 var(--f-ui); letter-spacing: 0; text-transform: none; opacity: 1; padding: 12px 10px 6px; }
 :root[data-design="focus"] .plus-row { min-height: 44px; border-radius: 11px; }
 :root[data-design="focus"] .plus-row.is-active, :root[data-design="focus"] .plus-row:not(.is-disabled):hover { background: var(--f-hover); }
@@ -315,7 +315,7 @@
 }
 :root[data-design="focus"] .table-wrap td, :root[data-design="focus"] .msg-assistant .body td { padding: 9px 14px 9px 0; border-bottom: 1px solid var(--f-line); }
 :root[data-design="focus"] .table-wrap tr:last-child td { border-bottom: 0; }
-:root[data-design="focus"] .table-wrap tr:hover td { background: transparent; }
+:root[data-design="focus"] .table-wrap tr:nth-child(n) td { background: transparent; }
 :root[data-design="focus"] .msg-tools { gap: 0; margin-top: 6px; }
 :root[data-design="focus"] .msg-tool { min-width: 32px; height: 32px; border-radius: 8px; color: var(--muted); }
 :root[data-design="focus"] .msg-tool:hover { background: var(--f-hover); color: var(--text); }
@@ -468,8 +468,8 @@
 :root[data-design="focus"] .cx-tabs { background: var(--f-hover); border-radius: 10px; }
 :root[data-design="focus"] .cx-tabs button { border-radius: 8px; font: 500 12px/1 var(--f-ui); min-height: 26px; }
 :root[data-design="focus"] .cx-tabs button[aria-selected="true"] { background: var(--f-bg); box-shadow: 0 0 0 1px var(--f-line); }
-:root[data-design="focus"] .cx-search { border: 0; border-radius: 10px; background: var(--f-hover); }
-:root[data-design="focus"] .cx-search:focus-within { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--text) 25%, transparent); border: 0; }
+:root[data-design="focus"] .cx-search { border: 1px solid var(--f-line-strong); border-radius: 10px; background: var(--f-field); }
+:root[data-design="focus"] .cx-search:focus-within { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--text) 25%, transparent); border-color: transparent; }
 :root[data-design="focus"] .code-dock { background: var(--f-bg); border-left: 1px solid var(--f-line); }
 :root[data-design="focus"] .code-dock-resizer::after { background: transparent; }
 :root[data-design="focus"] .code-dock-resizer:hover::after, :root[data-design="focus"] .code-dock-resizer.dragging::after { background: color-mix(in srgb, var(--text) 25%, transparent); }
@@ -489,7 +489,7 @@
 :root[data-design="focus"] .code-palette-list button.active .cp-icon { color: var(--text); }
 :root[data-design="focus"] .docs-shell { background: transparent; }
 :root[data-design="focus"] .docs-side { background: transparent; border-right: 1px solid var(--f-line); }
-:root[data-design="focus"] .docs-search { border: 0; border-radius: 12px; background: var(--f-hover); }
+:root[data-design="focus"] .docs-search { border: 1px solid var(--f-line-strong); border-radius: 12px; background: var(--f-field); }
 :root[data-design="focus"] .docs-search:focus-within { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--text) 25%, transparent); }
 :root[data-design="focus"] .docs-search kbd { border: 0; background: var(--f-active); border-radius: 6px; }
 :root[data-design="focus"] .docs-group-head { border-radius: 10px; font: 500 13.5px/1.3 var(--f-ui); text-align: left; justify-content: flex-start; }

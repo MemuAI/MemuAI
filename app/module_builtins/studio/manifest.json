@@ -68,101 +68,139 @@
     "planning": [
       {
         "id": "exports-backup",
-        "title": "Копия готовых работ",
-        "title_en": "Back up finished works",
-        "description": "Раз в неделю напомнить сохранить готовые изображения, видео и озвучку в отдельную папку.",
-        "description_en": "Remind once a week to save finished images, videos and voiceovers to a separate folder.",
+        "title": "Сохранить промпты студии",
+        "title_en": "Save the studio prompts",
+        "description": "Раз в неделю текущие промпты изображений, видео, озвучки и музыки со стилем — в Markdown.",
+        "description_en": "Once a week the current image, video, speech and music prompts with the style — as Markdown.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 10080
         },
         "action": {
-          "kind": "notify",
-          "text": "Сохраните готовые работы студии в отдельную папку — это резервная копия на случай очистки кэша.",
-          "text_en": "studio"
-        }
+          "kind": "module",
+          "handler": "studio.prompts_backup"
+        },
+        "settings": []
       },
       {
-        "id": "library-grown",
-        "title": "Библиотека студии выросла",
-        "title_en": "Studio library grew",
-        "description": "Напомнить разобрать библиотеку, когда работ станет много.",
-        "description_en": "Remind to tidy the library once many works accumulate.",
+        "id": "daily-prompts",
+        "title": "Промпты студии каждый день",
+        "title_en": "Studio prompts every day",
+        "description": "Ежедневная копия промптов, чтобы не потерять удачные формулировки.",
+        "description_en": "A daily copy of the prompts so good wording is never lost.",
         "trigger": {
-          "kind": "threshold",
-          "metric": "items",
-          "threshold": 20,
-          "scope": "any"
+          "kind": "periodic",
+          "every_minutes": 1440
         },
         "action": {
-          "kind": "notify",
-          "text": "В студии накопилось много работ — проверьте библиотеку и удалите неудачные генерации, чтобы освободить место.",
-          "text_en": "studio"
-        }
+          "kind": "module",
+          "handler": "studio.prompts_backup"
+        },
+        "settings": []
+      },
+      {
+        "id": "prompt-ideas",
+        "title": "ИИ-варианты промпта",
+        "title_en": "AI prompt variations",
+        "description": "Раз в три дня ИИ предлагает улучшенные варианты текущего промпта изображения с учётом стиля и настроения.",
+        "description_en": "Every three days the AI suggests improved variations of the current image prompt keeping the style and mood.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 4320
+        },
+        "action": {
+          "kind": "module",
+          "handler": "studio.prompt_ideas",
+          "options": {
+            "field": "image"
+          }
+        },
+        "settings": [
+          {
+            "key": "count",
+            "type": "number",
+            "label": "Вариантов",
+            "label_en": "Variations",
+            "default": 5,
+            "min": 1,
+            "max": 12
+          }
+        ]
+      },
+      {
+        "id": "video-ideas",
+        "title": "ИИ-варианты видеопромпта",
+        "title_en": "AI video prompt variations",
+        "description": "Раз в неделю ИИ предлагает варианты текущего видеопромпта: сцена, движение камеры, темп.",
+        "description_en": "Once a week the AI suggests variations of the current video prompt: scene, camera motion, pace.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "studio.prompt_ideas",
+          "options": {
+            "field": "video"
+          }
+        },
+        "settings": [
+          {
+            "key": "count",
+            "type": "number",
+            "label": "Вариантов",
+            "label_en": "Variations",
+            "default": 5,
+            "min": 1,
+            "max": 12
+          }
+        ]
+      },
+      {
+        "id": "music-ideas",
+        "title": "ИИ-идеи для музыки",
+        "title_en": "AI music prompt ideas",
+        "description": "Раз в неделю ИИ предлагает варианты музыкального промпта: жанр, инструменты, темп, структура.",
+        "description_en": "Once a week the AI suggests music prompt variations: genre, instruments, tempo, structure.",
+        "trigger": {
+          "kind": "periodic",
+          "every_minutes": 10080
+        },
+        "action": {
+          "kind": "module",
+          "handler": "studio.prompt_ideas",
+          "options": {
+            "field": "music"
+          }
+        },
+        "settings": [
+          {
+            "key": "count",
+            "type": "number",
+            "label": "Вариантов",
+            "label_en": "Variations",
+            "default": 5,
+            "min": 1,
+            "max": 12
+          }
+        ]
       },
       {
         "id": "daily-studio",
         "title": "Ежедневная проверка студии",
         "title_en": "Daily studio check",
-        "description": "Каждый день напомнить заглянуть в студию и проверить работы.",
-        "description_en": "Remind every day to look into the studio and check the works.",
+        "description": "Напоминание заглянуть в студию и довести незавершённые работы.",
+        "description_en": "A reminder to open the studio and finish the works in progress.",
         "trigger": {
           "kind": "periodic",
           "every_minutes": 1440
         },
         "action": {
           "kind": "notify",
-          "text": "Загляните в студию: незавершённые работы, готовые изображения, видео и озвучка, которые ждут проверки.",
-          "text_en": "Look into the studio: unfinished works, and finished images, videos and voiceovers waiting to be checked."
-        }
-      },
-      {
-        "id": "two-day-cleanup",
-        "title": "Порядок в библиотеке студии",
-        "title_en": "Studio library tidy-up",
-        "description": "Каждые два дня напомнить навести порядок в библиотеке студии.",
-        "description_en": "Every two days, remind to tidy up the studio library.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 2880
+          "text": "Загляните в студию: незавершённые изображения, видео и озвучки ждут.",
+          "text_en": "Look into the studio: unfinished images, videos and voice-overs are waiting."
         },
-        "action": {
-          "kind": "notify",
-          "text": "Наведите порядок в библиотеке студии: разберите новые работы и сохраните готовые в отдельную папку.",
-          "text_en": "Tidy up the studio library: sort the new works and save the finished ones to a separate folder."
-        }
-      },
-      {
-        "id": "three-day-exports",
-        "title": "Обзор готовых работ за три дня",
-        "title_en": "Finished works over three days",
-        "description": "Раз в три дня попросить модель подвести итог готовых работ студии.",
-        "description_en": "Every three days, ask the model to sum up the studio's finished works.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 4320
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Подведи итог готовых работ студии за три дня: что получилось лучше всего и что стоит переделать. Коротко, списком.",
-          "prompt_en": "Sum up the studio's finished works over three days: what turned out best and what is worth redoing. Briefly, as a list."
-        }
-      },
-      {
-        "id": "weekly-studio-digest",
-        "title": "Еженедельная сводка студии",
-        "title_en": "Weekly studio digest",
-        "description": "Раз в неделю попросить модель сделать сводку работ студии.",
-        "description_en": "Once a week, ask the model to make a digest of the studio's works.",
-        "trigger": {
-          "kind": "periodic",
-          "every_minutes": 10080
-        },
-        "action": {
-          "kind": "chat",
-          "prompt": "Сделай сводку недели в студии: готовые работы, незавершённые проекты и идеи на следующую неделю. Коротко, списком.",
-          "prompt_en": "Make a weekly studio digest: finished works, unfinished projects and ideas for next week. Briefly, as a list."
-        }
+        "settings": []
       }
     ]
   }

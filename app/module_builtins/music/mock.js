@@ -95,9 +95,10 @@ const MockMusic = (() => {
       top_tracks: clone(tracks.slice().sort((a, b) => b.plays - a.plays).slice(0, 8)), recent: clone(recent.slice().reverse()), days, hours };
   }
   const manualLyrics = new Map();
-  function lyrics(id) {
+  function lyrics(id, meta) {
     if (manualLyrics.has(id)) return clone(manualLyrics.get(id));
-    const t = byId(id); if (!t) return { synced: null, plain: null, source: null };
+    const t = byId(id) || (String(id).startsWith("online:") && meta && meta.title ? { id, title: meta.title, artist: meta.artist || "", duration: Number(meta.duration) || 200 } : null);
+    if (!t) return { synced: null, plain: null, source: null };
     if (Number(id.slice(1)) % 7 === 0) return { synced: null, plain: null, source: null };
     const r = seeded(hash(id));
     const synced = [];
@@ -204,9 +205,9 @@ const MockMusic = (() => {
         return Array.from({ length: Math.min(a.limit || 8, 8) }, (_, i) => ({ title: q + (i ? " (" + ["Live", "Remix", "Acoustic", "Extended", "Radio Edit", "Slowed", "Cover"][i - 1] + ")" : ""),
           artist: ARTISTS[(hash(q) + i) % ARTISTS.length], duration: 160 + i * 17, url: "https://music.youtube.com/watch?v=demo" + i, thumb: null, source: i % 3 ? "youtube" : "ytmusic" }));
       }
-      case "lyrics.get": return lyrics(a.id);
+      case "lyrics.get": return lyrics(a.id, a);
       case "lyrics.set": {
-        if (!byId(a.id)) throw new Error("track not found");
+        if (!byId(a.id) && !String(a.id).startsWith("online:")) throw new Error("track not found");
         const text = String(a.text || "").replace(/\r\n/g, "\n").trim().slice(0, 200000);
         if (!text) { manualLyrics.delete(a.id); return { synced: null, plain: null, source: "" }; }
         const synced = [];
@@ -250,6 +251,7 @@ const MockMusic = (() => {
           tags: [], in_library: "" };
       }
       case "online.related": await delay(400); return ARTISTS.slice(0, 6).map((artist, i) => ({ id: "rel" + i, url: "https://music.youtube.com/watch?v=rel" + i, title: ["Paper Planes", "Night Shift", "Golden Hour", "Low Tide", "Slow Motion", "Neon Bloom"][i], artist, album: "", year: "2023", duration: 190 + i * 11, thumb: null, source: "ytmusic", tags: ["official_audio"], in_library: "" }));
+      case "online.stream": { await delay(150); return { url: synth({ id: "online:" + a.url, duration: 200 }), duration: 200 }; }
       case "online.lyrics": await delay(300); return { found: true, text: "Glass rivers running through the night\nEvery light a little brighter\nHold the moment, hold it tight\nWe were paper, we were lighter\n\nAnd the city hums along\nTo the rhythm of our song", synced: true, source: "lrclib", instrumental: false };
 
       case "library.genres": {

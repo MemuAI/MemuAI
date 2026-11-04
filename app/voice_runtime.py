@@ -542,12 +542,12 @@ class VoiceRuntime:
                                 language=language, lang=lang, transport=transport)
 
     async def speak_api(self, text: str, *, base_url: str, api_key: str, model: str, voice: str,
-                        speed: float = 1.0, lang: str = "ru") -> tuple[bytes, str]:
-        """Cloud/HTTP TTS; the service (OpenAI, Gemini, ElevenLabs, Azure or an
-        OpenAI-compatible server) is detected from ``base_url``."""
+                        speed: float = 1.0, lang: str = "ru", format: str = "auto") -> tuple[bytes, str]:
+        """Cloud/HTTP TTS; the service (OpenAI, Gemini, ElevenLabs, Azure, OpenRouter
+        or an OpenAI-compatible server) is detected from ``base_url``."""
         from .tts_providers import synthesize
         return await synthesize(text, base_url=base_url, api_key=api_key, model=model, voice=voice,
-                                speed=speed, lang=lang)
+                                speed=speed, lang=lang, format=format)
 
     def windows_voices(self) -> list[dict[str, str]]:
         if self._voice_cache is not None:

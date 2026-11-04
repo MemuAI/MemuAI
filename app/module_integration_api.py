@@ -6,7 +6,8 @@ POST /api/pg/modint/data    {module, panel, args}   server data of a built-in pa
 POST /api/pg/modint/command {module, command, args, confirmed?, surface?, lang?}
 POST /api/pg/modint/match   {text}                 a request that is exactly a declared phrase → {module, command, args}
 GET  /api/pg/modint/settings?module=&kind=&id=      POST same + {values}  — widget / panel settings
-GET  /api/pg/modint/skill?lang=&surface=            the module commands block for a system prompt
+GET  /api/pg/modint/skill?lang=&surface=            the module commands block for a system prompt (compact +
+                                                    per-module details; surface=full — the whole block)
 """
 from __future__ import annotations
 
@@ -157,4 +158,7 @@ def register(app, *, env: Callable[[], Dict[str, Any]] = dict) -> None:
     @app.get("/api/pg/modint/skill")
     async def modint_skill(lang: str = "ru", surface: str = "chat"):
         import asyncio
-        return {"prompt": await asyncio.to_thread(mi.skill_prompt, None, lang=_lang(lang), surface=surface)}
+        compact = surface != "full"
+        prompt = await asyncio.to_thread(mi.skill_prompt, None, lang=_lang(lang), surface=surface, details=not compact)
+        details = await asyncio.to_thread(mi.skill_details, None, lang=_lang(lang)) if compact and prompt else []
+        return {"prompt": prompt, "details": details, "compact": compact}

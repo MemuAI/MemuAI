@@ -50,6 +50,8 @@ export function plural(n, forms) {
 
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 export const ICONS = {
+  layout: P('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>'),
+  drop: P('<path d="M12 3.5c3.9 4.6 6 8 6 10.8a6 6 0 0 1-12 0c0-2.8 2.1-6.2 6-10.8z"/>'),
   menu: P('<path d="M4 7h16M4 12h16M4 17h16"/>'),
   plus: P('<path d="M12 5v14M5 12h14"/>'),
   close: P('<path d="m6 6 12 12M18 6 6 18"/>'),
@@ -148,7 +150,7 @@ export const icon = (name, cls = "") => `<span class="ic ${cls}">${ICONS[name] |
 
 export function kindIcon(kind, lang = "") {
   return { markdown: "markdown", docx: "doc", odt: "doc", rtf: "doc", pdf: "pdf", csv: "table", json: "json", log: "log",
-    image: "image", html: "globe", code: "code", sheet: "table", book: "doc", notebook: "code", slides: "slides" }[kind] || (lang ? "code" : "fileText");
+    image: "image", html: "globe", code: "code", sheet: "table", book: "doc", notebook: "code", slides: "slides", media: "play", font: "font", email: "mail" }[kind] || (lang ? "code" : "fileText");
 }
 
 export function toast(message, opts = {}) {
@@ -172,6 +174,14 @@ let openMenu = null;
 export function closeMenus() { if (openMenu) { openMenu.remove(); openMenu = null; document.removeEventListener("pointerdown", onDocDown, true); } }
 function onDocDown(e) { if (openMenu && !openMenu.contains(e.target)) closeMenus(); }
 
+const SAFE_COLOR = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\))$/i;
+function swatchHtml(sw) {
+  if (!sw) return "";
+  const list = (Array.isArray(sw) ? sw : [sw]).filter((c) => SAFE_COLOR.test(String(c || "")));
+  if (!list.length) return "";
+  const bg = list.length > 1 ? `linear-gradient(135deg, ${list[0]} 50%, ${list[1]} 50%)` : list[0];
+  return `<span class="mi-sw${list.length > 1 ? " pair" : ""}" style="background:${bg}"></span>`;
+}
 export function showMenu(items, anchor, opts = {}) {
   closeMenus();
   const menu = buildMenu(items, opts);
@@ -179,7 +189,7 @@ export function showMenu(items, anchor, opts = {}) {
   placeMenu(menu, anchor, opts);
   openMenu = menu;
   setTimeout(() => document.addEventListener("pointerdown", onDocDown, true), 0);
-  const first = menu.querySelector(".mi:not([aria-disabled=true])"); first?.focus({ preventScroll: true });
+  const first = menu.querySelector(".mi:not([aria-disabled=true]), .menu-swatch"); first?.focus({ preventScroll: true });
   return menu;
 }
 function buildMenu(items, opts) {
@@ -190,6 +200,7 @@ function buildMenu(items, opts) {
     if (!item) continue;
     if (item === "-") { menu.append(Object.assign(document.createElement("div"), { className: "menu-sep" })); continue; }
     if (item.header) { const h = document.createElement("div"); h.className = "menu-head"; h.textContent = item.header; menu.append(h); continue; }
+    if (item.swatches) { menu.append(swatchGrid(item)); continue; }
     const el = document.createElement("button");
     el.className = "mi" + (item.danger ? " danger" : "") + (item.sub ? " has-sub" : "") + (item.cls ? " " + item.cls : "");
     el.setAttribute("role", item.checked !== undefined ? "menuitemcheckbox" : "menuitem");
@@ -197,7 +208,7 @@ function buildMenu(items, opts) {
     if (item.disabled) el.setAttribute("aria-disabled", "true");
     el.innerHTML = `<span class="mi-ic">${item.checked ? icon("check") : item.icon ? icon(item.icon) : ""}</span><span class="mi-label">${esc(item.label)}</span>`
       + (item.hint ? `<span class="mi-hint">${esc(item.hint)}</span>` : "")
-      + (item.kbd ? `<kbd>${esc(item.kbd)}</kbd>` : "") + (item.sub ? `<span class="mi-arrow">${icon("chevronRight")}</span>` : "");
+      + (item.kbd ? `<kbd>${esc(item.kbd)}</kbd>` : "") + swatchHtml(item.swatch) + (item.sub ? `<span class="mi-arrow">${icon("chevronRight")}</span>` : "");
     if (item.title) el.title = item.title;
     if (item.sub) {
       let subMenu = null;
@@ -215,8 +226,8 @@ function buildMenu(items, opts) {
         const prev = menu._subs || []; prev.push(subMenu); menu._subs = prev;
       };
       el.addEventListener("pointerenter", open);
-      el.addEventListener("click", (e) => { e.stopPropagation(); open(); subMenu?.querySelector(".mi")?.focus(); });
-      el.addEventListener("keydown", (e) => { if (e.key === "ArrowRight") { open(); subMenu?.querySelector(".mi")?.focus(); } });
+      el.addEventListener("click", (e) => { e.stopPropagation(); open(); subMenu?.querySelector(".mi, .menu-swatch")?.focus(); });
+      el.addEventListener("keydown", (e) => { if (e.key === "ArrowRight") { open(); subMenu?.querySelector(".mi, .menu-swatch")?.focus(); } });
     } else if (!item.disabled) {
       el.addEventListener("click", (e) => { e.stopPropagation(); closeAll(); try { item.run?.(); } catch (err) { console.error(err); } });
     }
@@ -233,6 +244,28 @@ function buildMenu(items, opts) {
   return menu;
 }
 function closeAll() { document.querySelectorAll(".menu.sub").forEach((m) => m.remove()); closeMenus(); }
+// A grid of colour chips ({ swatches, pick, noneLabel }) instead of a long list of hex codes.
+function swatchGrid(item) {
+  const grid = document.createElement("div");
+  grid.className = "menu-swatches"; grid.setAttribute("role", "group");
+  for (const c of item.swatches) {
+    const none = !SAFE_COLOR.test(String(c || ""));
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "menu-swatch" + (none ? " none" : "");
+    if (!none) b.style.background = c;
+    b.title = none ? item.noneLabel || String(c) : String(c).toUpperCase();
+    b.setAttribute("aria-label", b.title);
+    b.addEventListener("click", (e) => { e.stopPropagation(); closeAll(); try { item.pick?.(c); } catch (err) { console.error(err); } });
+    grid.append(b);
+  }
+  grid.addEventListener("keydown", (e) => {
+    const all = [...grid.children], i = all.indexOf(document.activeElement); if (i < 0) return;
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 5, ArrowUp: -5 }[e.key];
+    const j = step ? Math.max(0, Math.min(all.length - 1, i + step)) : i;
+    if (j !== i) { e.preventDefault(); e.stopPropagation(); all[j].focus(); }
+  });
+  return grid;
+}
 function placeMenu(menu, anchor, opts = {}) {
   let x, y;
   if (anchor instanceof Element) { const r = anchor.getBoundingClientRect(); x = opts.alignRight ? r.right : r.left; y = r.bottom + 4; menu._anchorTop = r.top; }

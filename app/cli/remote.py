@@ -37,6 +37,15 @@ from typing import Any, Dict, List, Optional
 
 from . import paths
 
+def _fnum(value: Any, default: float = 0.0) -> float:
+    """F35: a numeric value read from a file another process wrote may be
+    a junk string — fall back instead of crashing the poll loop."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 HEARTBEAT = 2.0
 POLL = 0.35
 STALE_AFTER = 12.0
@@ -68,6 +77,10 @@ def tgapp_allows() -> bool:
         return False
     return isinstance(data, dict) and data.get("enabled") is True and data.get("code_control") is not False
 
+def remote_allows() -> bool:
+    """Someone may drive this terminal: only the Telegram Mini App (phone) does."""
+    return tgapp_allows()
+
 def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
     tmp = path.with_name(path.name + f".{secrets.token_hex(3)}.tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
@@ -87,8 +100,8 @@ def list_terminals() -> List[Dict[str, Any]]:
             continue
         if not isinstance(data, dict):
             continue
-        if now - float(data.get("heartbeat") or 0) > STALE_AFTER:
-            if now - float(data.get("heartbeat") or 0) > 3600:
+        if now - _fnum(data.get("heartbeat")) > STALE_AFTER:
+            if now - _fnum(data.get("heartbeat")) > 3600:
                 with contextlib.suppress(OSError):
                     file.unlink()
                 inbox = folder / (file.stem + ".inbox")
@@ -101,7 +114,7 @@ def list_terminals() -> List[Dict[str, Any]]:
             continue
         data["rc"] = file.stem
         rows.append(data)
-    rows.sort(key=lambda row: -float(row.get("started") or 0))
+    rows.sort(key=lambda row: -_fnum(row.get("started")))
     return rows
 
 def terminal_state(rc_id: str) -> Optional[Dict[str, Any]]:
@@ -112,7 +125,7 @@ def terminal_state(rc_id: str) -> Optional[Dict[str, Any]]:
         data = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if not isinstance(data, dict) or time.time() - float(data.get("heartbeat") or 0) > STALE_AFTER:
+    if not isinstance(data, dict) or time.time() - _fnum(data.get("heartbeat")) > STALE_AFTER:
         return None
     data["rc"] = rc_id
     return data
@@ -219,7 +232,7 @@ class RemoteControl:
             try:
                 now = time.monotonic()
                 if now - self._last_check > 5 or not self.registered:
-                    self._allowed = tgapp_allows()
+                    self._allowed = remote_allows()
                     self._last_check = now
                 if not self._allowed:
                     if self.registered:
@@ -271,7 +284,7 @@ class RemoteControl:
             tools.append({"id": str(getattr(call, "id", "")), "name": str(getattr(call, "name", "")),
                           "display": strip_ansi(str(getattr(call, "display", "") or ""))[:400],
                           "live": strip_ansi("".join(str(x) for x in live[-20:]))[-1500:],
-                          "seconds": round(time.monotonic() - float(getattr(call, "started", 0) or time.monotonic()), 1)})
+                          "seconds": round(time.monotonic() - _fnum(getattr(call, "started", 0), time.monotonic()), 1)})
         stream = str(getattr(ui, "stream", "") or "")
         reasoning = str(getattr(ui, "reasoning", "") or "")
         busy = bool(getattr(ui, "busy", False))
@@ -283,7 +296,7 @@ class RemoteControl:
             "permission_mode": str(getattr(getattr(runtime, "permissions", None), "mode", "") or ""),
             "busy": busy, "connecting": bool(getattr(ui, "connecting", False)),
             "status": strip_ansi(str(getattr(ui, "status_text", "") or ""))[:200],
-            "busy_for": round(time.monotonic() - float(getattr(ui, "busy_started", 0) or 0), 1) if busy else 0,
+            "busy_for": round(time.monotonic() - _fnum(getattr(ui, "busy_started", 0)), 1) if busy else 0,
             "stream": stream[-MAX_STREAM:], "stream_len": len(stream),
             "reasoning": reasoning[-1500:] if busy else "",
             "tools": tools, "queue": len(getattr(ui, "queue", []) or []),
@@ -327,7 +340,7 @@ class RemoteControl:
                 continue
             ok, error = False, ""
             try:
-                if time.time() - float(command.get("ts") or 0) > MAX_COMMAND_AGE:
+                if time.time() - _fnum(command.get("ts")) > MAX_COMMAND_AGE:
                     raise ValueError("command expired")
                 self.execute(command)
                 ok = True

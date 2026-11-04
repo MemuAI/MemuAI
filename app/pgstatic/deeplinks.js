@@ -112,7 +112,7 @@
   const queue = [];
 
   async function poll() {
-    if (polling) return;
+    if (polling || document.documentElement.dataset.moduleApp) return;
     polling = true;
     try {
       const data = await call("/api/pg/deeplink/pending?mark=1&lang=" + lang());

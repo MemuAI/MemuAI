@@ -218,8 +218,11 @@ class DesktopShell:
                  background_color: str = "#09090b",
                  tray_icon: str = "icon.png",
                  app_user_model_id: str = "", js_api=None,
-                 tray_ico: str = "icon.ico", window_ico: str = "") -> None:
+                 tray_ico: str = "icon.ico", window_ico: str = "", text_select: bool = True) -> None:
         self.url = url
+        # pywebview disables selecting text by default (body {user-select: none}): answers, errors, paths
+        # and settings could not be copied. The pages keep their controls unselectable themselves.
+        self.text_select = text_select
         self.title = title
         self.app_ref = app_ref
         self.on_ready = on_ready
@@ -273,6 +276,12 @@ class DesktopShell:
             tray_started = self._start_tray()
 
         extra = {"js_api": self.js_api} if self.js_api is not None else {}
+        try:
+            import inspect
+            if "text_select" in inspect.signature(webview.create_window).parameters:
+                extra["text_select"] = bool(self.text_select)
+        except (TypeError, ValueError):
+            pass
         self.window = webview.create_window(
             self.title, self.url, width=self.width, height=self.height,
             min_size=self.min_size, background_color=self.background_color,
@@ -292,6 +301,7 @@ class DesktopShell:
                 event = getattr(self.window.events, name, None)
                 if event is not None:
                     event += self._apply_native_theme
+                    event += self._apply_native_memory_policy
         if sys.platform == "win32" and self.window_ico:
             self.window.events.shown += self._apply_window_icon
 
@@ -359,6 +369,9 @@ class DesktopShell:
             self._native_theme_initialized = bool(winforms_ui_invoker(native)(lambda: win_window_theme.apply(native, hwnd, dark, color)))
         except Exception:
             pass
+
+    def _apply_native_memory_policy(self, *_args) -> None:
+        apply_webview_memory_policy(getattr(self.window, "native", None))
 
     def _apply_window_icon(self, *_args) -> None:
         """Crisp per-DPI icons from the .ico (pywebview only extracts the exe's 32-px one)."""
@@ -542,6 +555,45 @@ def _crisp_tray_class(pystray):
     return CrispIcon
 
 _LOCAL_PERMISSIONS = {"Microphone", "Camera", "ClipboardRead"}
+
+def apply_webview_memory_policy(native) -> None:
+    """Ask WebView2 to reclaim memory while the desktop window is hidden."""
+    if sys.platform != "win32" or native is None:
+        return
+    try:
+        from Microsoft.Web.WebView2.Core import CoreWebView2MemoryUsageTargetLevel as Level  # type: ignore
+        from .win_titlebar import winforms_ui_invoker
+        control = getattr(native, "webview", None)
+        if control is None:
+            return
+
+        def update(*_args) -> None:
+            try:
+                core = control.CoreWebView2
+                if core is None:
+                    return
+                inactive = not native.Visible or str(native.WindowState) == "Minimized"
+                target = Level.Low if inactive else Level.Normal
+                if core.MemoryUsageTargetLevel != target:
+                    core.MemoryUsageTargetLevel = target
+            except Exception:
+                pass  # Older WebView2 runtimes may lack this API.
+
+        def attach() -> None:
+            if getattr(native, "_memuai_memory_policy", False):
+                return
+            native.VisibleChanged += update
+            native.Resize += update
+            if control.CoreWebView2 is None:
+                control.CoreWebView2InitializationCompleted += update
+            else:
+                update()
+            native._memuai_memory_policy = True
+
+        winforms_ui_invoker(native)(attach)
+    except Exception:
+        pass
+
 
 def grant_local_permissions(native, origin: str) -> bool:
     """Stop WebView2 asking "Allow microphone / clipboard?" for our own page.

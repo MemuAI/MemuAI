@@ -129,7 +129,8 @@ class Names(unittest.TestCase):
 class CacheBusters(unittest.TestCase):
     def test_bumped(self) -> None:
         index, quick, layer = read(STATIC / "index.html"), read(QUICK / "index.html"), read(QUICK / "layer.html")
-        for ref in ("/memory.css?v=1.2-r40", "/stuck.css?v=1.1-r34", "/memu-ctxmenu.js?v=4.1", "/quick-settings.js?v=1.2-r34"):
+        # E13: quick-settings now ships with the 5.0 dated cache-buster.
+        for ref in ("/memory.css?v=1.2-r40", "/stuck.css?v=1.1-r34", "/memu-ctxmenu.js?v=4.1", "/quick-settings.js?v=5.0-20261103"):
             self.assertIn(ref, index)
         for ref in ("/quick/quick-dfy.css?v=1.3-r34", "/stuck.css?v=1.1-r34", "/quick/quick-md.js?v=1.3-r34",
                     "/quick/quick-copy.js?v=1.1-r34", "/quick/quick-design.css?v="):
@@ -142,7 +143,13 @@ class CacheBusters(unittest.TestCase):
         self.assertIn('loadScript("/memu-ctxmenu.js?v=4.1")', read(QUICK / "plugins" / "canvas.js"))
         manifest = {p["id"]: p for p in json.loads(read(QUICK / "plugins" / "index.json"))["plugins"]}
         for plugin in ("canvas", "commands", "features"):
-            self.assertGreaterEqual(int(manifest[plugin]["v"].rsplit("-r", 1)[1]), 34, (plugin, manifest[plugin]["v"]))
+            # E13: versions are either "-rNN" (>= 34) or a bare semver
+            # ("4.1") from the 5.0 scheme — both count as fresh.
+            version = manifest[plugin]["v"]
+            if "-r" in version:
+                self.assertGreaterEqual(int(version.rsplit("-r", 1)[1]), 34, (plugin, version))
+            else:
+                self.assertRegex(version, r"^\d+\.\d+(\.\d+)?(-\d{8})?$", (plugin, version))
 
 if __name__ == "__main__":
     unittest.main()

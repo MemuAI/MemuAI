@@ -39,7 +39,9 @@ class StaticTest(unittest.TestCase):
         self.assertNotIn("scaleX", rule(TG_CSS, ".mm-scrub-track i"))
 
     def test_focus_rules(self):
-        self.assertIn(':is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"]), textarea, select):focus-visible { outline: none; }', CSS)
+        # E15: the rule is scoped with .mm; [type="color"]
+        # is excluded again so color inputs keep a visible focus ring.
+        self.assertIn('.mm :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"]), textarea, select):focus-visible { outline: none; }', CSS)
         self.assertIn(".mm-select:focus-visible", CSS)
         self.assertNotIn(".mm-row:focus-within", CSS)
 

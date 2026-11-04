@@ -80,9 +80,9 @@ SOURCE_RANK = {"user": -1, "probe": 0, "local": 1, "provider": 2, "openrouter": 
                "catalog": 5, "proxy": 6, "heuristic": 7}
 CONFIDENCE_RANK = {"verified": 0, "high": 1, "medium": 2, "low": 3}
 
-IMAGE_ADAPTERS = {"genspark", "antigravity", "kiro", "custom"}
+IMAGE_ADAPTERS = {"genspark", "antigravity", "kiro", "zcode", "custom"}
 
-SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok"}
+SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok", "zcode"}
 
 MODALITIES = ("text", "image", "audio", "video", "file")
 

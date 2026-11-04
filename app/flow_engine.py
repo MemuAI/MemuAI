@@ -1193,8 +1193,8 @@ class Services:
         token = str(prefs.get("telegram_bot_token") or "").strip()
         chat_id = str(prefs.get("telegram_chat_id") or "").strip()
         if not (prefs.get("telegram_enabled") and token and chat_id):
-            raise StepFailed(tr(self.lang, "Бот Telegram не подключён (Настройки → Telegram)",
-                                "The Telegram bot is not paired (Settings → Telegram)"))
+            raise StepFailed(tr(self.lang, "Бот Telegram не подключён (Настройки → Мессенджеры → Telegram)",
+                                "The Telegram bot is not paired (Settings → Messengers → Telegram)"))
         import httpx
         from . import telegram_bot
         try:

@@ -52,6 +52,12 @@ _SYMBOL_RE = re.compile(
     r"\s+(?P<name>[A-Za-z_$][\w$]*)",
 )
 
+_DRY_RUN = threading.local()
+
+def _dry() -> bool:
+    """True while `preview` runs a write tool: nothing may touch the disk."""
+    return bool(getattr(_DRY_RUN, "on", False))
+
 class WorkError(Exception):
     """Ошибка инструмента, которую можно показать модели как результат."""
 
@@ -520,6 +526,8 @@ def tool_append(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
             codec = ("utf-16-be" if bom == b"\xfe\xff" else "utf-16-le") if encoding == "utf-16" else encoding
             ends_line = tail.endswith(b"\x00\n" if codec == "utf-16-be" else b"\n\x00") if encoding == "utf-16" else tail.endswith(b"\n")
             suffix = ("" if ends_line else "\n") + (text if text.endswith("\n") else text + "\n")
+            if _dry():
+                return {"path": relative(root, target), "appended": len(text), "diff": ""}
             with target.open("a", encoding="utf-8" if codec == "utf-8-sig" else codec,
                              newline="") as handle:
                 handle.write(_with_eol(suffix, eol))
@@ -545,13 +553,16 @@ def tool_diff(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
 def tool_delete(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     entry = entry_path(root, str(args.get("path") or ""))
     if entry != root and is_link(entry):
-        _remove_link(entry)
+        if not _dry():
+            _remove_link(entry)
         return {"path": relative(root, entry), "deleted": True, "link": True}
     target = resolve_inside(root, str(args.get("path") or ""))
     if target == root:
         raise WorkError("Корень проекта удалять нельзя")
     if not target.exists():
         raise WorkError(f"«{args.get('path')}» не существует")
+    if _dry():
+        return _delete_preview(root, target)
     if target.is_dir():
         shutil.rmtree(target)
     else:
@@ -582,6 +593,9 @@ def tool_move(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
             pass
         else:
             raise WorkError("Папку нельзя переместить внутрь неё самой / A folder cannot move into itself")
+    if _dry():
+        return {"from": relative(root, source), "to": relative(root, destination),
+                "folder": source.is_dir() and not is_link(source)}
     destination.parent.mkdir(parents=True, exist_ok=True)
     os.replace(source, destination)
     return {"from": relative(root, source), "to": relative(root, destination)}
@@ -590,6 +604,8 @@ def tool_mkdir(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     target = resolve_inside(root, str(args.get("path") or ""))
     if target.exists() and not target.is_dir():
         raise WorkError(f"«{args.get('path')}» — уже файл, а не папка / already a file")
+    if _dry():
+        return {"path": relative(root, target), "created": not target.exists()}
     target.mkdir(parents=True, exist_ok=True)
     return {"path": relative(root, target), "created": True}
 
@@ -600,6 +616,8 @@ def _atomic_write(target: Path, text: str, encoding: str = "utf-8") -> None:
     уже использует \\n, это означало испорченные концы строк после каждой
     правки, поэтому перевод отключён явно.
     """
+    if _dry():
+        return
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
 
@@ -607,14 +625,29 @@ def _atomic_write(target: Path, text: str, encoding: str = "utf-8") -> None:
     try:
         with temporary.open("w", encoding=codec, newline="", errors="strict") as handle:
             handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
     except UnicodeEncodeError:
 
         with temporary.open("w", encoding="utf-8", newline="") as handle:
             handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
     try:
         if target.exists():
             shutil.copymode(target, temporary)
         os.replace(temporary, target)
+        # F28: persist the rename itself (best-effort, Windows has no
+        # directory fsync).
+        if os.name != "nt":
+            try:
+                _fd = os.open(str(target.parent), os.O_RDONLY)
+                try:
+                    os.fsync(_fd)
+                finally:
+                    os.close(_fd)
+            except OSError:
+                pass
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -663,6 +696,42 @@ def run(name: str, root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         raise WorkError(f"{type(exc).__name__}: {exc}") from exc
     result["tool"] = name
     result["ms"] = int((time.time() - started) * 1000)
+    return result
+
+def _delete_preview(root: Path, target: Path) -> Dict[str, Any]:
+    rel = relative(root, target)
+    if target.is_dir():
+        files = sum(1 for _ in iter_files(target, limit=MAX_TREE_ENTRIES))
+        return {"path": rel, "deleted": True, "folder": True, "files": files}
+    before = ""
+    if _is_text(target):
+        try:
+            before, _ = read_text(target)
+        except WorkError:
+            before = ""
+    return {"path": rel, "deleted": True,
+            "diff": unified_diff(_lf(before), "", rel, limit=200) if before else ""}
+
+def preview(name: str, root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
+    """Runs a write tool without touching the disk.
+
+    The result has the same shape as a real call — diff, path, created — so the
+    window can show the change to the person before it is approved. Errors are
+    the same too: a patch whose old_text is missing fails here, before anyone
+    is asked to approve it.
+    """
+    handler = WRITE_TOOLS.get(name)
+    if handler is None:
+        raise WorkError(f"Неизвестный инструмент «{name}»")
+    _DRY_RUN.on = True
+    try:
+        result = handler(root, args or {})
+    except (OSError, ValueError, TypeError) as exc:
+        raise WorkError(f"{type(exc).__name__}: {exc}") from exc
+    finally:
+        _DRY_RUN.on = False
+    result["tool"] = name
+    result["preview"] = True
     return result
 
 def project_overview(root: Path, *, max_files: int = 1200) -> Dict[str, Any]:

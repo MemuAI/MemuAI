@@ -4,7 +4,7 @@
 
 [Download](https://github.com/MemuAI/MemuAI/releases) · [Report a bug](https://github.com/MemuAI/MemuAI/issues) · [Source code](https://github.com/MemuAI/MemuAI)
 
-- 🚨 Disclaimer: using Genspark, Kiro, Antigravity, Gemini Web, and Grok accounts is entirely **AT YOUR OWN RISK**. Using these accounts may violate the companies' privacy policies. This project is provided solely for educational purposes. The project authors are not responsible for account bans or other restrictions imposed by third-party companies.
+- 🚨 Disclaimer: using Genspark, Kiro, Antigravity, Gemini Web, Grok, and ZCode accounts is entirely **AT YOUR OWN RISK**. Using these accounts may violate the companies' privacy policies. This project is provided solely for educational purposes. The project authors are not responsible for account bans or other restrictions imposed by third-party companies.
 
 # What is this, anyway?
 
@@ -22,7 +22,7 @@ The idea behind MemuAI is to bring AI services together in one place. In a singl
 | **MemuFiles** | A file manager with tabs, previews, archive support, and an AI assistant. |
 | **MemuNote** | An editor for text, code, and documents, with an AI assistant, spreadsheets, presentations, and image tools. |
 | **MemuMusic** | A music library and player with playlists, cover art, lyrics, an equalizer, and a full-screen mode. |
-| **Modules** | A collection of apps inside MemuAI, from a translator to characters. You can create your own modules and customize the existing ones. |
+| **Modules** | A collection of apps inside MemuAI, from a translator to characters and 200+ MemuUtils utilities. You can create your own modules and customize the existing ones. |
 
 You usually only need to set up Proxy once. After that, its models become available throughout the suite. If you only need an API for your own programs, Proxy can be installed separately, as can MemuCode CLI, MemuFiles, and MemuNote. MemuMusic is a module and can be removed just like the other modules.
 
@@ -34,7 +34,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 
 ### Working with APIs
 
-- Add any provider that uses API keys. Several sub2api integrations are also supported: Genspark, Kiro, Antigravity, Gemini Web, and Grok.
+- Add any provider that uses API keys. Several sub2api integrations are also supported: Genspark, Kiro, Antigravity, Gemini Web, Grok, and ZCode.
 - API key pools: add multiple API keys to each account and automatically switch between them when an error occurs.
 - Quota planner: automatically analyzes account usage and estimates when your limits will run out at the current pace. You can add both accounts and API keys, specifying their costs and pricing.
 - Composite models: create custom models that contain other models and switch between them under specific conditions, such as the number of tokens.
@@ -57,7 +57,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 - A dedicated Chrome extension for summarizing pages, managing tabs, or simply chatting with AI in your browser.
 - Full MCP support.
 - Create panels to keep any information you need.
-- Skills support.
+- Skills support: one library, and for each skill you choose where it works — the chat, MemuCode, MemuCode CLI, MemuNote, MemuFiles, or modules.
 - A flexible scheduling system: run actions at specific times, in response to events, or under custom conditions.
 
 ### Customization
@@ -103,7 +103,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 ### Modules
 
 - Create your own apps inside MemuAI and install them as standalone applications. Modules communicate with MemuAI and are built with HTML, CSS, JavaScript, and a manifest.
-- There are 10 built-in modules available by default:
+- There are 12 built-in modules available by default:
   - Translator: straightforward text translation with a glossary.
   - MemuAI Studio: a module for creating videos, music, voiceovers, and transcriptions.
   - MemuAI Design: a module for designing websites and apps.
@@ -114,6 +114,8 @@ You usually only need to set up Proxy once. After that, its models become availa
   - MemuMusic: a music library and player with link downloads, local files, lyrics, and Telegram Mini App synchronization. The built-in module offers AI lyrics search and optional recommendations, with separate model choices in settings. The standalone MemuMusic app works independently and has no AI features.
   - MemuLearn: an AI academy for building courses from books or topics, with lesson notes, exams, and FSRS-5 flashcards.
   - MemuDB: a local SQLite and DuckDB database workbench with table browsing, a SQL editor, and safe AI change previews.
+  - MemuMeet: records meetings and calls, with a transcript, notes, decisions, and tasks.
+  - MemuUtils: more than 200 small utilities in one window — text, encoding, image, audio, video, and PDF converters, network and system tools; the model in chat can use them too.
   - Anyone can create their own modules and share them with others.
 
 ### Team
@@ -154,7 +156,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 - Edit code with autocompletion and run it directly in the app, including Python scripts.
 - Support for almost every file type, from `.txt` and `.md` to `.word` and others, with formatting options. Presentations are supported too.
 - Presentations: themes and starter decks, transitions, editable charts, images, AI slide reviews, and PPTX/PDF export.
-- Image support: open images and edit them with AI or by hand. MemuNote includes most basic editing tools, although many other features are still missing.
+- Image support: open images and edit them with AI or by hand. MemuNote includes most basic editing tools (layers and masks, adjustments and filters, ready-made looks, layer styles with shadows and strokes, borders, a before/after view), although many other features are still missing.
 - AI assistant: ask questions, get help, format documents, and more.
 
 ## MemuFiles
@@ -165,6 +167,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 - Tabs, a pleasant and customizable design, and plenty of tools.
 - Much faster than Windows File Explorer, especially on Windows 11 — sometimes several times faster.
 - Convenient previews for all kinds of files.
+- An archive editor: ZIP, TAR, and 7z (with 7-Zip installed) archives are changed in place — new folders, renaming, deleting, adding files, testing, comments, and converting to another format, with undo via Ctrl+Z.
 - An AI assistant for working with files: delete or organize files, or get information about files and folders. Actions are handled safely and require user confirmation.
 - Plenty of other useful everyday features.
 
@@ -181,8 +184,6 @@ MemuAI is designed for **64-bit Windows 10 and Windows 11**. The interface requi
 3. Open MemuAI Proxy and add an account, your own API, or a local model.
 4. Return to MemuAI, choose a model, and start chatting.
 
-In the MemuAI installer, you can select which specific programs will be installed. MemuAI Proxy is required for installation, while additional applications such as MemuAI, MemuCode CLI, MemuNote and MemuFiles - are downloaded optionally. Additionally, other details can be modified in the installer.
-
 ### Automatic updates
 
 MemuAI checks GitHub Releases on launch and every 15 minutes. Updates download in the background; once an update is ready, a blue install button appears next to the Proxy status. After you confirm, MemuAI closes and opens the installer.
@@ -191,7 +192,7 @@ You can manage this in **Settings → About → Updates**. Automatic checks can 
 
 ## Where the models come from
 
-MemuAI uses your own connections. The project supports Antigravity, Kiro, Gemini Web, Genspark, Grok, custom APIs, and local models. Connection presets are available for many API services.
+MemuAI uses your own connections. The project supports Antigravity, Kiro, Gemini Web, Genspark, Grok, ZCode, custom APIs, and local models. Connection presets are available for many API services.
 
 You can use your own keys, accounts, or models running on your computer. MemuAI does not provide subscriptions to third-party services: model availability, pricing, and quotas depend on your connection. Some integrations use unofficial service interfaces and may need updates when those services change.
 

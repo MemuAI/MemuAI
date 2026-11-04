@@ -48,6 +48,16 @@ from .config import DATA_DIR
 PG_DIR = Path(__file__).parent / "pgstatic"
 WORK_ROOT = Path(os.environ.get("MEMUAI_WORK_DIR", "") or (Path.home() / "MemuAIWork"))
 _ID_RE_PREVIEW = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
+# F14: the work/exec child used to inherit the whole process environment
+# (API keys, tokens, proxy credentials). Only this safe allow-list is passed
+# now — enough for npm/git/python builds, no secrets.
+_WORK_ENV_ALLOW = (
+    "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC",
+    "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+    "APPDATA", "LOCALAPPDATA", "HOME", "LANG", "LC_ALL", "TERM",
+    "NODE_ENV", "NODE_PATH", "npm_config_cache", "FORCE_COLOR", "NO_COLOR",
+    "PYTHONUTF8", "PYTHONIOENCODING", "VIRTUAL_ENV", "CONDA_PREFIX",
+)
 
 class EmptyModelAnswer(RuntimeError):
     """A background model call (proxy_completion) produced no text."""
@@ -362,6 +372,18 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def local_browser_boundary(request: Request, call_next):
         """Reject DNS-rebinding and cross-origin browser access to the desktop API."""
+        # F16: same 10 MiB JSON body cap as the Proxy (app/main.py) — reject
+        # oversized bodies before any handler reads them into memory.
+        if request.method in ("POST", "PUT", "PATCH"):
+            _length = request.headers.get("content-length")
+            if _length is not None and request.headers.get("content-type", "").startswith("application/json"):
+                try:
+                    _size = int(_length)
+                except ValueError:
+                    _size = 0
+                if _size > 10 * 1024 * 1024:
+                    return JSONResponse({"error": "Тело запроса слишком большое (предел 10 МБ)",
+                                         "error_en": "Request body too large (limit 10 MB)"}, 413)
         host_header = request.headers.get("host", "")
         try:
             host_name = urllib.parse.urlsplit("//" + host_header).hostname or ""
@@ -463,7 +485,10 @@ def create_app() -> FastAPI:
                 return 503, {"error": "offline", "detail":
                              f"MemuAI Proxy не запущен ({type(e).__name__})"}
             except Exception as e:
-                return 502, {"error": f"{type(e).__name__}: {e}"}
+                # Wave #1 (D-05): no exception type/message to the client —
+                # httpx errors quote the local bridge URL. Details in the log.
+                __import__("logging").getLogger("memuai").exception("proxy bridge failed")
+                return 503, {"error": "offline"}
         return 503, {"error": "offline"}
 
     async def proxy_sse(path: str, body: bytes):
@@ -915,16 +940,25 @@ def create_app() -> FastAPI:
                 return JSONResponse({"error": "Пустая команда"}, 400)
             if len(command) > 12000:
                 return JSONResponse({"error": "Команда слишком длинная"}, 400)
+            # F14: expanded denylist — deletes, download-and-run helpers,
+            # installers and nested shells. Word-bounded so `delete` in a
+            # commit message or `model` in a path does not trip it. This is a
+            # guard for the user-confirmed Work feature, not a sandbox: a
+            # determined command can still bypass it.
             dangerous = re.compile(
                 r"(?i)(format\s+[a-z]:|diskpart|shutdown(?:\.exe)?\s|restart-computer|"
-                r"reg\s+(?:delete|add)\s+HK(?:LM|CU)|bcdedit|cipher\s+/w)"
+                r"reg\s+(?:delete|add)\s+HK(?:LM|CU)|bcdedit|cipher\s+/w|"
+                r"\b(?:rd|ri|remove-item|del|erase|iex|invoke-expression|iwr|curl|wget|"
+                r"msiexec|start-process)\b|\bcmd(?:\.exe)?\s+/[cCkK])"
             )
             if dangerous.search(command):
                 return JSONResponse({"error": "Команда заблокирована: действие выходит за границы Work-проекта"}, 403)
             cwd = str(Path(project["path"]).resolve())
             shell_cmd = ["powershell", "-NoProfile", "-NonInteractive", "-Command", command] if sys.platform == "win32" else ["/bin/sh", "-c", command]
-            child_env = os.environ.copy()
-            child_env.pop("MEMUAI_TOKEN", None)
+            # F14: allow-list env instead of copying the whole environment
+            # (which leaked MEMUAI_TOKEN, API keys and proxy credentials).
+            # os.environ lookup is case-insensitive on Windows.
+            child_env = {key: os.environ[key] for key in _WORK_ENV_ALLOW if key in os.environ}
             proc = await asyncio.create_subprocess_exec(
                 *shell_cmd, cwd=cwd,
                 env=child_env,
@@ -1053,8 +1087,12 @@ def create_app() -> FastAPI:
             if callback: callback()
             return {"ok": True}
         except Exception as exc:
-            app.state.update_job.update(status="error", error=str(exc)[:500])
-            return JSONResponse({"error": str(exc)}, 500)
+            # Wave #1 (D-05): verify_installer errors quote local paths.
+            # The client gets a generic bilingual message; details in the log.
+            __import__("logging").getLogger("memuai").exception("update apply failed")
+            app.state.update_job.update(status="error",
+                                        error="Не удалось применить обновление / Could not apply the update")
+            return JSONResponse({"error": "Не удалось применить обновление / Could not apply the update"}, 500)
 
     @app.get("/api/pg/hub")
     async def hub_status(request: Request, since: str = ""):
@@ -1150,12 +1188,23 @@ def create_app() -> FastAPI:
                 from .pgdata import load_preferences
                 prefs = load_preferences()
                 chosen = [str(item) for item in (prefs.get("agent_models") or []) if str(item).strip()]
+                agent_types = None
+                if mode == "code" and tool == "agent_spawn":
+                    # MemuCode agents are the CLI's: built-in, personal and project .md files.
+                    from . import code_agents
+                    try:
+                        project = _workspace_for({"project_id": str(body.get("project_id") or "")}, require_id=False)
+                        agent_root = Path(project["path"]).resolve() if project.get("path") else None
+                    except Exception:
+                        agent_root = None
+                    agent_types = await asyncio.to_thread(code_agents.load, agent_root)
                 return await agent_pool.tool(
                     tool, args, session=str(body.get("session") or "").strip() or "default",
                     model=chosen[0] if chosen else str(body.get("model") or ""),
                     access=str(body.get("access") or ""), code=mode == "code",
                     web=body.get("allow_web") is True,
-                    project_id=str(body.get("project_id") or ""), limit=int(prefs.get("agent_count") or 2))
+                    project_id=str(body.get("project_id") or ""), limit=int(prefs.get("agent_count") or 2),
+                    agents=agent_types)
             if tool.startswith("panel_"):
 
                 from . import panels as panels_module
@@ -1168,7 +1217,7 @@ def create_app() -> FastAPI:
                 value = await module_integration.run_command(
                     str(args.get("module") or ""), str(args.get("command") or ""), args.get("args") or {},
                     lang="en" if str(body.get("lang") or "") == "en" else "ru", confirmed=body.get("confirmed") is True,
-                    surface="chat")
+                    surface="chat", files=body.get("files"))
                 return {"tool": tool, **value}
             if tool == "current_time":
                 return {"tool": tool, "value": time.strftime("%Y-%m-%d %H:%M:%S %z")}
@@ -1321,6 +1370,15 @@ def create_app() -> FastAPI:
                 root = Path(project["path"]).resolve()
                 session = str(body.get("session") or "").strip() or "default"
                 try:
+                    if body.get("preview") is True:
+                        # A command waiting for approval: is it allowed at all, and
+                        # would it run without approval anyway (read-only)?
+                        from . import code_sandbox
+                        command = str(args.get("command") or "")
+                        if code_sandbox.forbidden_reason(command):
+                            return {"tool": tool, "error": "Команда запрещена песочницей MemuCode"}
+                        return {"tool": tool, "preview": True, "command": command,
+                                "read_only": code_tools.is_read_only(command)}
                     if tool == "code_run":
                         command = str(args.get("command") or "")
                         from . import code_sandbox
@@ -1369,6 +1427,13 @@ def create_app() -> FastAPI:
                 project = _workspace_for({"project_id": str(args.get("project_id") or "")},
                                          require_id=False)
                 root = Path(project["path"]).resolve()
+                if tool in work_tools.WRITE_TOOLS and body.get("preview") is True:
+                    # What the change would do, without doing it: MemuCode shows
+                    # this diff in an approval card before the real call.
+                    try:
+                        return await asyncio.to_thread(work_tools.preview, tool, root, args)
+                    except work_tools.WorkError as exc:
+                        return {"tool": tool, "error": str(exc)}
                 if tool in work_tools.WRITE_TOOLS and str(body.get("access") or "") != "full":
 
                     return JSONResponse(
@@ -1611,6 +1676,8 @@ def create_app() -> FastAPI:
             package["i18n"] = {}
         from .music.api import csp_sources as music_csp
         extra_src = (" " + music_csp()) if "music" in (package.get("permissions") or []) and music_csp() else ""
+        from .modules_host import catalog_avatar_csp_src
+        catalog_src = catalog_avatar_csp_src(package.get("id"))
         page = Response(module_document(package, body.get("saved") or {},
                                         env=body.get("env") or _module_env()),
                         media_type="text/html; charset=utf-8")
@@ -1618,7 +1685,7 @@ def create_app() -> FastAPI:
         page.headers["Cache-Control"] = "no-store"
         page.headers["Content-Security-Policy"] = (
             "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-            f"img-src data: blob:{extra_src}; media-src data: blob:{extra_src}; font-src data:; "
+            f"img-src data: blob:{extra_src}{catalog_src}; media-src data: blob:{extra_src}; font-src data:; "
             "connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'")
         return page
 
@@ -1653,9 +1720,11 @@ def create_app() -> FastAPI:
 
         from .music.api import csp_sources as music_csp
         music_src = " " + music_csp() if "music" in (package.get("permissions") or []) else ""
+        from .modules_host import catalog_avatar_csp_src
+        catalog_src = catalog_avatar_csp_src(module_id)
         page.headers["Content-Security-Policy"] = (
             "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-            f"img-src data: blob:{music_src}; media-src data: blob:{music_src}; font-src data:; "
+            f"img-src data: blob:{music_src}{catalog_src}; media-src data: blob:{music_src}; font-src data:; "
             "connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'"
         )
         return page
@@ -1717,7 +1786,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/pg/modules/window")
     async def modules_window(request: Request):
-        from .modules_host import mark_open, remember_window, resolve_window
+        from .modules_host import mark_minimized, mark_open, remember_window, resolve_window
         try:
             body = await request.json()
             module_id = str(body.get("id") or "")
@@ -1728,6 +1797,9 @@ def create_app() -> FastAPI:
                     mark_open(root, module_id, bool(body["open"]))
             else:
                 policy = resolve_window(root, module_id)
+            # Minimizing sends no box: a hidden window has no size to remember.
+            if "minimized" in body:
+                mark_minimized(root, module_id, bool(body["minimized"]))
             return {"window": policy}
         except KeyError:
             return JSONResponse({"error": _module_text("Модуль не найден", "Module not found")}, 404)
@@ -2023,10 +2095,25 @@ def create_app() -> FastAPI:
             return JSONResponse({"error": _module_text("Выберите модель", "Choose a model")}, 400)
         if body.get("execute") is False:
             return built
+        from . import skills_scope
+        place = skills_scope.module_place(module_id)
+        messages = [dict(item) for item in built["messages"]]
+        skills_on = await asyncio.to_thread(skills_scope.attach, messages, place)
         try:
-            answer = await proxy_completion(built["model"], built["messages"],
+            answer = await proxy_completion(built["model"], messages,
                                             thinking=built["thinking"],
                                             web_search=built["web_search"])
+            if skills_on:
+                gate = skills_scope.SkillGate()
+                shown = gate.feed(str(answer or ""))
+                if gate.done:
+                    again, built["skills"] = await asyncio.to_thread(skills_scope.follow_up, messages, gate.requested, place, shown)
+                    second = skills_scope.SkillGate()  # a second request is only hidden
+                    raw = str(await proxy_completion(built["model"], again, thinking=built["thinking"],
+                                                     web_search=built["web_search"]) or "")
+                    answer = (shown.rstrip() + "\n\n" if shown.strip() else "") + second.feed(raw) + second.finish()
+                else:
+                    answer = shown + gate.finish()
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, 502)
         built["text"] = answer
@@ -2082,38 +2169,74 @@ def create_app() -> FastAPI:
             temperature=body.get("temperature"))
         if not str(built["model"] or "").strip():
             return JSONResponse({"error": _module_text("Выберите модель", "Choose a model")}, 400)
-        payload = json.dumps({
-            "model": built["model"], "messages": built["messages"],
-            "web_search": built["web_search"], "thinking": built["thinking"],
-        }, ensure_ascii=False).encode("utf-8")
+        from . import skills_scope
+        place = skills_scope.module_place(module_id)
+        skills_on = await asyncio.to_thread(skills_scope.attach, built["messages"], place)
+
+        def proxy_body(messages: list) -> bytes:
+            return json.dumps({"model": built["model"], "messages": messages,
+                               "web_search": built["web_search"], "thinking": built["thinking"]},
+                              ensure_ascii=False).encode("utf-8")
 
         async def events():
             collected: list = []
             failure = ""
+            messages = built["messages"]
             yield "data: " + json.dumps({"status": "queued"}, ensure_ascii=False) + "\n\n"
-            try:
-                async for line in _stream_proxy_lines("/api/admin/playground/chat", payload):
-                    if not line.startswith("data: "):
-                        continue
-                    raw = line[6:].strip()
-                    if not raw or raw == "[DONE]":
-                        continue
+            # the skills of this module: a leading ```memuai-skill block is held back, the playbooks are added
+            # and the model answers once more (one load per request, as in the MemuAI chat)
+            for attempt in range(2 if skills_on else 1):
+                gate = skills_scope.SkillGate() if skills_on else None
+                stream = _stream_proxy_lines("/api/admin/playground/chat", proxy_body(messages))
+                try:
+                    async for line in stream:
+                        if not line.startswith("data: "):
+                            continue
+                        raw = line[6:].strip()
+                        if not raw or raw == "[DONE]":
+                            continue
+                        try:
+                            item = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        if item.get("error"):
+                            err = item["error"]
+                            failure = str(err.get("message", err)) if isinstance(err, dict) else str(err)
+                            break
+                        delta = (((item.get("choices") or [{}])[0]).get("delta") or {})
+                        text = delta.get("content")
+                        if text:
+                            visible = gate.feed(str(text)) if gate is not None else str(text)
+                            if visible:
+                                collected.append(visible)
+                                yield "data: " + json.dumps(
+                                    {"event": "delta", "delta": visible}, ensure_ascii=False) + "\n\n"
+                            if gate is not None and gate.done:
+                                if attempt == 0:
+                                    break
+                                gate = skills_scope.SkillGate()  # a second request is only hidden
+                except Exception as exc:
+                    failure = f"{type(exc).__name__}: {exc}"
+                finally:
                     try:
-                        item = json.loads(raw)
-                    except json.JSONDecodeError:
-                        continue
-                    if item.get("error"):
-                        err = item["error"]
-                        failure = str(err.get("message", err)) if isinstance(err, dict) else str(err)
-                        break
-                    delta = (((item.get("choices") or [{}])[0]).get("delta") or {})
-                    text = delta.get("content")
-                    if text:
-                        collected.append(str(text))
-                        yield "data: " + json.dumps(
-                            {"event": "delta", "delta": str(text)}, ensure_ascii=False) + "\n\n"
-            except Exception as exc:
-                failure = f"{type(exc).__name__}: {exc}"
+                        await stream.aclose()
+                    except Exception:
+                        pass
+                if failure or gate is None:
+                    break
+                if attempt == 0 and gate.done:
+                    messages, _loaded = await asyncio.to_thread(skills_scope.follow_up, messages, gate.requested, place,
+                                                                gate.shown)
+                    if gate.shown.strip():
+                        collected.append("\n\n")
+                        yield "data: " + json.dumps({"event": "delta", "delta": "\n\n"}, ensure_ascii=False) + "\n\n"
+                    yield "data: " + json.dumps({"status": "skill"}, ensure_ascii=False) + "\n\n"
+                    continue
+                tail = gate.finish()
+                if tail:
+                    collected.append(tail)
+                    yield "data: " + json.dumps({"event": "delta", "delta": tail}, ensure_ascii=False) + "\n\n"
+                break
             if failure:
                 yield "data: " + json.dumps({"event": "error", "error": failure},
                                             ensure_ascii=False) + "\n\n"
@@ -3237,18 +3360,39 @@ def create_app() -> FastAPI:
             if isinstance(known_ids, list):
                 chats = await asyncio.to_thread(merge_chats, body.get("chats") or [], known_ids, profile_id)
             else:
-                def _replace():
-                    save_chats(body.get("chats") or [], profile_id)
-                    return load_chats(profile_id)
-                chats = await asyncio.to_thread(_replace)
+                # F25: the old blind replace (save_chats) lost updates — a
+                # stale full snapshot silently deleted chats Telegram added
+                # meanwhile and resurrected ones the user deleted. Route the
+                # legacy no-known_ids path through merge_chats with
+                # known_ids = the posted ids: stored rows the snapshot never
+                # saw survive, newest `updated` wins per id. Deletions via
+                # this legacy path no longer apply — the desktop UI posts
+                # partial:true with an explicit `deleted` list, and
+                # Telegram uses merge_chats_partial for the same.
+                posted = body.get("chats") or []
+
+                def _legacy_merge():
+                    known = [c.get("id") for c in posted
+                             if isinstance(c, dict) and c.get("id")]
+                    return merge_chats(posted, known, profile_id)
+
+                chats = await asyncio.to_thread(_legacy_merge)
             return {"ok": True, "chats": chats, "rev": chats_revision(profile_id)}
         except Exception as e:
             return JSONResponse({"error": f"Не удалось сохранить чаты: {e}"}, 400)
 
+    def _with_space(prefs):
+        # Whose settings these are: the window marks the ones every workspace keeps for itself.
+        try:
+            from .spaces import space_meta
+            return {**prefs, "_space": space_meta()} if isinstance(prefs, dict) else prefs
+        except Exception:
+            return prefs
+
     @app.get("/api/pg/preferences")
     async def preferences_get():
         from .pgdata import load_preferences
-        return await asyncio.to_thread(load_preferences)
+        return _with_space(await asyncio.to_thread(load_preferences))
 
     @app.get("/api/pg/preferences/sync")
     async def preferences_sync(rev: str = ""):
@@ -3260,14 +3404,14 @@ def create_app() -> FastAPI:
         if rev and rev == current:
             return {"unchanged": True, "rev": current, "profiles_rev": profiles_rev}
         return {"rev": current, "profiles_rev": profiles_rev,
-                "preferences": await asyncio.to_thread(load_preferences)}
+                "preferences": _with_space(await asyncio.to_thread(load_preferences))}
 
     @app.post("/api/pg/preferences")
     async def preferences_set(request: Request):
         from .pgdata import save_preferences
         try:
             updates = await request.json()
-            return await asyncio.to_thread(save_preferences, updates)
+            return _with_space(await asyncio.to_thread(save_preferences, updates))
         except Exception as e:
             return JSONResponse({"error": f"Не удалось сохранить настройки: {e}"}, 400)
 
@@ -3337,6 +3481,45 @@ def create_app() -> FastAPI:
                 "local_tts_available": True, "tts_api_providers": tts_providers.public_providers(),
                 "stt_api_providers": stt_providers.public_providers(),
                 "tts_api_provider": tts_providers.provider_for_url(prefs.get("voice_tts_api_url", ""))}
+
+    @app.post("/api/voice/fetch-lists")
+    async def voice_fetch_lists(request: Request):
+        """Live model/voice lists for Voice and Live settings.
+
+        Body: {base, key?, kind: "tts"|"stt"|"realtime", model?, voices_from?}.
+        For "realtime" the base may be a WebSocket URL (wss://…/realtime) — the
+        HTTP /models address is derived from it. The key is used only for this
+        request and is never stored or logged. On failure returns
+        {"live": false, "error": "..."} so the UI keeps its built-in lists.
+        """
+        from . import tts_providers
+        from .voice_runtime import validate_api_base_url
+        try:
+            body = await _voice_request_body(request)
+            base = str(body.get("base") or "").strip()
+            kind = str(body.get("kind") or "tts").strip().lower()
+            if kind not in ("tts", "stt", "realtime"):
+                kind = "tts"
+            if kind == "realtime":
+                # wss://host/v1/realtime -> https://host/v1/models;
+                # an http(s) API root (built-in providers) is used as is.
+                parsed = urllib.parse.urlsplit(base)
+                scheme = {"wss": "https", "ws": "http"}.get(parsed.scheme.lower())
+                if scheme is None and parsed.scheme.lower() not in ("http", "https"):
+                    raise ValueError("Для Live укажите адрес WebSocket (wss://…) или HTTP-корень API")
+                path = parsed.path.rstrip("/")
+                if path.endswith("/realtime"):
+                    path = path[: -len("/realtime")]
+                base = urllib.parse.urlunsplit((scheme or parsed.scheme.lower(), parsed.netloc, path, "", ""))
+            base = validate_api_base_url(base)
+            result = await tts_providers.fetch_provider_lists(
+                base, api_key=str(body.get("key") or ""),
+                kind=kind, model=str(body.get("model") or ""),
+                voices_from=str(body.get("voices_from") or ""))
+            return result
+        except Exception as exc:
+            message = str(exc)[:300] or "Не удалось загрузить списки"
+            return {"live": False, "error": message}
 
     @app.post("/api/voice/models/download")
     async def voice_model_download(request: Request):
@@ -3585,7 +3768,8 @@ def create_app() -> FastAPI:
                     api_key=prefs.get("voice_tts_local_api_key" if local else "voice_tts_api_key", ""),
                     model=prefs.get("voice_tts_local_model" if local else "voice_tts_api_model", "tts-1"),
                     voice=prefs.get("voice_tts_local_voice" if local else "voice_tts_api_voice", "alloy"),
-                    speed=speed_from_rate(prefs.get("voice_tts_rate", 0)), lang=str(prefs.get("language") or "ru"))
+                    speed=speed_from_rate(prefs.get("voice_tts_rate", 0)), lang=str(prefs.get("language") or "ru"),
+                    format=str(prefs.get("voice_tts_local_format" if local else "voice_tts_api_format", "auto") or "auto"))
             else:
                 selected_voice = str(prefs.get("voice_tts_voice") or "")
 
@@ -4139,6 +4323,20 @@ def create_app() -> FastAPI:
         status, data = await proxy_json("GET", "/api/admin/pg/prompts")
         return authed(status, data)
 
+    @app.get("/api/pg/context-baseline")
+    async def context_baseline(mode: str = "chat"):
+        """Prompt blocks known before a message, without recalling or recording memory use."""
+        from . import canvas, memory_v2, spaces
+        service = mode if mode in ("work", "code") else "chat"
+        profile = spaces.active_profile()
+        space = spaces.active_space_id(profile)
+        owner = spaces.memory_owner(profile, space)
+        doc = await asyncio.to_thread(memory_v2.load, owner)
+        protocol = memory_v2.protocol_prompt(service, doc=doc) if doc.get("profile_id") == owner else ""
+        return JSONResponse({"profile": profile, "space": space, "memory_protocol": protocol,
+                             "canvas": canvas.PROMPT_BRIEF if service == "chat" else ""},
+                            headers={"Cache-Control": "no-store"})
+
     @app.post("/api/pg/prompts")
     async def prompts_set(request: Request):
         status, data = await proxy_json("POST", "/api/admin/pg/prompts", await request.body())
@@ -4184,10 +4382,20 @@ def create_app() -> FastAPI:
                 return JSONResponse({"error": "Нечего сжимать или не выбрана модель"}, 400)
             from .pgdata import internal_prompt
             payload = {"previous_summary": previous, "older_messages": safe_rows}
+            system = internal_prompt("context-compressor")
+            if body.get("kind") == "code":
+                # MemuCode: the structured summary of MemuCode CLI (goal, work done, state, facts, pending).
+                try:
+                    from .cli.compact import COMPACT_SYSTEM
+                    system = COMPACT_SYSTEM
+                except Exception:  # noqa: BLE001
+                    pass
+            focus = " ".join(str(body.get("focus") or "").split())[:1000]
             summary = await proxy_completion(model, [
-                {"role": "system", "content": internal_prompt("context-compressor")},
+                {"role": "system", "content": system},
                 {"role": "user", "content": "<conversation_to_compress>\n" +
-                 json.dumps(payload, ensure_ascii=False) + "\n</conversation_to_compress>"},
+                 json.dumps(payload, ensure_ascii=False) + "\n</conversation_to_compress>" +
+                 ("\n\nThe user asked to focus the summary on: " + focus if focus else "")},
             ])
             return {"summary": summary[:80_000], "messages": len(safe_rows)}
         except Exception as exc:
@@ -4380,6 +4588,50 @@ def create_app() -> FastAPI:
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, 400)
 
+    @app.post("/api/code/commands")
+    async def code_commands_route(request: Request):
+        """The custom commands of MemuCode CLI; with ``name`` — the prompt of ``/name args`` (a command or a skill)."""
+        try:
+            body = await _work_request_body(request)
+            project = _workspace_for(body, require_id=False)
+            from . import code_routes
+            root = Path(project["path"]).resolve()
+            if body.get("name"):
+                return await asyncio.to_thread(code_routes.command_prompt, root, str(body.get("name") or ""),
+                                               str(body.get("args") or ""), str(body.get("project_id") or ""))
+            return await asyncio.to_thread(code_routes.commands, root)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+
+    @app.post("/api/code/agents")
+    async def code_agents_route(request: Request):
+        """MemuCode agents shared with the CLI: ``list`` (default), ``save``, ``delete``."""
+        try:
+            body = await _work_request_body(request)
+            from . import code_agents
+            try:
+                project = _workspace_for(body, require_id=False)
+                root = Path(project["path"]).resolve() if project.get("path") else None
+            except Exception:
+                root = None
+            action = str(body.get("action") or "list")
+            if action == "save":
+                saved = await asyncio.to_thread(code_agents.save, root, body.get("agent") or {})
+                return {"ok": True, "agent": saved, "agents": await asyncio.to_thread(code_agents.catalogue, root)}
+            if action == "delete":
+                gone = await asyncio.to_thread(code_agents.delete, root, str(body.get("scope") or "user"),
+                                               str(body.get("name") or ""))
+                return {"ok": gone, "agents": await asyncio.to_thread(code_agents.catalogue, root)}
+            from .cli import paths as cli_paths
+            return {"agents": await asyncio.to_thread(code_agents.catalogue, root),
+                    "dirs": {"user": str(cli_paths.user_agents_dir()),
+                             "project": str(root / cli_paths.PROJECT_DIR / "agents") if root else ""},
+                    "groups": code_agents.GROUPS, "colors": list(code_agents.COLORS)}
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+        except Exception as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+
     @app.post("/api/code/context")
     async def code_context_stats(request: Request):
         try:
@@ -4556,7 +4808,14 @@ def create_app() -> FastAPI:
         try:
             body = await _work_request_body(request)
             project = _workspace_for(body, require_id=True)
-            from .work_context import build_work_context
+            from .work_context import build_work_context, code_rules, project_index, project_rules
+            if body.get("index_only") is True:
+                result = await asyncio.to_thread(project_index, project["path"])
+                if body.get("rules") is True:
+                    # MemuCode reads the instruction files of MemuCode CLI (MEMUCODE.md first); Work keeps AGENTS.md.
+                    reader = code_rules if body.get("memucode") is True else project_rules
+                    result["rules"] = await asyncio.to_thread(reader, project["path"])
+                return result
             result = await asyncio.to_thread(
                 build_work_context, project["path"], str(body.get("query") or ""),
                 active_paths=[str(x) for x in (body.get("active_paths") or []) if str(x)][:30],
@@ -4925,6 +5184,8 @@ def create_app() -> FastAPI:
 
     from .telegram_settings_api import register_telegram_routes
     register_telegram_routes(app, client, proxy_url=lambda: bridge["proxy"])
+    from .messenger_settings_api import register_messenger_routes
+    register_messenger_routes(app, client, proxy_url=lambda: bridge["proxy"])
 
     @app.get("/api/pg/tgapp")
     async def tgapp_status():
@@ -5206,6 +5467,10 @@ def create_app() -> FastAPI:
     from . import memory_api
     memory_api.register(app, completion=proxy_completion)
 
+    from . import spaces as _spaces, space_context as _space_context
+    _spaces.register(app)
+    _space_context.register(app, completion=proxy_completion, proxy_json=proxy_json)
+
     from . import scheduled_messages_api, chat_export_api
     scheduled_messages_api.register(app)
     chat_export_api.register(app)
@@ -5222,8 +5487,13 @@ def create_app() -> FastAPI:
     from .music import api as music_api
     music_api.register(app)
 
+    from . import meet_native_audio_api
+    meet_native_audio_api.register(app)
+
     from .learn import api as learn_api
     learn_api.register(app)
+    from .utils_kit import api as utils_api
+    utils_api.register(app)
     from . import memudb_api
     memudb_api.register(app)
 

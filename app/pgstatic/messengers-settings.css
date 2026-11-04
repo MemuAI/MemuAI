@@ -1,0 +1,61 @@
+/* Settings → Messengers: tabs and the Discord / WhatsApp panels (messengers-settings.js).
+   Cards, steps, pills and rows reuse the Telegram styles (telegram-settings.css). */
+.msg-tabs { display: flex; gap: 4px; width: max-content; max-width: 100%; margin: 22px 0 0; padding: 4px; overflow-x: auto;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2); scrollbar-width: none; }
+.msg-tabs::-webkit-scrollbar { display: none; }
+.msg-tab { position: relative; display: inline-flex; align-items: center; gap: 8px; flex: none; padding: 7px 14px 7px 8px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--muted); font: 600 13px/1.2 var(--sans); cursor: pointer;
+  transition: background-color .16s ease, color .16s ease, box-shadow .16s ease; }
+.msg-tab:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.msg-tab.active { color: var(--text); background: var(--panel); box-shadow: 0 1px 3px rgba(0, 0, 0, .12), 0 0 0 1px var(--border); }
+.msg-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.msg-tab-ic { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 7px; color: #fff; }
+.msg-tab-ic svg { width: 13px; height: 13px; }
+.msg-ic-telegram, .msg-avatar-telegram { background: linear-gradient(135deg, #37aee2, #1e96c8); }
+.msg-ic-discord, .msg-avatar-discord { background: linear-gradient(135deg, #7c87f7, #5865f2); }
+.msg-ic-whatsapp, .msg-avatar-whatsapp { background: linear-gradient(135deg, #3ed67b, #1ea952); }
+.msg-tab-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: transparent; }
+.msg-tab-dot[data-state="on"] { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+.msg-tab-dot[data-state="warn"] { background: #d6a03a; }
+.msg-tab-dot[data-state="err"] { background: var(--danger); }
+.msg-panel[hidden], .msg-mode[hidden] { display: none !important; }
+
+.msg-mark-dc { background: linear-gradient(135deg, #7c87f7, #5865f2); box-shadow: 0 6px 18px rgba(88, 101, 242, .3); }
+.msg-mark-wa { background: linear-gradient(135deg, #3ed67b, #1ea952); box-shadow: 0 6px 18px rgba(30, 169, 82, .28); }
+.msg-settings .tg-mark svg { transform: none; }
+
+.msg-seg-wrap { padding: 14px 18px 4px; }
+.msg-seg { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 13px; background: var(--panel); }
+.msg-seg button { flex: 1 1 0; min-width: 0; display: grid; gap: 2px; justify-items: start; padding: 8px 12px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--muted); font: inherit; text-align: left; cursor: pointer; transition: background-color .16s ease, color .16s ease; }
+.msg-seg button b { font-size: 13px; font-weight: 650; color: inherit; }
+.msg-seg button small { font-size: 11.5px; opacity: .85; }
+.msg-seg button:hover { color: var(--text); }
+.msg-seg button.active { color: var(--text); background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.msg-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.msg-field { display: grid; gap: 4px; margin-top: 10px; }
+.msg-field .field-label { margin: 0; font-size: 12px; color: var(--muted); }
+.msg-field > .pinput, .msg-field .tg-token-line { margin: 0; }
+.msg-field .tg-token-line { margin-top: 0; }
+.msg-copy-line { display: flex; align-items: center; gap: 8px; margin-top: 10px; min-width: 0; }
+.msg-copy-line code, .msg-copy-line .pinput { flex: 1 1 auto; min-width: 0; margin: 0; }
+.msg-copy-line code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--panel); font-size: 12px; }
+.msg-copy-line .pinput { font-family: var(--mono); font-size: 12px; }
+.msg-copy-line .pbtn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.msg-invite { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.msg-link { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
+.msg-settings .tg-pair-buttons .pbtn { display: inline-flex; align-items: center; gap: 6px; }
+.msg-cmds { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 18px 10px; }
+.msg-cmds code { padding: 3px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .msg-tabs { width: 100%; }
+  .msg-tab { flex: 1 0 auto; justify-content: center; }
+  .msg-seg { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msg-tab, .msg-seg button { transition: none; }
+}

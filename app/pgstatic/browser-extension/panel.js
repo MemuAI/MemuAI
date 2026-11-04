@@ -3,15 +3,48 @@ import {render} from './markdown.js';
 
 const $=id=>document.getElementById(id);
 decorate();
-const cfg=await chrome.storage.local.get({base:'http://127.0.0.1:8600',token:'',model:'',favorites:[],recentModels:[],lastChat:'',lastProfile:''});
+const cfg=await chrome.storage.local.get({base:'http://127.0.0.1:8600',token:'',model:'',favorites:[],recentModels:[],lastChat:'',lastProfile:'',theme:'system'});
 let models=[],chats=[],profile='',currentChat='',currentUpdated=0,busy=false,connected=false,controller=null,approvalId='',loadSequence=0;
 let staged=[],pageEnabled=false,favoritesOnly=false,currentAnswer=null,paintPending=false,refreshing=false,historyScope='browser';
 let sharedSettings={read_pages:true,control:'ask',dfy:false,schedules:false,save_to_main:false},defaultModel='',preferenceBusy=false;
 let currentBrowserOnly=null;
 let resizeQueued=false;
 const welcome=$('welcome');
+const toBottom=$('to-bottom');
 
 function status(text='',error=false){$('status').textContent=text;$('status').hidden=!text;$('status').classList.toggle('error',error);}
+/* Theme: system (follows the OS, like the MemuAI app) → light → dark. */
+const THEMES=['system','light','dark'];
+const THEME_LABEL={system:'системная',light:'светлая',dark:'тёмная'};
+function effectiveTheme(){return cfg.theme==='system'?((window.matchMedia?.('(prefers-color-scheme: dark)').matches)?'dark':'light'):cfg.theme;}
+function applyTheme(){
+  if(!THEMES.includes(cfg.theme))cfg.theme='system';
+  document.documentElement.dataset.theme=cfg.theme==='system'?'':cfg.theme;
+  try{document.documentElement.style.colorScheme=effectiveTheme();}catch{ }
+  const button=$('theme');if(button){button.replaceChildren(icon(effectiveTheme()==='dark'?'sun':'moon'));button.title='Тема: '+THEME_LABEL[cfg.theme]+' — нажмите, чтобы сменить';}
+}
+function cycleTheme(){cfg.theme=THEMES[(THEMES.indexOf(cfg.theme)+1)%THEMES.length]||'system';chrome.storage.local.set({theme:cfg.theme});applyTheme();}
+applyTheme();
+window.matchMedia?.('(prefers-color-scheme: dark)')?.addEventListener?.('change',()=>{if(cfg.theme==='system')applyTheme();});
+$('theme').onclick=cycleTheme;
+/* Structured empty state: icon + title + hint, instead of a bare line. */
+function emptyState(iconName,title,hint){const box=node('div','list-empty');const mark=node('span','empty-icon');mark.append(icon(iconName));box.append(mark,node('strong','',title));if(hint)box.append(node('span','',hint));return box;}
+/* Arrow-key navigation inside the model/chat lists: ↑/↓ move, Home/End jump. */
+function listRows(list){return Array.from(list.querySelectorAll('.chat-row>button:first-child, .model-row>button:first-child')).filter(b=>!b.disabled);}
+function focusRow(list,delta){const rows=listRows(list);if(!rows.length)return;const index=rows.indexOf(document.activeElement);rows[index<0?(delta>0?0:rows.length-1):Math.min(rows.length-1,Math.max(0,index+delta))].focus();}
+function bindListKeys(list,search){
+  list.addEventListener('keydown',e=>{
+    if(e.key==='ArrowDown'){e.preventDefault();focusRow(list,1);}
+    else if(e.key==='ArrowUp'){e.preventDefault();focusRow(list,-1);}
+    else if(e.key==='Home'){e.preventDefault();listRows(list)[0]?.focus();}
+    else if(e.key==='End'){e.preventDefault();listRows(list).at(-1)?.focus();}
+  });
+  if(search)search.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();listRows(list)[0]?.focus();}});
+}
+bindListKeys($('chat-list'),$('chat-search'));bindListKeys($('model-list'),$('model-search'));
+function paintToBottom(){const el=$('messages');toBottom.hidden=el.scrollHeight-el.scrollTop-el.clientHeight<180||!el.querySelector('.message');}
+$('messages').addEventListener('scroll',paintToBottom,{passive:true});
+toBottom.onclick=()=>scrollBottom(true);
 function connection(ok,label){connected=ok;$('connection').className='connection '+(ok?'online':'offline');$('connection-label').textContent=label;controls();}
 async function call(path,body,signal){
   const response=await fetch(localBase(cfg.base)+'/api/pg/browser-extension/bridge/'+path,{method:body?'POST':'GET',signal:signal||AbortSignal.timeout(45000),headers:{'Content-Type':'application/json',Authorization:'Bearer '+cfg.token,'X-MemuAI-Extension':chrome.runtime.id},body:body?JSON.stringify(body):undefined});
@@ -40,8 +73,8 @@ function sizeInput(){
   input.scrollTop=Math.min(oldScroll,input.scrollHeight);
 }
 function queueResize(){if(resizeQueued)return;resizeQueued=true;requestAnimationFrame(()=>{resizeQueued=false;sizeInput();});}
-function scrollBottom(force=false){const el=$('messages');if(force||el.scrollHeight-el.scrollTop-el.clientHeight<180)el.scrollTop=el.scrollHeight;}
-function clearConversation(){loadSequence++;currentChat='';currentBrowserOnly=null;currentUpdated=0;approvalId='';$('approval').hidden=true;$('messages').replaceChildren(welcome);welcome.hidden=false;$('chat-title').textContent='Новый чат';$('readonly').hidden=true;$('composer').hidden=false;staged=[];paintAttachments();cfg.lastChat='';chrome.storage.local.set({lastChat:''});paintChats();}
+function scrollBottom(force=false){const el=$('messages');if(force||el.scrollHeight-el.scrollTop-el.clientHeight<180)el.scrollTop=el.scrollHeight;paintToBottom();}
+function clearConversation(){loadSequence++;currentChat='';currentBrowserOnly=null;currentUpdated=0;approvalId='';$('approval').hidden=true;$('messages').replaceChildren(welcome,toBottom);welcome.hidden=false;$('chat-title').textContent='Новый чат';$('readonly').hidden=true;$('composer').hidden=false;staged=[];paintAttachments();cfg.lastChat='';chrome.storage.local.set({lastChat:''});paintChats();}
 function newChat(){if(busy)return;clearConversation();if(defaultModel)selectModel(defaultModel,false);$('history-dialog').close();status();$('input').focus();}
 function message(role,text,files=[]){
   welcome.hidden=true;const article=node('article','message '+role),header=node('div','message-header');
@@ -51,7 +84,7 @@ function message(role,text,files=[]){
   if(role==='user')content.textContent=textContent(text);else render(content,textContent(text));
   article.append(header);
   if(files.length){const box=node('div','message-files');for(const f of files){const data=f.preview||f.data||'';if(typeof data==='string'&&/^data:image\/(png|jpeg|webp|gif);base64,/.test(data)){const image=node('img','message-image');image.src=data;image.alt=f.name||'Изображение';image.loading='lazy';box.append(image);}else box.append(node('span','message-file',f.name||'Файл'));}article.append(box);}
-  article.append(content);$('messages').append(article);content._text=textContent(text);content._article=article;
+  article.append(content);$('messages').insertBefore(article,toBottom);content._text=textContent(text);content._article=article;
   if(role==='assistant'&&text)addActions(content);return content;
 }
 function addActions(content){if(content._article.querySelector('.message-actions'))return;const box=node('div','message-actions'),button=node('button','icon-button');button.type='button';button.title='Копировать ответ';button.setAttribute('aria-label','Копировать ответ');button.append(icon('copy'));button.onclick=()=>copy(content._text,button);box.append(button);content._article.append(box);}
@@ -83,7 +116,7 @@ function paintModels(){
     const row=node('div','model-row'+(m.id===cfg.model?' selected':'')),select=node('button'),mark=node('span','row-icon'),labelBox=node('span','row-label');select.type='button';select.disabled=m.availability?.available===false||preferenceBusy;select.title=m.id;select.setAttribute('aria-pressed',String(m.id===cfg.model));mark.append(icon(m.id===cfg.model?'check':'spark'));labelBox.append(node('strong','',modelName(m)),node('small','',modelDetail(m)+(m.id===defaultModel?' · Основная':'')));select.append(mark,labelBox);select.onclick=async()=>{if(preferenceBusy)return;if(await saveModelPreferences({default_model:m.id,profile_id:profile})){$('model-dialog').close();$('input').focus();}};
     const star=node('button','icon-button favorite'+(cfg.favorites.includes(m.id)?' active':''));star.type='button';star.disabled=preferenceBusy;star.title=cfg.favorites.includes(m.id)?'Открепить модель':'Закрепить модель';star.setAttribute('aria-label',star.title+' · '+modelName(m));star.setAttribute('aria-pressed',String(cfg.favorites.includes(m.id)));star.append(icon('star'));star.onclick=async()=>{if(preferenceBusy)return;star.disabled=true;await saveModelPreferences({pin_model:m.id,pinned:!cfg.favorites.includes(m.id),profile_id:profile});};row.append(select,star);target.append(row);
   }
-  if(!sorted.length)target.append(node('p','list-empty',favoritesOnly?'Здесь появятся модели, которые вы отметите звездой.':query?'Ничего не найдено. Попробуйте другое название.':'Моделей пока нет. Проверьте MemuAI Proxy и обновите список.'));
+  if(!sorted.length)target.append(emptyState(favoritesOnly?'star':query?'search':'spark',favoritesOnly?'Пока ничего не закреплено':query?'Ничего не найдено':'Моделей пока нет',favoritesOnly?'Отметьте модель звездой, и она появится здесь.':query?'Попробуйте другое название.':'Проверьте MemuAI Proxy и обновите список.'));
 }
 function paintChats(){
   const target=$('chat-list'),query=$('chat-search').value.trim().toLocaleLowerCase();target.replaceChildren();
@@ -91,11 +124,11 @@ function paintChats(){
   for(const chat of list){let stamp=Number(chat.updated)||Number(chat.created)||0;if(stamp&&stamp<1e12)stamp*=1000;const date=stamp?new Date(stamp):null,day=date?.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})||'Другие разговоры';if(lastGroup!==day){lastGroup=day;target.append(node('div','list-group',day));}
     const row=node('div','chat-row'+(chat.id===currentChat?' selected':'')),button=node('button'),mark=node('span','row-icon'),label=node('span','row-label');button.type='button';button.title=chat.title||'Без названия';mark.append(icon(chat.project_id?'folder':'chat'));label.append(node('strong','',chat.title||'Без названия'),node('small','',[chat.browser_only?'Только в браузере':chat.project_id?'Чат проекта':chat.mode==='code'||chat.mode==='work'?'Рабочий чат':'MemuAI',chat.count?chat.count+' сообщ.':''].filter(Boolean).join(' · ')));button.append(mark,label);button.onclick=()=>openChat(chat.id);row.append(button);target.append(row);
   }
-  if(!list.length)target.append(node('p','list-empty',query?'Разговоров с таким названием нет.':historyScope==='browser'?'Начните разговор в панели. По умолчанию он останется только в истории браузера.':'Чаты из приложения MemuAI появятся здесь.'));
+  if(!list.length)target.append(emptyState('chat',query?'Разговоров с таким названием нет':historyScope==='browser'?'Здесь появятся ваши разговоры':'Чаты из приложения появятся здесь',query?'Попробуйте другой запрос.':historyScope==='browser'?'Начните разговор в панели — по умолчанию он останется только в истории браузера.':'Откройте разговор в MemuAI, и он появится в этом списке.'));
 }
 async function openChat(id,quiet=false){
   if(busy)return;const sequence=++loadSequence;try{const value=await(await call('chats?id='+encodeURIComponent(id)+'&profile_id='+encodeURIComponent(profile))).json();if(sequence!==loadSequence)return;if(!value.chat)throw new Error('Этот чат удалён. Обновите историю.');
-    const chat=value.chat;currentChat=chat.id;currentBrowserOnly=Boolean(chat.browser_only||chat.visibility==='browser');currentUpdated=chat.updated||0;cfg.lastChat=chat.id;chrome.storage.local.set({lastChat:chat.id,lastProfile:profile});$('messages').replaceChildren(welcome);welcome.hidden=true;$('chat-title').textContent=chat.title||'Без названия';
+    const chat=value.chat;currentChat=chat.id;currentBrowserOnly=Boolean(chat.browser_only||chat.visibility==='browser');currentUpdated=chat.updated||0;cfg.lastChat=chat.id;chrome.storage.local.set({lastChat:chat.id,lastProfile:profile});$('messages').replaceChildren(welcome,toBottom);welcome.hidden=true;$('chat-title').textContent=chat.title||'Без названия';
     for(const m of chat.messages||[])if(['user','assistant'].includes(m.role)){const files=[...(m.attachments||[]),...(m.images||[]).filter(v=>typeof v==='string'&&v.startsWith('data:image/')).map(data=>({data,name:'Изображение'}))];const content=message(m.role,m.content,files);for(const tool of m.tool_activity||[])paintTool({...tool,phase:tool.phase||'done'},content);}
     if(models.some(m=>m.id===chat.model))selectModel(chat.model,false);
     const readonly=Boolean(chat.project_id||['work','code','memucode'].includes(chat.mode));$('readonly').hidden=!readonly;$('composer').hidden=readonly;$('open-chat').href='memuai://chat/open?id='+encodeURIComponent(chat.id);staged=[];paintAttachments();$('history-dialog').close();paintChats();scrollBottom(true);if(!quiet)status();
@@ -200,7 +233,7 @@ for(const favorite of [false,true])$(favorite?'favorite-models':'all-models').on
 for(const button of document.querySelectorAll('[data-close]'))button.onclick=()=>$(button.dataset.close).close();
 for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('click',e=>{if(e.target===dialog){const rect=dialog.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)dialog.close();}});
 $('input').addEventListener('input',controls);$('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('composer').requestSubmit();}});
-document.addEventListener('keydown',e=>{if(e.ctrlKey&&e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();newChat();}});
+document.addEventListener('keydown',e=>{if(e.ctrlKey&&e.altKey&&e.key.toLowerCase()==='n'){e.preventDefault();newChat();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();if(busy)return;paintModels();$('model-dialog').showModal();$('model-search').focus();}});
 $('attach').onclick=()=>$('file-input').click();$('file-input').onchange=()=>{addFiles($('file-input').files);$('file-input').value='';};$('page').onclick=()=>setPage(!pageEnabled);$('remove-page').onclick=()=>setPage(false);
 $('input').addEventListener('paste',e=>{if(e.clipboardData?.files.length){e.preventDefault();addFiles(e.clipboardData.files);}});
 let dragDepth=0;document.addEventListener('dragenter',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files')){e.preventDefault();dragDepth++;$('drop-overlay').hidden=false;}});document.addEventListener('dragover',e=>{if(Array.from(e.dataTransfer?.types||[]).includes('Files'))e.preventDefault();});document.addEventListener('dragleave',()=>{if(--dragDepth<=0){dragDepth=0;$('drop-overlay').hidden=true;}});document.addEventListener('drop',e=>{if(e.dataTransfer?.files.length){e.preventDefault();dragDepth=0;$('drop-overlay').hidden=true;addFiles(e.dataTransfer.files);}});
@@ -213,6 +246,19 @@ setInterval(()=>{if(!document.hidden&&!busy)refresh(true);},30000);
 const lastChat=cfg.lastChat,lastProfile=cfg.lastProfile;await refresh();
 if(lastChat&&lastProfile===profile&&chats.some(c=>c.id===lastChat))await openChat(lastChat,true);
 chrome.runtime.sendMessage({op:'connect'}).catch(()=>{});
+/* Update notice: written by the worker when MemuAI cannot refresh this copy itself. */
+async function paintUpdate(){
+  try{
+    const{memuUpdate,memuUpdateDismissed}=await chrome.storage.local.get({memuUpdate:null,memuUpdateDismissed:''});
+    const row=memuUpdate&&typeof memuUpdate==='object'?memuUpdate:null;const key=row?row.state+':'+row.available:'';
+    if(!row||memuUpdateDismissed===key){$('update-hint').hidden=true;return;}
+    $('update-text').textContent=row.state==='restart'?'Новая версия расширения уже загружена. Перезапустите Chrome, чтобы она включилась.':row.state==='stuck'?'Не удалось обновить расширение автоматически. Нажмите «Обновить» у MemuAI на странице chrome://extensions.':'Доступна новая версия расширения'+(row.available?' '+row.available:'')+'. Обновите его в настройках MemuAI — дальше обновления будут приходить сами.';
+    $('update-open').hidden=row.state==='restart';$('update-hint').hidden=false;
+  }catch{ }
+}
+$('update-dismiss').onclick=async()=>{$('update-hint').hidden=true;const{memuUpdate}=await chrome.storage.local.get({memuUpdate:null});if(memuUpdate)chrome.storage.local.set({memuUpdateDismissed:memuUpdate.state+':'+memuUpdate.available});};
+chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes.memuUpdate)paintUpdate();});
+paintUpdate();
 try{const layout=await chrome.sidePanel?.getLayout?.();const{layoutHintDismissed}=await chrome.storage.local.get({layoutHintDismissed:false});if(layout?.side==='left'&&!layoutHintDismissed)$('layout-hint').hidden=false;}catch{ }
 controls();
 window.addEventListener('resize',queueResize);window.visualViewport?.addEventListener('resize',queueResize);

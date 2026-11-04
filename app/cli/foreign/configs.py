@@ -113,16 +113,29 @@ def _mcp_items(source: str, servers: Any, origin: str) -> List[Item]:
                 items.append(Item("mcp", source, str(name), describe_mcp(spec), spec, origin=origin))
     return items
 
-def _json(path: Path) -> Any:
+def _read_capped(path: Path) -> Optional[str]:
+    """File text up to MAX_FILE bytes, else None (foreign config files are
+    small; a huge one is not read whole)."""
     try:
-        return json.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
+        if path.stat().st_size > MAX_FILE:
+            return None
+        return path.read_text(encoding="utf-8-sig")
+    except OSError:
+        return None
+
+
+def _json(path: Path) -> Any:
+    text = _read_capped(path)
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
         return None
 
 def _jsonc(path: Path) -> Any:
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except OSError:
+    text = _read_capped(path)
+    if text is None:
         return None
     text = re.sub(r"(?m)^\s*//.*$", "", text)
     text = re.sub(r",(\s*[}\]])", r"\1", text)
@@ -132,9 +145,12 @@ def _jsonc(path: Path) -> Any:
         return None
 
 def _toml(path: Path) -> Any:
+    text = _read_capped(path)
+    if text is None:
+        return None
     try:
-        return tomllib.loads(path.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError):
+        return tomllib.loads(text)
+    except ValueError:
         return None
 
 def _text(path: Path) -> str:
@@ -147,7 +163,11 @@ def _skills(source: str, base: Path, native: bool = False) -> List[Item]:
     items: List[Item] = []
     if not base.is_dir():
         return items
-    for folder in sorted(base.iterdir()):
+    try:
+        folders = sorted(base.iterdir())
+    except OSError:
+        return items
+    for folder in folders:
         if folder.name.startswith(".") or not (folder / "SKILL.md").is_file():
             continue
         head = _text(folder / "SKILL.md")
@@ -160,7 +180,11 @@ def _markdown_dir(kind: str, source: str, base: Path, native: bool = False) -> L
     items: List[Item] = []
     if not base.is_dir():
         return items
-    for file in sorted(base.rglob("*.md")):
+    try:
+        files = sorted(base.rglob("*.md"))
+    except OSError:
+        return items
+    for file in files:
         text = _text(file)
         if not text.strip():
             continue
@@ -239,7 +263,11 @@ def _gemini() -> List[Item]:
     items += _skills("gemini", home / "skills")
     base = home / "commands"
     if base.is_dir():
-        for file in sorted(base.rglob("*.toml")):
+        try:
+            toml_files = sorted(base.rglob("*.toml"))
+        except OSError:
+            toml_files = []
+        for file in toml_files:
             item = gemini_command(file, base)
             if item is not None:
                 items.append(item)
@@ -285,7 +313,11 @@ def scan(source: str, project: Path) -> List[Item]:
 
 def _copy_tree(source: Path, target: Path) -> int:
     count = 0
-    for file in source.rglob("*"):
+    try:
+        entries = list(source.rglob("*"))
+    except OSError:
+        return 0
+    for file in entries:
         if count >= MAX_FILES:
             break
         if not file.is_file() or file.is_symlink() or any(part.startswith(".") for part in file.relative_to(source).parts):

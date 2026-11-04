@@ -159,8 +159,12 @@ class InlineNestingTest(unittest.TestCase):
 
 def _quiet_window_away_from_now():
     """Quiet hours that do NOT include the real current time (the old code
-    looked at the wall clock instead of the ``now`` it was given)."""
-    hour = (datetime.now().hour + 12) % 24
+    looked at the wall clock instead of the ``now`` it was given).
+
+    The window is kept between 02:00 and 22:00 so the checked moments (two hours
+    before it up to 80 minutes after its start) stay on the same day; at 11:xx the
+    old choice of 23:00 moved the digest check past midnight and the test failed."""
+    hour = min(max((datetime.now().hour + 12) % 24, 2), 21)
     return hour, f"{hour:02d}:00", f"{(hour + 1) % 24:02d}:00"
 
 class PanelsQuietTimingTest(unittest.IsolatedAsyncioTestCase):

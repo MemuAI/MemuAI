@@ -58,6 +58,11 @@
     folder: '<path d="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
     filter: '<path d="M4 5.5h16l-6.2 7.3V19l-3.6-1.8v-4.4z"/>',
+    chat: '<path d="M5 5h14a1.5 1.5 0 0 1 1.5 1.5v8.5A1.5 1.5 0 0 1 19 16.5h-9l-4.5 3.5v-3.5H5A1.5 1.5 0 0 1 3.5 15V6.5A1.5 1.5 0 0 1 5 5z"/>',
+    puzzle: '<path d="M10 4.5h3.2v1.3a1.8 1.8 0 1 0 3.6 0V4.5h2.7v5h-1.3a1.8 1.8 0 1 0 0 3.6h1.3v6.4h-5v-1.3a1.8 1.8 0 1 0-3.6 0v1.3H4.5v-6.4h1.3a1.8 1.8 0 1 0 0-3.6H4.5v-5z"/>',
+    sync: '<path d="M4.5 11.5A7.5 7.5 0 0 1 17.3 6.7L19.5 9M19.5 4.5V9H15M19.5 12.5a7.5 7.5 0 0 1-12.8 4.8L4.5 15M4.5 19.5V15H9"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2.2"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/>',
+    pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
   };
   const svg = (name, cls = "") => `<svg class="sk-i ${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${P[name] || P.box}</svg>`;
 
@@ -174,6 +179,7 @@
     tab: localStorage.getItem(TAB_KEY) || "builtin", q: "", cat: "all", status: "all", view: "list", id: "",
     catalog: null, catalogState: "idle", catalogError: "", csource: "all", csort: "stars", cdetail: null, cfile: null,
     ctab: "doc", extra: {}, exploring: "", draft: null, editTab: "edit", menu: false, codeInstalled: null, scroll: 0,
+    modules: null, modulesLoading: false,
   };
 
   let memoSkills = null;
@@ -228,6 +234,196 @@
     persist(list);
     return item;
   }
+  /* ── where a skill works (rules: skillWorksIn in app.js = app/skills_scope.py) ───────────────────────────── */
+  const PLACE_ICON = { chat: "chat", files: "folder", note: "notes", code: "code", cli: "terminal" };
+  const corePlaces = () => [
+    ["chat", L("Чат MemuAI", "MemuAI chat"), L("Чаты и агенты", "Chats and agents")],
+    ["files", "MemuFiles", L("Ассистент", "Assistant")],
+    ["note", "MemuNote", L("Чат и агент", "Chat and agent")],
+    ["code", "MemuCode", L("Агент кода", "Coding agent")],
+    ["cli", "MemuCode CLI", L("Терминал", "Terminal")],
+  ];
+  const moduleHint = (m) => (m.enabled ? "" : L("Модуль выключен", "Module is off"));
+  const worksIn = (s, place) => (typeof skillWorksIn === "function" ? skillWorksIn(s, place) : place === "chat");
+  const placeDefault = (s, place) => (typeof skillDefaultOn === "function" ? skillDefaultOn(s.id, place) : true);
+  const chatOnlyReason = (s) => {
+    const row = (window.SKILL_CHAT_ONLY || {})[s.id];
+    return row ? L(row[0], row[1]) : "";
+  };
+  const codeTwin = (s) => (window.SKILL_CODE_TWINS || {})[s.id] || "";
+  function placeTitle(place) {
+    const core = corePlaces().find((row) => row[0] === place);
+    if (core) return core[1];
+    const mod = (state.modules || []).find((m) => "mod:" + m.id === place);
+    return mod ? mod.title : place.replace(/^mod:/, "");
+  }
+  function setPlaces(list, s, place, value) {
+    if (chatOnlyReason(s)) return false;
+    const places = { ...(s.places && typeof s.places === "object" ? s.places : {}) };
+    if (!!value === placeDefault(s, place)) delete places[place];
+    else places[place] = !!value;
+    if (Object.keys(places).length) s.places = places; else delete s.places;
+    return true;
+  }
+  function setPlace(id, place, value) {
+    const list = skills();
+    const item = list.find((x) => x.id === id);
+    if (!item || !setPlaces(list, item, place, value)) return null;
+    persist(list);
+    return item;
+  }
+  function placesSummary(s) {
+    if (chatOnlyReason(s)) return { short: L("Только MemuAI", "MemuAI only"), full: chatOnlyReason(s), limited: true };
+    const on = corePlaces().filter(([place]) => worksIn(s, place));
+    const mods = (state.modules || []).filter((m) => worksIn(s, "mod:" + m.id)).length;
+    const all = on.length === corePlaces().length;
+    const names = on.map((row) => row[1]);
+    const full = (names.length ? names.join(", ") : L("Нигде", "Nowhere")) + (state.modules ? L(` · модулей: ${mods}`, ` · modules: ${mods}`) : "");
+    if (all) return { short: "", full, limited: false };
+    if (!on.length) return { short: L("Нигде", "Nowhere"), full, limited: true };
+    if (on.length <= 2) return { short: names.join(" · "), full, limited: true };
+    return { short: L(`${on.length} из ${corePlaces().length} мест`, `${on.length} of ${corePlaces().length} places`), full, limited: true };
+  }
+  async function loadModules() {
+    if (state.modules || state.modulesLoading) return;
+    state.modulesLoading = true;
+    try {
+      const resp = await fetch("/api/pg/modules");
+      const data = resp.ok ? await resp.json() : {};
+      state.modules = (Array.isArray(data.modules) ? data.modules : [])
+        .filter((m) => m && m.id && (!Array.isArray(m.permissions) || !m.permissions.length || m.permissions.includes("chat")))
+        .map((m) => ({ id: String(m.id), title: String((isEn() ? m.title_en || m.title : m.title || m.title_en) || m.id), enabled: !!m.enabled }));
+    } catch (e) { state.modules = []; }
+    state.modulesLoading = false;
+    const host = root();
+    if (!host) return;
+    if (state.view === "detail") {
+      const box = host.querySelector("[data-where]");
+      const s = skills().find((x) => x.id === state.id);
+      if (box && s) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = whereHtml(s);
+        box.replaceWith(tmp.firstElementChild);
+        bindWhere(host.querySelector(".sk-shell"));
+      }
+    } else if (state.view === "places") { state.keepScroll = true; render(); }
+  }
+  function placeRow(s, place, title, hint, icon) {
+    const locked = !!chatOnlyReason(s) && place !== "chat";
+    const on = worksIn(s, place);
+    const own = s.places && Object.prototype.hasOwnProperty.call(s.places, place);
+    return `<label class="sk-where-row${locked ? " locked" : ""}${on ? "" : " off"}" title="${h(title + (hint ? " — " + hint : ""))}">
+      <span class="sk-where-ico">${svg(locked ? "lock" : icon)}</span>
+      <span class="sk-where-text"><b>${h(title)}</b>${hint ? `<small>${h(hint)}</small>` : ""}</span>
+      ${own ? `<span class="sk-where-own" title="${h(L("Выбрано вами, не по умолчанию", "Your choice, not the default"))}"></span>` : ""}
+      <span class="sk-switch sm"><input type="checkbox" data-place="${h(place)}" ${on ? "checked" : ""} ${locked ? "disabled" : ""} aria-label="${h(title)}"><span></span></span>
+    </label>`;
+  }
+  function whereHtml(s) {
+    const reason = chatOnlyReason(s);
+    if (reason) {
+      const [place, title, hint] = corePlaces()[0];
+      return `<section class="sk-where" data-where aria-label="${h(L("Где работает", "Where it works"))}">
+        <div class="sk-where-head"><h3>${svg("pin")}${L("Где работает", "Where it works")}</h3></div>
+        <p class="sk-where-lockline">${svg("lock")}<span>${h(reason)}. ${L("В MemuFiles, MemuNote, MemuCode и модулях его нет.", "MemuFiles, MemuNote, MemuCode and modules do not get it.")}</span></p>
+        <div class="sk-where-list">${placeRow(s, place, title, hint, PLACE_ICON[place])}</div>
+      </section>`;
+    }
+    const twin = codeTwin(s);
+    const core = corePlaces().map(([place, title, hint]) => placeRow(s, place, title,
+      twin && (place === "code" || place === "cli") && !worksIn(s, place) ? L(`Там есть свой скилл «${twin}»`, `It has its own “${twin}” skill`) : hint,
+      PLACE_ICON[place])).join("");
+    let mods;
+    if (state.modules === null) mods = `<div class="sk-where-wait"><span class="sk-dots"><i></i><i></i><i></i></span>${L("Модули…", "Modules…")}</div>`;
+    else if (!state.modules.length) mods = `<p class="sk-muted small">${L("Нет модулей, которые обращаются к моделям.", "No modules that call models.")}</p>`;
+    else mods = state.modules.map((m) => placeRow(s, "mod:" + m.id, m.title, moduleHint(m), "puzzle")).join("");
+    const custom = s.places && Object.keys(s.places).length;
+    return `<section class="sk-where" data-where aria-label="${h(L("Где работает", "Where it works"))}">
+      <div class="sk-where-head"><h3>${svg("pin")}${L("Где работает", "Where it works")}</h3>
+        ${custom ? `<button type="button" class="sk-link" data-act="places-reset">${L("По умолчанию", "Defaults")}</button>` : ""}</div>
+      <div class="sk-where-list">${core}</div>
+      <div class="sk-where-sub">${L("Модули", "Modules")}</div>
+      <div class="sk-where-list">${mods}</div>
+      <p class="sk-muted small">${L("Библиотека общая: выключенный скилл выключен во всех приложениях Memu. MemuAI Proxy скиллы не использует.", "One library for every Memu app: a disabled skill is off everywhere. MemuAI Proxy uses no skills.")}</p>
+    </section>`;
+  }
+  function bindWhere(shell) {
+    if (!shell) return;
+    shell.querySelectorAll("[data-bulk]").forEach((btn) => !btn.__skBound && (btn.__skBound = true) && btn.addEventListener("click", () => {
+      bulkPlace(btn.dataset.bulk, btn.dataset.on === "1");
+      shell.querySelector(`[data-bulk="${CSS.escape(btn.dataset.bulk)}"]:not(:disabled)`)?.focus({ preventScroll: true });
+    }));
+    shell.querySelectorAll("[data-place]").forEach((box) => !box.__skBound && (box.__skBound = true) && box.addEventListener("change", () => {
+      const place = box.dataset.place;
+      const item = setPlace(state.id, place, box.checked);
+      if (!item) { box.checked = !box.checked; return; }
+      const row = box.closest(".sk-where-row");
+      row?.classList.toggle("off", !box.checked);
+      const fresh = document.createElement("div");
+      fresh.innerHTML = whereHtml(item);
+      const sect = shell.querySelector("[data-where]");
+      const scroller = shell.querySelector(".sk-scroll");
+      const top = scroller ? scroller.scrollTop : 0;
+      if (sect) { sect.replaceWith(fresh.firstElementChild); bindWhere(shell); shell.querySelector(`[data-place="${CSS.escape(place)}"]`)?.focus({ preventScroll: true }); }
+      if (scroller) scroller.scrollTop = top;
+      toast(box.checked ? L(`«${ui(item, "name")}» работает: ${placeTitle(place)}`, `“${ui(item, "name")}” works in ${placeTitle(place)}`)
+        : L(`«${ui(item, "name")}» не работает: ${placeTitle(place)}`, `“${ui(item, "name")}” is off in ${placeTitle(place)}`));
+    }));
+  }
+  function bulkPlace(place, value) {
+    const list = skills();
+    let changed = 0;
+    list.forEach((s) => { if (worksIn(s, place) !== !!value && setPlaces(list, s, place, value)) changed++; });
+    if (changed) persist(list);
+    state.keepScroll = true;
+    render();
+    toast(value ? L(`${placeTitle(place)}: включено скиллов — ${changed}`, `${placeTitle(place)}: ${changed} skills turned on`)
+      : L(`${placeTitle(place)}: выключено скиллов — ${changed}`, `${placeTitle(place)}: ${changed} skills turned off`));
+  }
+  function placesView() {
+    const pool = skills().filter((s) => s.enabled !== false);
+    const row = (place, title, hint, icon) => {
+      const can = pool.filter((s) => !chatOnlyReason(s) || place === "chat");
+      const on = can.filter((s) => worksIn(s, place)).length;
+      const all = can.length && on === can.length;
+      const bar = can.length ? Math.round((on / can.length) * 100) : 0;
+      return `<div class="sk-prow${on ? "" : " off"}">
+        <span class="sk-where-ico">${svg(icon)}</span>
+        <span class="sk-where-text"><b>${h(title)}</b><small>${h(hint || "")}</small></span>
+        <span class="sk-pcount" title="${h(L("Скиллов работает здесь", "Skills working here"))}"><span><b>${on}</b> / ${can.length}</span><i style="--p:${bar}%"></i></span>
+        <span class="sk-pbtns" role="group" aria-label="${h(title)}">
+          <button type="button" data-bulk="${h(place)}" data-on="1" ${all ? "disabled" : ""}>${L("Все", "All")}</button>
+          <button type="button" data-bulk="${h(place)}" data-on="0" ${on ? "" : "disabled"}>${L("Ни одного", "None")}</button>
+        </span>
+      </div>`;
+    };
+    const core = corePlaces().map(([place, title, hint]) => row(place, title, hint, PLACE_ICON[place])).join("");
+    const mods = state.modules === null ? `<div class="sk-where-wait"><span class="sk-dots"><i></i><i></i><i></i></span>${L("Модули…", "Modules…")}</div>`
+      : state.modules.length ? state.modules.map((m) => row("mod:" + m.id, m.title, m.enabled ? L("Модуль", "Module") : L("Модуль выключен в меню модулей", "The module is off in the modules menu"), "puzzle")).join("")
+        : `<p class="sk-muted small">${L("Нет модулей, которые обращаются к моделям.", "No modules that call models.")}</p>`;
+    return `<div class="sk-sub">
+      <div class="sk-subbar">
+        <button type="button" class="sk-btn ghost" data-act="back">${svg("back")}<span>${L("Скиллы", "Skills")}</span></button>
+      </div>
+      <div class="sk-scroll sk-places" tabindex="-1">
+        <section class="sk-hero">
+          <span class="sk-tile lg">${svg("sync")}</span>
+          <div class="sk-hero-text">
+            <h2>${L("Где работают скиллы", "Where skills work")}</h2>
+            <p>${L("Одна библиотека для MemuAI, MemuFiles, MemuNote, MemuCode, MemuCode CLI и модулей. Здесь все включённые скиллы разом включаются или выключаются для одного места; для отдельного скилла места выбираются в его карточке.",
+              "One library for MemuAI, MemuFiles, MemuNote, MemuCode, MemuCode CLI and modules. Here every enabled skill is turned on or off for one place at once; for a single skill choose the places on its page.")}</p>
+          </div>
+        </section>
+        <div class="sk-where-sub">${L("Приложения", "Apps")}</div>
+        <div class="sk-plist">${core}</div>
+        <div class="sk-where-sub">${L("Модули", "Modules")}</div>
+        <div class="sk-plist">${mods}</div>
+        <p class="sk-note">${svg("lock")}<span>${L("«Панели» и «Справка по MemuAI» работают только в чате MemuAI: им нужны инструменты, которых больше нигде нет. MemuAI Proxy скиллы не использует — он только передаёт запросы.",
+          "“Panels” and “MemuAI guide” work only in the MemuAI chat: they need tools no other place has. MemuAI Proxy uses no skills — it only forwards requests.")}</span></p>
+      </div>
+    </div>`;
+  }
+
   function installedFromCatalog(repo, path) {
     const list = skills();
     if (!list.__gh) {
@@ -258,10 +454,14 @@
 
   (async function restoreBackup() {
     try {
-      if (localStorage.getItem("memu_skills")) return;
       const resp = await fetch("/api/pg/skills/library");
       if (!resp.ok) return;
       const data = await resp.json();
+      if (localStorage.getItem("memu_skills")) {
+        // MemuFiles, MemuNote, MemuCode and the modules read this file: write it when only this window has the library
+        if (!Array.isArray(data.skills) || !data.skills.length) scheduleBackup();
+        return;
+      }
 
       if (!Array.isArray(data.skills) || !data.skills.length || localStorage.getItem("memu_skills")) return;
       localStorage.setItem("memu_skills", JSON.stringify(data.skills));
@@ -280,6 +480,7 @@
     state.menu = false;
     panel(`<div class="sk-shell" data-view="list"></div>`, "sk-panel", { root: true, onClose: () => { state.menu = false; } });
     render();
+    window.MemuMotion?.enter?.(root());
 
     setTimeout(() => { const host = root(); if (host && state.view === "list" && host.contains(document.activeElement) && document.activeElement.classList.contains("panel-close")) host.querySelector("#sk-q")?.focus({ preventScroll: true }); }, 0);
   }
@@ -296,11 +497,12 @@
     else if (view === "editor") shell.innerHTML = editorView();
     else if (view === "cdetail") shell.innerHTML = catalogDetailView();
     else if (view === "url") shell.innerHTML = urlView();
+    else if (view === "places") shell.innerHTML = placesView();
     else shell.innerHTML = listView();
     const heading = shell.querySelector("h2");
     if (heading) { heading.id = "panel-heading"; host.setAttribute("aria-labelledby", "panel-heading"); }
     bind(shell);
-    if (view === "list" && state.keepScroll) { const sc = shell.querySelector(".sk-scroll"); if (sc) sc.scrollTop = prevScroll; }
+    if ((view === "list" || view === "detail" || view === "places") && state.keepScroll) { const sc = shell.querySelector(".sk-scroll"); if (sc) sc.scrollTop = prevScroll; }
     state.keepScroll = false;
   }
 
@@ -339,6 +541,7 @@
       ${item("import-url", "link", L("Импорт по ссылке", "Import from a link"), L("GitHub или .md", "GitHub or .md"))}
       ${item("export-all", "download", L("Экспорт моих скиллов", "Export my skills"), ".zip (Agent Skills)")}
       <hr>
+      ${item("places", "pin", L("Где работают скиллы", "Where skills work"), L("MemuFiles, MemuNote, MemuCode, модули", "MemuFiles, MemuNote, MemuCode, modules"))}
       ${item("enable-all", "toggle", L("Включить все", "Enable all"))}
       ${item("disable-all", "toggle", L("Выключить все", "Disable all"))}
       ${removed ? item("restore", "refresh", L("Вернуть удалённые встроенные", "Restore removed built-ins"), String(removed)) : ""}
@@ -388,7 +591,8 @@
     else if (!rows.length) body = emptyState("search", L("Ничего не найдено", "Nothing found"), L("Попробуйте другой запрос или категорию.", "Try another search or category."),
       `<button type="button" class="sk-btn" data-act="clear-filters">${L("Сбросить фильтры", "Clear filters")}</button>`);
     else body = `<div class="sk-grid">${rows.map(cardHtml).join("")}</div>`;
-    const note = state.tab === "builtin" ? `<p class="sk-note">${svg("spark")}<span>${L("Держите включёнными хоть все: модель видит только короткий каталог и подгружает полную инструкцию, только когда она нужна.", "Keep as many enabled as you like: the model only sees a short catalogue and loads a full playbook when a task needs it.")}</span></p>` : "";
+    const sync = `<p class="sk-note sync">${svg("sync")}<span>${L("Скиллы общие для MemuAI, MemuFiles, MemuNote, MemuCode, MemuCode CLI и модулей: выключили здесь — выключено везде. Где работает каждый скилл, выбирается в его карточке.", "Skills are shared by MemuAI, MemuFiles, MemuNote, MemuCode, MemuCode CLI and modules: off here means off everywhere. Choose where each skill works on its page.")}</span><button type="button" class="sk-link" data-act="places">${L("Где работают", "Where they work")}</button></p>`;
+    const note = (state.tab === "builtin" ? `<p class="sk-note">${svg("spark")}<span>${L("Держите включёнными хоть все: модель видит только короткий каталог и подгружает полную инструкцию, только когда она нужна.", "Keep as many enabled as you like: the model only sees a short catalogue and loads a full playbook when a task needs it.")}</span></p>` : "") + (pool.length ? sync : "");
     return `<main class="sk-main"><div class="sk-scroll">${toolbar}${note}${body}</div></main>`;
   }
 
@@ -413,6 +617,8 @@
       if (fresh && fresh.sha && s.source.sha && fresh.sha !== s.source.sha) badges.push(`<span class="sk-badge accent">${L("Есть обновление", "Update available")}</span>`);
     }
     if (s.inline) badges.push(`<span class="sk-badge">${L("Всегда в промпте", "Always on")}</span>`);
+    const where = placesSummary(s);
+    if (where.short) badges.push(`<span class="sk-badge place" title="${h(L("Где работает: ", "Works in: ") + where.full)}">${svg("pin")}${h(where.short)}</span>`);
     return `<article class="sk-card${s.enabled ? "" : " off"}" data-id="${h(s.id)}">
       <button type="button" class="sk-card-main" data-open="${h(s.id)}" aria-label="${h(ui(s, "name"))}">
         <span class="sk-tile">${svg(iconFor(s))}</span>
@@ -467,6 +673,7 @@
         ${scripts.length ? `<div class="sk-callout warn">${svg("warn")}<div><b>${L("В исходной папке были скрипты", "The original folder had scripts")}</b><span>${L("В чат добавлены только инструкции; скрипты MemuAI не запускает.", "Only the instructions were added to the chat; MemuAI never runs the scripts.")} ${h(scripts.map((f) => f.path).slice(0, 6).join(", "))}</span></div></div>` : ""}
         <div class="sk-detail-grid">
           <div class="sk-detail-main">
+            ${whereHtml(s)}
             <h3 class="sk-h">${L("Когда подключается", "When it loads")}</h3>
             <div class="sk-when">${ui(s, "when") ? h(ui(s, "when")) : `<span class="sk-muted">${L("Триггер не задан — модель выбирает по описанию.", "No trigger set — the model decides from the description.")}</span>`}</div>
             <h3 class="sk-h">${L("Инструкции", "Instructions")}</h3>
@@ -491,7 +698,12 @@
     state.editTab = "edit";
     state.view = "editor";
     render();
-    setTimeout(() => root()?.querySelector("#sk-f-name")?.focus(), 30);
+    // never steal the focus from a field the person (or a quick script) already went to
+    setTimeout(() => {
+      const host = root();
+      if (!host || state.view !== "editor" || document.activeElement?.closest?.(".sk-form")) return;
+      host.querySelector("#sk-f-name")?.focus();
+    }, 30);
   }
 
   function editorView() {
@@ -1295,6 +1507,13 @@
       case "import-url": state.view = "url"; state.urlResult = null; render(); setTimeout(() => root()?.querySelector("#sk-url")?.focus(), 30); return;
       case "url-go": resolveUrl(shell); return;
       case "url-add": addUrlPicks(shell); return;
+      case "places": state.view = "places"; render(); loadModules(); root()?.querySelector(".sk-places")?.focus({ preventScroll: true }); return;
+      case "places-reset": {
+        const list = skills();
+        const item = list.find((x) => x.id === state.id);
+        if (item && item.places) { delete item.places; persist(list); state.keepScroll = true; render(); toast(L("Места как по умолчанию", "Places reset to the defaults")); }
+        return;
+      }
       case "enable-all": setAll(true); return;
       case "disable-all": setAll(false); return;
       case "restore": localStorage.removeItem("memu_skills_removed"); scheduleBackup(); render(); toast(L("Встроенные скиллы возвращены", "Built-in skills restored"), "ok"); return;
@@ -1388,6 +1607,7 @@
       if (state.codeInstalled === null) loadCodeInstalled();
     }
     if (state.view === "url") shell.querySelector("#sk-url")?.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); resolveUrl(shell); } });
+    if (state.view === "detail" || state.view === "places") { bindWhere(shell); if (state.modules === null) loadModules(); }
     bindToggles(shell);
   }
 

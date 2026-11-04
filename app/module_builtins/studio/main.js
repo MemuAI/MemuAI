@@ -475,7 +475,7 @@ Memu.models().then((rows) => {
   chatModel = (chat.find((item) => item.default) || chat[0])?.id || "";
   drawModels(true);
   drawMusicProducerModels(true);
-  mountModelSelector(el.imageModel, { preset: "cards", kind: "image" });
+  mountModelSelector(el.imageModel, { preset: "dropdown", kind: "image" });
   mountModelSelector(el.videoModel, { preset: "dropdown", kind: "video" });
   mountModelSelector(musicEl["producer-model"], { preset: "compact", kind: "chat" });
   if (!modelList.length) setStatus(t("model.connect"), "error");

@@ -151,7 +151,7 @@ function makeRadios() {
   return radios;
 }
 
-function loadMeet({ policyAllowed, savedSettings = {}, withSelector = false, gumReject = "", origin = "", withAudioContext = false } = {}) {
+function loadMeet({ policyAllowed, savedSettings = {}, withSelector = false, gumReject = "", origin = "", withAudioContext = false, systemStub = null } = {}) {
   const els = new Map();
   const radios = makeRadios();
   const elFor = (sel) => {
@@ -186,6 +186,7 @@ function loadMeet({ policyAllowed, savedSettings = {}, withSelector = false, gum
   const saves = [];
   const store = new Map();
   const recordStarts = [];
+  const systemCalls = [];
   const consoleErrors = [];
   const sandboxConsole = { log: () => {}, warn: () => {}, error: (...a) => { consoleErrors.push(a); } };
 
@@ -260,6 +261,10 @@ function loadMeet({ policyAllowed, savedSettings = {}, withSelector = false, gum
       start: (args) => { recordStarts.push(args === undefined ? null : j(args)); return Promise.resolve(); },
       stop: () => Promise.resolve({ audio: MIC_DATA_URL, mime: "audio/webm", ms: 3000 }),
       cancel: () => Promise.resolve(),
+      system: systemStub ? (action, opts) => {
+        systemCalls.push({ action, opts: opts === undefined ? null : j(opts) });
+        return systemStub(action, opts);
+      } : undefined,
     },
     transcribe: () => Promise.resolve({ text: "hello" }),
     on: () => {},
@@ -308,7 +313,7 @@ function loadMeet({ policyAllowed, savedSettings = {}, withSelector = false, gum
   if (withSelector) vm.runInContext(SELECTOR_JS, sandbox, { filename: "model-selector.js" });
   vm.runInContext(MEET_JS, sandbox, { filename: "meet/main.js" });
   return {
-    ctx: sandbox, els, elFor, saves, store, recordStarts, consoleErrors, mediaCalls,
+    ctx: sandbox, els, elFor, saves, store, recordStarts, systemCalls, consoleErrors, mediaCalls,
     get displayMediaCalls() { return displayMediaCalls; },
     get gumCalls() { return gumCalls; },
     radios,
@@ -443,6 +448,151 @@ async function main() {
     assert.ok(env.store.has(meetingKeys[0] + "/audio-mic"), "microphone track stored under its own key");
     assert.equal(env.store.get(meetingKeys[0] + "/audio-mic").data, MIC_DATA_URL);
     assert.deepEqual(env.consoleErrors, [], "no console errors on the allowed path");
+  }
+
+  /* ---- (g) native capture: probe, device list, options, recording ---- */
+  {
+    const nativeProbe = {
+      available: true, web: false,
+      native: { available: true, reason: "", backend: "sine", devices: [
+        { id: "sine-a", name: "Speakers (Test)", is_default: true },
+        { id: "sine-b", name: "Monitor HDMI", is_default: false },
+      ] },
+    };
+    const systemStub = (action) => {
+      if (action === "probe") return Promise.resolve(j(nativeProbe));
+      if (action === "check") return Promise.resolve({});
+      if (action === "start") return Promise.resolve({ started: Date.now(), mode: "native", devices: ["sine-a"] });
+      if (action === "stop") return Promise.resolve({ audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }), ms: 1000 });
+      return Promise.resolve({});
+    };
+    const env = loadMeet({ policyAllowed: false, systemStub, savedSettings: { source: "system" } });
+    const { ctx } = env;
+    await tick(50);
+    assert.deepEqual(j(ctx.nativeStatus), nativeProbe.native, "probe result is kept");
+    assert.equal(ctx.hostSystemAudio, true, "native probe makes capture available");
+    assert.equal(ctx.captureAvailable(), true, "system source becomes available through native capture");
+    assert.equal(env.displayMediaCalls, 0, "the native path never opens the screen picker");
+
+    assert.equal(env.elFor("#native-block").hidden, false, "device block shows for a system source");
+    const list = env.elFor("#native-devices");
+    assert.equal(list.children.length, 2, "one row per output device");
+    assert.equal(list.children[0].children[0].checked, true, "the default output is checked");
+    assert.equal(list.children[0].children[1].textContent, "Speakers (Test) \u00b7 record.native_default");
+    assert.equal(list.children[1].children[0].checked, false, "a non-default device starts unchecked");
+    assert.equal(env.elFor("#native-mode").value, "auto", "auto mode by default");
+
+    // The sound check goes through the host bridge with the mode and
+    // the chosen devices — no getDisplayMedia involved.
+    env.elFor("#check-system").click();
+    await tick(30);
+    assert.equal(env.displayMediaCalls, 0, "native check opens no picker");
+    const checkCall = env.systemCalls.find((c) => c.action === "check");
+    assert.ok(checkCall, "check reaches the host bridge");
+    assert.equal(checkCall.opts.mode, "auto");
+    assert.deepEqual(checkCall.opts.devices, [], "empty selection means the default output");
+    assert.equal(env.elFor("#system-check-status").textContent, "record.check_ok");
+
+    // Start a native recording: the host bridge receives the options
+    // and the recording remembers its mode and devices.
+    await ctx.startSystemRecording("Native", false);
+    assert.ok(ctx.recording, "native recording started");
+    assert.equal(ctx.recording.captureMode, "native");
+    assert.deepEqual(j(ctx.recording.captureDevices), ["sine-a"]);
+    const startCall = env.systemCalls.find((c) => c.action === "start");
+    assert.ok(startCall, "start reaches the host bridge");
+    assert.equal(startCall.opts.mode, "auto");
+    await ctx.stopRecording();
+    assert.ok(ctx.pending, "pending card after a native stop");
+    assert.equal(ctx.pending.tracks.length, 1, "one system track");
+    assert.equal(ctx.pending.tracks[0].source, "system");
+    assert.deepEqual(env.consoleErrors, [], "no console errors on the native path");
+  }
+
+  /* ---- (g2) native unavailable: the web fallback is offered ---- */
+  {
+    const systemStub = (action, opts) => {
+      if (action === "probe") return Promise.resolve({ available: true, web: true,
+        native: { available: false, reason: "no_backend", backend: "none", devices: [] } });
+      if (action === "start") {
+        if (opts && opts.mode === "web") return Promise.resolve({ started: Date.now(), mode: "web", devices: [] });
+        return Promise.resolve({ reason: "native-unavailable", detail: "no_backend" });
+      }
+      if (action === "stop") return Promise.resolve({ audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }), ms: 1000 });
+      return Promise.resolve({});
+    };
+    const env = loadMeet({ policyAllowed: true, systemStub, savedSettings: { source: "system", capture_mode: "native" } });
+    const { ctx } = env;
+    await tick(50);
+    assert.equal(ctx.hostSystemAudio, true, "web capture still makes the host bridge available");
+    assert.equal(ctx.nativeStatus.available, false);
+    assert.equal(ctx.effectiveCaptureMode(), "web", "explicit native falls back to web and says so");
+    await ctx.startSystemRecording("Fallback", false);
+    assert.equal(ctx.recording, null, "a failed native start records nothing");
+    assert.equal(env.elFor("#rec-web-fallback").hidden, false, "the web fallback button appears");
+    assert.equal(env.elFor("#rec-status").textContent, "record.native_unavailable_fallback", "the failure names the native path");
+    // The fallback retries through the host bridge with web mode.
+    env.elFor("#rec-web-fallback").click();
+    await tick(30);
+    const webCall = env.systemCalls.filter((c) => c.action === "start").pop();
+    assert.equal(webCall.opts.mode, "web", "the fallback retries with web mode");
+    assert.ok(ctx.recording, "web fallback recording started");
+    assert.equal(ctx.recording.captureMode, "web");
+    await ctx.stopRecording();
+    assert.deepEqual(env.consoleErrors, [], "no console errors on the fallback path");
+  }
+
+  /* ---- (i) native capture: microphone in the device list, diagnostics ---- */
+  {
+    const nativeProbe = {
+      available: true, web: false,
+      native: { available: true, reason: "", backend: "sine",
+        sounddevice: { installed: true, portaudio: true },
+        devices: [
+          { id: "sine-a", name: "Speakers (Test)", kind: "output", is_default: true },
+          { id: "sdi-1", name: "USB Microphone", kind: "input", is_default: false },
+        ] },
+    };
+    const systemStub = (action) => {
+      if (action === "probe") return Promise.resolve(j(nativeProbe));
+      if (action === "check") return Promise.resolve({});
+      if (action === "start") return Promise.resolve({ started: Date.now(), mode: "native", devices: ["sine-a"] });
+      if (action === "stop") return Promise.resolve({ audio: new Blob([new Uint8Array([1, 2, 3])], { type: "audio/webm" }), ms: 1000 });
+      return Promise.resolve({});
+    };
+    const env = loadMeet({ policyAllowed: false, systemStub, savedSettings: { source: "system", mic_device: "mic-2" } });
+    const { ctx } = env;
+    // The microphone selector label must exist before the probe
+    // renders, so the microphone row is pre-checked by name match.
+    // (The stub select has no selectedIndex of its own.)
+    env.elFor("#mic-device").options = [{ text: "USB Microphone" }];
+    env.elFor("#mic-device").selectedIndex = 0;
+    await tick(50);
+
+    const list = env.elFor("#native-devices");
+    assert.equal(list.children.length, 2, "one row per native device, output + microphone");
+    const micRow = list.children[1];
+    assert.equal(micRow.children[1].textContent, "USB Microphone", "microphone name shown");
+    assert.equal(micRow.children[2].textContent, "record.native_kind_input", "microphone row carries the kind badge");
+    assert.equal(micRow.children[0].checked, true, "the microphone matching the selected mic is pre-checked");
+    assert.equal(list.children[0].children[2].textContent, "record.native_kind_output", "output row carries the kind badge");
+
+    // Diagnostics: helper status line and an empty last-error slot.
+    assert.ok(env.elFor("#diag-status").textContent.includes("record.diag_ok"), "diagnostics say the helper is available: " + env.elFor("#diag-status").textContent);
+    assert.equal(env.elFor("#diag-error").textContent, "record.diag_no_error", "the diagnostics say explicitly that there is no last error");
+
+    // "Check sound" goes through the host bridge in native mode, then
+    // the test finishes with a per-device heard/silent summary.
+    env.elFor("#diag-check").click();
+    await tick(30);
+    const checkCall = env.systemCalls.find((c) => c.action === "check");
+    assert.ok(checkCall, "the sound test reaches the host bridge");
+    assert.equal(checkCall.opts.mode, "native", "the test forces native mode");
+    assert.equal(env.elFor("#diag-status").textContent, "record.diag_running", "the test says it is running");
+    clearTimeout(ctx.diagTest.timer);
+    ctx.finishNativeDiagnostics();
+    assert.ok(env.elFor("#diag-status").textContent.includes("record.diag_silent"), "a quiet test reports silence, not a failure: " + env.elFor("#diag-status").textContent);
+    assert.deepEqual(env.consoleErrors, [], "no console errors on the diagnostics path");
   }
 
   /* ---- (d) transcript source labels, only for two-track meetings ---- */

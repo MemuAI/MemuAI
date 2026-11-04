@@ -159,6 +159,152 @@ def safe_url(raw: str) -> str:
         raise Unreachable("local and private addresses are not allowed")
     return url
 
+def _host_addresses(host: str, port: int) -> List[str]:
+    """Resolved addresses of *host* (``[]`` when the name does not resolve)."""
+    try:
+        return [item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)]
+    except (socket.gaierror, OSError, UnicodeError):
+        return []
+
+
+def _is_loopback_host(host: str) -> bool:
+    host = host.strip("[]").lower()
+    if host in ("localhost",) or host.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def validate_api_base_url(raw: str, *, allow_private: bool = False) -> Optional[str]:
+    """F19: is this base URL acceptable for a user-configured API endpoint?
+
+    Rules (same for Custom providers, Kiro/Genspark endpoints and the
+    Quick Ask custom endpoint): the scheme must be http(s); no userinfo
+    (credentials in the URL would leak into logs); a host that resolves
+    to a private / link-local / reserved address needs the explicit
+    ``allow_private`` opt-in (a LAN Ollama/LM Studio is legitimate, but
+    it must be a deliberate choice, not a pasted default); plain ``http``
+    only to loopback or — with that opt-in — to a private LAN host,
+    everything else needs TLS. Returns an error message, or ``None``
+    when the URL is fine. A name that does not resolve at all is left
+    alone — the request will fail on its own.
+    """
+    url = str(raw or "").strip()
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return "Base URL должен начинаться с http(s):// и содержать хост"
+    if parsed.username is not None or parsed.password is not None:
+        return "Base URL не должен содержать логин/пароль"
+    try:
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return "Некорректный порт в Base URL"
+    host = parsed.hostname
+    addresses = _host_addresses(host, port)
+    loopback = _is_loopback_host(host)
+    private = False
+    for address in addresses:
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError:
+            continue
+        if ip.is_loopback:
+            loopback = True
+        elif ip.is_link_local:
+            # 169.254.0.0/16 / fe80::/10 is never a LAN server — it is the
+            # cloud metadata address range. No opt-in covers it.
+            return "Link-local адреса (169.254.x.x) запрещены — это диапазон облачных metadata-сервисов"
+        elif not _ip_is_public(ip):
+            private = True
+    # A private/link-local host needs the explicit opt-in first (a LAN
+    # Ollama over plain HTTP is legitimate — but only as a deliberate
+    # choice, not a pasted default).
+    if private and not allow_private:
+        return ("Хост ведёт в частную сеть — включите «Разрешить частную сеть», "
+                "если это ваш локальный сервер (Ollama/LM Studio в LAN)")
+    # Plain HTTP is fine on loopback and — with the opt-in above — on a
+    # private LAN host (Ollama/LM Studio); anywhere else it would send
+    # the key in clear text over the internet.
+    if parsed.scheme == "http" and not loopback and not private:
+        return "HTTP разрешён только для локальных адресов (127.0.0.1, localhost, ::1) — для остальных нужен HTTPS"
+    return None
+
+
+def fetch_public_sync(url: str, *, limit: int = MAX_IMAGE_BYTES, timeout: float = 30.0,
+                      headers: Optional[Dict[str, str]] = None) -> Tuple[bytes, str]:
+    """F19: fetch a URL that came from untrusted data (a provider answer,
+    search results, model output) the same way ``_download_public`` does
+    it for images: every hop validated with :func:`safe_url` (DNS +
+    public IP only, no credentials), redirects followed manually (max
+    ``MAX_REDIRECTS``), ``Authorization`` dropped on a cross-host hop,
+    the body streamed with a running byte cap (``Content-Length`` is
+    checked before the first byte). Returns ``(body, content_type)``.
+    Raises :class:`Unreachable` on any failure.
+    """
+    import urllib.request
+    current = str(url or "").strip()
+    heads = dict(headers or {})
+
+    class _Redirect(Exception):
+        def __init__(self, location: str) -> None:
+            super().__init__(location)
+            self.location = location
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001, ANN202
+            raise _Redirect(newurl)
+
+    opener = urllib.request.build_opener(_NoRedirect)
+    for _hop in range(MAX_REDIRECTS + 1):
+        try:
+            current = safe_url(current)
+        except Unreachable:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise Unreachable(str(exc)) from exc
+        request = urllib.request.Request(current, headers=heads)
+        try:
+            resp = opener.open(request, timeout=timeout)
+        except _Redirect as red:
+            if _hop >= MAX_REDIRECTS:
+                raise Unreachable("too many redirects") from None
+            nxt = urllib.parse.urljoin(current, red.location)
+            if urllib.parse.urlparse(nxt).hostname != urllib.parse.urlparse(current).hostname:
+                heads = {k: v for k, v in heads.items() if k.lower() != "authorization"}
+            current = nxt
+            continue
+        except Exception as exc:  # noqa: BLE001
+            raise Unreachable(f"{type(exc).__name__}: {exc}") from exc
+        with resp:
+            status = getattr(resp, "status", 200)
+            if status in (301, 302, 303, 307, 308):
+                # A redirect without Location is a dead end.
+                raise Unreachable(f"HTTP {status} without a target")
+            if status < 200 or status >= 300:
+                raise Unreachable(f"HTTP {status}")
+            try:
+                declared = int(resp.headers.get("Content-Length") or 0)
+            except ValueError:
+                declared = 0
+            if declared > limit:
+                raise Unreachable("too large")
+            ctype = (resp.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            chunks: List[bytes] = []
+            total = 0
+            while True:
+                block = resp.read(min(1024 * 1024, limit - total + 1))
+                if not block:
+                    break
+                chunks.append(block)
+                total += len(block)
+                if total > limit:
+                    raise Unreachable("too large")
+            return b"".join(chunks), ctype
+    raise Unreachable("too many redirects")
+
+
 def _check_peer(response: Any) -> None:
     """Closes the DNS-rebinding gap: the address actually connected to must be public too."""
     stream = response.extensions.get("network_stream")

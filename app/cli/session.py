@@ -12,6 +12,7 @@ view starts, while ``/export`` and ``/resume`` still see everything.
 from __future__ import annotations
 
 import base64
+import logging
 import hashlib
 import json
 import re
@@ -23,6 +24,8 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from . import paths
 
+log = logging.getLogger("memucode.session")
+
 IMPORTED_PREFIX = "imp-"
 
 def new_id(prefix: str = "") -> str:
@@ -30,6 +33,18 @@ def new_id(prefix: str = "") -> str:
 
 def _now() -> float:
     return time.time()
+
+
+def _fnum(value: Any, default: float = 0.0) -> float:
+    """float() that never raises on hand-edited/corrupt transcript data.
+
+    C-01.2: a single "created": "abc" line used to kill /resume, /dashboard
+    and --continue for the whole project (ValueError from float()).
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 class Session:
     def __init__(self, root: Path, session_id: str = "", *, create: bool = True) -> None:
@@ -100,7 +115,13 @@ class Session:
             out = []
             for part in parts:
                 if isinstance(part, dict) and part.get("type") == "image" and part.get("data"):
-                    raw = base64.b64decode(part["data"])
+                    try:
+                        raw = base64.b64decode(part["data"])
+                    except Exception:
+                        # C-01.3: corrupt inline image data stays inline
+                        # instead of losing the whole message from disk.
+                        out.append(part)
+                        continue
                     digest = hashlib.sha1(raw).hexdigest()[:20]
                     ext = {"image/png": ".png", "image/gif": ".gif", "image/webp": ".webp"}.get(
                         str(part.get("media_type")), ".jpg")
@@ -118,7 +139,10 @@ class Session:
         stored = {key: value for key, value in message.items() if not key.startswith("_ui")}
         stored["content"] = convert(message.get("content"))
         if message.get("images"):
-            stored["images"] = convert([{"type": "image", **image} for image in message["images"]])
+            # C-01.1/C-01.3: skip non-dict entries instead of raising
+            # TypeError ('str' object is not a mapping) on a corrupt record.
+            stored["images"] = convert([{"type": "image", **image} for image in message["images"]
+                                        if isinstance(image, dict)])
         return stored
 
     @classmethod
@@ -127,6 +151,7 @@ class Session:
         if not session.path.is_file():
             raise FileNotFoundError(session_id)
 
+        skipped = {"bad_json": 0, "not_a_dict": 0, "replay_failed": 0}
         with session.path.open("r", encoding="utf-8", errors="replace") as handle:
             for raw in handle:
                 raw = raw.strip()
@@ -135,11 +160,50 @@ class Session:
                 try:
                     event = json.loads(raw)
                 except ValueError:
+                    skipped["bad_json"] += 1
                     continue
-                if isinstance(event, dict):
+                if not isinstance(event, dict):
+                    skipped["not_a_dict"] += 1
+                    continue
+                try:
                     session._replay(event)
+                except Exception:
+                    # C-01.1: one corrupt event must not make the whole
+                    # session unloadable (matches the bad-JSON skip above).
+                    skipped["replay_failed"] += 1
+                    continue
+        if sum(skipped.values()):
+            # F30: a corrupt transcript still loads, but the loss is no
+            # longer silent — the CLI log says what was skipped.
+            log.warning("session %s: skipped %d corrupt transcript line(s) "
+                        "(bad_json=%d, not_a_dict=%d, replay_failed=%d)",
+                        session.id, sum(skipped.values()), skipped["bad_json"],
+                        skipped["not_a_dict"], skipped["replay_failed"])
         session.loaded = True
         return session
+
+    def ensure_message_ids(self) -> int:
+        """Give every message a stable id, persisting the assignment.
+
+        F30: compaction keys its summary off ``covers_until`` — the id of
+        the last covered message. A message without an id (old or corrupt
+        transcripts) made ``covers`` ``None``, so the summary covered
+        nothing and ``api_messages()`` showed the "compacted" range again.
+        Assigns missing ids in memory and appends one ``set_ids`` line so
+        a reload replays the same ids. Returns how many were assigned.
+        """
+        missing = [(index, message) for index, message in enumerate(self.messages)
+                   if not (isinstance(message, dict) and isinstance(message.get("id"), str)
+                           and message["id"])]
+        if not missing:
+            return 0
+        assigned = []
+        for index, message in missing:
+            ident = new_id("m")
+            message["id"] = ident
+            assigned.append([index, ident])
+        self._append({"t": "set_ids", "ids": assigned})
+        return len(assigned)
 
     def _replay(self, event: Dict[str, Any]) -> None:
         kind = event.get("t")
@@ -148,7 +212,8 @@ class Session:
         elif kind == "msg" and isinstance(event.get("m"), dict):
             message = event["m"]
             if message.get("images"):
-                message["images"] = [{k: v for k, v in image.items() if k != "type"} for image in message["images"]]
+                message["images"] = [{k: v for k, v in image.items() if k != "type"}
+                                     for image in message["images"] if isinstance(image, dict)]
             self.messages.append(message)
         elif kind == "truncate":
             ident = event.get("from")
@@ -170,16 +235,35 @@ class Session:
         elif kind == "state":
             self.cwd = event.get("cwd") or self.cwd
             self.plan = event.get("plan", self.plan)
+        elif kind == "set_ids":
+            # F30: ids assigned by ensure_message_ids() before compaction,
+            # persisted as one transcript line. Index-based on purpose: the
+            # transcript is append-only, so indices are stable; an id is
+            # only filled in when the message still lacks one.
+            for pair in event.get("ids") or []:
+                if isinstance(pair, list) and len(pair) == 2:
+                    index, ident = pair
+                    if isinstance(index, int) and 0 <= index < len(self.messages) \
+                            and isinstance(ident, str) and ident:
+                        if not self.messages[index].get("id"):
+                            self.messages[index]["id"] = ident
 
     def append(self, message: Dict[str, Any]) -> Dict[str, Any]:
         message.setdefault("id", new_id("m"))
         message.setdefault("ts", _now())
+        # C-01.3: prepare the disk copy first; if it fails, the message is
+        # not left in memory while missing from the transcript.
+        stored = self._store_images(message)
         self.messages.append(message)
-        self._append({"t": "msg", "m": self._store_images(message)})
+        self._append({"t": "msg", "m": stored})
         self.meta["updated"] = message["ts"]
         return message
 
     def index_of(self, message_id: Any) -> Optional[int]:
+        # C-01.4: None (e.g. covers_until of a compacted id-less message)
+        # must not match the first message without an id.
+        if message_id is None:
+            return None
         for index, message in enumerate(self.messages):
             if message.get("id") == message_id:
                 return index
@@ -404,15 +488,20 @@ def list_sessions(root: Optional[Path] = None, *, limit: int = 60) -> List[Dict[
                 mtime = file.stat().st_mtime
             except OSError:
                 continue
-            if not isinstance(row, dict) or float(row.get("updated") or 0) + 5 < mtime:
-                row = _scan(file) or {}
+            if not isinstance(row, dict) or _fnum(row.get("updated")) + 5 < mtime:
+                try:
+                    row = _scan(file) or {}
+                except Exception:
+                    # C-01.2: a corrupt transcript must not break the whole
+                    # session list; the row is simply skipped below.
+                    row = {}
             if not row or not row.get("root"):
                 continue
             row["id"] = session_id
             row["file"] = str(file)
-            row["updated"] = max(float(row.get("updated") or 0), mtime)
+            row["updated"] = max(_fnum(row.get("updated")), mtime)
             rows.append(row)
-    rows.sort(key=lambda row: -float(row.get("updated") or 0))
+    rows.sort(key=lambda row: -_fnum(row.get("updated")))
     return rows[:limit]
 
 def _scan(file: Path) -> Optional[Dict[str, Any]]:
@@ -437,11 +526,11 @@ def _scan(file: Path) -> Optional[Dict[str, Any]]:
                     model = event.get("model") or model
                     imported = event.get("imported_from") or imported
                     forked = event.get("forked_from") or forked
-                    created = created or float(event.get("created") or 0)
+                    created = created or _fnum(event.get("created"))
                 elif event.get("t") == "msg":
                     message = event.get("m") or {}
                     messages += 1
-                    updated = float(message.get("ts") or updated)
+                    updated = _fnum(message.get("ts"), updated)
                     if message.get("role") == "user" and message.get("kind") in ("prompt", "command"):
                         prompts += 1
                         text = message_text(message)[:200]

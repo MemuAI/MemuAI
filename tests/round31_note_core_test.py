@@ -186,6 +186,49 @@ class AssociationTest(unittest.TestCase):
             self.assertIn(ext, w.NEVER_EXT)
         self.assertEqual(w.safe_extensions([".BAT", "md", ".ps1", ".txt", ".txt", "exe"]), [".md", ".txt"])
 
+    def test_explorer_verb_defaults_on_without_changing_file_associations(self) -> None:
+        from app.memunote import settings
+        w, reg = self.winsys, self.reg
+        choice = w.FILE_EXTS + r"\.txt\UserChoice"
+        reg.preset("HKCU", choice, "ProgId", "SomeOtherEditor")
+        with mock.patch.object(settings, "language", return_value="en"):
+            self.assertTrue(w.sync_explorer_menu(EXE)["enabled"])
+            self.assertTrue(w.explorer_menu_state(EXE)["enabled"])
+            self.assertFalse(w.open_with_state(EXE)["enabled"])
+            self.assertEqual(reg.value("HKCU", choice, "ProgId"), "SomeOtherEditor")
+            self.assertTrue(all(path.startswith(w.EXPLORER_ASSOCIATIONS + "\\") for _, path, _ in self.written_paths()))
+            for ext in w.SAFE_EXT:
+                verb = w._explorer_verb(ext)
+                self.assertEqual(reg.value("HKCU", verb, "MUIVerb"), "Open in MemuNote")
+                self.assertEqual(reg.value("HKCU", verb + r"\command", ""), f'"{EXE}" "%1"')
+            for ext in DANGEROUS:
+                self.assertFalse(reg.has("HKCU", w._explorer_verb(ext)))
+            self.assertFalse(reg.has("HKCU", r"Software\Classes\.memuimg"))
+            reg.log.clear()
+            w.sync_explorer_menu(EXE)
+            self.assertEqual(reg.log, [], "the normal startup path does not rewrite matching registry entries")
+
+    def test_explorer_preference_survives_update_and_uninstall_respects_ownership(self) -> None:
+        from app.memunote import settings
+        w, reg = self.winsys, self.reg
+        other_exe = r"C:\Apps With Spaces\MemuNote.exe"
+        other_verb = w.EXPLORER_ASSOCIATIONS + r"\.txt\shell\OtherEditor"
+        reg.preset("HKCU", other_verb, "", "Other editor")
+        with mock.patch.object(settings, "language", return_value="ru"):
+            w.sync_explorer_menu(EXE)
+            w.register_open_with(True, exe=EXE)
+            self.assertTrue(w.explorer_menu_state(EXE)["enabled"])
+            w.sync_explorer_menu(EXE, enable=False)
+            self.assertFalse(w.sync_explorer_menu(other_exe)["enabled"])
+            self.assertTrue(w.open_with_state(EXE)["enabled"])
+            self.assertFalse(reg.has("HKCU", w._explorer_verb(".txt")))
+            w.sync_explorer_menu(other_exe, enable=True)
+            w.unregister_explorer_menu(EXE)
+            self.assertTrue(w.explorer_menu_state(other_exe)["enabled"])
+            w.unregister_explorer_menu(other_exe)
+            self.assertFalse(w.explorer_menu_state(other_exe)["enabled"])
+            self.assertTrue(reg.has("HKCU", other_verb))
+
     def test_register_writes_only_safe_open_with_and_never_a_default(self) -> None:
         result = self.winsys.register_open_with(True, exe=EXE, extensions=self.winsys.SAFE_EXT + DANGEROUS)
         self.assertTrue(result["enabled"])

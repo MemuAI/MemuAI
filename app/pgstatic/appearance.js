@@ -63,7 +63,7 @@ const MemuAppearance = (() => {
   const customThemes = (m) => ((data && data.custom) || []).filter((row) => !m || row.base === m);
   const findCustom = (slug) => ((data && data.custom) || []).find((row) => row.id === slug) || null;
 
-  const DESIGN_IDS = ["classic", "aurora", "focus", "grid", "glass", "soft", "terminal", "brutal"];
+  const DESIGN_IDS = ["classic", "aurora", "focus", "grid", "glass", "soft", "terminal", "brutal", "notebook", "messenger", "retro", "clay", "studio", "zen"];
   const designs = () => (data && Array.isArray(data.designs) && data.designs.length ? data.designs
     : DESIGN_IDS.map((id) => ({ id, ru: id, en: id })));
   const normalizeDesign = (value) => (DESIGN_IDS.includes(value) ? value : "classic");
@@ -249,7 +249,7 @@ const MemuAppearance = (() => {
           <span class="accent-dot" aria-hidden="true"><span>✓</span></span><span>${esc(pick(row))}</span>
         </label>`).join("")}</div>`)}
       ${sxSection("appearance-design-section", L("Дизайн интерфейса", "Interface design"), L("Форма, типографика и компоновка всего окна. Цвета выше работают с любым дизайном.", "The shape, typography and layout of the whole window. The colours above work with every design."), `
-        <div class="design-options" data-sx-label="${L("Дизайн интерфейса", "Interface design")}" data-sx-k="design дизайн classic aurora focus grid glass soft terminal brutal material ${esc(designs().map((row) => `${row.ru || ""} ${row.en || ""}`).join(" "))}">${designs().map((row) => `<label class="design-option" data-design-card="${esc(row.id)}" title="${esc(`${pick(row)}. ${pick(row, "note")}`)}">
+        <div class="design-options" data-sx-label="${L("Дизайн интерфейса", "Interface design")}" data-sx-k="design дизайн classic aurora focus grid glass soft terminal brutal material notebook messenger retro clay studio zen блокнот мессенджер ретро глина студия дзен ${esc(designs().map((row) => `${row.ru || ""} ${row.en || ""}`).join(" "))}">${designs().map((row) => `<label class="design-option" data-design-card="${esc(row.id)}" title="${esc(`${pick(row)}. ${pick(row, "note")}`)}">
           <input type="radio" name="appearance-design" value="${esc(row.id)}" ${normalizeDesign(pref("ui_design", "classic")) === row.id ? "checked" : ""}>
           <span class="design-mini design-mini-${esc(row.id)}" aria-hidden="true"><i class="dm-side"></i><i class="dm-top"></i><i class="dm-msg a"></i><i class="dm-msg b"></i><i class="dm-msg c"></i><i class="dm-input"></i></span>
           <span class="design-option-text"><b>${esc(pick(row))}<span class="appearance-check" aria-hidden="true">✓</span></b><small>${esc(pick(row, "note"))}</small></span>

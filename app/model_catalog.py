@@ -19,7 +19,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from . import model_names
 
 PROVIDER_LABELS = {"genspark": "Genspark", "kiro": "Kiro", "antigravity": "Antigravity", "geminiweb": "Gemini Web",
-                   "grok": "Grok", "local": "Local", "custom": "Custom API"}
+                   "grok": "Grok", "zcode": "ZCode", "local": "Local", "custom": "Custom API"}
 
 VERIFIED_SOURCES = ("probe", "user")
 

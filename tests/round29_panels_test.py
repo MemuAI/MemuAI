@@ -233,7 +233,8 @@ class SharedMenu(unittest.TestCase):
         self.assertIn('loadScript("/memu-ctxmenu.js?v=4.1")', CANVAS_JS)
         manifest = json.loads((STATIC / "quick" / "plugins" / "index.json").read_text(encoding="utf-8"))
         canvas = next(p for p in manifest["plugins"] if p["id"] == "canvas")
-        self.assertRegex(canvas["v"], r"-r(29|3\d)$")
+        # E13: canvas pins a bare semver ("4.1") since 5.0, not "-rNN".
+        self.assertRegex(canvas["v"], r"(-r(29|3\d)|\d+\.\d+)$")
 
 if __name__ == "__main__":
     unittest.main()

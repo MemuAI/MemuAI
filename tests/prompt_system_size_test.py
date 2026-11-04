@@ -249,8 +249,11 @@ async function main() {
   loadIn(sb, "app/pgstatic/media-routing.js");
   const lib = sb.window.MEMUAI_SKILL_LIBRARY.skills;
   sb.getSkills = () => lib.map((s) => ({ ...s, enabled: true }));
-  const constCode = [memPrompt, out.webTools].join("\n");
-  const fns = ["profileReferenceContext", "internalPromptText", "buildSystemPrompt", "runtimeContextBlock"]
+  const scopeConsts = ["SKILL_PLACES", "SKILL_DEFAULT_MODULES", "SKILL_CHAT_ONLY", "SKILL_CODE_TWINS"]
+    .map((n) => extractConstSource(appSrc, n));
+  const constCode = [memPrompt, out.webTools, ...scopeConsts].join("\n");
+  const fns = ["profileReferenceContext", "internalPromptText", "buildSystemPrompt", "skillsPromptBlock", "runtimeContextBlock",
+               "skillDefaultOn", "skillWorksIn"]
     .map((n) => extractFunction(appSrc, n)).join("\n");
   vm.runInContext(constCode + "\n" + fns, sb);
   out.bsp = vm.runInContext("buildSystemPrompt()", sb);

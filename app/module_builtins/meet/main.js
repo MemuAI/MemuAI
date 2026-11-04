@@ -8,42 +8,11 @@
  * Memu.request calls the user starts with a button. The Python mirror of
  * the segmentation / export rules is app/module_builtins/meet/backend.py.
  *
- * Recording sources: microphone (host bridge), system audio
- * (getDisplayMedia, guarded — see displayCaptureAllowed()), both at
+ * Recording sources: microphone and system audio through the host
+ * bridge (direct display capture in a standalone browser), both at
  * once (one meeting, one timeline, two tracks; the transcript marks
  * microphone speech separately from system speech), or an imported file.
- * getDisplayMedia is NEVER called when display-capture is disallowed:
- * the call itself is what the browser reports as a console error, so
- * the pre-check is what keeps the console clean. The Permissions-Policy
- * API is absent in the Chromium/WebView2 context the module window
- * runs in, so an opaque origin (window.origin === "null": the sandboxed
- * iframe without allow-same-origin, i.e. the real MemuAI module
- * window) is treated as disallowed too — verified: a call from an
- * opaque origin is rejected with NotAllowedError and logged as a
- * policy violation. The microphone list asks getUserMedia for
- * permission BEFORE enumerateDevices (see refreshMicDevices), so the
- * browser can return real device names; the sandboxed page itself
- * cannot open the microphone (getUserMedia rejects with SecurityError
- * there), so the level check falls back to a bridge test clip and the
- * device list says so honestly instead of inventing names.
- *
- * Capture unavailability is NEVER shown as an alarming status. The
- * policy is probed BEFORE the source choice is painted
- * (captureAvailable / applyCaptureAvailability): system/both options
- * are disabled with one short neutral label ("unavailable in this
- * window"), the microphone is selected by default, and microphone
- * recording and import run without a single mention of capture.
- * When the probe cannot see the policy (no Permissions-Policy API
- * and a non-opaque origin), a getDisplayMedia rejection is
- * classified quietly (classifyCaptureError) and remembered for the
- * rest of the page load (markCaptureBlocked) — still with no status
- * text. Only a picker the user actually declined is reported, once,
- * in its own block.
- *
- * Settings autosave: every settings control schedules a debounced
- * Memu.save; the indicator next to the form shows saving/saved/error.
- * The model picker is the shared MemuModelSelector (dropdown preset):
- * provider names come from the catalogue, never "custom".
+ * The host WASAPI bridge supplies devices, meters and recorded audio.
  */
 
 var t = function (key, vars) { return Memu.t(key, vars); };
@@ -77,6 +46,155 @@ function toast(message) {
 }
 
 
+function errText(error) { return String((error && error.message) || error || t("common.error")); }
+function clip(text, limit) {
+  text = String(text || "");
+  return text.length > limit ? text.slice(0, limit) + "\n[…]" : text;
+}
+function svg(path) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + path + "</svg>"; }
+var ICON = {
+  mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>'),
+  system: svg('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>'),
+  both: svg('<rect x="2.5" y="4" width="13" height="9" rx="2"/><path d="M6 17h6M9 13v4"/><rect x="17" y="8" width="4.5" height="8" rx="2.2"/>'),
+  file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M10 16.5a1.5 1.5 0 1 1-1.5-1.5H10V11l4-1"/>'),
+  clock: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  text: svg('<path d="M5 6h14M5 10h14M5 14h9M5 18h6"/>'),
+  spark: svg('<path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M18.5 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>'),
+  check: svg('<path d="M5 12.5l4.2 4.2L19 7"/>'),
+  star: svg('<path d="m12 3.6 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/>'),
+  flag: svg('<path d="M6 21V4h10l-1.6 3.5L16 11H6"/>'),
+  user: svg('<circle cx="12" cy="8" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/>'),
+  x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+  note: svg('<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8.5 12h7M8.5 16h5"/>'),
+  play: svg('<path d="M8 5.5v13l10-6.5z"/>'),
+  chat: svg('<path d="M5 5h14v10H9l-4 4z"/>')
+};
+function sourceIcon(source) {
+  return source === "system" ? ICON.system : source === "both" ? ICON.both : source === "import" ? ICON.file : ICON.mic;
+}
+function copyText(text) {
+  var value = String(text || "");
+  if (!value.trim()) return Promise.resolve();
+  if (!Memu.copy) { toast(t("common.error")); return Promise.resolve(); }
+  return Memu.copy(value).then(function () { toast(t("detail.copied")); })
+    .catch(function (error) { toast(errText(error)); });
+}
+
+/* Safe Markdown for summaries and answers: the text is escaped FIRST,
+ * then a small subset is re-introduced (headings, lists, task boxes,
+ * bold/italic, inline code, quotes, rules). No links, no raw HTML. */
+function inlineMd(html) {
+  return html
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(«])\*([^*\s][^*]*)\*(?=[\s).,;:!?»]|$)/g, "$1<em>$2</em>")
+    .replace(/(^|[\s(«])_([^_\s][^_]*)_(?=[\s).,;:!?»]|$)/g, "$1<em>$2</em>");
+}
+function renderMarkdown(md) {
+  var lines = String(md || "").replace(/\r/g, "").split("\n");
+  var html = [], list = null, para = [];
+  function flushPara() { if (para.length) { html.push("<p>" + para.join("<br>") + "</p>"); para = []; } }
+  function closeList() { if (list) { html.push("</" + list + ">"); list = null; } }
+  lines.forEach(function (raw) {
+    var line = raw.replace(/\s+$/, "");
+    var m;
+    if (!line.trim()) { flushPara(); closeList(); return; }
+    if ((m = line.match(/^\s*(#{1,6})\s+(.*?)\s*#*\s*$/))) {
+      flushPara(); closeList();
+      var level = Math.min(4, m[1].length + 1);
+      html.push("<h" + level + ">" + inlineMd(esc(m[2])) + "</h" + level + ">");
+      return;
+    }
+    if ((m = line.match(/^\s*\*\*([^*]+)\*\*:?\s*$/))) { flushPara(); closeList(); html.push("<h4>" + esc(m[1]) + "</h4>"); return; }
+    if (/^\s*(?:-{3,}|\*{3,})\s*$/.test(line)) { flushPara(); closeList(); html.push("<hr>"); return; }
+    var ordered = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
+    var bullet = ordered ? null : line.match(/^\s*[-*•]\s+(.*)$/);
+    if (ordered || bullet) {
+      var kind = ordered ? "ol" : "ul";
+      var body = ordered ? ordered[2] : bullet[1];
+      flushPara();
+      if (list !== kind) { closeList(); html.push("<" + kind + ">"); list = kind; }
+      var box = body.match(/^\[( |x|X)\]\s*(.*)$/);
+      if (box) html.push('<li class="mm-li-task' + (box[1] !== " " ? " done" : "") + '"><span class="mm-box" aria-hidden="true"></span>' + inlineMd(esc(box[2])) + "</li>");
+      else html.push("<li>" + inlineMd(esc(body)) + "</li>");
+      return;
+    }
+    if ((m = line.match(/^\s*>\s?(.*)$/))) { flushPara(); closeList(); html.push("<blockquote>" + inlineMd(esc(m[1])) + "</blockquote>"); return; }
+    closeList();
+    para.push(inlineMd(esc(line.trim())));
+  });
+  flushPara(); closeList();
+  return html.join("");
+}
+
+/* ---- tasks: the "Tasks" section of a summary as a checklist ----
+ * Mirror of backend.extract_tasks (same headings, owner and due rules). */
+var TASK_HEADINGS = ["задачи", "tasks", "action items", "следующие шаги", "next steps", "поручения", "todo", "to do"];
+var MAX_TASKS = 200;
+function plainText(value) { return String(value || "").replace(/[*_`]+/g, "").replace(/\s+/g, " ").trim(); }
+function taskKey(value) { return plainText(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim(); }
+function extractTasks(summary) {
+  var out = [], seen = {}, inside = false;
+  String(summary || "").replace(/\r/g, "").split("\n").forEach(function (raw) {
+    if (out.length >= MAX_TASKS) return;
+    var heading = raw.match(/^\s*#{1,6}\s*(.+?)\s*#*\s*$/) || raw.match(/^\s*\*\*(.+?)\*\*\s*:?\s*$/);
+    if (heading) {
+      var name = plainText(heading[1]).replace(/^[\s:«»"]+|[\s:«»"]+$/g, "").toLowerCase();
+      inside = TASK_HEADINGS.some(function (h) { return name === h || name.indexOf(h + " ") === 0; });
+      return;
+    }
+    var line = raw.trim();
+    if (!inside || !line || line === "-" || line === "*" || line === "•") return;
+    if (line.charAt(0) === "|" || line.charAt(0) === ">") return;
+    var text = line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "");
+    var done = false, owner = "", due = "", m;
+    var box = text.match(/^\[( |x|X|✓)\]\s*/);
+    if (box) { done = box[1] !== " "; text = text.slice(box[0].length); }
+    if ((m = text.match(/^\*\*([^*]{1,60})\*\*\s*[:—–-]\s*/))) { owner = plainText(m[1]); text = text.slice(m[0].length); }
+    if ((m = text.match(/\s*[(,;—–-]?\s*(?:срок|due|deadline|до|by)\s*:?\s*(\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?|\d{4}-\d{2}-\d{2})\)?\s*$/i))) {
+      due = m[1]; text = text.slice(0, m.index);
+    }
+    if (!owner && (m = text.match(/\((?:ответственн[а-яё]*|отв\.|owner|assignee)\s*:?\s*([^)]{1,60})\)/i))) {
+      owner = plainText(m[1]); text = text.slice(0, m.index) + text.slice(m.index + m[0].length);
+    }
+    if (!owner && (m = text.match(/[;,.]?\s*(?:ответственн[а-яё]*|owner|assignee)\s*:\s*([^;,.]{1,60})\s*$/i))) {
+      owner = plainText(m[1]); text = text.slice(0, m.index);
+    }
+    if (!owner && (m = text.match(/\s[—–]\s*([^—–]{2,40})$/)) && m[1].trim().split(/\s+/).length <= 4) {
+      owner = plainText(m[1]); text = text.slice(0, m.index);
+    }
+    text = plainText(text).replace(/^[\s—–\-:;,.]+|[\s—–\-:;,.]+$/g, "");
+    if (text.length < 2) return;
+    var key = taskKey(text);
+    if (seen[key]) return;
+    seen[key] = true;
+    out.push({ text: text.slice(0, 300), owner: owner.slice(0, 60), due: due.slice(0, 20), done: done });
+  });
+  return out;
+}
+function newTaskId() { return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function mergeTasks(existing, extracted) {
+  var rows = (Array.isArray(existing) ? existing : []).slice();
+  var keys = {};
+  rows.forEach(function (row) { keys[taskKey(row && row.text)] = true; });
+  var added = 0;
+  (extracted || []).forEach(function (row) {
+    var key = taskKey(row.text);
+    if (!key || keys[key] || rows.length >= MAX_TASKS) return;
+    keys[key] = true;
+    rows.push({ id: newTaskId(), text: row.text, owner: row.owner || "", due: row.due || "", done: !!row.done,
+      from: "summary", created_at: Date.now() });
+    added++;
+  });
+  return { rows: rows, added: added };
+}
+function taskChecklist(tasks) {
+  return (tasks || []).map(function (task) {
+    var extra = [task.owner, task.due].filter(Boolean).join(" — ");
+    return "- [" + (task.done ? "x" : " ") + "] " + task.text + (extra ? " — " + extra : "");
+  }).join("\n");
+}
+
 /* The sandbox has no allow-modals, so native dialogs would silently
  * return false. Confirmations are an in-page dialog instead. */
 function confirmDialog(message) {
@@ -105,12 +223,42 @@ function confirmDialog(message) {
 }
 
 /* ---- settings: autosaved, debounce + indicator (see scheduleSaveSettings) ---- */
+var SUMMARY_STYLES = ["standard", "brief", "detailed", "protocol", "actions", "decisions", "followup"];
 var SETTING_DEFAULTS = {
   model: "", summary_lang: "auto", speaker_heuristic: true,
   keep_audio: true, captions_large: false, confirm_before_summary: true,
-  mic_device: "", source: "microphone"
+  mic_device: "", source: "microphone",
+  summary_style: "standard", auto_transcribe: false, auto_tasks: true,
+  system_devices: [], system_gains: {}
 };
-var settings = Object.assign({}, SETTING_DEFAULTS, (Memu.saved && Memu.saved.settings) || {});
+/* Mirror of backend.clean_settings: unknown keys are dropped and every
+ * value is checked, so a hand-edited persist file cannot break the UI. */
+function normalizeSettings(raw) {
+  var src = raw && typeof raw === "object" ? raw : {};
+  var out = Object.assign({}, SETTING_DEFAULTS);
+  if (typeof src.model === "string") out.model = src.model.slice(0, 300);
+  if (["auto", "ru", "en"].indexOf(src.summary_lang) >= 0) out.summary_lang = src.summary_lang;
+  if (typeof src.mic_device === "string") out.mic_device = src.mic_device.slice(0, 200);
+  if (["microphone", "system", "both", "import"].indexOf(src.source) >= 0) out.source = src.source;
+  if (Array.isArray(src.system_devices)) {
+    out.system_devices = src.system_devices.filter(function (id) { return typeof id === "string" && id.trim(); })
+      .map(function (id) { return id.slice(0, 200); }).slice(0, 16);
+  }
+  if (src.system_gains && typeof src.system_gains === "object") {
+    var gains = {};
+    Object.keys(src.system_gains).slice(0, 16).forEach(function (key) {
+      var value = Number(src.system_gains[key]);
+      if (isFinite(value)) gains[key.slice(0, 200)] = Math.max(0, Math.min(1, value));
+    });
+    out.system_gains = gains;
+  }
+  if (SUMMARY_STYLES.indexOf(src.summary_style) >= 0) out.summary_style = src.summary_style;
+  ["speaker_heuristic", "keep_audio", "captions_large", "confirm_before_summary", "auto_transcribe", "auto_tasks"].forEach(function (key) {
+    if (typeof src[key] === "boolean") out[key] = src[key];
+  });
+  return out;
+}
+var settings = normalizeSettings((Memu.saved && Memu.saved.settings) || {});
 var saveTimer = null;
 var saveChain = Promise.resolve();
 function setSaveIndicator(state) {
@@ -167,74 +315,28 @@ var models = [];
 var recording = null;     /* {source, started, timer, ...} — see startRecording */
 var pending = null;       /* {tracks:[{source,audio,mime,ms}], title, ms} awaiting save */
 var recStep = 1;          /* wizard step: 1 sources, 2 sound check, 3 record, 4 processing */
-var checkStream = null;   /* system-audio stream held only during the sound check */
-var checkMeterStop = null;
+var checkSource = "";
+var checkSequence = 0;
+var micCheckTimer = 0;
+var micPreviewUrl = "";
+var hostSystemCheck = false;
+/* Native capture (WASAPI loopback helper): the probe result from the
+ * host window — {available, reason, backend, devices:[{id,name,
+ * is_default}]} — or null before the probe answers. A null probe means
+ * "not known yet", never "unavailable". */
+var nativeStatus = null;
+var nativeLevels = {};   /* last per-device levels from the helper */
+var nativeLost = {};     /* device ids lost during the current session */
 var liveMeterStop = null;
-var micPermission = "unknown"; /* unknown|granted|denied|sandbox|unavailable */
-var micCheckStream = null;  /* stream held only during the microphone level check */
-var micCheckStop = null;
-var micCheckPeak = 0;
-var micCheckToken = 0;
 var recSystemReason = "";   /* why a recording has no system track, if any */
 var recRequestedSource = "";
 
 /* ---- capture availability: probed once, before the UI is painted ---- */
 var captureGate = null;   /* cached displayCaptureAllowed() result */
-var sourceForcedToMic = false; /* session-only: the radio shows the
- * microphone because capture is unavailable, while the saved
- * source choice stays untouched in settings.source (see
- * applyCaptureAvailability / syncSourceUI). */
 function captureAvailable() {
   if (!captureGate) captureGate = displayCaptureAllowed();
   return !!captureGate.allowed;
 }
-function applyCaptureAvailability() {
-  /* Pre-marking, decided BEFORE the source choice is shown: when
-   * capture is unavailable the system/both options are disabled
-   * with a short neutral label, and the microphone is selected.
-   * Nothing here writes an error status, and nothing here touches
-   * the saved choice: only the radio button moves, so a saved
-   * system/both choice is restored again in a window where
-   * capture works, and no autosave can persist the forced
-   * microphone (syncSourceUI skips the assignment while the
-   * forcing flag is set). */
-  var blocked = !captureAvailable();
-  $$('input[name="source"]').forEach(function (radio) {
-    if (radio.value === "system" || radio.value === "both") radio.disabled = blocked;
-  });
-  sourceForcedToMic = false;
-  if (blocked && (settings.source === "system" || settings.source === "both")) {
-    var mic = document.querySelector('input[name="source"][value="microphone"]');
-    if (mic) mic.checked = true;
-    sourceForcedToMic = true;
-  }
-}
-function markCaptureBlocked() {
-  /* A getDisplayMedia rejection the probe could not foresee (no
-   * Permissions-Policy API in this window): remember it for the
-   * rest of the page load and re-mark the UI neutrally, silently. */
-  captureSessionBlocked = true;
-  captureGate = { allowed: false, reason: "policy" };
-  applyCaptureAvailability();
-  captureStates();
-  refreshSystemCheckUI();
-  updateRecordingTracks();
-}
-function classifyCaptureError(error, startedAt) {
-  /* A policy rejection arrives without a picker: Chromium rejects
-   * immediately, before any picker can be shown or closed, while a
-   * user decline takes visibly longer. The message is checked too,
-   * when the browser names the policy. Anything else is a plain
-   * failure, reported by the caller in its own block. */
-  var name = String((error && error.name) || "");
-  if (!/NotAllowedError|SecurityError/.test(name)) return "";
-  var message = String((error && error.message) || "");
-  if (!captureAvailable()) return "policy";
-  if (/policy|display-capture/i.test(message)) return "policy";
-  if (startedAt && Date.now() - startedAt < 600) return "policy";
-  return "denied";
-}
-
 var MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 var AUDIO_MIMES = {
   "audio/webm": 1, "video/webm": 1, "audio/ogg": 1, "audio/opus": 1, "application/ogg": 1,
@@ -270,49 +372,11 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([bytes], { type: mime });
 }
 
-/* ---- display-capture policy: check BEFORE calling getDisplayMedia ---- */
-function opaqueOrigin() {
-  /* The MemuAI module window is an iframe with sandbox="allow-scripts"
-   * and no allow-same-origin: its origin is opaque ("null"). */
-  try { return typeof window !== "undefined" && window.origin === "null"; }
-  catch (e) { return false; }
-}
-var captureSessionBlocked = false; /* a rejection the probe could not foresee */
 function displayCaptureAllowed() {
-  /* A remembered policy rejection overrides every probe below:
-   * direct callers (captureStates, refreshSystemCheckUI) must see
-   * the same answer as the cached gate. */
-  if (captureSessionBlocked) return { allowed: false, reason: "policy" };
-  /* Check BEFORE calling getDisplayMedia. When display-capture is
-   * disallowed, calling it is not just rejected — Chromium logs the
-   * policy violation as a console error. Checking first keeps that
-   * red exception out of the console entirely.
-   *
-   * Three signals, because no single one survives every context:
-   * the Permissions-Policy API (absent in the Chromium/WebView2
-   * context the module window runs in), the older Feature-Policy
-   * API, and an opaque origin — a call from an opaque origin is
-   * rejected as a policy violation, so it counts as disallowed
-   * even when neither policy API exists. */
-  try {
-    var policy = (typeof document !== "undefined" && document.permissionsPolicy) ||
-      (typeof navigator !== "undefined" && navigator.permissionsPolicy);
-    if (policy && typeof policy.allowsFeature === "function") {
-      if (!policy.allowsFeature("display-capture")) return { allowed: false, reason: "policy" };
-    }
-    var fp = (typeof document !== "undefined") ? document.featurePolicy : null;
-    if (fp && typeof fp.allowsFeature === "function") {
-      if (!fp.allowsFeature("display-capture")) return { allowed: false, reason: "policy" };
-    }
-  } catch (e) { /* no policy API: fall through to the other checks */ }
-  var devices = (typeof navigator !== "undefined") ? navigator.mediaDevices : null;
-  if (typeof MediaRecorder === "undefined" || !devices || typeof devices.getDisplayMedia !== "function") {
-    return { allowed: false, reason: "unsupported" };
-  }
-  if (opaqueOrigin()) return { allowed: false, reason: "policy" };
-  return { allowed: true, reason: "" };
+  return { allowed: !!(nativeStatus && nativeStatus.available), reason: nativeStatus && nativeStatus.reason || "helper_unavailable" };
 }
 function systemUnavailableMessage(reason) {
+  if (reason === "capture-timeout") return t("record.capture_timeout");
   /* "policy" never reaches a status line any more (see
    * applyCaptureAvailability / markCaptureBlocked): the neutral
    * label is the only wording for it, here and in the UI. */
@@ -320,8 +384,362 @@ function systemUnavailableMessage(reason) {
   if (reason === "denied") return t("record.system_denied");
   if (reason === "unsupported") return t("record.system_unavailable_context");
   if (reason === "no-audio") return t("record.system_no_audio");
+  if (reason === "native-unavailable") return t("record.native_unavailable_fallback", { reason: nativeReasonText(nativeStatus && nativeStatus.reason) });
+  if (reason === "no-devices") return t("record.native_no_devices");
+  if (reason === "busy") return t("record.native_reason_busy");
+  if (reason === "device-lost") return t("record.native_reason_device_lost");
+  if (reason === "helper_unavailable") return t("record.native_reason_helper_unavailable");
   return t("record.system_unavailable");
 }
+function nativeReasonText(reason) {
+  /* The helper reports short codes; the UI shows a human reason.
+   * Every code from meet_native_audio.py has a text here — a raw
+   * code must never reach the user. */
+  if (reason === "no_devices") return t("record.native_reason_no_devices");
+  if (reason === "no_backend") return t("record.native_reason_no_backend");
+  if (reason === "portaudio_missing") return t("record.native_reason_portaudio_missing");
+  if (reason === "helper_unavailable") return t("record.native_reason_helper_unavailable");
+  if (reason === "unsupported_platform") return t("record.native_reason_unsupported");
+  if (reason === "capture_failed") return t("record.native_reason_capture_failed");
+  if (reason === "device_not_found") return t("record.native_reason_device_not_found");
+  if (reason === "session_busy") return t("record.native_reason_busy");
+  if (reason === "timeout") return t("record.native_reason_timeout");
+  if (reason === "invalid_selection") return t("record.native_reason_invalid_selection");
+  if (reason === "device_lost") return t("record.native_reason_device_lost");
+  return t("record.native_reason_helper_unavailable");
+}
+function nativeDevices() {
+  return (nativeStatus && Array.isArray(nativeStatus.devices)) ? nativeStatus.devices : [];
+}
+function nativeDeviceName(id) {
+  var found = nativeDevices().filter(function (d) { return d.id === id; })[0];
+  if (found && found.name) return found.name;
+  return String(id || "");
+}
+function effectiveCaptureMode() { return "native"; }
+function devicesFor(source) {
+  var available = nativeDevices();
+  var inputs = available.filter(function (d) { return d.kind === "input"; });
+  var outputs = available.filter(function (d) { return d.kind === "output"; });
+  var selected = outputs.filter(function (d) { return settings.system_devices.includes(d.id); });
+  if (!selected.length && outputs.length) selected = [outputs.find(function (d) { return d.is_default; }) || outputs[0]];
+  var input = inputs.find(function (d) { return d.id === settings.mic_device; })
+    || inputs.find(function (d) { return d.is_default; }) || inputs[0];
+  if (source === "system") return selected;
+  if (source === "microphone") return input ? [input] : [];
+  return input && selected.length ? selected.concat(input) : [];
+}
+function systemCaptureOpts(source) {
+  var devices = devicesFor(source || selectedSource()).map(function (d) { return d.id; });
+  var gains = {};
+  devices.forEach(function (id) {
+    if (typeof settings.system_gains[id] === "number") gains[id] = settings.system_gains[id];
+  });
+  return { mode: "native", strictDevices: true, devices: devices, gains: gains };
+}
+function emptyEl(el) {
+  /* innerHTML = "" is enough in a browser, but it leaves children in
+   * place in a stubbed document: remove them explicitly, so a
+   * re-render never duplicates rows. */
+  if (!el) return;
+  while (el.children && el.children.length) el.removeChild(el.children[0]);
+}
+function renderNativeDevices() {
+  /* Step 1: the mode selector and the device list. The block only
+   * shows for a system source with capture available; before the
+   * probe answers it stays hidden — nothing is claimed. Rows are
+   * rebuilt from the probe result, so a device that disappeared is
+   * gone instead of lingering as a stale checkbox. Names come from
+   * the OS/helper and are set as text, never as HTML. */
+  var block = $("#native-block");
+  if (!block) return;
+  var source = selectedSource();
+  var show = source === "system" || source === "both";
+  block.hidden = !show;
+  if (!show) return;
+  var status = $("#native-status");
+  if (status) {
+    if (!nativeStatus) status.textContent = "";
+    else if (nativeStatus.available) status.textContent = t("record.native_check_hint");
+    else status.textContent = t("record.native_unavailable_fallback", { reason: nativeReasonText(nativeStatus.reason) });
+  }
+  var list = $("#native-devices");
+  if (!list) return;
+  emptyEl(list);
+  if (!nativeStatus) return;
+  var devices = nativeDevices().filter(function (d) { return d.kind === "output"; });
+  if (!devices.length) {
+    var empty = document.createElement("p");
+    empty.className = "mm-hint";
+    empty.textContent = t("record.native_no_devices");
+    list.appendChild(empty);
+    return;
+  }
+  var other = document.createElement("details");
+  other.className = "mm-native-other";
+  other.open = !!list.dataset.expanded;
+  other.addEventListener("toggle", function () { list.dataset.expanded = other.open ? "1" : ""; });
+  var summary = document.createElement("summary");
+  summary.textContent = t("record.other_outputs");
+  other.appendChild(summary);
+  devices.forEach(function (device) {
+    var row = document.createElement("label");
+    row.className = "mm-native-device" + (nativeLost[device.id] ? " lost" : "");
+    row.dataset.device = device.id;
+    var check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "mm-native-check";
+    check.checked = devicesFor("system").some(function (d) { return d.id === device.id; });
+    check.addEventListener("change", function () {
+      var chosen = devicesFor("system").map(function (d) { return d.id; });
+      var at = chosen.indexOf(device.id);
+      if (check.checked && at < 0) chosen.push(device.id);
+      if (!check.checked && at >= 0) chosen.splice(at, 1);
+      settings.system_devices = chosen;
+      scheduleSaveSettings();
+      renderNativeDevices();
+    });
+    row.appendChild(check);
+    var name = document.createElement("span");
+    name.className = "mm-native-name";
+    name.textContent = nativeDeviceName(device.id);
+    name.title = name.textContent;
+    row.appendChild(name);
+    var kind = document.createElement("span");
+    kind.className = "mm-native-kind";
+    kind.textContent = device.kind === "input" ? t("record.native_kind_input") : t("record.native_kind_output");
+    if (device.is_default) { kind.textContent = t("record.native_default"); row.appendChild(kind); }
+    var gain = document.createElement("input");
+    gain.type = "range";
+    gain.min = "0";
+    gain.max = "100";
+    gain.value = String(Math.round((typeof settings.system_gains[device.id] === "number" ? settings.system_gains[device.id] : 1) * 100));
+    gain.className = "mm-native-gain";
+    gain.hidden = !check.checked;
+    gain.setAttribute("aria-label", t("record.native_gain") + ": " + nativeDeviceName(device.id));
+    gain.addEventListener("input", function () {
+      var value = Math.max(0, Math.min(1, Number(gain.value) / 100));
+      settings.system_gains[device.id] = value;
+      scheduleSaveSettings();
+      if ((hostSystemCheck || (recording && recording.hostSystem)) && Memu.record && Memu.record.system) {
+        Memu.record.system("gain", { device: device.id, gain: value }).catch(function () {});
+      }
+    });
+    row.appendChild(gain);
+    var level = document.createElement("span");
+    level.className = "mm-native-level";
+    var bar = document.createElement("i");
+    level.appendChild(bar);
+    if (check.checked) row.appendChild(level);
+    (check.checked ? list : other).appendChild(row);
+  });
+  if (other.children.length > 1) list.appendChild(other);
+  updateNativeLevels(nativeLevels);
+}
+function updateNativeLevels(levels) {
+  /* Per-device level bars in step 1 and in the step-2 check block.
+   * A missing device simply keeps its last width; unknown ids are
+   * ignored, so a stale event cannot invent a row. */
+  nativeLevels = levels || {};
+  if (typeof document === "undefined" || !document.querySelectorAll) return;
+  var rows = document.querySelectorAll(".mm-native-device");
+  Array.prototype.forEach.call(rows, function (row) {
+    var id = row.dataset && row.dataset.device;
+    if (!id || typeof nativeLevels[id] !== "number") return;
+    var bar = row.querySelector ? row.querySelector(".mm-native-level i") : null;
+    if (bar) bar.style.width = Math.round(Math.max(0, Math.min(1, nativeLevels[id])) * 100) + "%";
+  });
+  var checkRows = document.querySelectorAll("#native-levels .mm-native-level-row");
+  Array.prototype.forEach.call(checkRows, function (row) {
+    var id = row.dataset && row.dataset.device;
+    if (!id || typeof nativeLevels[id] !== "number") return;
+    var bar = row.querySelector ? row.querySelector("i") : null;
+    if (bar) bar.style.width = Math.round(Math.max(0, Math.min(1, nativeLevels[id])) * 100) + "%";
+  });
+  var diagRows = document.querySelectorAll("#diag-levels .mm-native-level-row");
+  Array.prototype.forEach.call(diagRows, function (row) {
+    var id = row.dataset && row.dataset.device;
+    if (!id || typeof nativeLevels[id] !== "number") return;
+    var bar = row.querySelector ? row.querySelector("i") : null;
+    if (bar) bar.style.width = Math.round(Math.max(0, Math.min(1, nativeLevels[id])) * 100) + "%";
+  });
+}
+function markNativeDeviceLost(deviceId) {
+  nativeLost[deviceId] = true;
+  if (typeof document === "undefined" || !document.querySelectorAll) return;
+  var rows = document.querySelectorAll(".mm-native-device");
+  Array.prototype.forEach.call(rows, function (row) {
+    if (row.dataset && row.dataset.device === deviceId) row.classList.add("lost");
+  });
+}
+function clearNativeLevels() {
+  nativeLevels = {};
+  nativeLost = {};
+  updateNativeLevels({});
+}
+
+/* ---- audio diagnostics (Settings): helper status, devices, last error ---- */
+var lastNativeError = null; /* {at, code, detail} from the host probe */
+var diagTest = null; /* {peaks: {id: max}, timer} while a sound test runs */
+function renderDiagnostics() {
+  /* Settings → "Диагностика звука": what the helper is, what it found,
+   * and the last error in plain words. Nothing here starts a capture;
+   * the probe result (nativeStatus) is the source of truth. */
+  var block = $("#diag-block");
+  if (!block) return;
+  var status = $("#diag-status");
+  var list = $("#diag-devices");
+  var err = $("#diag-error");
+  if (!nativeStatus) {
+    if (status) status.textContent = t("record.diag_unknown");
+    if (list) emptyEl(list);
+    if (err) err.textContent = "";
+    return;
+  }
+  if (status) {
+    var sd = nativeStatus.sounddevice || {};
+    var bits = [];
+    bits.push(nativeStatus.available ? t("record.diag_ok") : t("record.diag_unavailable", { reason: nativeReasonText(nativeStatus.reason) }));
+    bits.push(t("record.diag_backend", { backend: nativeStatus.backend || "none" }));
+    if (sd.installed === true) bits.push(t("record.diag_sd_ok", { version: sd.version || "" }));
+    else if (sd.installed === false) bits.push(t("record.diag_sd_missing"));
+    if (sd.portaudio === false) bits.push(t("record.diag_portaudio_missing"));
+    status.textContent = bits.join(" · ");
+  }
+  if (list) {
+    emptyEl(list);
+    var devices = nativeDevices();
+    if (!devices.length) {
+      var empty = document.createElement("p");
+      empty.className = "mm-hint";
+      empty.textContent = t("record.native_no_devices");
+      list.appendChild(empty);
+    }
+    devices.forEach(function (device) {
+      var row = document.createElement("p");
+      row.className = "mm-diag-device";
+      row.textContent = nativeDeviceName(device.id) + " — " +
+        (device.kind === "input" ? t("record.native_kind_input") : t("record.native_kind_output")) +
+        ", " + (device.channels || 2) + " " + t("record.diag_channels") +
+        ", " + Math.round((device.default_samplerate || 48000) / 100) / 10 + " " + t("record.diag_khz");
+      list.appendChild(row);
+    });
+  }
+  if (err) {
+    var last = lastNativeError || (nativeStatus && nativeStatus.last_error);
+    if (last && last.code) {
+      var when = "";
+      try { when = last.at ? new Date(last.at).toLocaleTimeString() : ""; } catch (e) {}
+      err.textContent = t("record.diag_last_error", {
+        error: nativeReasonText(last.code) + (last.detail ? " — " + last.detail : "") + (when ? " (" + when + ")" : "")
+      });
+    } else {
+      err.textContent = t("record.diag_no_error");
+    }
+  }
+  renderDiagLevels();
+}
+function renderDiagLevels() {
+  /* Per-device level rows for the sound test. Rows are rebuilt on
+   * every render; updateNativeLevels fills their bars from live events. */
+  var levels = $("#diag-levels");
+  if (!levels) return;
+  emptyEl(levels);
+  if (!diagTest) return;
+  nativeDevices().forEach(function (device) {
+    var row = document.createElement("div");
+    row.className = "mm-native-level-row";
+    row.dataset.device = device.id;
+    var name = document.createElement("span");
+    name.className = "mm-native-level-name";
+    name.textContent = nativeDeviceName(device.id);
+    row.appendChild(name);
+    var meter = document.createElement("span");
+    meter.className = "mm-native-level";
+    meter.appendChild(document.createElement("i"));
+    row.appendChild(meter);
+    levels.appendChild(row);
+  });
+  updateNativeLevels(nativeLevels);
+}
+function runNativeDiagnostics() {
+  /* A 5-second native capture test: start a "check" session in native
+   * mode, watch the per-device levels, then stop and say which devices
+   * actually produced sound. Silence is a result, not a failure — the
+   * session must survive a quiet machine (see fixlog-meet-audio2 F1). */
+  if (diagTest || recording || hostSystemCheck) return;
+  var status = $("#diag-status");
+  if (!nativeStatus || !nativeStatus.available) {
+    if (status) status.textContent = t("record.diag_native_unavailable");
+    return;
+  }
+  if (!Memu.record || !Memu.record.system) return;
+  var opts = systemCaptureOpts();
+  opts.mode = "native";
+  diagTest = { peaks: {} };
+  renderDiagLevels();
+  if (status) status.textContent = t("record.diag_running");
+  Memu.record.system("check", opts).then(function (result) {
+    if (!diagTest) return;
+    if (!result || result.reason) {
+      diagTest = null;
+      renderDiagLevels();
+      renderDiagnostics(); // first: it rewrites #diag-status from the probe
+      if (status) status.textContent = systemUnavailableMessage(result && result.reason);
+      return;
+    }
+    diagTest.timer = setTimeout(finishNativeDiagnostics, 5000);
+  }).catch(function (error) {
+    diagTest = null;
+    renderDiagLevels();
+    renderDiagnostics(); // first: it rewrites #diag-status from the probe
+    if (status) status.textContent = String((error && error.message) || error);
+  });
+}
+function finishNativeDiagnostics() {
+  if (!diagTest) return;
+  var test = diagTest;
+  diagTest = null;
+  if (Memu.record && Memu.record.system) Memu.record.system("cancel").catch(function () {});
+  clearNativeLevels();
+  renderDiagLevels();
+  var heard = [], silent = [];
+  nativeDevices().forEach(function (device) {
+    var peak = test.peaks[device.id] || 0;
+    (peak > 0.02 ? heard : silent).push(nativeDeviceName(device.id));
+  });
+  renderDiagnostics(); // first: it rewrites #diag-status from the probe
+  var status = $("#diag-status");
+  if (status) {
+    var parts = [];
+    if (heard.length) parts.push(t("record.diag_heard", { devices: heard.join(", ") }));
+    if (silent.length) parts.push(t("record.diag_silent", { devices: silent.join(", ") }));
+    status.textContent = parts.join(" ") || t("record.native_no_devices");
+  }
+}
+function diagTestObserve(levels) {
+  if (!diagTest) return;
+  Object.keys(levels || {}).forEach(function (id) {
+    var value = Number(levels[id]) || 0;
+    if (value > (diagTest.peaks[id] || 0)) diagTest.peaks[id] = value;
+  });
+}
+var diagCheckBtn = $("#diag-check");
+if (diagCheckBtn) diagCheckBtn.addEventListener("click", runNativeDiagnostics);
+var diagRefreshBtn = $("#diag-refresh");
+if (diagRefreshBtn) diagRefreshBtn.addEventListener("click", function () {
+  if (!Memu.record || !Memu.record.system) return;
+  Memu.record.system("probe", { force: true }).then(function (result) {
+    if (!result) return;
+    if (result.native) {
+      nativeStatus = result.native;
+      if (result.native.last_error) lastNativeError = result.native.last_error;
+    }
+    renderNativeDevices();
+    refreshSystemCheckUI();
+    renderDiagnostics();
+  }).catch(function () {});
+});
 
 /* ---- pause segmentation (mirror of backend.py: segment_energy) ---- */
 function segmentEnergy(energies, frameSeconds) {
@@ -444,6 +862,9 @@ function show(view) {
     btn.setAttribute("aria-selected", btn.dataset.view === view ? "true" : "false");
   });
   if (view === "captions") renderCaptions();
+  if (view === "settings") renderStorage();
+  var main = document.querySelector(".mm-main");
+  if (main && main.scrollTo) main.scrollTo(0, 0);
 }
 $$(".mm-nav button").forEach(function (btn) {
   btn.addEventListener("click", function () { show(btn.dataset.view); });
@@ -470,29 +891,195 @@ function loadMeetings() {
     $("#list-status").textContent = String((error && error.message) || error);
   });
 }
+/* ---- the list: stats, filter chips, sort, day groups, stars ---- */
+var listFilter = "all";
+var listSort = "new";
+var GROUP_KEYS = { today: "meetings.group_today", yesterday: "meetings.group_yesterday", week: "meetings.group_week",
+  month: "meetings.group_month", earlier: "meetings.group_earlier" };
+function meetingTasks(row) { return row && Array.isArray(row.tasks) ? row.tasks : []; }
+function openTaskCount(row) { return meetingTasks(row).filter(function (task) { return task && !task.done; }).length; }
+function hasTranscriptRow(row) {
+  return !!(row && (row.has_transcript || String(row.transcript || "").trim() || (row.segments || []).length));
+}
+function hasSummaryRow(row) { return !!(row && String(row.summary || "").trim()); }
+function matchesFilter(row, filter) {
+  if (filter === "starred") return !!row.starred;
+  if (filter === "todo") return !hasTranscriptRow(row);
+  if (filter === "nosummary") return hasTranscriptRow(row) && !hasSummaryRow(row);
+  if (filter === "tasks") return openTaskCount(row) > 0;
+  return true;
+}
+function summarySnippet(row) {
+  var lines = String(row.summary || "").split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line || /^#{1,6}\s/.test(line) || /^\*\*[^*]+\*\*:?$/.test(line)) continue;
+    var text = plainText(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/^\[( |x|X)\]\s*/, ""));
+    if (text.length > 3) return text.length > 160 ? text.slice(0, 157) + "…" : text;
+  }
+  var transcript = plainText(row.transcript || "");
+  return transcript.length > 160 ? transcript.slice(0, 157) + "…" : transcript;
+}
+function highlightText(text, query) {
+  var raw = String(text == null ? "" : text);
+  var q = String(query || "").toLowerCase();
+  if (!q) return esc(raw);
+  var lower = raw.toLowerCase(), out = "", i = 0, j;
+  while ((j = lower.indexOf(q, i)) >= 0) {
+    out += esc(raw.slice(i, j)) + "<mark>" + esc(raw.slice(j, j + q.length)) + "</mark>";
+    i = j + q.length;
+  }
+  return out + esc(raw.slice(i));
+}
+function dayBucket(ms) {
+  var now = new Date();
+  var start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  var value = +ms || 0;
+  if (value >= start) return "today";
+  if (value >= start - 86400000) return "yesterday";
+  if (value >= start - 6 * 86400000) return "week";
+  if (value >= start - 29 * 86400000) return "month";
+  return "earlier";
+}
+function fmtTotal(ms) {
+  var minutes = Math.round((+ms || 0) / 60000);
+  if (minutes < 60) return t("meetings.stat_min", { n: minutes });
+  return t("meetings.stat_hours", { h: Math.floor(minutes / 60), m: String(minutes % 60).padStart(2, "0") });
+}
+function renderStats() {
+  var box = $("#stats");
+  if (!box) return;
+  if (!meetings.length) { box.hidden = true; box.innerHTML = ""; return; }
+  var total = 0, transcribed = 0, summarized = 0, open = 0, all = 0;
+  meetings.forEach(function (row) {
+    total += +row.duration_ms || 0;
+    if (hasTranscriptRow(row)) transcribed++;
+    if (hasSummaryRow(row)) summarized++;
+    meetingTasks(row).forEach(function (task) { all++; if (!task.done) open++; });
+  });
+  var tiles = [
+    { n: String(meetings.length), label: t("meetings.stat_meetings"), icon: ICON.mic },
+    { n: fmtTotal(total), label: t("meetings.stat_duration"), icon: ICON.clock },
+    { n: transcribed + "/" + meetings.length, label: t("meetings.stat_transcribed"), icon: ICON.text },
+    { n: String(summarized), label: t("meetings.stat_summaries"), icon: ICON.spark },
+    { n: String(open), label: t("meetings.stat_open_tasks"), icon: ICON.check, hot: open > 0, filter: "tasks" }
+  ];
+  box.hidden = false;
+  box.innerHTML = tiles.map(function (tile) {
+    var tag = tile.filter ? "button" : "div";
+    return "<" + tag + (tile.filter ? ' type="button" data-stat-filter="' + tile.filter + '"' : "") +
+      ' class="mm-stat' + (tile.hot ? " hot" : "") + '"><span class="mm-stat-ico">' + tile.icon + "</span>" +
+      "<span><b>" + esc(tile.n) + "</b><small>" + esc(tile.label) + "</small></span></" + tag + ">";
+  }).join("");
+}
+function sortedRows(rows) {
+  var copy = rows.slice();
+  if (listSort === "old") copy.sort(function (a, b) { return (a.created_at || 0) - (b.created_at || 0); });
+  else if (listSort === "long") copy.sort(function (a, b) { return (b.duration_ms || 0) - (a.duration_ms || 0); });
+  else if (listSort === "title") {
+    copy.sort(function (a, b) {
+      return String(a.title || "").localeCompare(String(b.title || ""), en() ? "en" : "ru", { sensitivity: "base" });
+    });
+  } else copy.sort(function (a, b) { return (b.created_at || 0) - (a.created_at || 0); });
+  return copy;
+}
+function itemHtml(row, query) {
+  var tags = [];
+  tags.push(hasTranscriptRow(row) ? '<span class="mm-tag done">' + esc(t("meetings.has_transcript")) + "</span>"
+    : '<span class="mm-tag todo">' + esc(t("meetings.tag_todo")) + "</span>");
+  if (hasSummaryRow(row)) tags.push('<span class="mm-tag done">' + esc(t("meetings.has_summary")) + "</span>");
+  var tasks = meetingTasks(row);
+  if (tasks.length) {
+    var open = openTaskCount(row);
+    tags.push('<span class="mm-tag ' + (open ? "warn" : "done") + '">' + ICON.check + esc((tasks.length - open) + "/" + tasks.length) + "</span>");
+  }
+  if (Array.isArray(row.markers) && row.markers.length) tags.push('<span class="mm-tag">' + ICON.flag + esc(String(row.markers.length)) + "</span>");
+  var snippet = summarySnippet(row);
+  var title = row.title || t("common.untitled");
+  return '<article class="mm-item' + (row.starred ? " starred" : "") + '" data-id="' + esc(row.id) + '">' +
+    '<button type="button" class="mm-item-open" data-open="' + esc(row.id) + '">' +
+    '<span class="mm-item-ico src-' + esc(row.source || "microphone") + '">' + sourceIcon(row.source) + "</span>" +
+    '<span class="mm-item-main"><b>' + highlightText(title, query) + "</b>" +
+    '<span class="mm-item-meta">' + esc(fmtClock(row.created_at)) + " · " + esc(meetingSourceLabel(row.source)) +
+    (row.duration_ms ? " · " + esc(fmtTime(row.duration_ms / 1000)) : "") + "</span>" +
+    (snippet ? '<span class="mm-item-snippet">' + highlightText(snippet, query) + "</span>" : "") + "</span>" +
+    '<span class="mm-item-tags">' + tags.join("") + "</span></button>" +
+    '<button type="button" class="mm-item-star' + (row.starred ? " on" : "") + '" data-star="' + esc(row.id) + '" aria-pressed="' +
+    (row.starred ? "true" : "false") + '" title="' + esc(t("detail.star")) + '" aria-label="' + esc(t("detail.star")) + '">' + ICON.star + "</button>" +
+    "</article>";
+}
 function renderList() {
   var query = ($("#search").value || "").trim().toLowerCase();
-  var rows = meetings.filter(function (row) {
+  var base = meetings.filter(function (row) {
     return !query || (row.title || "").toLowerCase().indexOf(query) >= 0 ||
-      (row.transcript || "").toLowerCase().indexOf(query) >= 0;
+      (row.transcript || "").toLowerCase().indexOf(query) >= 0 ||
+      (row.summary || "").toLowerCase().indexOf(query) >= 0 ||
+      (row.notes || "").toLowerCase().indexOf(query) >= 0;
   });
-  $("#list-empty").hidden = rows.length > 0;
-  $("#list").innerHTML = rows.map(function (row) {
-    var tags = [];
-    if (row.has_transcript || (row.transcript || "").trim()) tags.push('<span class="mm-tag done">' + esc(t("meetings.has_transcript")) + "</span>");
-    if ((row.summary || "").trim()) tags.push('<span class="mm-tag done">' + esc(t("meetings.has_summary")) + "</span>");
-    return '<button type="button" class="mm-item" data-id="' + esc(row.id) + '">' +
-      '<span class="mm-item-ico"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg></span>' +
-      '<span class="mm-item-main"><b>' + esc(row.title || t("common.untitled")) + "</b>" +
-      "<span>" + esc(fmtClock(row.created_at)) + " · " + esc(meetingSourceLabel(row.source)) +
-      (row.duration_ms ? " · " + esc(fmtTime(row.duration_ms / 1000)) : "") + "</span></span>" +
-      (tags.length ? '<span class="mm-item-tags">' + tags.join("") + "</span>" : "") +
-      '<span class="mm-item-chev" aria-hidden="true">\u203a</span></button>';
-  }).join("");
-  $$("#list .mm-item").forEach(function (item) {
-    item.addEventListener("click", function () { openMeeting(item.dataset.id); });
+  var counts = { all: base.length, starred: 0, todo: 0, nosummary: 0, tasks: 0 };
+  base.forEach(function (row) {
+    ["starred", "todo", "nosummary", "tasks"].forEach(function (name) { if (matchesFilter(row, name)) counts[name]++; });
   });
+  $$("#filters [data-count]").forEach(function (el) {
+    var n = counts[el.dataset.count] || 0;
+    el.textContent = n ? String(n) : "";
+  });
+  $$("#filters [data-filter]").forEach(function (btn) {
+    var on = btn.dataset.filter === listFilter;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  var rows = sortedRows(base.filter(function (row) { return matchesFilter(row, listFilter); }));
+  $("#list-empty").hidden = meetings.length > 0;
+  $("#list-nomatch").hidden = !(meetings.length > 0 && rows.length === 0);
+  $("#filters").hidden = meetings.length === 0;
+  var html = "";
+  if (listSort === "new" || listSort === "old") {
+    var last = "";
+    rows.forEach(function (row) {
+      var bucket = dayBucket(row.created_at);
+      if (bucket !== last) { html += '<h3 class="mm-group">' + esc(t(GROUP_KEYS[bucket])) + "</h3>"; last = bucket; }
+      html += itemHtml(row, query);
+    });
+  } else {
+    html = rows.map(function (row) { return itemHtml(row, query); }).join("");
+  }
+  $("#list").innerHTML = html;
+  renderStats();
 }
+function findMeeting(id) { return meetings.filter(function (m) { return m.id === id; })[0] || null; }
+function toggleStar(id) {
+  var row = findMeeting(id) || (current && current.id === id ? current : null);
+  if (!row) return;
+  row.starred = !row.starred;
+  storeSet(meetingKey(row.id), row).then(function () {
+    renderList();
+    if (current && current.id === row.id) renderDetailHead();
+  }).catch(function (error) { row.starred = !row.starred; toast(errText(error)); });
+}
+function closestIn(event, selector) {
+  var node = event && event.target;
+  return node && node.closest ? node.closest(selector) : null;
+}
+$("#list").addEventListener("click", function (event) {
+  var star = closestIn(event, "[data-star]");
+  if (star) { toggleStar(star.dataset.star); return; }
+  var open = closestIn(event, "[data-open]");
+  if (open) openMeeting(open.dataset.open);
+});
+$("#filters").addEventListener("click", function (event) {
+  var chip = closestIn(event, "[data-filter]");
+  if (!chip) return;
+  listFilter = chip.dataset.filter || "all";
+  renderList();
+});
+$("#stats").addEventListener("click", function (event) {
+  var tile = closestIn(event, "[data-stat-filter]");
+  if (!tile) return;
+  listFilter = listFilter === tile.dataset.statFilter ? "all" : tile.dataset.statFilter;
+  renderList();
+});
+$("#sort").addEventListener("change", function () { listSort = $("#sort").value || "new"; renderList(); });
 $("#search").addEventListener("input", renderList);
 $("#record-open").addEventListener("click", function () { show("record"); setStep(1); });
 function goRecord() { show("record"); setStep(1); }
@@ -511,9 +1098,15 @@ $("#import-open").addEventListener("click", function () {
 function openMeeting(id) {
   var row = meetings.filter(function (m) { return m.id === id; })[0];
   if (!row) return;
+  flushNotes();
   current = row;
   currentAudio = "";
   currentMicAudio = "";
+  segQuery = "";
+  var segSearch = $("#seg-search");
+  if (segSearch) segSearch.value = "";
+  finishRename(false);
+  detailTab = (row.summary || "").trim() ? "summary" : hasTranscriptRow(row) ? "transcript" : "summary";
   show("detail");
   renderDetail();
   storeGet(audioKey(id), null).then(function (value) {
@@ -543,51 +1136,428 @@ function openMeeting(id) {
     $("#player-mic-wrap").hidden = true;
   }
 }
-$("#back").addEventListener("click", function () { show("meetings"); loadMeetings(); });
-function renderDetail() {
+$("#back").addEventListener("click", function () { flushNotes(); finishRename(true); show("meetings"); loadMeetings(); });
+var detailTab = "summary";
+var segQuery = "";
+var STYLE_KEYS = { standard: "summary.style_standard", brief: "summary.style_brief", detailed: "summary.style_detailed",
+  protocol: "summary.style_protocol", actions: "summary.style_actions", decisions: "summary.style_decisions",
+  followup: "summary.style_followup" };
+var STYLE_HINT_KEYS = { brief: "summary.hint_brief", detailed: "summary.hint_detailed", protocol: "summary.hint_protocol",
+  actions: "summary.hint_actions", decisions: "summary.hint_decisions", followup: "summary.hint_followup" };
+function renderDetailHead() {
   if (!current) return;
   $("#detail-title").textContent = current.title || t("common.untitled");
   $("#detail-meta").textContent = fmtClock(current.created_at) + " · " + meetingSourceLabel(current.source) +
     (current.duration_ms ? " · " + fmtTime(current.duration_ms / 1000) : "");
-  var summaryCard = $("#summary-card");
-  summaryCard.hidden = !(current.summary || "").trim();
-  $("#summary").textContent = current.summary || "";
+  var star = $("#detail-star");
+  star.classList.toggle("on", !!current.starred);
+  star.setAttribute("aria-pressed", current.starred ? "true" : "false");
+  var chips = [];
+  chips.push(hasTranscriptRow(current) ? '<span class="mm-tag done">' + ICON.text + esc(t("meetings.has_transcript")) + "</span>"
+    : '<span class="mm-tag todo">' + esc(t("meetings.tag_todo")) + "</span>");
+  if (hasSummaryRow(current)) chips.push('<span class="mm-tag done">' + ICON.spark + esc(t("meetings.has_summary")) + "</span>");
+  var tasks = meetingTasks(current);
+  if (tasks.length) {
+    var open = openTaskCount(current);
+    chips.push('<span class="mm-tag ' + (open ? "warn" : "done") + '">' + ICON.check +
+      esc(t("detail.tasks_progress", { done: tasks.length - open, total: tasks.length })) + "</span>");
+  }
+  if (Array.isArray(current.markers) && current.markers.length) {
+    chips.push('<span class="mm-tag">' + ICON.flag + esc(t("detail.markers_n", { n: current.markers.length })) + "</span>");
+  }
+  if (current.tracks && current.tracks.length > 1) chips.push('<span class="mm-tag">' + ICON.both + esc(t("detail.two_tracks")) + "</span>");
+  $("#detail-chips").innerHTML = chips.join("");
+}
+function setCount(sel, value) { var el = $(sel); if (el) el.textContent = value ? String(value) : ""; }
+function renderTabCounts() {
+  if (!current) return;
+  setCount("#dtab-transcript-count", (current.segments || []).length || "");
+  var tasks = meetingTasks(current);
+  setCount("#dtab-tasks-count", tasks.length ? openTaskCount(current) || "" : "");
+  setCount("#dtab-notes-count", String(current.notes || "").trim() ? "•" : "");
+  setCount("#dtab-ask-count", Array.isArray(current.qa) && current.qa.length ? current.qa.length : "");
+}
+function showDetailTab(name) {
+  detailTab = name || "summary";
+  $$("#detail-tabs [data-dtab]").forEach(function (btn) {
+    var on = btn.dataset.dtab === detailTab;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  $$(".mm-dpane").forEach(function (pane) { pane.hidden = pane.dataset.dpane !== detailTab; });
+  if (detailTab === "export") refreshExport();
+}
+function summaryMeta() {
+  if (!current || !(current.summary || "").trim()) return "";
+  var parts = [];
+  if (current.summary_style && STYLE_KEYS[current.summary_style]) parts.push(t(STYLE_KEYS[current.summary_style]));
+  if (current.summary_model) {
+    var row = models.filter(function (m) { return m.id === current.summary_model; })[0];
+    parts.push(row ? (row.name || row.model || row.id) : current.summary_model);
+  }
+  if (current.summarized_at) parts.push(fmtClock(current.summarized_at));
+  return parts.join(" · ");
+}
+function renderDetail() {
+  if (!current) return;
+  renderDetailHead();
+  var hasSummary = !!(current.summary || "").trim();
+  $("#summary-card").hidden = !hasSummary;
+  $("#summary-empty").hidden = hasSummary;
+  $("#summary").innerHTML = hasSummary ? renderMarkdown(current.summary) : "";
+  $("#summary-meta").textContent = summaryMeta();
+  var styleSelect = $("#summary-style");
+  if (styleSelect) styleSelect.value = SUMMARY_STYLES.indexOf(current.summary_style) >= 0 ? current.summary_style : settings.summary_style;
   renderSegments();
   $("#no-transcript").hidden = (current.segments || []).length > 0 || (current.transcript || "").trim() !== "";
+  renderTasks();
+  renderNotes();
+  renderQA();
+  renderTabCounts();
+  showDetailTab(detailTab);
   refreshExport();
+}
+function segDuration(seg) {
+  var span = Math.max(0, (+seg.end || 0) - (+seg.start || 0));
+  return span || String(seg.text || "").length / 15;
+}
+function renderSpeakerStats() {
+  var box = $("#speaker-stats");
+  if (!box) return;
+  var segs = (current && current.segments) || [];
+  var totals = {}, order = [], sum = 0;
+  segs.forEach(function (seg) {
+    var who = speakerLabel(seg.speaker, seg.source);
+    var dur = segDuration(seg);
+    if (!(who in totals)) { totals[who] = 0; order.push(who); }
+    totals[who] += dur;
+    sum += dur;
+  });
+  if (order.length < 2 || !sum) { box.hidden = true; box.innerHTML = ""; return; }
+  var appear = order.slice(); /* colours follow first appearance, like the avatars */
+  order.sort(function (a, b) { return totals[b] - totals[a]; });
+  box.hidden = false;
+  box.innerHTML = '<span class="mm-speak-title">' + esc(t("detail.talk_time")) + "</span>" +
+    '<div class="mm-speak-bar" aria-hidden="true">' + order.map(function (who, i) {
+      return '<i class="c' + (appear.indexOf(who) % 6) + '" style="width:' + (totals[who] * 100 / sum).toFixed(1) + '%"></i>';
+    }).join("") + "</div>" +
+    '<div class="mm-speak-legend">' + order.map(function (who, i) {
+      return '<span><i class="c' + (appear.indexOf(who) % 6) + '"></i>' + esc(who) + " <b>" + Math.round(totals[who] * 100 / sum) + "%</b></span>";
+    }).join("") + "</div>";
+}
+function renderDetailMarkers() {
+  var box = $("#detail-markers");
+  if (!box) return;
+  var rows = (current && Array.isArray(current.markers)) ? current.markers : [];
+  box.hidden = !rows.length;
+  box.innerHTML = rows.length ? '<span class="mm-speak-title">' + esc(t("detail.markers")) + "</span>" + rows.map(function (m) {
+    return '<button type="button" class="mm-marker" data-seek="' + esc(String(+m.t || 0)) + '">' + ICON.flag +
+      "<b>" + esc(fmtTime(m.t)) + "</b>" + esc(m.label || "") + "</button>";
+  }).join("") : "";
 }
 function renderSegments() {
   var segments = current.segments || [];
   var hasSources = segments.some(function (s) { return !!s.source; });
   var speakers = [];
   segments.forEach(function (seg) { if (!seg.source && speakers.indexOf(seg.speaker) < 0) speakers.push(seg.speaker); });
-  var namesHtml = (!hasSources && speakers.length > 1) ? speakers.map(function (id) {
-    return '<label class="mm-seg"><span class="mm-seg-who">' + esc(t("common.speaker")) + '</span>' +
-      '<input data-speaker="' + esc(id) + '" value="' + esc(speakerLabel(id)) + '" data-i18n-aria-label="detail.rename_speaker"></label>';
-  }).join("") : "";
-  var body = segments.map(function (seg) {
+  /* colours are fixed by first appearance over the WHOLE transcript, so searching never re-colours people */
+  var tones = [];
+  segments.forEach(function (seg) {
     var who = speakerLabel(seg.speaker, seg.source);
+    if (tones.indexOf(who) < 0) tones.push(who);
+  });
+  function colorOf(who) {
+    var i = tones.indexOf(who);
+    if (i < 0) { tones.push(who); i = tones.length - 1; }
+    return i % 6;
+  }
+  var namesHtml = (!hasSources && speakers.length > 1 && !segQuery) ? '<div class="mm-speaker-names">' + speakers.map(function (id) {
+    return '<label class="mm-speaker-name"><span class="mm-seg-ava c' + colorOf(speakerLabel(id)) + '" aria-hidden="true">' + esc(String(speakerLabel(id) || "?").slice(0, 1)) + "</span>" +
+      '<input class="mm-input" data-speaker="' + esc(id) + '" value="' + esc(speakerLabel(id)) + '" aria-label="' + esc(t("detail.rename_speaker")) + '"></label>';
+  }).join("") + "</div>" : "";
+  var approxNote = segments.some(function (seg) { return !!seg.approximate; })
+    ? '<p class="mm-approx-note">' + esc(t("detail.approximate_note")) + "</p>" : "";
+  var query = segQuery.toLowerCase();
+  var shown = 0;
+  var body = segments.map(function (seg) {
+    if (query && String(seg.text || "").toLowerCase().indexOf(query) < 0) return "";
+    shown++;
+    var who = speakerLabel(seg.speaker, seg.source);
+    var tone = colorOf(who);
     var badge = (seg.source && current.source === "both" && who !== sourceLabel(seg.source))
       ? '<span class="mm-src-badge">' + esc(sourceLabel(seg.source)) + "</span>" : "";
-    return '<div class="mm-seg"><time>' + esc(fmtTime(seg.start)) + "</time>" +
-      '<span class="mm-seg-ava" aria-hidden="true">' + esc(String(who || "?").slice(0, 1)) + "</span>" +
+    return '<div class="mm-seg"><button type="button" class="mm-seg-time" data-seek="' + esc(String(+seg.start || 0)) + '"' +
+      (seg.source ? ' data-seek-source="' + esc(seg.source) + '"' : "") + ' title="' + esc(t("detail.play_from")) + '">' + esc(fmtTime(seg.start)) + "</button>" +
+      '<span class="mm-seg-ava c' + tone + '" aria-hidden="true">' + esc(String(who || "?").slice(0, 1)) + "</span>" +
       '<span class="mm-seg-who">' + esc(who) + badge + "</span>" +
-      "<p>" + esc(seg.text || "") + "</p>" +
-      (seg.approximate ? '<span class="mm-approx">' + esc(t("detail.approximate")) + "</span>" : "") + "</div>";
+      "<p>" + highlightText(seg.text || "", segQuery) + "</p></div>";
   }).join("");
-  $("#segments").innerHTML = namesHtml + body ||
-    (segments.length ? body : "");
+  $("#segments").innerHTML = namesHtml + (body ? approxNote : "") + body;
   if (!segments.length && (current.transcript || "").trim()) {
-    $("#segments").innerHTML = '<div class="mm-seg"><p>' + esc(current.transcript) + "</p></div>";
+    var plain = String(current.transcript || "");
+    var hit = !query || plain.toLowerCase().indexOf(query) >= 0;
+    shown = hit ? 1 : 0;
+    $("#segments").innerHTML = hit ? '<div class="mm-seg plain"><p>' + highlightText(plain, segQuery) + "</p></div>" : "";
   }
+  setCount("#seg-count", query ? t("detail.seg_found", { n: shown }) : "");
   $$("#segments input[data-speaker]").forEach(function (input) {
     input.addEventListener("change", function () {
       current.speaker_names = Object.assign({}, current.speaker_names);
       current.speaker_names[input.dataset.speaker] = input.value.trim().slice(0, 60) || speakerLabel(input.dataset.speaker);
-      storeSet(meetingKey(current.id), current).then(renderSegments).catch(function () {});
+      storeSet(meetingKey(current.id), current).then(function () { renderSegments(); refreshExport(); }).catch(function () {});
     });
   });
+  renderSpeakerStats();
+  renderDetailMarkers();
 }
+$("#seg-search").addEventListener("input", function () {
+  segQuery = ($("#seg-search").value || "").trim().slice(0, 120);
+  if (current) renderSegments();
+});
+function seekTo(seconds, source) {
+  var player = (source === "microphone" && currentMicAudio) ? $("#player-mic") : $("#player");
+  if (!player || !player.getAttribute || !player.getAttribute("src")) { toast(t("detail.no_audio_seek")); return; }
+  try {
+    player.currentTime = Math.max(0, +seconds || 0);
+    var playing = player.play();
+    if (playing && playing.catch) playing.catch(function () {});
+  } catch (e) {}
+}
+$("#view-detail").addEventListener("click", function (event) {
+  var seek = closestIn(event, "[data-seek]");
+  if (seek) seekTo(seek.dataset.seek, seek.dataset.seekSource || "");
+});
+$("#detail-tabs").addEventListener("click", function (event) {
+  var tab = closestIn(event, "[data-dtab]");
+  if (tab) showDetailTab(tab.dataset.dtab);
+});
+$("#detail-star").addEventListener("click", function () { if (current) toggleStar(current.id); });
+$("#summary-copy").addEventListener("click", function () { if (current) copyText(current.summary || ""); });
+
+/* ---- rename (inline, Enter saves, Escape cancels) ---- */
+function startRename() {
+  if (!current) return;
+  var input = $("#detail-title-input");
+  input.value = current.title || "";
+  input.hidden = false;
+  $("#detail-title").hidden = true;
+  input.focus();
+  if (input.select) input.select();
+}
+function finishRename(save) {
+  var input = $("#detail-title-input");
+  if (!input || input.hidden) return;
+  input.hidden = true;
+  $("#detail-title").hidden = false;
+  if (!save || !current) return;
+  var value = String(input.value || "").trim().slice(0, 160);
+  if (!value || value === current.title) return;
+  current.title = value;
+  saveCurrent().then(function () { renderDetailHead(); refreshExport(); renderList(); })
+    .catch(function (error) { toast(errText(error)); });
+}
+$("#detail-rename").addEventListener("click", startRename);
+$("#detail-title").addEventListener("dblclick", startRename);
+$("#detail-title-input").addEventListener("keydown", function (event) {
+  if (event.key === "Enter") { event.preventDefault(); finishRename(true); }
+  else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); finishRename(false); }
+});
+$("#detail-title-input").addEventListener("blur", function () { finishRename(true); });
+
+/* ---- tasks pane ---- */
+function renderTasks() {
+  if (!current) return;
+  var tasks = meetingTasks(current);
+  var done = tasks.filter(function (task) { return task.done; }).length;
+  $("#tasks-progress").textContent = tasks.length ? t("detail.tasks_progress", { done: done, total: tasks.length }) : "";
+  var bar = $("#tasks-bar");
+  if (bar) bar.style.width = (tasks.length ? Math.round(done * 100 / tasks.length) : 0) + "%";
+  $("#tasks-empty").hidden = tasks.length > 0;
+  $("#tasks-extract").disabled = !(current.summary || "").trim();
+  $("#tasks-copy").disabled = !tasks.length;
+  $("#tasks").innerHTML = tasks.map(function (task, i) {
+    var meta = (task.owner ? '<span class="mm-task-owner">' + ICON.user + esc(task.owner) + "</span>" : "") +
+      (task.due ? '<span class="mm-task-due">' + ICON.clock + esc(task.due) + "</span>" : "") +
+      (task.from === "summary" ? '<span class="mm-task-from">' + esc(t("detail.task_from_summary")) + "</span>" : "");
+    return '<li class="mm-task' + (task.done ? " done" : "") + '">' +
+      '<label class="mm-task-check"><input type="checkbox" data-task-done="' + i + '"' + (task.done ? " checked" : "") +
+      ' aria-label="' + esc(t("detail.task_done")) + '"><span aria-hidden="true">' + ICON.check + "</span></label>" +
+      '<span class="mm-task-body"><span class="mm-task-text">' + esc(task.text) + "</span>" +
+      (meta ? '<span class="mm-task-meta">' + meta + "</span>" : "") + "</span>" +
+      '<button type="button" class="mm-icon-btn" data-task-del="' + i + '" title="' + esc(t("common.delete")) + '" aria-label="' +
+      esc(t("common.delete")) + '">' + ICON.x + "</button></li>";
+  }).join("");
+}
+function saveTasks(target) {
+  return storeSet(meetingKey(target.id), target).then(function () {
+    if (current === target) { renderTasks(); renderDetailHead(); renderTabCounts(); refreshExport(); }
+    renderList();
+  }).catch(function (error) { toast(errText(error)); });
+}
+$("#tasks").addEventListener("change", function (event) {
+  var box = closestIn(event, "[data-task-done]");
+  if (!box || !current) return;
+  var task = meetingTasks(current)[+box.dataset.taskDone];
+  if (!task) return;
+  task.done = !!box.checked;
+  task.done_at = task.done ? Date.now() : 0;
+  saveTasks(current);
+});
+$("#tasks").addEventListener("click", function (event) {
+  var del = closestIn(event, "[data-task-del]");
+  if (!del || !current) return;
+  current.tasks = meetingTasks(current).filter(function (_task, i) { return i !== +del.dataset.taskDel; });
+  saveTasks(current);
+});
+$("#task-form").addEventListener("submit", function (event) {
+  event.preventDefault();
+  if (!current) return;
+  var text = String($("#task-input").value || "").trim().slice(0, 300);
+  if (!text) { $("#task-input").focus(); return; }
+  if (meetingTasks(current).length >= MAX_TASKS) { toast(t("detail.tasks_limit")); return; }
+  current.tasks = meetingTasks(current).concat([{ id: newTaskId(), text: text,
+    owner: String($("#task-owner").value || "").trim().slice(0, 60), due: "", done: false, from: "manual", created_at: Date.now() }]);
+  $("#task-input").value = "";
+  $("#task-owner").value = "";
+  saveTasks(current).then(function () { $("#task-input").focus(); });
+});
+$("#tasks-extract").addEventListener("click", function () {
+  if (!current || !(current.summary || "").trim()) return;
+  var merged = mergeTasks(current.tasks, extractTasks(current.summary));
+  if (!merged.added) { toast(t("detail.tasks_none_new")); return; }
+  current.tasks = merged.rows;
+  saveTasks(current).then(function () { toast(t("detail.tasks_added", { n: merged.added })); });
+});
+$("#tasks-copy").addEventListener("click", function () { if (current) copyText(taskChecklist(meetingTasks(current))); });
+
+/* ---- notes pane: autosaved, flushed when the meeting closes ---- */
+var notesTimer = null;
+var notesTarget = null;
+function renderNotes() {
+  var box = $("#notes");
+  if (!box || !current) return;
+  if (box.value !== String(current.notes || "")) box.value = String(current.notes || "");
+  $("#notes-status").textContent = "";
+}
+function flushNotes() {
+  if (!notesTimer) return;
+  clearTimeout(notesTimer);
+  notesTimer = null;
+  var target = notesTarget;
+  notesTarget = null;
+  if (target) storeSet(meetingKey(target.id), target).catch(function () {});
+}
+$("#notes").addEventListener("input", function () {
+  if (!current) return;
+  current.notes = String($("#notes").value || "").slice(0, 20000);
+  notesTarget = current;
+  $("#notes-status").textContent = t("settings.saving");
+  if (notesTimer) clearTimeout(notesTimer);
+  notesTimer = setTimeout(function () {
+    notesTimer = null;
+    var target = notesTarget;
+    notesTarget = null;
+    if (!target) return;
+    storeSet(meetingKey(target.id), target).then(function () {
+      if (current === target) { $("#notes-status").textContent = t("detail.saved"); renderTabCounts(); refreshExport(); }
+    }).catch(function (error) { if (current === target) $("#notes-status").textContent = errText(error); });
+  }, 600);
+});
+
+/* ---- ask the AI about this meeting (explicit button, the selected model) ---- */
+var asking = false;
+function summaryLanguage() {
+  var lang = settings.summary_lang === "auto" ? (en() ? "en" : "ru") : settings.summary_lang;
+  return lang === "en" ? "\n\nWrite the answer in English." : "\n\nПиши ответ на русском языке.";
+}
+function askContext(target) {
+  var segs = target.segments || [];
+  var transcript = (segs.length ? transcriptText(segs) : target.transcript || "").trim();
+  var parts = [];
+  if ((target.summary || "").trim()) parts.push("<summary>\n" + clip(target.summary.trim(), 12000) + "\n</summary>");
+  if (transcript) parts.push("<transcript>\n" + clip(transcript, 60000) + "\n</transcript>");
+  if (String(target.notes || "").trim()) parts.push("<notes>\n" + clip(String(target.notes).trim(), 4000) + "\n</notes>");
+  return parts.join("\n\n");
+}
+function renderQA() {
+  if (!current) return;
+  var rows = Array.isArray(current.qa) ? current.qa : [];
+  $("#ask-clear").hidden = !rows.length;
+  $("#ask-send").disabled = asking;
+  $("#ask-list").innerHTML = rows.map(function (row, i) {
+    return '<div class="mm-qa-item' + (row.pending ? " pending" : "") + '">' +
+      '<div class="mm-qa-q">' + ICON.user + "<b>" + esc(row.q) + "</b></div>" +
+      '<div class="mm-qa-a">' + ICON.spark + (row.pending
+        ? '<span class="mm-dots" role="status" aria-label="' + esc(t("detail.ask_thinking")) + '"><i></i><i></i><i></i></span>'
+        : '<div class="mm-prose">' + renderMarkdown(row.a) + "</div>") + "</div>" +
+      (row.pending ? "" : '<div class="mm-qa-foot"><span class="mm-meta">' + esc(fmtClock(row.at)) + "</span><span class=\"mm-grow\"></span>" +
+        '<button type="button" class="mm-btn ghost small" data-qa-copy="' + i + '">' + esc(t("detail.copy")) + "</button>" +
+        '<button type="button" class="mm-btn ghost small" data-qa-note="' + i + '">' + esc(t("detail.ask_to_notes")) + "</button></div>") +
+      "</div>";
+  }).join("");
+}
+function askQuestion(question) {
+  question = String(question || "").trim().slice(0, 600);
+  if (!current || !question || asking) return;
+  var target = current;
+  var context = askContext(target);
+  if (!context) { toast(t("detail.ask_no_context")); return; }
+  var model = effectiveModel();
+  if (!model) { toast(t("detail.no_model")); return; }
+  asking = true;
+  var entry = { q: question, a: "", at: Date.now(), model: model, pending: true };
+  target.qa = [entry].concat(Array.isArray(target.qa) ? target.qa : []).slice(0, 20);
+  $("#ask-input").value = "";
+  renderQA();
+  Memu.request({
+    model: model,
+    instructions: t("detail.ask_system") + summaryLanguage(),
+    text: (target.title || t("common.untitled")) + "\n\n" + context + "\n\n<question>\n" + question + "\n</question>"
+  }).then(function (answer) {
+    entry.a = String((answer && answer.text) || "").trim() || t("detail.ask_empty");
+    delete entry.pending;
+    return storeSet(meetingKey(target.id), target);
+  }).catch(function (error) {
+    target.qa = (target.qa || []).filter(function (row) { return row !== entry; });
+    toast(errText(error));
+  }).then(function () {
+    asking = false;
+    if (current === target) { renderQA(); renderTabCounts(); }
+  });
+}
+$("#ask-form").addEventListener("submit", function (event) {
+  event.preventDefault();
+  askQuestion($("#ask-input").value);
+});
+$("#ask-chips").addEventListener("click", function (event) {
+  var chip = closestIn(event, "[data-ask]");
+  if (chip) askQuestion(t(chip.dataset.ask));
+});
+$("#ask-list").addEventListener("click", function (event) {
+  if (!current) return;
+  var rows = Array.isArray(current.qa) ? current.qa : [];
+  var copyBtn = closestIn(event, "[data-qa-copy]");
+  if (copyBtn && rows[+copyBtn.dataset.qaCopy]) { copyText(rows[+copyBtn.dataset.qaCopy].a); return; }
+  var noteBtn = closestIn(event, "[data-qa-note]");
+  if (noteBtn && rows[+noteBtn.dataset.qaNote]) {
+    var row = rows[+noteBtn.dataset.qaNote];
+    current.notes = (String(current.notes || "").trim() ? String(current.notes).trim() + "\n\n" : "") +
+      "Q: " + row.q + "\n" + row.a;
+    current.notes = current.notes.slice(0, 20000);
+    saveCurrent().then(function () { renderNotes(); renderTabCounts(); refreshExport(); toast(t("detail.ask_noted")); })
+      .catch(function (error) { toast(errText(error)); });
+  }
+});
+$("#ask-clear").addEventListener("click", function () {
+  if (!current || asking) return;
+  var target = current;
+  confirmDialog(t("detail.ask_clear_confirm")).then(function (ok) {
+    if (!ok) return;
+    target.qa = [];
+    storeSet(meetingKey(target.id), target).then(function () { if (current === target) { renderQA(); renderTabCounts(); } })
+      .catch(function (error) { toast(errText(error)); });
+  });
+});
 function saveCurrent() {
   return storeSet(meetingKey(current.id), current);
 }
@@ -610,102 +1580,146 @@ function transcribeTrack(audio, source) {
     });
   });
 }
-$("#transcribe").addEventListener("click", function () {
-  if (!current) return;
+var transcribing = false;
+function transcribeCurrent() {
+  if (!current || transcribing) return Promise.resolve();
+  var target = current;
   var status = $("#detail-status");
-  function run(audio, micAudio) {
-    status.textContent = t("detail.transcribing");
-    var jobs = [transcribeTrack(audio, current.source === "both" ? "system" : null)];
-    if (micAudio) jobs.push(transcribeTrack(micAudio, "microphone"));
-    return Promise.all(jobs).then(function (parts) {
-      var segments = [];
-      parts.forEach(function (rows) { segments = segments.concat(rows); });
-      segments.sort(function (a, b) { return (a.start - b.start) || ((a.source || "") < (b.source || "") ? -1 : 1); });
-      var texts = [];
-      parts.forEach(function (rows) { rows.forEach(function (r) { if (r.text) texts.push(r.text); }); });
-      current.transcript = texts.join("\n");
-      current.segments = segments;
-      current.transcribed_at = Date.now();
-      current.approximate_segments = true;
-      if (!settings.keep_audio) {
-        var drop = [storeRemove(audioKey(current.id))];
-        if (micAudio) drop.push(storeRemove(audioMicKey(current.id)));
-        return Promise.all(drop).then(function () {
-          current.has_audio = false;
-          currentAudio = "";
-          currentMicAudio = "";
-        });
-      }
-      return null;
-    }).then(saveCurrent).then(function () {
-      status.textContent = t("detail.saved");
-      renderDetail();
-      loadMeetings();
-    }).catch(function (error) {
-      status.textContent = String((error && error.message) || error);
-    });
+  var audio = current === target ? currentAudio : "";
+  var micAudio = current === target ? currentMicAudio : "";
+  function setBusy(on) {
+    transcribing = on;
+    $("#transcribe").disabled = on;
+    $("#app").classList.toggle("busy", on);
   }
   function loadAudio() {
-    return storeGet(audioKey(current.id), null).then(function (value) {
+    return storeGet(audioKey(target.id), null).then(function (value) {
       if (!value || !value.data) throw new Error(t("detail.audio_missing"));
-      currentAudio = String(value.data);
-      if (current.source !== "both") return null;
-      return storeGet(audioMicKey(current.id), null).then(function (mic) {
-        currentMicAudio = mic && mic.data ? String(mic.data) : "";
-        return currentMicAudio || null;
+      audio = String(value.data);
+      if (target.source !== "both") return null;
+      return storeGet(audioMicKey(target.id), null).then(function (mic) {
+        micAudio = mic && mic.data ? String(mic.data) : "";
+        return null;
       });
     });
   }
-  if (currentAudio) {
-    var mic = current.source === "both" ? (currentMicAudio || null) : null;
-    if (mic) return run(currentAudio, mic);
-    if (current.source === "both") return loadAudio().then(function (m) { return run(currentAudio, m); });
-    return run(currentAudio, null);
-  }
-  loadAudio().then(function (micAudio) { return run(currentAudio, micAudio); })
-    .catch(function (error) { status.textContent = String((error && error.message) || error); });
-});
+  setBusy(true);
+  status.textContent = t("detail.transcribing");
+  var ready = (audio && (target.source !== "both" || micAudio)) ? Promise.resolve() : loadAudio();
+  return ready.then(function () {
+    var jobs = [transcribeTrack(audio, target.source === "both" ? "system" : null)];
+    if (target.source === "both" && micAudio) jobs.push(transcribeTrack(micAudio, "microphone"));
+    return Promise.all(jobs);
+  }).then(function (parts) {
+    var segments = [];
+    parts.forEach(function (rows) { segments = segments.concat(rows); });
+    if (!segments.length) throw new Error(t("detail.transcript_error"));
+    segments.sort(function (a, b) { return (a.start - b.start) || ((a.source || "") < (b.source || "") ? -1 : 1); });
+    var texts = [];
+    parts.forEach(function (rows) { rows.forEach(function (r) { if (r.text) texts.push(r.text); }); });
+    target.transcript = texts.join("\n");
+    target.segments = segments;
+    target.transcribed_at = Date.now();
+    target.approximate_segments = true;
+    if (!target.duration_ms) {
+      var end = 0;
+      segments.forEach(function (seg) { end = Math.max(end, +seg.end || +seg.start || 0); });
+      if (end) target.duration_ms = Math.round(end * 1000);
+    }
+    if (!settings.keep_audio) {
+      var drop = [storeRemove(audioKey(target.id))];
+      if (target.source === "both") drop.push(storeRemove(audioMicKey(target.id)));
+      return Promise.all(drop).then(function () {
+        target.has_audio = false;
+        if (current === target) { currentAudio = ""; currentMicAudio = ""; }
+      });
+    }
+    if (current === target) { currentAudio = audio; currentMicAudio = micAudio; }
+    return null;
+  }).then(function () { return storeSet(meetingKey(target.id), target); }).then(function () {
+    setBusy(false);
+    if (current === target) {
+      status.textContent = t("detail.transcribed");
+      detailTab = "transcript";
+      renderDetail();
+    }
+    loadMeetings();
+  }).catch(function (error) {
+    setBusy(false);
+    if (current === target) status.textContent = errText(error);
+    else toast(errText(error));
+  });
+}
+$("#transcribe").addEventListener("click", function () { transcribeCurrent(); });
 
 function effectiveModel() {
   if (settings.model) return settings.model;
   var fallback = models.filter(function (row) { return row.default; })[0];
   return fallback ? fallback.id : "";
 }
+var summarizing = false;
+function currentStyle() {
+  var select = $("#summary-style");
+  var value = select ? select.value : "";
+  return SUMMARY_STYLES.indexOf(value) >= 0 ? value : settings.summary_style;
+}
 $("#summarize").addEventListener("click", function () {
-  if (!current) return;
+  if (!current || summarizing) return;
   var text = (current.segments && current.segments.length ? transcriptText(current.segments) : current.transcript || "").trim();
   if (!text) { $("#detail-status").textContent = t("detail.no_transcript"); return; }
   var model = effectiveModel();
   if (!model) { $("#detail-status").textContent = t("detail.no_model"); return; }
+  var style = currentStyle();
   if (settings.confirm_before_summary !== false) {
     confirmDialog(t("detail.summary_confirm")).then(function (ok) {
-      if (ok) doSummarize(model, text);
+      if (ok) doSummarize(model, text, style);
     });
     return;
   }
-  doSummarize(model, text);
+  doSummarize(model, text, style);
 });
 
-function doSummarize(model, text) {
+function doSummarize(model, text, style) {
   var status = $("#detail-status");
+  var target = current;
+  if (!target) return;
+  style = SUMMARY_STYLES.indexOf(style) >= 0 ? style : "standard";
+  var hint = STYLE_HINT_KEYS[style] ? " " + t(STYLE_HINT_KEYS[style]) : "";
+  var added = 0;
+  summarizing = true;
+  $("#summarize").disabled = true;
   status.textContent = t("detail.summarizing");
   Memu.request({
     model: model,
-    instructions: t("summary.prompt_system") ||
-      (Memu.manifest && Memu.manifest.bridge && Memu.manifest.bridge.instructions) || "",
-    text: (current.title || t("common.untitled")) + "\n\n<transcript>\n" + text + "\n</transcript>"
+    instructions: (t("summary.prompt_system") ||
+      (Memu.manifest && Memu.manifest.bridge && Memu.manifest.bridge.instructions) || "") + hint + summaryLanguage(),
+    text: (target.title || t("common.untitled")) + "\n\n<transcript>\n" + clip(text, 120000) + "\n</transcript>"
   }).then(function (answer) {
     var summary = String((answer && answer.text) || "").trim();
     if (!summary) throw new Error(t("detail.summary_error"));
-    current.summary = summary;
-    current.summary_model = model;
-    return saveCurrent();
+    target.summary = summary;
+    target.summary_model = model;
+    target.summary_style = style;
+    target.summarized_at = Date.now();
+    if (settings.auto_tasks !== false) {
+      var merged = mergeTasks(target.tasks, extractTasks(summary));
+      target.tasks = merged.rows;
+      added = merged.added;
+    }
+    return storeSet(meetingKey(target.id), target);
   }).then(function () {
-    status.textContent = t("detail.saved");
-    renderDetail();
+    if (current === target) {
+      status.textContent = t("detail.saved") + (added ? " · " + t("detail.tasks_added", { n: added }) : "");
+      detailTab = "summary";
+      renderDetail();
+    }
     loadMeetings();
   }).catch(function (error) {
-    status.textContent = String((error && error.message) || error);
+    if (current === target) status.textContent = errText(error);
+    else toast(errText(error));
+  }).then(function () {
+    summarizing = false;
+    $("#summarize").disabled = false;
   });
 }
 
@@ -721,25 +1735,35 @@ function buildExport(kind) {
   var note = en()
     ? "_Speaker labels are a pause/energy heuristic, not exact diarization; segment text boundaries are approximate._"
     : "_Метки говорящих — эвристика по паузам и энергии, а не точная диаризация; границы текста сегментов приблизительные._";
+  var tasks = taskChecklist(meetingTasks(m));
+  var notes = String(m.notes || "").trim();
+  var markers = (Array.isArray(m.markers) ? m.markers : []).map(function (mk) {
+    return "[" + fmtTime(mk.t) + "] " + (mk.label || "");
+  });
   if (kind === "txt") {
-    return [title, "", t("detail.export_date") + ": " + created,
+    var out = [title, "", t("detail.export_date") + ": " + created,
       t("detail.export_source") + ": " + meetingSourceLabel(m.source),
       t("detail.export_duration") + ": " + duration, "",
-      en() ? "SUMMARY" : "КОНСПЕКТ", summary || t("detail.summary_empty"), "",
-      en() ? "TRANSCRIPT" : "ТРАНСКРИПТ", transcript, "", note, ""
-    ].join("\n");
+      en() ? "SUMMARY" : "КОНСПЕКТ", summary || t("detail.summary_empty"), ""];
+    if (tasks) out.push(en() ? "CHECKLIST" : "ЧЕК-ЛИСТ ЗАДАЧ", tasks, "");
+    if (notes) out.push(en() ? "NOTES" : "ЗАМЕТКИ", notes, "");
+    if (markers.length) out.push(en() ? "MARKERS" : "ОТМЕТКИ", markers.join("\n"), "");
+    out.push(en() ? "TRANSCRIPT" : "ТРАНСКРИПТ", transcript, "", note, "");
+    return out.join("\n");
   }
   return "# " + title + "\n\n" +
     "- " + t("detail.export_date") + ": " + created + "\n" +
     "- " + t("detail.export_source") + ": " + meetingSourceLabel(m.source) + "\n" +
     "- " + t("detail.export_duration") + ": " + duration + "\n\n" +
     (summary ? summary + "\n\n" : "## " + t("detail.summary") + "\n\n_" + t("detail.summary_empty") + "_\n\n") +
+    (tasks ? "## " + t("detail.tasks") + "\n\n" + tasks + "\n\n" : "") +
+    (notes ? "## " + t("detail.notes") + "\n\n" + notes + "\n\n" : "") +
+    (markers.length ? "## " + t("detail.markers") + "\n\n" + markers.map(function (x) { return "- " + x; }).join("\n") + "\n\n" : "") +
     note + "\n\n## " + t("detail.transcript") + "\n\n" + transcript + "\n";
 }
 function refreshExport() {
   $("#export-text").value = current ? buildExport("markdown") : "";
 }
-$("#refresh-export").addEventListener("click", refreshExport);
 function downloadExport(kind) {
   if (!current) return;
   var text = buildExport(kind);
@@ -767,6 +1791,7 @@ $("#copy-export").addEventListener("click", function () {
   if (Memu.copy) Memu.copy(value).then(done).catch(fallback);
   else fallback();
 });
+$("#refresh-export").addEventListener("click", function () { refreshExport(); toast(t("detail.export_refreshed")); });
 $("#delete-meeting").addEventListener("click", function () {
   if (!current) return;
   var id = current.id;
@@ -794,7 +1819,7 @@ function setStep(step) {
     if (n === step) li.setAttribute("aria-current", "step");
     else li.removeAttribute("aria-current");
   });
-  if (step !== 2) { stopCheckStream(); stopMicCheck(); }
+  if (step !== 2) stopCheckStream();
   if (step === 2) refreshSystemCheckUI();
 }
 $$(".mm-steps li").forEach(function (li) {
@@ -810,13 +1835,11 @@ function selectedSource() {
 }
 function syncSourceUI(save) {
   var source = selectedSource();
-  /* A forced microphone (capture unavailable) is session-only:
-   * never let the radio state overwrite the saved choice — the
-   * next autosave would otherwise persist it and the user's
-   * system/both choice would be lost. */
-  if (!sourceForcedToMic) settings.source = source;
+  settings.source = source;
   if (save !== false) scheduleSaveSettings();
   $("#mic-row").hidden = source !== "microphone" && source !== "both";
+  $("#check-mic-block").hidden = $("#mic-row").hidden;
+  $("#check-system-block").hidden = source !== "system" && source !== "both";
   /* The system note is an informational hint for a selectable
    * system source only. When capture is unavailable the options
    * are pre-marked instead (applyCaptureAvailability) and this
@@ -830,13 +1853,14 @@ function syncSourceUI(save) {
     note.hidden = true;
   }
   captureStates();
+  renderNativeDevices();
   refreshSystemCheckUI();
   updateRecordingTracks();
 }
 $$('input[name="source"]').forEach(function (radio) {
   radio.addEventListener("change", syncSourceUI);
 });
-$("#to-check").addEventListener("click", function () { setStep(2); refreshMicDevices(true); });
+$("#to-check").addEventListener("click", function () { setStep(2); });
 $("#back-sources").addEventListener("click", function () { setStep(1); });
 $("#to-record").addEventListener("click", function () { setStep(3); });
 $("#skip-check").addEventListener("click", function () { setStep(3); });
@@ -847,13 +1871,13 @@ function captureStates() {
    * audio: the Permissions-Policy pre-check decides "blocked" without
    * ever calling getDisplayMedia; otherwise it stays unknown until the
    * user actually tries it — the OS and the sharing picker decide. */
-  var micOk = !!(Memu.record && Memu.record.start);
+  var micOk = devicesFor("microphone").length > 0;
   var recOk = typeof MediaRecorder !== "undefined";
   setState($("#state-mic"), micOk && recOk, micOk && recOk ? t("record.state_ok") : t("record.state_no"));
   var gate = displayCaptureAllowed();
   if (!gate.allowed) setState($("#state-system"), "na", t("record.state_unavailable"));
   else setState($("#state-system"), null, t("record.state_unknown"));
-  var bothOk = (micOk && recOk) && gate.allowed;
+  var bothOk = devicesFor("both").length > 0 && recOk;
   setState($("#state-both"), bothOk ? null : (gate.allowed ? false : "na"),
     bothOk ? t("record.state_unknown") : gate.allowed ? t("record.state_no") : t("record.state_unavailable"));
   setState($("#state-import"), true, t("record.state_ok"));
@@ -864,113 +1888,28 @@ function setState(el, ok, text) {
   el.className = "mm-state" + (ok === true ? " ok" : ok === false ? " bad" : ok === "na" ? " na" : "");
 }
 
-/* ---- microphones: permission first, then enumerateDevices ---- */
-function shortDeviceId(id) {
-  /* Mirror of backend.py: short_device_id. */
-  var text = String(id || "").trim();
-  if (text.length <= 10) return text;
-  return text.slice(0, 4) + "\u2026" + text.slice(-4);
-}
-function micDeviceLabel(device) {
-  /* Mirror of backend.py: format_mic_label. A real label is used
-   * as-is; without one the device is shown honestly as unlabelled
-   * with the short id — never as a numbered "Microphone 1/2/3",
-   * which would pretend the browser named it. */
-  var label = String((device && device.label) || "").trim();
-  if (label) return label;
-  var suffix = shortDeviceId(device && device.deviceId);
-  return t("record.mic_unlabeled") + (suffix ? " \u00b7 " + suffix : "");
-}
-function classifyMicError(error) {
-  var name = String((error && error.name) || "");
-  if (name === "SecurityError") return opaqueOrigin() ? "sandbox" : "denied";
-  if (name === "NotAllowedError" || name === "AbortError") return "denied";
-  return "unavailable";
-}
-function setMicPermissionUI() {
-  var el = $("#mic-permission");
-  if (!el) return;
-  var key = {
-    granted: "record.mic_permission_granted",
-    denied: "record.mic_permission_denied",
-    sandbox: "record.mic_permission_sandbox",
-    unavailable: "record.mic_permission_unavailable",
-    unknown: "record.mic_permission_unknown"
-  }[micPermission] || "record.mic_permission_unknown";
-  el.textContent = t(key);
-  el.className = "mm-hint mm-mic-" + micPermission;
-}
-function requestMicPermission() {
-  /* Ask the browser for microphone access BEFORE enumerateDevices,
-   * so it can return real device names. The returned stream is the
-   * caller's to stop. Never throws: a refusal is a state, reported
-   * by setMicPermissionUI, not an exception. In the sandboxed module
-   * window this rejects with SecurityError (opaque origin) — the
-   * host bridge opens the microphone there instead. */
-  var devices = (typeof navigator !== "undefined") ? navigator.mediaDevices : null;
-  if (!devices || typeof devices.getUserMedia !== "function") {
-    micPermission = "unavailable";
-    setMicPermissionUI();
-    return Promise.resolve(null);
-  }
-  return devices.getUserMedia({ audio: true }).then(function (stream) {
-    micPermission = "granted";
-    setMicPermissionUI();
-    return stream;
-  }).catch(function (error) {
-    micPermission = classifyMicError(error);
-    setMicPermissionUI();
-    return null;
-  });
-}
-function refreshMicDevices(requestPermission) {
+function refreshMicDevices(force) {
   var select = $("#mic-device");
-  if (!select) return Promise.resolve([]);
   var status = $("#mic-permission");
-  if (status) status.textContent = t("record.mic_loading");
-  function enumerate() {
-    var devices = (typeof navigator !== "undefined") ? navigator.mediaDevices : null;
-    if (!devices || typeof devices.enumerateDevices !== "function") {
-      select.innerHTML = '<option value="">' + esc(t("record.mic_none")) + "</option>";
-      select.disabled = true;
-      micPermission = "unavailable";
-      setMicPermissionUI();
-      return Promise.resolve([]);
-    }
-    return devices.enumerateDevices().then(function (list) {
-      var mics = (list || []).filter(function (d) { return d && d.kind === "audioinput"; });
-      select.disabled = false;
-      var hasLabels = mics.some(function (d) { return String(d.label || "").trim(); });
-      if (hasLabels && micPermission === "unknown") micPermission = "granted";
-      var options = '<option value="">' + esc(t("record.mic_device_default")) + "</option>" +
-        mics.map(function (d) {
-          return '<option value="' + esc(d.deviceId || "") + '">' + esc(micDeviceLabel(d)) + "</option>";
-        }).join("");
-      if (!mics.length) options = '<option value="">' + esc(t("record.mic_none")) + "</option>";
-      select.innerHTML = options;
-      if (settings.mic_device && mics.some(function (d) { return d.deviceId === settings.mic_device; })) {
-        select.value = settings.mic_device;
-      } else {
-        select.value = "";
-      }
-      setMicPermissionUI();
-      return mics;
-    }).catch(function () {
-      select.innerHTML = '<option value="">' + esc(t("record.mic_none")) + "</option>";
-      setMicPermissionUI();
-      return [];
-    });
+  if (!select) return Promise.resolve([]);
+  function paint() {
+    var inputs = nativeDevices().filter(function (d) { return d.kind === "input"; });
+    select.replaceChildren();
+    select.add(new Option(t("record.mic_device_default"), ""));
+    inputs.forEach(function (d) { select.add(new Option(d.name, d.id)); });
+    select.disabled = !inputs.length;
+    select.value = inputs.some(function (d) { return d.id === settings.mic_device; }) ? settings.mic_device : "";
+    select.title = select.selectedOptions[0] ? select.selectedOptions[0].text : "";
+    if (status) status.textContent = inputs.length ? "" :
+      nativeStatus ? nativeReasonText(nativeStatus.reason || "no_devices") : t("record.mic_loading");
+    return inputs;
   }
-  if (requestPermission) {
-    return requestMicPermission().then(function (stream) {
-      if (stream) stopTracks(stream);
-      return enumerate();
-    });
-  }
-  return enumerate();
+  if (!force || !Memu.record || !Memu.record.system) return Promise.resolve(paint());
+  return refreshNativeAudio(true).then(paint);
 }
 $("#mic-device").addEventListener("change", function (event) {
   settings.mic_device = event.target.value || "";
+  event.target.title = event.target.selectedOptions[0].text;
   scheduleSaveSettings();
 });
 $("#mic-refresh").addEventListener("click", function () { refreshMicDevices(true); });
@@ -1002,54 +1941,61 @@ function ensureAudioDuration(player) {
   if (player.readyState >= 1) maybeFix();
 }
 
-/* ---- sound check: separate checks for the microphone and system audio.
- * The microphone check is a live level meter (AnalyserNode) and never
- * touches getDisplayMedia; the system check is the only place that
- * calls getDisplayMedia, and only after the pre-check in
- * displayCaptureAllowed() says capture is actually available. ---- */
-function startLevelMeter(stream, barEl, onPeak) {
-  try {
-    var Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx || !stream || !barEl) return function () {};
-    var ctx = new Ctx();
-    var analyser = ctx.createAnalyser();
-    analyser.fftSize = 512;
-    ctx.createMediaStreamSource(stream).connect(analyser);
-    var data = new Uint8Array(analyser.frequencyBinCount);
-    var stopped = false;
-    (function loop() {
-      if (stopped) return;
-      analyser.getByteTimeDomainData(data);
-      var peak = 0;
-      for (var i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i] - 128) / 128);
-      if (onPeak) onPeak(peak);
-      barEl.style.width = Math.round(Math.min(1, peak * 1.6) * 100) + "%";
-      barEl.parentNode.setAttribute("aria-valuenow", String(Math.round(peak * 100)));
-      requestAnimationFrame(loop);
-    })();
-    return function () {
-      stopped = true;
-      try { ctx.close(); } catch (e) {}
-      barEl.style.width = "0%";
-    };
-  } catch (e) { return function () {}; }
-}
-function stopCheckStream() {
-  if (checkMeterStop) { checkMeterStop(); checkMeterStop = null; }
-  if (checkStream) { stopTracks(checkStream); checkStream = null; }
+/* ---- separate native sound checks for the microphone and system audio ---- */
+function stopCheckStream(saveMicPreview) {
+  var sequence = ++checkSequence;
+  clearTimeout(micCheckTimer);
+  var save = saveMicPreview === true && checkSource === "microphone" && hostSystemCheck;
+  checkSource = "";
+  $("#level-mic").style.width = "0%";
+  $("#level-mic").parentNode.setAttribute("aria-valuenow", "0");
+  clearNativeLevels();
+  if (hostSystemCheck) {
+    hostSystemCheck = false;
+    if (!save) Memu.record.system("cancel").catch(function () {});
+    var levelBar = $("#level-system");
+    levelBar.style.width = "0%";
+    /* The meter's parent is the role=meter wrapper in the real page;
+     * guard it so a missing parent cannot break the stop flow. */
+    if (levelBar.parentNode) levelBar.parentNode.setAttribute("aria-valuenow", "0");
+  }
   var btn = $("#check-system-stop");
   if (btn) btn.hidden = true;
   var start = $("#check-system");
   if (start) start.hidden = false;
+  $("#check-mic-stop").hidden = true;
+  $("#check-mic").hidden = false;
+  if (!save) return;
+  $("#check-mic").disabled = true;
+  $("#to-record").disabled = true;
+  return Memu.record.system("stop").then(function (result) {
+    if (sequence !== checkSequence) return;
+    var player = $("#mic-test-player");
+    if (!result || !result.audio || !result.audio.size) {
+      setCheckStatus(t("record.mic_preview_empty"), true);
+      return;
+    }
+    clearMicPreview();
+    micPreviewUrl = URL.createObjectURL(result.audio);
+    player.src = micPreviewUrl;
+    player.hidden = false;
+    ensureAudioDuration(player);
+    setCheckStatus(t("record.mic_preview_ready"), true);
+  }).catch(function (error) {
+    if (sequence === checkSequence) setCheckStatus(String(error.message || error), true);
+  }).finally(function () {
+    $("#check-mic").disabled = false;
+    $("#to-record").disabled = false;
+  });
 }
-function stopMicCheck() {
-  micCheckToken++;
-  if (micCheckStop) { micCheckStop(); micCheckStop = null; }
-  if (micCheckStream) { stopTracks(micCheckStream); micCheckStream = null; }
-  var btn = $("#check-mic-stop");
-  if (btn) btn.hidden = true;
-  var start = $("#check-mic");
-  if (start) start.hidden = false;
+function clearMicPreview() {
+  if (!micPreviewUrl) return;
+  URL.revokeObjectURL(micPreviewUrl);
+  micPreviewUrl = "";
+  var player = $("#mic-test-player");
+  player.removeAttribute("src");
+  player.load();
+  player.hidden = true;
 }
 function setCheckStatus(text, micOnly) {
   /* One check, one status, in exactly one place: a microphone check
@@ -1069,130 +2015,88 @@ function setCheckStatus(text, micOnly) {
  * the button is disabled and the reason is shown otherwise, so the
  * user is never invited to open a picker that cannot appear. */
 function refreshSystemCheckUI() {
-  var gate = displayCaptureAllowed();
+  var gate = { allowed: devicesFor("system").length > 0 };
   var btn = $("#check-system");
   var hint = $("#check-system-hint");
   if (!gate.allowed) {
     if (btn) btn.disabled = true;
-    if (hint) hint.textContent = t("record.check_system_unavailable");
+    if (hint) hint.textContent = nativeStatus ? nativeReasonText(nativeStatus.reason || "no_devices") : t("record.mic_loading");
     setState($("#state-system"), "na", t("record.state_unavailable"));
   } else {
     if (btn) btn.disabled = false;
-    if (hint) hint.textContent = t("record.check_system_hint");
+    if (hint) hint.textContent = effectiveCaptureMode() === "native"
+      ? t("record.native_check_hint") : t("record.check_system_hint");
+  }
+  var levels = $("#native-levels");
+  if (levels) {
+    var showLevels = gate.allowed && devicesFor("system").length > 0;
+    levels.hidden = !showLevels;
+    if (showLevels) {
+      emptyEl(levels);
+      devicesFor("system").forEach(function (device) {
+        var row = document.createElement("div");
+        row.className = "mm-native-level-row";
+        row.dataset.device = device.id;
+        var name = document.createElement("span");
+        name.className = "mm-native-level-name";
+        name.textContent = nativeDeviceName(device.id);
+        row.appendChild(name);
+        var meter = document.createElement("span");
+        meter.className = "mm-native-level";
+        meter.appendChild(document.createElement("i"));
+        row.appendChild(meter);
+        levels.appendChild(row);
+      });
+      updateNativeLevels(nativeLevels);
+    }
   }
   updateRecordingTracks();
 }
-function checkSystemAudio() {
-  var gate = displayCaptureAllowed();
-  if (!gate.allowed) {
-    /* Silent: the option and the check are already pre-marked. */
-    refreshSystemCheckUI();
+function checkNativeAudio(source) {
+  if (recording || (hostSystemCheck && checkSource === source)) return;
+  if (hostSystemCheck) {
+    var wasMic = checkSource === "microphone";
+    stopCheckStream();
+    setCheckStatus("", wasMic);
+  }
+  var micOnly = source === "microphone";
+  var start = $(micOnly ? "#check-mic" : "#check-system");
+  var stop = $(micOnly ? "#check-mic-stop" : "#check-system-stop");
+  var opts = systemCaptureOpts(source);
+  if (micOnly) {
+    clearMicPreview();
+    opts.preview = true;
+    if (!opts.devices.length && settings.mic_device) opts.devices.push(settings.mic_device);
+  }
+  if ((!micOnly && !opts.devices.length) || !Memu.record || !Memu.record.system) {
+    setCheckStatus(nativeReasonText(nativeStatus && nativeStatus.reason || "no_devices"), micOnly);
     return;
   }
-  /* The picker really is about to open: only now may the text say so. */
-  setCheckStatus(t("record.checking_picker"), false);
-  var startedAt = Date.now();
-  navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(function (stream) {
-    var audioTracks = stream.getAudioTracks ? stream.getAudioTracks() : [];
-    if (!audioTracks.length) {
-      stopTracks(stream);
-      setCheckStatus(t("record.system_no_audio"), false);
-      setState($("#state-system"), false, t("record.state_no"));
-      return;
+  var sequence = ++checkSequence;
+  hostSystemCheck = true;
+  checkSource = source;
+  start.disabled = true;
+  setCheckStatus(t("record.native_checking"), micOnly);
+  return Memu.record.system("check", opts).then(function (result) {
+    if (sequence !== checkSequence) return;
+    if (!result || result.reason) {
+      var detail = result && result.detail;
+      throw new Error(systemUnavailableMessage(result && result.reason) + (detail ? " " + detail : ""));
     }
-    checkStream = stream;
-    setState($("#state-system"), true, t("record.state_ok"));
-    setCheckStatus(t("record.check_ok"), false);
-    checkMeterStop = startLevelMeter(stream, $("#level-system"));
-    $("#check-system").hidden = true;
-    $("#check-system-stop").hidden = false;
+    setCheckStatus(t(micOnly ? "record.mic_check_active" : "record.check_ok"), micOnly);
+    start.hidden = true;
+    stop.hidden = false;
+    if (micOnly) micCheckTimer = setTimeout(function () { stopCheckStream(true); }, 8000);
   }).catch(function (error) {
-    /* Handled: nothing leaks to the console. A rejection the probe
-     * could not foresee is classified quietly: a policy block
-     * re-marks the UI neutrally with no status text at all, while
-     * a picker the user declined says so, once, in its own block. */
-    var reason = classifyCaptureError(error, startedAt);
-    if (reason === "policy") {
-      markCaptureBlocked();
-      setCheckStatus("", false);
-      return;
-    }
-    setCheckStatus(systemUnavailableMessage(reason), false);
-    setState($("#state-system"), false, t("record.state_no"));
-  });
+    if (sequence !== checkSequence) return;
+    stopCheckStream();
+    setCheckStatus(String(error.message || error), micOnly);
+  }).finally(function () { start.disabled = false; });
 }
-$("#check-system").addEventListener("click", checkSystemAudio);
-$("#check-system-stop").addEventListener("click", function () {
-  stopCheckStream();
-  setCheckStatus("", false);
-});
-function finishMicLevelCheck() {
-  var peak = micCheckPeak;
-  stopMicCheck();
-  setCheckStatus(peak > 0.02 ? t("record.mic_level_done") : t("record.mic_level_silent"), true);
-}
-function micCheckViaBridge() {
-  /* Fallback when this window cannot open the microphone itself
-   * (sandboxed module window, no getUserMedia): a short test clip
-   * through the host bridge. It is only played back and discarded,
-   * and it never involves screen capture. */
-  if (!Memu.record || !Memu.record.start) { setCheckStatus(t("record.no_recorder"), true); return; }
-  if (recording) { setCheckStatus(t("record.check_busy"), true); return; }
-  setCheckStatus(t("record.mic_level_unavailable"), true);
-  var args = settings.mic_device ? { deviceId: settings.mic_device } : undefined;
-  Memu.record.start(args).then(function () {
-    return new Promise(function (resolve) { setTimeout(resolve, 2000); });
-  }).then(function () { return Memu.record.stop(); })
-    .then(function (result) {
-      var player = $("#mic-test-player");
-      if (result && result.audio) {
-        player.src = result.audio;
-        player.hidden = false;
-        ensureAudioDuration(player);
-        setCheckStatus(t("record.mic_test_done"), true);
-      } else {
-        setCheckStatus(t("record.mic_test_none"), true);
-      }
-    }).catch(function (error) {
-      setCheckStatus(String((error && error.message) || error), true);
-    });
-}
-function startMicLevelCheck() {
-  /* Microphone check: a live level meter from the microphone stream
-   * (AnalyserNode). No getDisplayMedia, no screen capture, no picker. */
-  if (recording) { setCheckStatus(t("record.check_busy"), true); return; }
-  var devices = (typeof navigator !== "undefined") ? navigator.mediaDevices : null;
-  var Ctx = (typeof window !== "undefined") ? (window.AudioContext || window.webkitAudioContext) : null;
-  if (!devices || typeof devices.getUserMedia !== "function" || !Ctx) {
-    micCheckViaBridge();
-    return;
-  }
-  setCheckStatus(t("record.mic_level_requesting"), true);
-  var constraints = settings.mic_device
-    ? { audio: { deviceId: { ideal: settings.mic_device } } }
-    : { audio: true };
-  devices.getUserMedia(constraints).then(function (stream) {
-    micCheckStream = stream;
-    micCheckPeak = 0;
-    var token = ++micCheckToken;
-    micCheckStop = startLevelMeter(stream, $("#level-mic"), function (peak) {
-      micCheckPeak = Math.max(micCheckPeak, peak);
-    });
-    $("#check-mic").hidden = true;
-    $("#check-mic-stop").hidden = false;
-    setCheckStatus(t("record.mic_level_listening"), true);
-    setTimeout(function () {
-      if (token === micCheckToken && micCheckStream) finishMicLevelCheck();
-    }, 8000);
-  }).catch(function (error) {
-    micPermission = classifyMicError(error);
-    setMicPermissionUI();
-    micCheckViaBridge();
-  });
-}
-$("#check-mic").addEventListener("click", startMicLevelCheck);
-$("#check-mic-stop").addEventListener("click", finishMicLevelCheck);
-
+$("#check-system").addEventListener("click", function () { checkNativeAudio("system"); });
+$("#check-mic").addEventListener("click", function () { checkNativeAudio("microphone"); });
+$("#check-system-stop").addEventListener("click", function () { stopCheckStream(); setCheckStatus("", false); });
+$("#check-mic-stop").addEventListener("click", function () { stopCheckStream(true); });
 /* ---- recording ---- */
 function updateRecordingTracks() {
   /* What is being recorded right now — or, when idle, what the
@@ -1206,10 +2110,14 @@ function updateRecordingTracks() {
   if (!micState || !sysState) return;
   var source = recording ? (recRequestedSource || recording.source) : selectedSource();
   var activeMic = !!recording && (recording.source === "microphone" || recording.micActive || recording.micOnlyFallback);
-  var activeSys = !!recording && !!recording.recorder;
+  var activeSys = !!recording && recording.source !== "microphone" && recording.hostSystem;
   if (recording) {
     micState.textContent = activeMic ? t("record.rec_track_mic_active") : t("record.rec_track_mic_off");
-    if (activeSys) sysState.textContent = t("record.rec_track_system_active");
+    if (activeSys && recording.captureMode === "native") {
+      var names = (recording.captureDevices || []).map(nativeDeviceName).filter(Boolean);
+      sysState.textContent = names.length ? t("record.native_active", { devices: names.join(", ") })
+        : t("record.rec_track_system_active");
+    } else if (activeSys) sysState.textContent = t("record.rec_track_system_active");
     else if (!captureAvailable()) sysState.textContent = t("record.state_unavailable");
     else if (recSystemReason || source === "system" || source === "both") {
       sysState.textContent = t("record.rec_track_system_unavailable") + " " + systemUnavailableMessage(recSystemReason);
@@ -1217,8 +2125,12 @@ function updateRecordingTracks() {
   } else {
     micState.textContent = source === "system" ? t("record.rec_track_mic_off") : t("record.rec_track_mic_planned");
     if (source === "system" || source === "both") {
-      sysState.textContent = captureAvailable() ? t("record.rec_track_system_planned")
-        : t("record.state_unavailable");
+      if (!captureAvailable()) sysState.textContent = t("record.state_unavailable");
+      else if (effectiveCaptureMode() === "native") {
+        var planned = devicesFor("system").map(function (d) { return d.name; });
+        sysState.textContent = planned.length ? t("record.native_active", { devices: planned.join(", ") })
+          : t("record.native_planned_default");
+      } else sysState.textContent = t("record.rec_track_system_planned");
     } else sysState.textContent = t("record.rec_track_system_off");
   }
   if (meter) meter.hidden = !(recording && activeSys);
@@ -1226,8 +2138,32 @@ function updateRecordingTracks() {
 }
 function recElapsed() { return recording ? Date.now() - recording.started : 0; }
 function tickTimer() {
-  $("#rec-time").textContent = fmtTime(recElapsed() / 1000);
+  var text = fmtTime(recElapsed() / 1000);
+  $("#rec-time").textContent = text;
+  var pill = $("#bar-rec-time");
+  if (pill) pill.textContent = text;
 }
+/* ---- markers: "something important just happened" during a recording ---- */
+var lastMarkers = [];
+function renderRecMarkers(rows) {
+  var box = $("#rec-markers");
+  if (!box) return;
+  rows = rows || [];
+  box.hidden = !rows.length;
+  box.innerHTML = rows.map(function (m) {
+    return '<span class="mm-marker">' + ICON.flag + "<b>" + esc(fmtTime(m.t)) + "</b>" + esc(m.label || "") + "</span>";
+  }).join("");
+}
+$("#rec-mark").addEventListener("click", function () {
+  if (!recording) return;
+  recording.markers = recording.markers || [];
+  if (recording.markers.length >= 100) { toast(t("record.marks_limit")); return; }
+  var seconds = Math.round(recElapsed() / 100) / 10;
+  recording.markers.push({ t: seconds, label: t("record.marker_n", { n: recording.markers.length + 1 }) });
+  renderRecMarkers(recording.markers);
+  toast(t("record.marked", { time: fmtTime(seconds) }));
+});
+$("#bar-rec").addEventListener("click", function () { show("record"); setStep(3); });
 function setRecordingUI(active) {
   document.getElementById("app").classList.toggle("recording", !!active);
   $("#rec-dot").classList.toggle("on", !!active);
@@ -1236,6 +2172,9 @@ function setRecordingUI(active) {
   if (toggleLabel) toggleLabel.textContent = toggleText;
   else $("#rec-toggle").textContent = toggleText;
   $("#rec-cancel").hidden = !active;
+  $("#rec-mark").hidden = !active;
+  $("#bar-rec").hidden = !active;
+  if (active) renderRecMarkers(recording && recording.markers);
   var live = $("#rec-live");
   if (live) {
     if (!active) live.textContent = "";
@@ -1252,184 +2191,71 @@ function setRecordingUI(active) {
   updateRecordingTracks();
 }
 function startRecording() {
-  recSystemReason = "";
-  recRequestedSource = selectedSource();
   var source = selectedSource();
+  if (source === "import") { $("#import-file").click(); return Promise.resolve(); }
   var title = $("#rec-title").value.trim();
-  if (source === "microphone") return startMicRecording(title);
-  if (source === "system") return startSystemRecording(title, false);
-  if (source === "both") return startBothRecording(title);
-  $("#import-file").click();
-}
-function stopTracks(stream) {
-  try { (stream.getTracks ? stream.getTracks() : []).forEach(function (track) { track.stop(); }); } catch (e) {}
-}
-function startMicRecording(title) {
-  if (!Memu.record || !Memu.record.start) {
-    $("#rec-status").textContent = t("record.no_recorder");
+  var opts = systemCaptureOpts(source);
+  if (!opts.devices.length || !Memu.record || !Memu.record.system) {
+    $("#rec-status").textContent = nativeReasonText(nativeStatus && nativeStatus.reason || "no_devices");
     return Promise.resolve();
   }
-  $("#rec-status").textContent = "";
-  var args = settings.mic_device ? { deviceId: settings.mic_device } : undefined;
-  return Memu.record.start(args).then(function () {
+  recSystemReason = "";
+  recRequestedSource = source;
+  $("#rec-status").textContent = t("record.native_checking");
+  return Memu.record.system("start", opts).then(function (result) {
+    if (!result || result.reason) {
+      $("#rec-status").textContent = systemUnavailableMessage(result && result.reason) + (result && result.detail ? " " + result.detail : "");
+      return;
+    }
     liveCaptions = [];
-    recRequestedSource = "microphone";
-    recording = { source: "microphone", title: title, started: Date.now(), timer: setInterval(tickTimer, 500) };
+    $("#rec-status").textContent = "";
+    recording = { source: source, hostSystem: true, title: title, started: result.started,
+      timer: setInterval(tickTimer, 500), captureMode: "native", captureDevices: result.devices || opts.devices,
+      micActive: source !== "system", nativeMic: source !== "system" };
     setRecordingUI(true);
     tickTimer();
-  }).catch(function (error) {
-    $("#rec-status").textContent = String((error && error.message) || error);
-  });
-}
-function startSystemStream(title) {
-  /* Guarded: returns null (with an explanation) instead of calling
-   * getDisplayMedia when the policy forbids it. */
-  var gate = displayCaptureAllowed();
-  if (!gate.allowed) {
-    /* No call and no status: the picker cannot appear, and the
-     * pre-marked UI already says the option is unavailable. */
-    recSystemReason = gate.reason;
-    return Promise.resolve(null);
-  }
-  var startedAt = Date.now();
-  return navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }).then(function (stream) {
-    var audioTracks = stream.getAudioTracks ? stream.getAudioTracks() : [];
-    if (!audioTracks.length) {
-      /* The picker did open and the user shared a screen without
-       * sound: only here is the picker mentioned. */
-      recSystemReason = "no-audio";
-      stopTracks(stream);
-      setState($("#state-system"), false, t("record.state_no"));
-      $("#rec-status").textContent = t("record.system_no_audio");
-      updateRecordingTracks();
-      return null;
-    }
-    recSystemReason = "";
-    setState($("#state-system"), true, t("record.state_ok"));
-    $("#system-note").hidden = true;
-    return stream;
-  }).catch(function (error) {
-    var reason = classifyCaptureError(error, startedAt);
-    recSystemReason = reason;
-    if (reason === "policy") {
-      /* The probe could not see the policy: re-mark silently. */
-      markCaptureBlocked();
-      return null;
-    }
-    setState($("#state-system"), false, t("record.state_no"));
-    $("#rec-status").textContent = systemUnavailableMessage(reason);
-    updateRecordingTracks();
-    return null;
-  });
-}
-function startSystemRecording(title, withMic) {
-  return startSystemStream(title).then(function (stream) {
-    if (!stream) return;
-    var chunks = [];
-    var recorder = new MediaRecorder(stream);
-    liveCaptions = [];
-    recRequestedSource = withMic ? "both" : "system";
-    recording = {
-      source: withMic ? "both" : "system", title: title, started: Date.now(), stream: stream,
-      recorder: recorder, chunks: chunks, timer: setInterval(tickTimer, 500),
-      chunkStarted: Date.now()
-    };
-    recorder.ondataavailable = function (event) {
-      if (event.data && event.data.size) {
-        chunks.push(event.data);
-        transcribeChunk(event.data);
-      }
-    };
-    recorder.start(8000);
-    liveMeterStop = startLevelMeter(stream, $("#level-live"));
-    setRecordingUI(true);
-    tickTimer();
-  });
-}
-function startBothRecording(title) {
-  /* One meeting, two tracks started together: the microphone through
-   * the host bridge, the system sound through the guarded capture.
-   * If the system capture is blocked, the microphone still records —
-   * the meeting is saved with the tracks that exist, and the UI says
-   * which ones they are. */
-  if (!Memu.record || !Memu.record.start) return startSystemRecording(title, false);
-  $("#rec-status").textContent = "";
-  var args = settings.mic_device ? { deviceId: settings.mic_device } : undefined;
-  return Memu.record.start(args).then(function () {
-    return startSystemRecording(title, true).then(function () {
-      if (!recording) {
-        /* System capture failed: keep the microphone recording alone,
-         * and say so while it records — no silent downgrade, no
-         * system labels later. */
-        if (!recSystemReason) recSystemReason = displayCaptureAllowed().reason || "";
-        liveCaptions = [];
-        recRequestedSource = "both";
-        recording = { source: "microphone", title: title, started: Date.now(), timer: setInterval(tickTimer, 500), micOnlyFallback: true };
-        /* Policy-blocked: the microphone recording stands on its
-         * own, with no status text. A declined picker is explained. */
-        $("#rec-status").textContent = captureAvailable()
-          ? t("record.rec_mic_only") + " " + systemUnavailableMessage(recSystemReason) : "";
-        setRecordingUI(true);
-        tickTimer();
-      } else {
-        recording.micActive = true;
-        setRecordingUI(true);
-      }
-    });
-  }).catch(function (error) {
-    $("#rec-status").textContent = String((error && error.message) || error);
   });
 }
 function transcribeChunk(blob) {
   /* Live captions, chunk by chunk: the only streaming-like path the
    * project offers, because Memu.transcribe itself is whole-file. A chunk
    * that fails to transcribe is skipped — no invented captions. */
+  var session = recording;
+  if (!session) return;
+  var start = Math.max(0, (Date.now() - session.started) / 1000 - 8);
   blobToDataUrl(blob).then(function (dataUrl) {
+    if (recording !== session) return null;
     return Memu.transcribe({ audio: dataUrl });
   }).then(function (result) {
     var text = String((result && result.text) || "").trim();
-    if (!text) return;
-    liveCaptions.push({ start: (Date.now() - (recording ? recording.started : Date.now())) / 1000, speaker: "speaker-1", source: "system", text: text });
+    if (!text || recording !== session) return;
+    liveCaptions.push({ start: start, speaker: "speaker-1", source: "system", text: text });
+    liveCaptions.sort(function (a, b) { return a.start - b.start; });
     renderCaptions();
   }).catch(function () { /* a failed chunk stays silent */ });
 }
 function stopSystemRecorder(rec) {
-  return new Promise(function (resolve) {
-    try {
-      rec.recorder.onstop = resolve;
-      if (rec.recorder.state !== "inactive") rec.recorder.stop();
-      else resolve();
-    } catch (e) { resolve(); }
-    setTimeout(resolve, 2000);
-  }).then(function () {
-    stopTracks(rec.stream);
-    var blob = new Blob(rec.chunks, { type: (rec.recorder && rec.recorder.mimeType) || "audio/webm" });
-    if (!blob.size) return null;
-    return blobToDataUrl(blob).then(function (dataUrl) {
-      return { source: "system", audio: dataUrl, mime: cleanMime(blob.type), ms: Date.now() - rec.started };
+  return Memu.record.system("stop").then(function (result) {
+    if (!result || !result.audio || !result.audio.size) return null;
+    return blobToDataUrl(result.audio).then(function (dataUrl) {
+      return { source: rec.source, audio: dataUrl, mime: cleanMime(result.audio.type), ms: result.ms };
     });
   });
 }
 function stopRecording() {
   if (!recording) return Promise.resolve();
   var rec = recording;
+  lastMarkers = (rec.markers || []).slice();
   recording = null;
   clearInterval(rec.timer);
   if (liveMeterStop) { liveMeterStop(); liveMeterStop = null; }
   setRecordingUI(false);
-  var micJob = null;
-  if (rec.source === "microphone" || rec.micActive || rec.micOnlyFallback) {
-    micJob = Memu.record.stop().then(function (result) {
-      if (!result || !result.audio) return null;
-      return { source: "microphone", audio: result.audio, mime: cleanMime(result.mime), ms: result.ms || recElapsed() };
-    }).catch(function (error) {
-      $("#rec-status").textContent = String((error && error.message) || error);
-      return null;
-    });
-  }
-  var sysJob = rec.recorder ? stopSystemRecorder(rec) : Promise.resolve(null);
-  return Promise.all([micJob || Promise.resolve(null), sysJob]).then(function (parts) {
-    var tracks = parts.filter(Boolean);
+  var sysJob = stopSystemRecorder(rec).catch(function (error) {
+    $("#rec-status").textContent = String(error.message || error);
+    return null;
+  });
+  return sysJob.then(function (track) {
+    var tracks = track ? [track] : [];
     if (!tracks.length) { $("#rec-status").textContent = t("record.error_empty"); return; }
     var source = tracks.length > 1 ? "both" : tracks[0].source;
     showPendingTracks(tracks, rec.title, source, recRequestedSource || rec.source, recSystemReason);
@@ -1443,7 +2269,16 @@ function showPendingTracks(tracks, title, source, requestedSource, systemReason)
     return;
   }
   var ms = Math.max.apply(null, tracks.map(function (tr) { return tr.ms || 0; }));
-  pending = { tracks: tracks, title: title, ms: ms, source: source };
+  pending = { tracks: tracks, title: title, ms: ms, source: source, markers: lastMarkers };
+  lastMarkers = [];
+  renderRecMarkers([]);
+  var markNote = $("#pending-markers");
+  if (markNote) {
+    markNote.hidden = !pending.markers.length;
+    markNote.textContent = pending.markers.length ? t("record.pending_markers", { n: pending.markers.length }) : "";
+  }
+  var auto = $("#pending-auto");
+  if (auto) auto.checked = !!settings.auto_transcribe;
   $("#pending-card").hidden = false;
   var note = $("#pending-tracks-note");
   if (note) {
@@ -1471,9 +2306,13 @@ function showPendingTracks(tracks, title, source, requestedSource, systemReason)
 function showPending(audio, mime, ms, source, title) {
   showPendingTracks([{ source: source, audio: audio, mime: mime, ms: ms }], title, source);
 }
-$("#rec-toggle").addEventListener("click", function () {
-  if (recording) stopRecording();
-  else startRecording();
+$("#rec-toggle").addEventListener("click", function (event) {
+  var button = event.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  Promise.resolve(recording ? stopRecording() : startRecording()).catch(function (error) {
+    $("#rec-status").textContent = String(error.message || error);
+  }).finally(function () { button.disabled = false; });
 });
 $("#rec-cancel").addEventListener("click", function () {
   if (!recording) return;
@@ -1482,10 +2321,10 @@ $("#rec-cancel").addEventListener("click", function () {
   clearInterval(rec.timer);
   if (liveMeterStop) { liveMeterStop(); liveMeterStop = null; }
   setRecordingUI(false);
-  if ((rec.source === "microphone" || rec.micActive || rec.micOnlyFallback) && Memu.record && Memu.record.cancel) Memu.record.cancel().catch(function () {});
-  if (rec.stream) stopTracks(rec.stream);
-  try { if (rec.recorder && rec.recorder.state !== "inactive") rec.recorder.stop(); } catch (e) {}
-  liveCaptions = [];
+  if (rec.hostSystem) Memu.record.system("cancel").catch(function () {});
+    liveCaptions = [];
+  lastMarkers = [];
+  renderRecMarkers([]);
   $("#rec-time").textContent = "0:00";
 });
 $("#pending-discard").addEventListener("click", function () {
@@ -1509,8 +2348,11 @@ $("#pending-save").addEventListener("click", function () {
     audio_bytes: dataUrlBytes(primary.audio),
     tracks: tracks.map(function (tr) { return { source: tr.source, mime: tr.mime, ms: Math.round(tr.ms || 0), bytes: dataUrlBytes(tr.audio) }; }),
     transcript: "", segments: [], speakers: [], summary: "", summary_model: "",
-    transcribed_at: 0, approximate_segments: true, speaker_names: {}
+    transcribed_at: 0, approximate_segments: true, speaker_names: {},
+    markers: (pending.markers || []).slice(0, 100), tasks: [], notes: "", qa: [], starred: false
   };
+  var autoBox = $("#pending-auto");
+  var autoTranscribe = !!(autoBox && autoBox.checked);
   $("#rec-status").textContent = t("record.saving");
   storeSet(meetingKey(record.id), record).then(function () {
     return storeSet(audioKey(record.id), { mime: primary.mime, data: primary.audio });
@@ -1526,7 +2368,10 @@ $("#pending-save").addEventListener("click", function () {
     $("#rec-status").textContent = t("record.saved");
     $("#rec-title").value = "";
     $("#rec-time").textContent = "0:00";
-    loadMeetings().then(function () { openMeeting(record.id); });
+    loadMeetings().then(function () {
+      openMeeting(record.id);
+      if (autoTranscribe && current && current.id === record.id) transcribeCurrent();
+    });
   }).catch(function (error) {
     $("#rec-status").textContent = String((error && error.message) || error);
   });
@@ -1561,21 +2406,33 @@ $("#import-file").addEventListener("change", function (event) {
 });
 
 /* ---- captions ---- */
+function captionRows() {
+  if (recording && (recording.source === "system" || recording.source === "both") && liveCaptions.length) {
+    return liveCaptions.map(function (cap, i) {
+      return { start: cap.start, speaker: cap.speaker, source: cap.source, text: cap.text, current: i === liveCaptions.length - 1 };
+    });
+  }
+  if (current && current.segments && current.segments.length) {
+    return current.segments.map(function (seg) {
+      return { start: seg.start, speaker: seg.speaker, source: seg.source, text: seg.text, current: false };
+    });
+  }
+  return [];
+}
 function renderCaptions() {
   var box = $("#captions");
   var large = settings.captions_large || $("#captions-large").checked;
   box.classList.toggle("large", !!large);
-  var rows = [];
-  if (recording && (recording.source === "system" || recording.source === "both") && liveCaptions.length) {
-    rows = liveCaptions.map(function (cap, i) {
-      return { start: cap.start, speaker: cap.speaker, source: cap.source, text: cap.text, current: i === liveCaptions.length - 1 };
-    });
-  } else if (current && current.segments && current.segments.length) {
-    rows = current.segments.map(function (seg) {
-      return { start: seg.start, speaker: seg.speaker, source: seg.source, text: seg.text, current: false };
-    });
-  }
+  var rows = captionRows();
+  var live = !!(recording && liveCaptions.length);
   $("#captions-empty").hidden = rows.length > 0;
+  var meta = $("#captions-meta");
+  if (meta) {
+    meta.textContent = !rows.length ? "" : live ? t("captions.meta_live", { n: rows.length })
+      : t("captions.meta_meeting", { title: (current && current.title) || t("common.untitled"), n: rows.length });
+  }
+  var copyBtn = $("#captions-copy");
+  if (copyBtn) copyBtn.disabled = !rows.length;
   box.innerHTML = rows.map(function (row) {
     return '<div class="mm-cap' + (row.current ? " current" : "") + '"><span class="mm-cap-who">' +
       esc(speakerLabel(row.speaker, row.source)) + " · " + esc(fmtTime(row.start)) + "</span>" + esc(row.text) + "</div>";
@@ -1583,6 +2440,11 @@ function renderCaptions() {
   var last = box.lastElementChild;
   if (last) last.scrollIntoView({ block: "end" });
 }
+$("#captions-copy").addEventListener("click", function () {
+  copyText(captionRows().map(function (row) {
+    return "[" + fmtTime(row.start) + "] " + speakerLabel(row.speaker, row.source) + ": " + row.text;
+  }).join("\n"));
+});
 $("#captions-large").addEventListener("change", function (event) {
   settings.captions_large = event.target.checked;
   scheduleSaveSettings();
@@ -1654,7 +2516,11 @@ function renderSettings() {
   $("#set-keep-audio").checked = settings.keep_audio !== false;
   $("#set-large").checked = !!settings.captions_large;
   $("#set-confirm").checked = settings.confirm_before_summary !== false;
+  $("#set-style").value = settings.summary_style || "standard";
+  $("#set-auto-transcribe").checked = !!settings.auto_transcribe;
+  $("#set-auto-tasks").checked = settings.auto_tasks !== false;
   $("#captions-large").checked = !!settings.captions_large;
+  if (!current) { var styleSelect = $("#summary-style"); if (styleSelect) styleSelect.value = settings.summary_style || "standard"; }
   var mic = $("#mic-device");
   if (mic && settings.mic_device) mic.value = settings.mic_device;
   var sourceRadio = document.querySelector('input[name="source"][value="' + (settings.source || "microphone") + '"]');
@@ -1663,11 +2529,13 @@ function renderSettings() {
   /* STT is the Live setup: the module cannot read preferences from the
    * sandbox, so it names the keys and points at Settings → Voice instead
    * of showing a model it did not actually read. */
-  $("#stt-info").innerHTML = "<b>" + esc(t("settings.stt_source_live")) + "</b><br>" +
+  $("#stt-info").innerHTML = "<b>" + esc(t("settings.stt_source_live")) + "</b>" +
+    '<span class="mm-stt-path">' + esc(t("settings.stt_path")) + "</span>" +
+    '<details class="mm-stt-tech"><summary>' + esc(t("settings.stt_tech")) + "</summary>" +
     esc(t("settings.stt_keys")) + ' <code>voice_stt_provider</code>, <code>voice_stt_local_model</code>, ' +
-    "<code>voice_stt_api_model</code>, <code>voice_language</code>";
+    "<code>voice_stt_api_model</code>, <code>voice_language</code></details>";
   syncSourceUI(false);
-  applyCaptureAvailability();
+    renderDiagnostics();
 }
 function readSettingsFromControls() {
   settings.model = $("#set-model").value || "";
@@ -1676,6 +2544,9 @@ function readSettingsFromControls() {
   settings.keep_audio = $("#set-keep-audio").checked;
   settings.captions_large = $("#set-large").checked;
   settings.confirm_before_summary = $("#set-confirm").checked;
+  settings.summary_style = SUMMARY_STYLES.indexOf($("#set-style").value) >= 0 ? $("#set-style").value : "standard";
+  settings.auto_transcribe = $("#set-auto-transcribe").checked;
+  settings.auto_tasks = $("#set-auto-tasks").checked;
 }
 $("#set-model").addEventListener("change", function () { settings.model = $("#set-model").value || ""; scheduleSaveSettings(); });
 $("#set-lang").addEventListener("change", function () { settings.summary_lang = $("#set-lang").value || "auto"; scheduleSaveSettings(); });
@@ -1683,6 +2554,29 @@ $("#set-speakers").addEventListener("change", function () { settings.speaker_heu
 $("#set-keep-audio").addEventListener("change", function () { settings.keep_audio = $("#set-keep-audio").checked; scheduleSaveSettings(); });
 $("#set-large").addEventListener("change", function () { settings.captions_large = $("#set-large").checked; scheduleSaveSettings(); renderCaptions(); });
 $("#set-confirm").addEventListener("change", function () { settings.confirm_before_summary = $("#set-confirm").checked; scheduleSaveSettings(); });
+$("#set-style").addEventListener("change", function () {
+  settings.summary_style = SUMMARY_STYLES.indexOf($("#set-style").value) >= 0 ? $("#set-style").value : "standard";
+  scheduleSaveSettings();
+});
+$("#set-auto-transcribe").addEventListener("change", function () { settings.auto_transcribe = $("#set-auto-transcribe").checked; scheduleSaveSettings(); });
+$("#set-auto-tasks").addEventListener("change", function () { settings.auto_tasks = $("#set-auto-tasks").checked; scheduleSaveSettings(); });
+function fmtBytes(n) {
+  n = +n || 0;
+  if (n < 1024 * 1024) return Math.max(1, Math.round(n / 1024)) + " KB";
+  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+  return (n / 1024 / 1024 / 1024).toFixed(2) + " GB";
+}
+function renderStorage() {
+  var info = $("#storage-info");
+  if (!info || !Memu.store || typeof Memu.store.usage !== "function") return;
+  Memu.store.usage().then(function (usage) {
+    var bytes = +(usage && usage.bytes) || 0;
+    var limit = +(usage && usage.limit) || 0;
+    info.textContent = t("settings.storage_info", { used: fmtBytes(bytes), limit: limit ? fmtBytes(limit) : "—", n: meetings.length });
+    var bar = $("#storage-bar");
+    if (bar) bar.style.width = (limit ? Math.min(100, Math.max(1, bytes * 100 / limit)) : 0).toFixed(1) + "%";
+  }).catch(function () { info.textContent = ""; });
+}
 $("#set-save").addEventListener("click", function () {
   readSettingsFromControls();
   flushSaveSettings();
@@ -1719,7 +2613,6 @@ if (Memu.onLanguage) Memu.onLanguage(function () {
 });
 
 captureAvailable(); /* probe the capture policy BEFORE any UI is painted */
-applyCaptureAvailability();
 captureStates();
 renderSettings();
 loadModels();
@@ -1729,15 +2622,65 @@ show("meetings");
 setStep(1);
 if (typeof Memu.ready === "function") Memu.ready();
 
+function refreshNativeAudio(force) {
+  if (!Memu.record || !Memu.record.system) return Promise.resolve();
+  return Memu.record.system("probe", { force: !!force }).then(function (result) {
+    if (!result) return;
+    /* The probe runs even when the web capture works: on Windows the
+     * native helper is the better default, and the device list needs
+     * the probe whether or not it is chosen yet. */
+    if (result.native) {
+      nativeStatus = result.native;
+      if (result.native.last_error) lastNativeError = result.native.last_error;
+    }
+    renderDiagnostics();
+    captureGate = null;
+    captureStates();
+    refreshMicDevices(false);
+    renderSettings();
+    renderNativeDevices();
+    refreshSystemCheckUI();
+  }).catch(function () {});
+}
+refreshNativeAudio(false);
+if (Memu.on) Memu.on("system-audio", function (data) {
+  if (data.ended) {
+    if (data.detail) {
+      lastNativeError = { at: Date.now(), code: data.reason || "device_lost", detail: data.detail };
+      renderDiagnostics();
+    }
+    if (diagTest) { finishNativeDiagnostics(); return; }
+    if (recording && recording.hostSystem) stopRecording();
+    else if (hostSystemCheck) { var mic = checkSource === "microphone"; stopCheckStream(); setCheckStatus(t("record.native_reason_device_lost"), mic); }
+    return;
+  }
+  if (data.reconnecting) {
+    setCheckStatus(t("record.native_reconnecting"), hostSystemCheck && checkSource === "microphone");
+    return;
+  }
+  if (data.deviceLost) {
+    nativeLost[data.deviceLost] = true;
+    markNativeDeviceLost(data.deviceLost);
+    setCheckStatus(t("record.native_device_lost", { name: nativeDeviceName(data.deviceLost) }), hostSystemCheck && checkSource === "microphone");
+    return;
+  }
+  if (data.levels) { updateNativeLevels(data.levels); diagTestObserve(data.levels); }
+  if (data.clip && recording && recording.hostSystem) transcribeChunk(data.clip);
+  if (typeof data.peak === "number") {
+    var bar = hostSystemCheck ? $(checkSource === "microphone" ? "#level-mic" : "#level-system") : recording && recording.hostSystem ? $("#level-live") : null;
+    if (!bar) return;
+    bar.style.width = Math.round(Math.min(1, data.peak * 1.6) * 100) + "%";
+    bar.parentNode.setAttribute("aria-valuenow", String(Math.round(data.peak * 100)));
+  }
+});
+
 window.addEventListener("pagehide", function () {
+  flushNotes();
   stopCheckStream();
+  clearMicPreview();
   if (!recording) return;
   var rec = recording;
   recording = null;
   clearInterval(rec.timer);
-  if ((rec.source === "microphone" || rec.micActive || rec.micOnlyFallback) && Memu.record && Memu.record.cancel) {
-    try { Memu.record.cancel(); } catch (e) {}
-  }
-  if (rec.stream) stopTracks(rec.stream);
-  try { if (rec.recorder && rec.recorder.state !== "inactive") rec.recorder.stop(); } catch (e) {}
-});
+  if (rec.hostSystem) Memu.record.system("cancel").catch(function () {});
+  });

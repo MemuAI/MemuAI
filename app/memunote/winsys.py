@@ -20,6 +20,7 @@
   marker ``Software\\MemuAI\\MemuNote\\AssocVersion``) removes all of that, including a
   ``UserChoice`` that points a script type at MemuNote, and re-registers the safe list
   only if the old registration was on.
+* an independent, default-on "Open in MemuNote" command for the same safe file types;
 * dark title bar (``DwmSetWindowAttribute`` 20/19) so the native caption matches the theme;
 * bringing the window to the foreground for the single-instance hand-off;
 * "Show in folder" (``explorer /select,``).
@@ -30,6 +31,7 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 from typing import Dict, Iterable, List, Optional
 
 log = logging.getLogger("memunote.winsys")
@@ -39,6 +41,9 @@ APP_KEY = r"Software\Classes\Applications\MemuNote.exe"
 PROGID = "MemuNote.Document"
 PROGID_KEY = "Software\\Classes\\" + PROGID
 STATE_KEY = r"Software\MemuAI\MemuNote"
+EXPLORER_ASSOCIATIONS = r"Software\Classes\SystemFileAssociations"
+EXPLORER_PREFERENCE = "ExplorerMenuEnabled"
+_EXPLORER_LOCK = threading.Lock()
 ASSOC_VERSION = 2
 FILE_EXTS = r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts"
 
@@ -210,6 +215,82 @@ def _notify_shell() -> None:
         ctypes.windll.shell32.SHChangeNotify(0x08000000, 0x0000, None, None)
     except Exception:  # noqa: BLE001
         pass
+
+def _explorer_verb(ext: str) -> str:
+    return rf"{EXPLORER_ASSOCIATIONS}\{ext}\shell\MemuNote.Open"
+
+def _explorer_command(exe: str) -> str:
+    return f'"{exe}" "%1"'
+
+def _remove_explorer_verbs(winreg, exe: str = "") -> bool:
+    hive = winreg.HKEY_CURRENT_USER
+    changed = False
+    for ext in SAFE_EXT:
+        key = _explorer_verb(ext)
+        if not _exists(winreg, hive, key):
+            continue
+        if exe:
+            current = _get(winreg, hive, key + r"\command")
+            if os.path.normcase(str(current or "")) != os.path.normcase(_explorer_command(exe)):
+                continue
+        for owned_key in (key + r"\command", key):
+            try:
+                winreg.DeleteKey(hive, owned_key)
+            except FileNotFoundError:
+                pass
+        changed = True
+    return changed
+
+def unregister_explorer_menu(exe: str = "", winreg=None) -> None:
+    """Remove commands owned by the installation being uninstalled."""
+    exe = exe or executable()
+    if not IS_WINDOWS or not exe:
+        return
+    with _EXPLORER_LOCK:
+        if _remove_explorer_verbs(winreg or _winreg(), exe):
+            _notify_shell()
+
+def explorer_menu_state(exe: str = "") -> Dict[str, bool]:
+    exe = exe or executable()
+    if not IS_WINDOWS or not exe:
+        return {"supported": False, "enabled": False}
+    winreg = _winreg()
+    key = _explorer_verb(".txt") + r"\command"
+    value = _get(winreg, winreg.HKEY_CURRENT_USER, key)
+    enabled = os.path.normcase(str(value or "")) == os.path.normcase(_explorer_command(exe))
+    return {"supported": True, "enabled": enabled}
+
+def sync_explorer_menu(exe: str = "", enable: Optional[bool] = None, winreg=None) -> Dict[str, bool]:
+    """Apply the saved preference, defaulting on for a new installation."""
+    exe = exe or executable()
+    if not IS_WINDOWS or not exe:
+        return {"supported": False, "enabled": False}
+    winreg = winreg or _winreg()
+    hive = winreg.HKEY_CURRENT_USER
+    with _EXPLORER_LOCK:
+        enabled = (_get(winreg, hive, STATE_KEY, EXPLORER_PREFERENCE) != 0) if enable is None else enable
+        changed = False
+        if enabled:
+            from .settings import language
+            label = "Open in MemuNote" if language() == "en" else "Открыть в MemuNote"
+            values = {"MUIVerb": label, "Icon": f'"{exe}",0', "MultiSelectModel": "Single", "NeverDefault": ""}
+            command = _explorer_command(exe)
+            for ext in SAFE_EXT:
+                key = _explorer_verb(ext)
+                for name, value in values.items():
+                    if _get(winreg, hive, key, name) != value:
+                        _set(winreg, key, name, value)
+                        changed = True
+                if _get(winreg, hive, key + r"\command") != command:
+                    _set(winreg, key + r"\command", "", command)
+                    changed = True
+        else:
+            changed = _remove_explorer_verbs(winreg)
+        if enable is not None:
+            _set(winreg, STATE_KEY, EXPLORER_PREFERENCE, int(enable), winreg.REG_DWORD)
+        if changed:
+            _notify_shell()
+    return {"supported": True, "enabled": enabled}
 
 def open_with_state(exe: str = "") -> Dict[str, object]:
     exe = exe or executable()

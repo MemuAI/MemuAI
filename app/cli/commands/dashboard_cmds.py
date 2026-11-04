@@ -55,13 +55,15 @@ async def load(ctx: Context) -> Dict[str, Any]:
     ctx.ui.status_text = tr("читаю сессии", "reading the sessions")
     try:
         sources = foreign.present_sources()
+        # F31: one failing source must not take the whole dashboard down.
         results = await asyncio.gather(asyncio.to_thread(list_sessions, None, limit=800),
-                                       *(asyncio.to_thread(foreign.discover, source.key, 600) for source in sources))
+                                       *(asyncio.to_thread(foreign.discover, source.key, 600) for source in sources),
+                                       return_exceptions=True)
     finally:
         ctx.ui.status_text = ""
-    data: Dict[str, Any] = {"own": results[0]}
+    data: Dict[str, Any] = {"own": results[0] if isinstance(results[0], list) else []}
     for source, rows in zip(sources, results[1:]):
-        data[source.key] = rows
+        data[source.key] = rows if isinstance(rows, list) else []
     return data
 
 async def dashboard(ctx: Context, *, tab: str = OWN) -> None:

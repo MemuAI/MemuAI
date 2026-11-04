@@ -478,7 +478,11 @@ class LogEntry:
             try:
                 self._prompt_bytes = len(json.dumps(self.prompt, ensure_ascii=False).encode("utf-8"))
             except (ValueError, RecursionError):
-                self._prompt_bytes = LOG_FILE_MAX_BYTES + 1
+                # F23: charging LOG_FILE_MAX_BYTES+1 made commit_trace evict
+                # every other completed entry to fit this one poisoned entry.
+                # Drop the unserializable prompt instead of the whole log.
+                self.prompt = None
+                self._prompt_bytes = 0
 
     UNIQUE_STAGES = ("request_parsed",)
 
@@ -955,7 +959,10 @@ class State:
             if not known:
                 self.logs.appendleft(entry)
 
-            size = sum(current._prompt_bytes for current in self.logs)
+            # F23: the entry being committed is never evicted itself, so it
+            # must not count towards the eviction budget either — otherwise
+            # one oversized prompt still evicts every older entry.
+            size = sum(current._prompt_bytes for current in self.logs if current is not entry)
             if size > LOG_FILE_MAX_BYTES:
                 keep = []
                 for current in reversed(self.logs):

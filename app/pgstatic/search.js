@@ -214,9 +214,16 @@
     } catch (e) {}
     return [];
   }
+  let settingsCaptured = "";
   function captureSettings() {
     const K = window.MemuSettingsKit;
-    if (!K || !document.querySelector("#panel .sx-shell")) return;
+    const shell = document.querySelector("#panel .sx-shell");
+    if (!K || !shell) return;
+    // Rebuilt only when the settings content changed (a page mounted for the first time, another language),
+    // not after every page switch.
+    const signature = `${isEn() ? "en" : "ru"}:${shell.querySelectorAll(".sx-row, .p-toggle, .tg-row, .sx-field, [data-sx-k]").length}:${shell.textContent.length}`;
+    if (signature === settingsCaptured) return;
+    settingsCaptured = signature;
     try {
       K.search("a");
       const index = K.state?.index || [];
@@ -1481,7 +1488,7 @@
         const shown = combo ? (H && H.label ? H.label(combo) : combo) : "";
         btn.title = shown ? L(`Искать везде (${shown})`, `Search everywhere (${shown})`) : L("Искать везде", "Search everywhere");
         btn.setAttribute("aria-label", L("Искать везде", "Search everywhere"));
-        btn.innerHTML = `<kbd>${shown ? esc(shown.replace(/\+/g, " ")) : "↵"}</kbd>`;
+        btn.innerHTML = `<kbd class="msx-ew-kbd">${shown ? esc(shown.replace(/\+/g, " ")) : "↵"}</kbd>`;
         label.title = L("Фильтр списка чатов. Enter — искать везде", "Filter the chat list. Enter — search everywhere");
       };
       set();

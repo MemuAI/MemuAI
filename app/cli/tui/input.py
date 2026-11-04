@@ -580,8 +580,10 @@ class PromptHistory:
     def _load(self) -> None:
         mine: List[str] = []
         other: List[str] = []
+        # F33: a single bad byte in history.jsonl used to raise
+        # UnicodeDecodeError out of the iteration and kill CLI startup.
         try:
-            with self.path.open("r", encoding="utf-8") as handle:
+            with self.path.open("r", encoding="utf-8", errors="replace") as handle:
                 for raw in handle:
                     try:
                         row = json.loads(raw)
@@ -591,7 +593,7 @@ class PromptHistory:
                     if not text:
                         continue
                     (mine if row.get("p") == self.project else other).append(text)
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             pass
         self.items = _dedupe(other[-500:] + mine[-1500:])
 
@@ -614,8 +616,12 @@ class PromptHistory:
             pass
 
     def _trim(self) -> None:
-        lines = self.path.read_text(encoding="utf-8").splitlines()[-self.LIMIT:]
-        self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        # F33: same bad-byte tolerance as _load.
+        try:
+            lines = self.path.read_text(encoding="utf-8", errors="replace").splitlines()[-self.LIMIT:]
+            self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except OSError:
+            pass
 
     def previous(self, current: str) -> Optional[str]:
         if not self.items:

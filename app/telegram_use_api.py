@@ -50,6 +50,10 @@ async def body(request: Request) -> dict:
         raise ValueError("Expected JSON object")
     return out
 
+ACTIONS = ("settings", "qr", "phone", "code", "password", "connect", "disconnect", "cancel", "add_account",
+           "account_update", "automation_save", "automation_delete", "automation_toggle", "automation_test",
+           "automations_log", "dialogs")
+
 def register(app) -> None:
     @app.post("/api/pg/integrations/telegram-use/preview")
     async def preview(request: Request):
@@ -95,6 +99,10 @@ def register(app) -> None:
             return JSONResponse({"error": "Local origin required"}, 403)
         result = await asyncio.to_thread(use.start().submit, "status")
         flow = result.get("flow") or {}
+        account = str(request.query_params.get("account") or "main")
+        if account != "main":
+            # Each extra account signs in with its own QR code.
+            flow = next((row.get("flow") or {} for row in result.get("accounts") or [] if row.get("id") == account), {})
         if flow.get("phase") != "qr" or not flow.get("url"):
             return JSONResponse({"error": "No active QR code"}, 404)
         def render():
@@ -112,9 +120,25 @@ def register(app) -> None:
         try:
             data = await body(request)
             name = str(data.pop("action", "settings"))
-            if name not in ("settings", "qr", "phone", "code", "password", "connect", "disconnect", "cancel"):
+            if name not in ACTIONS:
                 raise ValueError("Unknown Telegram Use action")
-            result = await asyncio.to_thread(use.start().submit, name, data)
+            result = await asyncio.to_thread(use.start().submit, name, data, 440 if name == "automation_test" else 90)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        except Exception as exc:
+            wait = max(0, min(86400, int(getattr(exc, "retry_after", 0) or 0)))
+            return JSONResponse({"error": use.friendly(exc), "retry_after": wait}, 429 if wait else 400,
+                                headers={"Cache-Control": "no-store", **({"Retry-After": str(wait)} if wait else {})})
+
+    @app.get("/api/pg/integrations/telegram-use/dialogs")
+    async def dialogs(request: Request):
+        """Chats of one connected account for the automation and command pickers."""
+        if not local_request(request):
+            return JSONResponse({"error": "Local origin required"}, 403)
+        try:
+            query = request.query_params
+            data = {"account": str(query.get("account") or "main")[:40], "query": str(query.get("query") or "")[:200],
+                    "limit": query.get("limit") or 100, "fresh": query.get("fresh") in ("1", "true")}
+            result = await asyncio.to_thread(use.start().submit, "dialogs", data)
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
         except Exception as exc:
             wait = max(0, min(86400, int(getattr(exc, "retry_after", 0) or 0)))
@@ -134,3 +158,37 @@ def register(app) -> None:
             return JSONResponse(result, headers={"Cache-Control": "no-store"})
         except Exception as exc:
             return JSONResponse({"error": use.friendly(exc)}, 400)
+
+    # Images attached to automations: upload (JSON base64, own 16 MB cap --
+    # the generic body() cap of 2 MB is too small for pictures) and
+    # thumbnail serving. Both are loopback-only, like the rest of this API.
+    @app.post("/api/pg/integrations/telegram-use/automation-image")
+    async def automation_image_upload(request: Request):
+        if not local_request(request):
+            return JSONResponse({"error": "Local origin required"}, 403)
+        try:
+            raw = await request.body()
+            if len(raw) > 16 * 1024 * 1024:
+                raise ValueError("Запрос слишком велик / Request too large")
+            import json
+            data = json.loads(raw or b"{}")
+            if not isinstance(data, dict):
+                raise ValueError("Expected JSON object")
+            from . import telegram_use_images as images
+            ref = await asyncio.to_thread(images.save_base64, str(data.get("data") or ""),
+                                          str(data.get("name") or "")[:120])
+            return JSONResponse({"image": ref}, headers={"Cache-Control": "no-store"})
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+
+    @app.get("/api/pg/integrations/telegram-use/automation-image/{name}")
+    async def automation_image_get(request: Request, name: str):
+        if not local_request(request):
+            return JSONResponse({"error": "Local origin required"}, 403)
+        from . import telegram_use_images as images
+        path = images.resolve_by_name(name)
+        if path is None:
+            return JSONResponse({"error": "Image not found"}, 404)
+        data = await asyncio.to_thread(path.read_bytes)
+        return Response(data, media_type=images.EXT_TO_MIME[path.suffix[1:]],
+                        headers={"Cache-Control": "no-store"})

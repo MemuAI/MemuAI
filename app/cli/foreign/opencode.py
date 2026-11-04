@@ -14,8 +14,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .model import (ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts, short_args,
-                    title_from)
+from .model import (ForeignSession, ReadError, SessionInfo, Turn, as_dict, clean_user_text, clip, iso_to_ts,
+                    short_args, title_from)
 
 KEY = "opencode"
 TITLE = "OpenCode"
@@ -71,14 +71,21 @@ def _legacy_discover(limit: int) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     if not base.is_dir():
         return rows
-    for file in base.rglob("*.json"):
-        data = _json(file.read_text(encoding="utf-8", errors="replace")) if file.is_file() else {}
+    try:
+        files = list(base.rglob("*.json"))
+    except OSError:
+        return rows
+    for file in files:
+        # F31: a single unreadable file used to raise out of the listing.
+        try:
+            data = _json(file.read_text(encoding="utf-8", errors="replace")) if file.is_file() else {}
+        except OSError:
+            continue
         if not data.get("id") or data.get("parentID"):
             continue
-        times = data.get("time") if isinstance(data.get("time"), dict) else {}
         rows.append(SessionInfo(tool=KEY, id=str(data["id"]), title=title_from(str(data.get("title") or "")),
-                                cwd=str(data.get("directory") or ""), started=iso_to_ts(times.get("created")),
-                                updated=iso_to_ts(times.get("updated")), path=str(file), extra={"legacy": True}))
+                                cwd=str(data.get("directory") or ""), started=iso_to_ts(as_dict(data.get("time")).get("created")),
+                                updated=iso_to_ts(as_dict(data.get("time")).get("updated")), path=str(file), extra={"legacy": True}))
     return rows[:limit]
 
 def read(info: SessionInfo) -> ForeignSession:
@@ -94,11 +101,13 @@ def read(info: SessionInfo) -> ForeignSession:
         raise ReadError(str(exc)) from exc
     models: Dict[str, None] = {}
     try:
-        messages = con.execute("select id, data, time_created from message where session_id = ? order by time_created, id",
-                               (info.id,)).fetchall()
+        # F31: cap both reads (were unbounded fetchall on foreign data).
+        messages = con.execute("select id, data, time_created from message where session_id = ? order by time_created, id "
+                               "limit 200000", (info.id,)).fetchall()
         parts: Dict[str, List[Dict[str, Any]]] = {}
         for message_id, data, _created in con.execute(
-                "select message_id, data, time_created from part where session_id = ? order by time_created, id", (info.id,)):
+                "select message_id, data, time_created from part where session_id = ? order by time_created, id "
+                "limit 200000", (info.id,)):
             parts.setdefault(str(message_id), []).append(_json(data))
         for message_id, data, created in messages:
             meta = _json(data)
@@ -142,15 +151,32 @@ def _legacy_read(session: ForeignSession) -> ForeignSession:
     if not folder.is_dir():
         raise ReadError("the messages of this session are not there any more")
     entries = []
-    for file in folder.glob("*.json"):
-        meta = _json(file.read_text(encoding="utf-8", errors="replace"))
-        entries.append((iso_to_ts((meta.get("time") or {}).get("created")), meta))
+    try:
+        files = list(folder.glob("*.json"))
+    except OSError:
+        files = []
+    for file in files:
+        try:
+            meta = _json(file.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+        # F31: a string "time" used to raise AttributeError on .get.
+        entries.append((iso_to_ts(as_dict(meta.get("time")).get("created")), meta))
     for at, meta in sorted(entries, key=lambda item: item[0]):
         parts = []
         part_folder = base / "part" / str(meta.get("id") or "")
         if part_folder.is_dir():
-            parts = sorted((_json(file.read_text(encoding="utf-8", errors="replace")) for file in part_folder.glob("*.json")),
-                           key=lambda data: iso_to_ts((data.get("time") or {}).get("start")))
+            try:
+                part_files = list(part_folder.glob("*.json"))
+            except OSError:
+                part_files = []
+            loaded = []
+            for file in part_files:
+                try:
+                    loaded.append(_json(file.read_text(encoding="utf-8", errors="replace")))
+                except OSError:
+                    continue
+            parts = sorted(loaded, key=lambda data: iso_to_ts(as_dict(data.get("time")).get("start")))
         _turns(session, str(meta.get("role") or ""), parts, at)
     session.info.messages = len(session.turns)
     return session

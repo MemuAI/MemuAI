@@ -40,6 +40,7 @@ MODULE_JS = {
     "catalog": ["main.js"],
     "api-models": ["main.js"],
     "meet": ["main.js"],
+    "utils": ["main.js"],
 }
 
 

@@ -48,7 +48,7 @@
 .sk-seg.small .sk-seg-btn { height: 28px; padding: 0 11px; font-size: 12.5px; }
 .sk-search {
   flex: 1; min-width: 0; max-width: 420px; margin-left: auto; height: 38px; display: flex; align-items: center; gap: 8px;
-  padding: 0 8px 0 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); color: var(--muted);
+  padding: 0 8px 0 12px; border: 1px solid var(--field-border); border-radius: 11px; background: var(--field-bg); color: var(--muted);
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .sk-search.wide { max-width: none; margin-left: 0; }
@@ -191,7 +191,7 @@
 .sk-badges { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; position: relative; z-index: 1; pointer-events: none; }
 .sk-badge {
   display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 6px;
-  background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); font: 560 11px/1 var(--sans); white-space: nowrap;
+  background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 14%, transparent); color: var(--muted); font: 560 11px/1 var(--sans); white-space: nowrap;
   pointer-events: auto;
 }
 .sk-badge.accent { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
@@ -332,7 +332,7 @@
 .sk-tok { margin-left: auto; font-style: normal; font-weight: 500; color: var(--muted); font-size: 11.5px; }
 .sk-field small { color: var(--muted); font-size: 11.5px; line-height: 1.4; }
 .sk-panel .sk-field input, .sk-panel .sk-field textarea {
-  width: 100%; margin: 0; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg, var(--panel-2));
+  width: 100%; margin: 0; padding: 9px 12px; border: 1px solid var(--field-border); border-radius: 10px; background: var(--input-bg, var(--field-bg));
   color: var(--text); font: 13.5px/1.45 var(--sans); outline: none; resize: vertical; box-shadow: none;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
@@ -422,3 +422,86 @@
 }
 :root[data-motion="off"] .sk-menu, :root[data-motion="off"] .sk-card { animation: none; transition: none; }
 .sk-panel .sk-search input:focus, .sk-panel .sk-search input:focus-visible { outline: none !important; border: 0 !important; box-shadow: none !important; background: transparent !important; }
+
+/* where a skill works: MemuAI chat, MemuFiles, MemuNote, MemuCode, MemuCode CLI, modules */
+.sk-panel .sk-link {
+  height: 26px; padding: 0 9px; border: 0; border-radius: 8px; background: transparent; color: var(--accent);
+  font: 600 12.5px/1 var(--sans); cursor: pointer; white-space: nowrap; flex: none;
+}
+.sk-panel .sk-link:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.sk-panel .sk-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sk-note.sync { align-items: center; }
+.sk-note.sync > span { flex: 1; min-width: 0; }
+.sk-badge.place { background: color-mix(in srgb, var(--accent) 10%, transparent); color: color-mix(in srgb, var(--accent) 80%, var(--text)); cursor: help; }
+.sk-badge.place .sk-i { width: 11px; height: 11px; }
+.sk-where {
+  margin: 0 0 4px; padding: 14px 14px 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2);
+  animation: sk-where-in .28s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes sk-where-in { from { opacity: 0; transform: translateY(4px); } }
+.sk-where-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.sk-where-head h3 { display: flex; align-items: center; gap: 7px; margin: 0; font: 650 11.5px/1 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sk-where-head h3 .sk-i { width: 14px; height: 14px; color: var(--accent); }
+.sk-where-list, .sk-plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(214px, 1fr)); gap: 6px; }
+.sk-plist { grid-template-columns: minmax(0, 1fr); }
+.sk-where-sub { margin: 12px 2px 7px; font: 600 11px/1 var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.sk-where-row, .sk-prow {
+  position: relative; display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 11px; background: var(--panel); cursor: pointer; transition: border-color .16s ease, background-color .16s ease, opacity .16s ease;
+}
+.sk-prow { cursor: default; min-height: 52px; padding: 8px 12px; }
+.sk-where-row:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.sk-where-row.off .sk-where-ico, .sk-prow.off .sk-where-ico { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); }
+.sk-where-row.off b { color: var(--muted); }
+.sk-where-row.locked { cursor: not-allowed; opacity: .62; }
+.sk-where-row.locked:hover { border-color: var(--border); }
+.sk-where-row:has(input:focus-visible) { border-color: var(--accent); }
+.sk-where-ico {
+  width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); transition: background-color .16s ease, color .16s ease;
+}
+.sk-where-ico .sk-i { width: 15px; height: 15px; }
+.sk-where-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sk-where-text b { font: 600 13px/1.2 var(--sans); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-where-text small { font-size: 11.5px; line-height: 1.25; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk-where-own { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+.sk-where-lockline {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0 0 10px; padding: 8px 10px; border-radius: 10px;
+  background: color-mix(in srgb, var(--warn, darkorange) 9%, var(--panel)); color: var(--muted); font-size: 12.5px; line-height: 1.4;
+}
+.sk-where-lockline .sk-i { width: 14px; height: 14px; flex: none; margin-top: 1px; color: var(--warn, darkorange); }
+.sk-where > .sk-muted.small { margin-top: 10px; }
+.sk-where-wait { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 0 4px; color: var(--muted); font-size: 12.5px; }
+.sk-dots { display: inline-flex; gap: 4px; }
+.sk-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .35; animation: sk-dot 1s ease-in-out infinite; }
+.sk-dots i:nth-child(2) { animation-delay: .15s; }
+.sk-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes sk-dot { 40% { opacity: 1; transform: translateY(-2px); } }
+.sk-switch.sm { width: 32px; height: 19px; }
+.sk-switch.sm span::before { width: 13px; height: 13px; }
+.sk-switch.sm input:checked + span::before { transform: translateX(13px); }
+.sk-switch input:disabled, .sk-switch input:disabled + span { cursor: not-allowed; }
+.sk-places { padding: 20px 26px 28px; outline: none; max-width: 860px; }
+.sk-pcount { flex: none; min-width: 46px; text-align: right; color: var(--muted); font: 500 12.5px/1 var(--mono, monospace); }
+.sk-pcount b { color: var(--text); font-weight: 650; }
+.sk-places .sk-note { margin-top: 16px; }
+@media (prefers-reduced-motion: reduce) {
+  .sk-where, .sk-dots i { animation: none; }
+}
+.sk-pcount { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; min-width: 64px; font-family: var(--sans); }
+.sk-pcount i { display: block; width: 56px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; position: relative; }
+.sk-pcount i::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--p, 0%); border-radius: inherit; background: var(--accent); transition: width .3s cubic-bezier(.2,.8,.2,1); }
+.sk-pbtns { display: inline-flex; flex: none; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
+.sk-panel .sk-pbtns button {
+  height: 26px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text);
+  font: 560 12px/1 var(--sans); cursor: pointer; white-space: nowrap; transition: background-color .15s ease, color .15s ease;
+}
+.sk-panel .sk-pbtns button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.sk-panel .sk-pbtns button:disabled { color: var(--muted); opacity: .5; cursor: default; }
+.sk-panel .sk-pbtns button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (max-width: 540px) {
+  .sk-prow { flex-wrap: wrap; }
+  .sk-prow .sk-where-text { flex-basis: calc(100% - 120px); }
+  .sk-prow .sk-pbtns { margin-left: 38px; }
+  .sk-places { padding: 16px 14px 24px; }
+}

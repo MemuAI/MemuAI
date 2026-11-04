@@ -549,6 +549,8 @@
     stopRecording(true);
     const row = entry(id);
     if (!row || !row.custom || !button.isConnected) return;
+    const groupsBox = button.closest(".hk-groups");
+    if (groupsBox) groupsBox._hkHtml = null;
     button.classList.add("recording");
     button.setAttribute("aria-pressed", "true");
     button.removeAttribute("title");
@@ -576,6 +578,8 @@
     const row = entry(id);
     if (!old || !row) return;
     const hadFocus = old.contains(doc.activeElement);
+    const groupsBox = old.closest(".hk-groups");
+    if (groupsBox) groupsBox._hkHtml = null;
     const box = doc.createElement("div");
     box.innerHTML = rowHtml(row, conflicts());
     const next = box.firstElementChild;
@@ -720,16 +724,22 @@
         <div class="hk-rows">${list.map((row) => rowHtml(row, clashes)).join("")}</div>
       </section>`;
     }).join("");
-    $(".hk-hero", host).innerHTML = `
+    // Each part is rewritten only when its markup changed: opening the page again, or the second pass after
+    // the global shortcuts load, leaves the list alone instead of rebuilding a thousand elements.
+    const put = (selector, html) => {
+      const el = $(selector, host);
+      if (el && el._hkHtml !== html) { el.innerHTML = html; el._hkHtml = html; }
+    };
+    put(".hk-hero", `
           <div class="hk-hero-text"><b>${L(`${total} сочетаний в одном месте`, `${total} shortcuts in one place`)}</b>
             <span>${L("Нажмите на сочетание и введите новое: Esc — отмена, Backspace — отключить.", "Click a shortcut and press a new one: Esc cancels, Backspace disables.")}</span></div>
           <div class="hk-hero-actions">
             <button type="button" class="pbtn ghost sx-btn-sm" data-hk-reset-all ${changed ? "" : "hidden"}>${ico("undo")} ${L("Сбросить все", "Reset all")}</button>
             <button type="button" class="pbtn ghost sx-btn-sm" data-hk-sheet>${ico("keyboard")} ${L("Шпаргалка", "Cheat sheet")} ${kbd("Ctrl+/", "hk-hint-caps")}</button>
-          </div>`;
-    $(".hk-chips", host).innerHTML = chips.map(([id, text, n]) => `<button type="button" role="tab" class="hk-chip ${state.filter === id ? "active" : ""} ${id === "conflicts" && n ? "warn" : ""}" aria-selected="${state.filter === id}" data-hk-filter="${id}">${escHtml(text)} <span>${n}</span></button>`).join("");
-    $(".hk-banner-slot", host).innerHTML = banner;
-    $(".hk-groups", host).innerHTML = groups || `<div class="hk-empty">${ico("search")}<b>${L("Ничего не найдено", "Nothing found")}</b><span>${L("Попробуйте другое слово или клавишу.", "Try another word or key.")}</span></div>`;
+          </div>`);
+    put(".hk-chips", chips.map(([id, text, n]) => `<button type="button" role="tab" class="hk-chip ${state.filter === id ? "active" : ""} ${id === "conflicts" && n ? "warn" : ""}" aria-selected="${state.filter === id}" data-hk-filter="${id}">${escHtml(text)} <span>${n}</span></button>`).join(""));
+    put(".hk-banner-slot", banner);
+    put(".hk-groups", groups || `<div class="hk-empty">${ico("search")}<b>${L("Ничего не найдено", "Nothing found")}</b><span>${L("Попробуйте другое слово или клавишу.", "Try another word or key.")}</span></div>`);
   }
 
   function bindSettings(host) {
@@ -755,6 +765,8 @@
         if (!n) return;
         if (b.dataset.confirm !== "1") {
           b.dataset.confirm = "1";
+          const hero = b.closest(".hk-hero");
+          if (hero) hero._hkHtml = null;
           b.classList.add("danger");
           b.innerHTML = `${ico("undo")} ${L(`Точно сбросить ${n}?`, `Really reset ${n}?`)}`;
           setTimeout(() => { if (b.isConnected && b.dataset.confirm === "1") render(); }, 4000);

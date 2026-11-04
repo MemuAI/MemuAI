@@ -117,7 +117,8 @@ const SVG = {
   dl: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
 };
 const svg = (name, cls = "") => `<span class="ic ${cls}" aria-hidden="true"><svg viewBox="0 0 24 24">${SVG[name]}</svg></span>`;
-const KIND_ICON = { copy: "copy", move: "cut", trash: "trash", delete: "trash", rename: "rename", extract: "extract", compress: "zip", undo: "undo", mkdir: "folderPlus", upload: "copy", download: null, vpaste: "paste", organize: "sparkle" };
+const KIND_ICON = { copy: "copy", move: "cut", trash: "trash", delete: "trash", rename: "rename", extract: "extract", compress: "zip", undo: "undo", mkdir: "folderPlus", upload: "copy", download: null, vpaste: "paste", organize: "sparkle",
+  arcadd: "zip", arcedit: "zip", arctest: "check", arcconvert: "zip" };
 
 export function fmtDuration(sec) {
   sec = Math.max(0, Math.round(sec || 0));
@@ -215,7 +216,7 @@ export class Ops {
         op.retryable ? { label: t("opx.retry"), run: () => this.retry(op) } : { label: t("opx.more"), run: () => this.toggle(true) });
       this.setFlash(t("opx.ind.err"), "err");
     } else if (op.status === "done") {
-      if (op.undoable && ["trash", "move", "copy", "rename", "upload", "download", "extract", "compress", "vpaste", "organize"].includes(op.kind)) toast(title, "ok", { label: t("cmd.undo"), run: () => this.undo(op) });
+      if (op.undoable && ["trash", "move", "copy", "rename", "upload", "download", "extract", "compress", "vpaste", "organize", "arcedit", "arcadd", "arcconvert"].includes(op.kind)) toast(title, "ok", { label: t("cmd.undo"), run: () => this.undo(op) });
       else if (op.kind !== "undo" && op.kind !== "mkdir" && op.kind !== "rename") toast(title, "ok");
       this.setFlash(t("opx.ind.done"), "ok");
     }

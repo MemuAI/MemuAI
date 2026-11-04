@@ -1,0 +1,47 @@
+/* MemuAI personality gallery (Settings → Chat & replies) */
+.pers-gallery { margin: 0; padding: 2px 18px 16px; display: grid; gap: 12px; }
+.pers-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r-lg, 14px);
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel)); }
+.pers-head .pers-copy { flex: 1; min-width: 0; }
+.pers-head .pers-copy small { display: block; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.pers-head .pers-copy b { display: block; font-size: 16px; margin: 2px 0; }
+.pers-head .pers-copy span { display: block; font-size: 13px; color: var(--muted); }
+.pers-edit { border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.pers-edit:hover { background: var(--hover, color-mix(in srgb, var(--text) 6%, transparent)); }
+.pers-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.pers-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.pers-tab { border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.pers-tab:hover { color: var(--text); }
+.pers-tab.on { background: var(--accent-soft, color-mix(in srgb, var(--accent) 16%, transparent)); color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.pers-search { flex: 0 1 220px; min-width: 160px; border: 1px solid var(--field-border, var(--border)); background: var(--field-bg, var(--panel)); color: var(--text); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; }
+.pers-search:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+.pers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.pers-card { position: relative; display: flex; align-items: flex-start; gap: 10px; text-align: left; padding: 11px 12px; border: 1px solid var(--border);
+  border-radius: var(--r-md, 12px); background: var(--panel); color: var(--text); font: inherit; cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
+.pers-card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
+.pers-card:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent); outline-offset: 2px; }
+.pers-card.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+.pers-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pers-card .pers-copy b { font-size: 13.5px; font-weight: 600; }
+.pers-card .pers-copy small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.pers-ico { flex: none; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.pers-ico.big { width: 44px; height: 44px; border-radius: 14px; }
+.pers-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pers-ico.big svg { width: 24px; height: 24px; }
+.pers-check { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; background: var(--accent); color: var(--accent-fg, #fff); }
+.pers-check svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.pers-card.on .pers-check { display: inline-grid; }
+.pers-card.on .pers-copy { padding-right: 18px; }
+.pers-empty, .pers-note { margin: 0; font-size: 12.5px; color: var(--muted); }
+@media (max-width: 640px) { .pers-grid { grid-template-columns: 1fr; } .pers-head { flex-wrap: wrap; } .pers-search { flex-basis: 100%; } }
+@media (prefers-reduced-motion: reduce) { .pers-card { transition: none; } }
+/* Settings → Prompts: the 32 personality contracts are folded into one group */
+.pr-internal-group { margin: 8px 0 0; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.pr-internal-group > summary { display: flex; align-items: center; gap: 8px; padding: 11px 14px; cursor: pointer; font-weight: 600; font-size: 13.5px; list-style: none; }
+.pr-internal-group > summary::-webkit-details-marker { display: none; }
+.pr-internal-group > summary small { font-weight: 500; color: var(--muted); font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.pr-internal-group > summary::after { content: ""; margin-left: auto; width: 7px; height: 7px; border-right: 1.6px solid var(--muted); border-bottom: 1.6px solid var(--muted); transform: rotate(45deg); transition: transform .15s; }
+.pr-internal-group[open] > summary::after { transform: rotate(225deg); }
+.pr-internal-group-list { display: grid; gap: 6px; padding: 0 10px 10px; }
+.pr-internal-group-list .internal-prompt-card { margin: 0; }

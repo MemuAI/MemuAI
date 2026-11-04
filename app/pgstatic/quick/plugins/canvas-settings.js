@@ -81,6 +81,8 @@
       }
       try { state.data = await ctx.api("/api/quick/canvas?lang=" + (en ? "en" : "ru")); }
       catch (e) { body.innerHTML = note(esc(tr("Не удалось загрузить настройки: ", "Could not load the settings: ") + e.message), "warn"); return; }
+      const d = state.data || {};
+      state.data = { ...d, settings: d.settings || {}, actions: Array.isArray(d.actions) ? d.actions : [] };
       draw();
     }
     function draw() {
@@ -91,7 +93,7 @@
       bind();
     }
     async function save(patch) {
-      try { const data = await post("/api/quick/canvas/settings", { settings: patch }); state.data.settings = data.settings; draw(); }
+      try { const data = await post("/api/quick/canvas/settings", { settings: patch }); state.data.settings = (data && data.settings) || state.data.settings; draw(); }
       catch (e) { ctx.toast(e.message, "err"); }
     }
     function download(name, text) {

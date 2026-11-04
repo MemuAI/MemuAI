@@ -1,0 +1,250 @@
+<div class="ut" id="app" data-view="list">
+  <aside class="ut-side" id="side">
+    <div class="ut-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" autocomplete="off" spellcheck="false" data-i18n-placeholder="search.placeholder" data-i18n-aria-label="search.aria">
+      <kbd class="ut-kbd" aria-hidden="true">Ctrl K</kbd>
+    </div>
+    <nav class="ut-cats" id="cats" data-i18n-aria-label="cats.aria"></nav>
+    <div class="ut-side-foot">
+      <button type="button" class="ut-side-btn" id="go-ai" data-view-btn="ai">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+        <span class="ut-side-btn-text"><b data-i18n="nav.ai"></b><small id="ai-badge"></small></span>
+      </button>
+      <button type="button" class="ut-side-btn" id="go-jobs" data-view-btn="jobs">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span class="ut-side-btn-text"><b data-i18n="nav.jobs"></b><small id="jobs-badge"></small></span>
+      </button>
+    </div>
+  </aside>
+
+  <main class="ut-main" id="main">
+    <section class="ut-view ut-list" id="view-list" aria-labelledby="list-title">
+      <header class="ut-list-head">
+        <div class="ut-list-titles">
+          <h1 id="list-title"></h1>
+          <p id="list-sub"></p>
+        </div>
+        <div class="ut-seg" id="layout-seg" role="radiogroup" data-i18n-aria-label="layout.aria">
+          <button type="button" role="radio" data-layout="grid" aria-checked="true" data-i18n-title="layout.grid" data-i18n-aria-label="layout.grid">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+          </button>
+          <button type="button" role="radio" data-layout="rows" aria-checked="false" data-i18n-title="layout.rows" data-i18n-aria-label="layout.rows">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+        </div>
+      </header>
+      <div class="ut-carry" id="carry" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        <span id="carry-text"></span>
+        <button type="button" class="mu-btn small ghost" id="carry-clear" data-i18n="carry.clear"></button>
+      </div>
+      <section class="ut-top" id="top" hidden aria-labelledby="top-title">
+        <header class="ut-top-head">
+          <span class="ut-top-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg></span>
+          <div class="ut-top-titles"><h2 id="top-title" data-i18n="top.title"></h2><p data-i18n="top.sub"></p></div>
+          <button type="button" class="ut-mini" id="top-fold" aria-expanded="true" aria-controls="top-grid">
+            <span id="top-fold-text" data-i18n="top.hide"></span>
+            <svg class="ut-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+          </button>
+        </header>
+        <div class="ut-top-grid" id="top-grid" role="group" aria-labelledby="top-title"></div>
+      </section>
+      <div class="ut-grid" id="grid" role="list" data-layout="grid"></div>
+      <div class="ut-empty" id="empty" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8.5 11h5"/></svg>
+        <b id="empty-title"></b>
+        <span id="empty-text"></span>
+      </div>
+    </section>
+
+    <section class="ut-view ut-tool" id="view-tool" hidden aria-labelledby="tool-title" data-layout="split">
+      <header class="ut-tool-head">
+        <button type="button" class="ut-icon-btn" id="back" data-i18n-aria-label="back" data-i18n-title="back.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <span class="ut-tool-ico" id="tool-ico" aria-hidden="true"></span>
+        <div class="ut-tool-titles">
+          <span class="ut-tool-cat" id="tool-cat"></span>
+          <h1 id="tool-title"></h1>
+          <p id="tool-desc"></p>
+          <div class="ut-traits" id="tool-traits"></div>
+        </div>
+        <div class="ut-tool-acts">
+          <label class="ut-switch" id="tool-ai-wrap">
+            <input type="checkbox" id="tool-ai">
+            <span class="ut-switch-ui" aria-hidden="true"></span>
+            <span class="ut-switch-text" data-i18n="tool.ai"></span>
+          </label>
+          <button type="button" class="ut-icon-btn ut-fav" id="fav" aria-pressed="false" data-i18n-aria-label="fav.add" data-i18n-title="fav.add">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="ut-tool-body" id="tool-body">
+        <div class="ut-pane ut-pane-in" id="pane-in">
+          <div class="ut-card-box ut-in-box" id="in-text">
+            <div class="ut-block-head">
+              <label class="ut-field-label" for="text" id="text-label"></label>
+              <span class="ut-grow"></span>
+              <button type="button" class="ut-mini" id="paste">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="4" width="10" height="4" rx="1.2"/><path d="M8 6H6.5A1.5 1.5 0 0 0 5 7.5v11A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 17.5 6H16"/></svg>
+                <span data-i18n="in.paste"></span>
+              </button>
+              <button type="button" class="ut-mini" id="load-text" data-i18n-title="in.load.hint">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9.5 14.5 12 12l2.5 2.5"/></svg>
+                <span data-i18n="in.load"></span>
+              </button>
+              <button type="button" class="ut-mini icon" id="clear-text" data-i18n-title="in.clear" data-i18n-aria-label="in.clear">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              </button>
+            </div>
+            <div class="ut-folder" id="folder-row" hidden>
+              <input type="text" class="ut-field ut-mono" id="folder" spellcheck="false" autocomplete="off" data-i18n-aria-label="in.folder">
+              <button type="button" class="mu-btn" id="pick-folder">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                <span data-i18n="in.pick_folder"></span>
+              </button>
+            </div>
+            <div class="ut-text-wrap">
+              <textarea class="ut-field ut-text" id="text" spellcheck="false" data-i18n-aria-label="in.text"></textarea>
+              <span class="ut-count" id="text-count" aria-hidden="true"></span>
+            </div>
+            <div class="ut-examples" id="examples" hidden></div>
+            <div class="ut-text2" id="text2-wrap" hidden>
+              <div class="ut-block-head">
+                <label class="ut-field-label" for="text2" id="label2"></label>
+                <span class="ut-count" id="text2-count"></span>
+              </div>
+              <textarea class="ut-field ut-text" id="text2" spellcheck="false" data-i18n-aria-label="in.text2"></textarea>
+              <div class="ut-examples" id="examples2" hidden></div>
+            </div>
+            <input type="file" id="text-file" hidden>
+          </div>
+
+          <div class="ut-in-files" id="in-files">
+            <div class="ut-drop" id="drop" tabindex="0" role="button" data-i18n-aria-label="in.drop.aria">
+              <span class="ut-drop-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></span>
+              <b id="drop-title"></b>
+              <small id="drop-hint"></small>
+            </div>
+            <ul class="ut-flist" id="flist"></ul>
+            <input type="file" id="file-input" hidden>
+          </div>
+
+          <div class="ut-card-box ut-opts-box" id="opts-wrap">
+            <div class="ut-block-head">
+              <b class="ut-box-title" data-i18n="opts.title"></b>
+              <span class="ut-grow"></span>
+              <button type="button" class="ut-mini" id="opts-reset" data-i18n="opts.reset"></button>
+            </div>
+            <div class="ut-opts" id="opts"></div>
+          </div>
+
+          <div class="ut-card-box" id="model-wrap" hidden>
+            <div class="ut-opt">
+              <label for="model" data-i18n="model.label"></label>
+              <select class="ut-field" id="model"></select>
+              <small class="ut-hint" id="model-hint"></small>
+            </div>
+          </div>
+
+          <div class="ut-confirm" id="confirm" role="alertdialog" aria-labelledby="confirm-text" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4M12 17v.5"/></svg>
+            <span id="confirm-text"></span>
+            <span class="ut-grow"></span>
+            <button type="button" class="mu-btn small danger" id="confirm-yes" data-i18n="confirm.yes"></button>
+            <button type="button" class="mu-btn small" id="confirm-no" data-i18n="confirm.no"></button>
+          </div>
+
+          <div class="ut-run" id="run-bar">
+            <button type="button" class="ut-go" id="run" data-i18n-title="run.hint">
+              <svg class="ut-go-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14l11-7z"/></svg>
+              <span class="ut-go-spin" aria-hidden="true"></span>
+              <span id="run-label" data-i18n="run"></span>
+            </button>
+            <button type="button" class="mu-btn" id="stop" hidden data-i18n="stop"></button>
+            <span class="ut-status" id="status" role="status" aria-live="polite"></span>
+          </div>
+          <div class="ut-progress" id="progress" hidden><i></i></div>
+        </div>
+
+        <div class="ut-pane ut-pane-out" id="out" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section class="ut-view ut-ai" id="view-ai" hidden aria-labelledby="ai-title">
+      <header class="ut-page-head">
+        <button type="button" class="ut-icon-btn" data-back data-i18n-aria-label="back" data-i18n-title="back.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <div>
+          <h1 id="ai-title" data-i18n="ai.title"></h1>
+          <p data-i18n="ai.lead"></p>
+        </div>
+      </header>
+      <div class="ut-ai-top">
+        <label class="ut-switch big">
+          <input type="checkbox" id="ai-enabled">
+          <span class="ut-switch-ui" aria-hidden="true"></span>
+          <span class="ut-switch-text"><b data-i18n="ai.enable"></b><small data-i18n="ai.enable.hint"></small></span>
+        </label>
+        <div class="ut-meter">
+          <div class="ut-meter-line"><b id="ai-count"></b><span id="ai-tokens"></span></div>
+          <div class="ut-meter-bar"><i id="ai-meter"></i></div>
+          <small id="ai-meter-hint" data-i18n="ai.meter.hint"></small>
+        </div>
+        <div class="ut-ai-acts" role="group" data-i18n-aria-label="ai.presets">
+          <button type="button" class="mu-btn small" id="ai-defaults" data-i18n-title="ai.defaults.hint"><span data-i18n="ai.defaults"></span></button>
+          <button type="button" class="mu-btn small" id="ai-all" data-i18n="ai.all"></button>
+          <button type="button" class="mu-btn small" id="ai-none" data-i18n="ai.none"></button>
+        </div>
+      </div>
+      <div class="ut-ai-filter">
+        <div class="ut-search ut-ai-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="ai-q" autocomplete="off" spellcheck="false" data-i18n-placeholder="ai.search" data-i18n-aria-label="ai.search">
+        </div>
+        <label class="ut-switch"><input type="checkbox" id="ai-only"><span class="ut-switch-ui" aria-hidden="true"></span><span class="ut-switch-text" data-i18n="ai.only_on"></span></label>
+      </div>
+      <div class="ut-ai-groups" id="ai-groups"></div>
+      <details class="ut-ai-preview" id="ai-preview-box">
+        <summary data-i18n="ai.preview"></summary>
+        <p class="mu-sub" data-i18n="ai.preview.hint"></p>
+        <pre id="ai-preview"></pre>
+      </details>
+    </section>
+
+    <section class="ut-view ut-jobs" id="view-jobs" hidden aria-labelledby="jobs-title">
+      <header class="ut-page-head">
+        <button type="button" class="ut-icon-btn" data-back data-i18n-aria-label="back" data-i18n-title="back.hint">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        </button>
+        <div>
+          <h1 id="jobs-title" data-i18n="jobs.title"></h1>
+          <p data-i18n="jobs.lead"></p>
+        </div>
+        <span class="ut-grow"></span>
+        <button type="button" class="mu-btn small" id="jobs-stop-all" data-i18n="jobs.stop_all"></button>
+      </header>
+      <div class="ut-jobs-list" id="jobs-list"></div>
+    </section>
+  </main>
+
+  <div class="ut-hover" id="hover" role="tooltip" hidden></div>
+  <div class="ut-viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+    <div class="ut-viewer-box">
+      <header>
+        <b id="viewer-title"></b>
+        <span class="ut-grow"></span>
+        <button type="button" class="mu-btn small" id="viewer-save" data-i18n="out.save"></button>
+        <button type="button" class="ut-icon-btn" id="viewer-close" data-i18n-aria-label="close" data-i18n-title="close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <div class="ut-viewer-body" id="viewer-body"></div>
+    </div>
+  </div>
+  <div class="ut-toast" id="toast" role="status" aria-live="polite" hidden></div>
+</div>

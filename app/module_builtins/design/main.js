@@ -395,7 +395,7 @@ Memu.models().then((rows) => {
 
   const wanted = [saved.model, defaults.model, (usable.find((item) => item.default) || {}).id].find((id) => id && usable.some((item) => item.id === id));
   if (wanted) el.model.value = wanted;
-  mountModelSelector(el.model, { preset: "grid", kind: "chat" });
+  mountModelSelector(el.model, { preset: "dropdown", kind: "chat" });
   if (!usable.length) setStatus(t("model.connect"), "error");
 }).catch((error) => {
   modelState = "error";

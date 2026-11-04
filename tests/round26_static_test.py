@@ -285,6 +285,9 @@ HELPERS = {
     ("app/pgstatic/app-settings-form.js", "call"): "arg2post",
     ("app/pgstatic/module-integration.js", "json"): "arg2post",
     ("app/pgstatic/mcp-hub.js", "call"): "opts",
+
+    ("app/pgstatic/server-settings.js", "call"): "arg2post",
+    ("app/pgstatic/plan-scen.js", "call"): "post",
 }
 GLOBAL_HELPERS = {"api": "opts", "ctx.api": "opts", "fetch": "opts", "todoCall": "opts",
                   "EventSource": "get", "downloadAuthed": "get",

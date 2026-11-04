@@ -39,13 +39,21 @@ def thumb_key(path: str, px: int) -> Tuple[str, os.stat_result]:
     raw = f"{os.path.normcase(path)}|{st.st_size}|{st.st_mtime_ns}|{px}".encode("utf-8", "surrogatepass")
     return hashlib.sha1(raw).hexdigest(), st
 
+# F34: previews are refused above this size (a 300 MP image used to be
+# decoded whole after the global decompression-bomb guard was raised to
+# 300 MP for the entire process).
+MAX_PREVIEW_PIXELS = 50_000_000
+
+
 def _render(path: str, px: int, out_path: str) -> bytes:
     from PIL import Image, ImageOps  # type: ignore
-    try:
-        Image.MAX_IMAGE_PIXELS = 300_000_000
-    except Exception:  # noqa: BLE001
-        pass
     with Image.open(path) as image:
+        # Image.open only parses the header: the pixel count is known
+        # before any pixel is decoded, so a bomb is refused cheaply.
+        # The global Image.MAX_IMAGE_PIXELS is deliberately NOT raised
+        # here (the old code set it to 300 MP process-wide).
+        if image.size[0] * image.size[1] > MAX_PREVIEW_PIXELS:
+            raise ValueError("image too large for a preview")
         try:
             image.draft("RGB", (px * 2, px * 2))
         except Exception:  # noqa: BLE001

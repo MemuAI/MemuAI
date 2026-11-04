@@ -15,6 +15,7 @@ function copyLayer(l) {
   if (l.text) o.text = { ...l.text };
   if (l.shape) o.shape = { ...l.shape, points: l.shape.points ? l.shape.points.map((p) => [...p]) : undefined };
   if (l.svg) o.svg = { ...l.svg };
+  if (l.fx) o.fx = cloneFx(l.fx);
   if (l.children) o.children = l.children.map(copyLayer);
   return o;
 }
@@ -95,11 +96,33 @@ export class PhotoDoc {
         tx.globalCompositeOperation = "source-over";
         src = t; sx = 0; sy = 0;
       }
+      if (l.fx && hasFx(l.fx)) { src = this.fxCanvas(l, src, sx, sy); sx = 0; sy = 0; }
       ctx.globalAlpha = l.opacity; ctx.globalCompositeOperation = CSS_BLEND(l.blend);
       ctx.drawImage(src, sx, sy);
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
       if (this.live?.floating && this.live.layerId === l.id) { const f = this.live.floating; ctx.globalAlpha = l.opacity; ctx.drawImage(f.canvas, f.x, f.y); ctx.globalAlpha = 1; }
     }
+  }
+  fxCanvas(l, src, sx, sy) {
+    const live = !!this.live && (this.live.layerId === l.id || (l.type === "group" && this.containsId(l, this.live.layerId)));
+    const key = live ? "" : `${this.version}|${l.id === this.activeId || (l.type === "group" && this.containsId(l, this.activeId)) ? this.pixStamp || 0 : 0}|${JSON.stringify(l.fx)}|${sx}|${sy}|${src.width}x${src.height}|${l.mask && l.maskOn ? 1 : 0}`;
+    let c = l._fxc;
+    if (key && c && c.key === key && c.canvas.width === this.width && c.canvas.height === this.height) return c.canvas;
+    const out = c && c.canvas.width === this.width && c.canvas.height === this.height ? c.canvas : newCanvas(this.width, this.height);
+    renderFx(this, out, src, sx, sy, l.fx);
+    Object.defineProperty(l, "_fxc", { value: { key, canvas: out }, writable: true, configurable: true, enumerable: false });
+    return out;
+  }
+  activeHasFx() {
+    let f = this.find(this.activeId);
+    while (f) { if (hasFx(f.layer.fx)) return true; f = f.parent ? this.find(f.parent.id) : null; }
+    return false;
+  }
+  layerPixelsWithFx(l) {
+    const c = newCanvas(this.width, this.height), x = ctx2d(c);
+    x.drawImage(l.canvas, l.x, l.y);
+    if (l.mask && l.maskOn) { x.globalCompositeOperation = "destination-in"; x.drawImage(l.mask, l.x, l.y); x.globalCompositeOperation = "source-over"; }
+    return hasFx(l.fx) ? renderFx(this, newCanvas(this.width, this.height), c, 0, 0, l.fx) : c;
   }
   containsId(l, id) { if (l.id === id) return true; return !!l.children?.some((c) => this.containsId(c, id)); }
 
@@ -215,6 +238,71 @@ export class PhotoDoc {
   get dirty() { return this.savedIndex !== this.history.length; }
   markSaved() { this.savedIndex = this.history.length; }
   editsSummary() { return this.history.map((e) => e.label); }
+}
+
+export const FX_KINDS = ["shadow", "glow", "stroke", "overlay"];
+export const FX_DEFAULT = {
+  shadow: { on: false, color: "#000000", opacity: 55, angle: 120, distance: 10, size: 16 },
+  glow: { on: false, color: "#ffd23f", opacity: 80, size: 20 },
+  stroke: { on: false, color: "#ffffff", size: 4, opacity: 100 },
+  overlay: { on: false, color: "#4c8dff", opacity: 100 },
+};
+export const hasFx = (fx) => !!fx && FX_KINDS.some((k) => fx[k]?.on);
+export const cloneFx = (fx) => (fx ? JSON.parse(JSON.stringify(fx)) : null);
+const HEX = /^#[0-9a-f]{6}$/i, num = (v, a, b, d) => (typeof v === "number" && isFinite(v) ? Math.max(a, Math.min(b, v)) : d);
+const LIMITS = { opacity: [0, 100], angle: [-180, 180], distance: [0, 400], size: [0, 250] };
+export function sanitizeFx(fx) {
+  if (!fx || typeof fx !== "object") return null;
+  const out = {};
+  for (const k of FX_KINDS) {
+    const src = fx[k]; if (!src || typeof src !== "object") continue;
+    const d = FX_DEFAULT[k], o = { on: !!src.on, color: HEX.test(src.color || "") ? src.color : d.color };
+    for (const p of Object.keys(d)) if (p !== "on" && p !== "color") o[p] = num(src[p], ...LIMITS[p], d[p]);
+    if (k === "stroke") o.size = Math.max(1, Math.min(60, o.size));
+    out[k] = o;
+  }
+  return hasFx(out) ? out : null;
+}
+function rgbaOf(hex, a) { const n = parseInt(String(hex || "#000000").slice(1), 16) || 0; return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${Math.max(0, Math.min(1, a))})`; }
+function scratch(doc, i, w, h) {
+  const pool = doc._fxTmp || (doc._fxTmp = []);
+  let c = pool[i]; if (!c || c.width !== w || c.height !== h) c = pool[i] = newCanvas(w, h);
+  const x = ctx2d(c); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = "source-over"; x.clearRect(0, 0, w, h); return c;
+}
+function tinted(doc, i, src, color) {
+  const c = scratch(doc, i, src.width, src.height), x = ctx2d(c);
+  x.drawImage(src, 0, 0); x.globalCompositeOperation = "source-in"; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = "source-over";
+  return c;
+}
+
+export function renderFx(doc, out, src, sx, sy, fx) {
+  const W = out.width, H = out.height, o = ctx2d(out), far = W + H + 2000;
+  o.setTransform(1, 0, 0, 1, 0, 0); o.globalAlpha = 1; o.globalCompositeOperation = "source-over"; o.clearRect(0, 0, W, H);
+  const s = fx.shadow, g = fx.glow, st = fx.stroke, ov = fx.overlay;
+  if (s?.on && s.opacity > 0) {
+    const a = ((s.angle ?? 120) * Math.PI) / 180, dist = s.distance ?? 0;
+    o.save(); o.shadowColor = rgbaOf(s.color, s.opacity / 100); o.shadowBlur = Math.max(0, s.size || 0);
+    o.shadowOffsetX = far - Math.cos(a) * dist; o.shadowOffsetY = Math.sin(a) * dist; o.drawImage(src, sx - far, sy); o.restore();
+  }
+  if (g?.on && g.opacity > 0 && g.size > 0) {
+    o.save(); o.shadowColor = rgbaOf(g.color, g.opacity / 100); o.shadowOffsetX = far; o.shadowOffsetY = 0;
+    o.shadowBlur = g.size; o.drawImage(src, sx - far, sy); o.shadowBlur = g.size / 2; o.drawImage(src, sx - far, sy); o.restore();
+  }
+  if (st?.on && st.opacity > 0 && st.size > 0) {
+    const sil = tinted(doc, 0, src, st.color), pad = Math.ceil(st.size) + 2, ring = scratch(doc, 1, src.width + pad * 2, src.height + pad * 2), rx = ctx2d(ring);
+    const r = st.size, radii = r > 3 ? [r, r * 0.66, r * 0.33] : [r];
+    for (const rr of radii) { const steps = Math.min(96, Math.max(12, Math.ceil((2 * Math.PI * rr) / 1.5))); for (let i = 0; i < steps; i++) { const t = (2 * Math.PI * i) / steps; rx.drawImage(sil, pad + Math.cos(t) * rr, pad + Math.sin(t) * rr); } }
+    rx.drawImage(sil, pad, pad);
+    o.globalAlpha = st.opacity / 100; o.drawImage(ring, sx - pad, sy - pad); o.globalAlpha = 1;
+  }
+  let body = src;
+  if (ov?.on && ov.opacity > 0) {
+    const c = scratch(doc, 2, src.width, src.height), x = ctx2d(c);
+    x.drawImage(src, 0, 0); x.globalCompositeOperation = "source-atop"; x.globalAlpha = ov.opacity / 100; x.fillStyle = ov.color; x.fillRect(0, 0, c.width, c.height); x.globalAlpha = 1; x.globalCompositeOperation = "source-over";
+    body = c;
+  }
+  o.drawImage(body, sx, sy);
+  return out;
 }
 
 export const DEFAULT_TEXT = { text: "", font: "Segoe UI", size: 48, color: "#ffffff", bold: false, italic: false, underline: false, align: "left", lineHeight: 1.25, x: 40, y: 40, width: 0, stroke: 0, strokeColor: "#000000", shadow: false, rotate: 0, letter: 0 };

@@ -28,7 +28,7 @@ class StaticAppTest(unittest.TestCase):
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         for ref in re.findall(r'(?:src|href)="([^"#?]+)', html):
             self.assertTrue((STATIC / ref).is_file(), ref)
-        self.assertIn('type="module" src="js/app.js?v=4.1"', html)
+        self.assertIn('type="module" src="js/app.js?v=5.0"', html)
 
         self.assertNotRegex(html, r"<script(?![^>]*\bsrc=)[^>]*>")
 
@@ -301,6 +301,31 @@ class ManagerTest(unittest.TestCase):
             self.assertTrue(popen.call_args[0][0][0].endswith("MemuNote.exe"))
             self.assertEqual(popen.call_args[0][0][1], "C:\\a.md")
         self.assertFalse(client.post("/api/pg/memunote/uninstall", json={}).json()["installed"])
+
+    def test_explorer_menu_integration_routes(self) -> None:
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from app.memunote import winsys
+        from tests.round31_note_core_test import FakeWinreg
+        app = FastAPI()
+        self.m.register(app)
+        client = TestClient(app)
+        route = "/api/pg/memunote/explorer-menu"
+        self.assertEqual(client.post(route, json={"enable": True}).status_code, 404)
+        make_package(self.root / "Packages" / "MemuNote.zip")
+        reg = FakeWinreg()
+        with (mock.patch.multiple(winsys, IS_WINDOWS=True, _winreg=lambda: reg, _notify_shell=lambda: None),
+              mock.patch.object(self.m, "_start_menu_shortcut")):
+            self.assertTrue(client.post("/api/pg/memunote/install").json()["installed"])
+            if os.name == "nt":
+                self.assertIn(["--sync-explorer-menu"], self.runs)
+            self.assertEqual(client.post(route, json={"enable": "false"}).status_code, 400)
+            self.assertTrue(client.post(route, json={"enable": True}).json()["enabled"])
+            status = client.get("/api/pg/memunote").json()
+            self.assertTrue(status["explorer_menu"]["enabled"])
+            self.assertFalse(status["open_with"]["enabled"])
+            self.assertFalse(client.post(route, json={"enable": False}).json()["enabled"])
+            self.assertFalse(client.get("/api/pg/memunote").json()["explorer_menu"]["enabled"])
 
     def test_source_checkout_runs_the_script(self) -> None:
         with mock.patch.dict(os.environ, {"MEMUAI_INSTALL_DIR": ""}):

@@ -64,6 +64,9 @@ class SkillManageTool(Tool):
         if action == "delete":
             if existing is None:
                 raise ToolError(f"No skill named {slug!r}. Use action=list to see them.")
+            if existing.get("source") == "library":
+                raise ToolError(f"{slug!r} comes from the MemuAI skill library: change it or choose where it works in "
+                                "MemuAI (Skills); here use action=disable to switch it off for MemuCode CLI.")
             if existing.get("builtin") or not existing.get("path"):
                 raise ToolError(f"{slug!r} is a built-in skill and cannot be deleted. Use action=disable to switch it off.")
             return Prepared(key="skill:" + slug, title=tr("Удалить скилл", "Delete skill"),

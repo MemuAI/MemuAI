@@ -24,7 +24,7 @@
   padding: 8px 10px; border-radius: 8px; background: var(--panel); border: 1px solid var(--border); }
 .dlk-inputs { display: flex; flex-direction: column; gap: 10px; }
 .dlk-field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
-.dlk-field input { height: 36px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font: inherit; }
+.dlk-field input { height: 36px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--field-border); background: var(--field-bg); color: var(--text); font: inherit; }
 .dlk-field input:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
 .dlk-field small { color: var(--muted); font-size: 12px; }
 .dlk-src { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 11px; font-size: 13px;

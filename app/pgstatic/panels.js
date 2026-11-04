@@ -235,9 +235,11 @@ const MemuPanels = (() => {
   const GALLERY_ORDER = GALLERY_GROUPS().flatMap((g) => g[1]);
   const tplName = (kind) => { const T = TPLS(); return T[kind] ? T[kind][en() ? "en" : "ru"][0] : kind; };
   const tplDesc = (kind) => { const T = TPLS(); return T[kind] ? T[kind][en() ? "en" : "ru"][1] : ""; };
+  // In an agentic workspace the conversation is the start screen, so two places read differently there.
   const placeName = (place) => ({ home: t("Под полем ввода", "Below the message box"), sidebar: t("Боковая панель", "Sidebar"), appbar: t("Верхняя панель", "Top bar"),
     top: t("Над приветствием", "Above the greeting"), composer: t("Над полем ввода", "Above the message box"), left: t("Колонка слева", "Left column"),
-    right: t("Колонка справа", "Right column"), sidebar_bottom: t("Низ боковой панели", "Sidebar bottom") }[place] || place);
+    right: t("Колонка справа", "Right column"), sidebar_bottom: t("Низ боковой панели", "Sidebar bottom"),
+    ...(document.body.classList.contains("space-agent") ? { home: t("Рядом с разговором", "Beside the conversation"), top: t("Над разговором", "Above the conversation") } : {}) }[place] || place);
   const placeIcon = (place) => ({ home: "zhome", sidebar: "zside", appbar: "zbar", top: "ztop", composer: "zcomposer", left: "zleft", right: "zright", sidebar_bottom: "zsbottom" }[place]);
 
   const BIND = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)\s*\}\}/g;
@@ -1606,7 +1608,7 @@ const MemuPanels = (() => {
     const home = $q("#panels-home");
     if (!home) return;
     const list = placed("home");
-    if (state.settings.enabled === false && !list.length) { home.hidden = true; return; }
+    if ((state.settings.enabled === false && !list.length) || LAY()?.isDocked?.()) { home.hidden = true; home.innerHTML = ""; return; }
     home.hidden = false;
     home.innerHTML = `<div class="panels-home-head"><span class="mp-home-label">${LAY()?.editing() ? `${ico("zhome")}${esc(placeName("home"))}` : t("Панели", "Panels")}</span><span class="grow"></span>
         <button type="button" class="mp-head-btn" data-mp-act="arrange" title="${t("Изменить расположение панелей — перетаскивание, размеры, новые места", "Edit the panel layout — drag, sizes, new places")}">${ico("arrange")}<span class="mp-head-label">${t("Расположение", "Layout")}</span></button>
@@ -2764,11 +2766,13 @@ const MemuPanels = (() => {
 
   function openGallery(prefPlace = "") {
     const recent = state.dismissed.slice(0, 6);
+    dismissedSeen.gallery.clear();
     const T = TPLS();
     const groups = GALLERY_GROUPS().map(([title, kinds]) => `<div class="mp-gal-group"><div class="mp-section-title">${esc(title)}</div><div class="mp-gallery">${kinds.filter((k) => T[k]).map((k) => `<button type="button" class="mp-tpl" data-kind="${k}"><span class="mp-tpl-ico">${ico(KIND_ICON[k])}</span><b>${esc(tplName(k)).replace("Производительность", "Производи&shy;тельность")}</b><small>${esc(tplDesc(k))}</small></button>`).join("")}</div></div>`).join("");
     const back = openModal(`${head(t("Новая панель", "New panel"), t("Выберите вид — или попросите в чате: «добавь на главный экран курс доллара».", "Pick a kind — or just ask in chat: “add the dollar rate to my home screen”."))}
       <div class="mp-modal-body">${groups}${window.MemuModInt ? MemuModInt.galleryHtml() : ""}
-      ${recent.length ? `<div class="mp-section-title">${t("Недавно убранные", "Recently removed")}</div><div class="mp-dismissed">${recent.map((p) => `<div class="mp-dismissed-row">${ico(KIND_ICON[p.kind] || "dot")}<span>${esc(p.title)}</span><button type="button" class="mp-btn" data-revive="${esc(p.id)}">${t("Вернуть", "Restore")}</button></div>`).join("")}</div>` : ""}</div>`, "wide");
+      ${recent.length ? `<div class="mp-gal-dismissed"><div class="mp-section-title">${t("Недавно убранные", "Recently removed")}${state.dismissed.length > recent.length ? `<span class="mp-section-count">${recent.length} / ${state.dismissed.length}</span>` : ""}</div>${dismissedList(recent, { purge: false, scope: "gallery" })}</div>` : ""}</div>`, "wide");
+    window.MemuMotion?.enter?.(back);
     back.addEventListener("click", (event) => {
       if (event.target.closest("[data-mp-close]")) return closeModal();
       const modPanel = event.target.closest("[data-modpanel-add]");
@@ -2776,8 +2780,38 @@ const MemuPanels = (() => {
       const tpl = event.target.closest(".mp-tpl");
       if (tpl) return openTemplateForm(tpl.dataset.kind, prefPlace);
       const revive = event.target.closest("[data-revive]");
-      if (revive) { closeModal(); act(call(`/api/pg/panels/${revive.dataset.revive}/revive`, { method: "POST" }), t("Панель возвращена", "Panel restored")); }
+      if (revive) {
+        const id = revive.dataset.revive;
+        dismissedSeen.settings.delete(id);
+        leaveRow(revive.closest(".mp-dismissed-row"), () => { closeModal(); act(call(`/api/pg/panels/${id}/revive`, { method: "POST" }), t("Панель возвращена", "Panel restored")); });
+      }
     });
+  }
+  /* «Недавно убранные»: an icon tile, the title with what it was and when it went, then the actions. */
+  /* Rows animate in only the first time they show up in a place: settings re-render on every panels update and
+     replaying the entrance there would make the list flicker. The gallery starts afresh on each opening. */
+  const dismissedSeen = { gallery: new Set(), settings: new Set() };
+  function dismissedList(list, { purge = true, scope = "settings" } = {}) {
+    const seen = dismissedSeen[scope];
+    return `<div class="mp-dismissed" role="list">${list.map((p) => {
+      const fresh = !seen.has(p.id);
+      seen.add(p.id);
+      const kind = tplName(p.kind);
+      const meta = [kind && kind !== p.title ? kind : "", p.dismissed_at ? t(`убрана ${ago(p.dismissed_at)}`, `removed ${ago(p.dismissed_at)}`) : ""].filter(Boolean).join(" · ");
+      return `<div class="mp-dismissed-row${fresh ? " is-new" : ""}" role="listitem" data-dismissed-id="${esc(p.id)}">
+        <span class="mp-dismissed-ico">${ico(KIND_ICON[p.kind] || "dot")}</span>
+        <span class="mp-dismissed-text"><b title="${esc(p.title)}">${esc(p.title)}</b>${meta ? `<small>${esc(meta)}</small>` : ""}</span>
+        <span class="mp-dismissed-acts"><button type="button" class="mp-btn" data-revive="${esc(p.id)}" aria-label="${t("Вернуть", "Restore")}: ${esc(p.title)}">${ico("undo")}${t("Вернуть", "Restore")}</button>${purge ? `<button type="button" class="mp-x" data-purge="${esc(p.id)}" title="${t("Удалить навсегда", "Delete forever")}" aria-label="${t("Удалить навсегда", "Delete forever")}: ${esc(p.title)}">${ico("close")}</button>` : ""}</span>
+      </div>`;
+    }).join("")}</div>`;
+  }
+  function leaveRow(row, done) {
+    if (!row || matchMedia("(prefers-reduced-motion: reduce)").matches) return done();
+    row.classList.add("is-leaving");
+    let finished = false;
+    const finish = () => { if (!finished) { finished = true; done(); } };
+    row.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 260);
   }
 
   function kindNote(kind) {
@@ -3483,6 +3517,7 @@ const MemuPanels = (() => {
       desc: "Creates and manages panels: weather, rates, headlines, scores and anything else as cards on the home screen, in the sidebar or the top bar.",
       desc_ru: "Создаёт панели и управляет ими: погода, курсы, новости, счёт матчей и что угодно ещё — карточками на главном экране, в боковой или верхней панели.",
       when: "The user asks to put something on the home screen, sidebar or top bar as a panel/widget/tracker, or to change, refresh or remove a panel.",
+      cue: "Put, change, refresh or remove a panel, widget or tracker on the home screen, sidebar or top bar.",
       when_ru: "Просьба вывести что-то на главный экран, в боковую или верхнюю панель как панель/виджет/трекер, либо изменить, обновить или убрать панель.",
       inline: false, removable: true, prompt: SKILL_PROMPT,
     });
@@ -3522,7 +3557,7 @@ const MemuPanels = (() => {
           <span class="mp-set-acts">${(p.placements || []).length ? `<span class="mp-set-places">${(p.placements || []).map((pl) => esc(placeName(pl))).join(" · ")}</span>` : ""}
           <button type="button" class="mp-x" data-set-edit title="${t("Изменить", "Edit")}" aria-label="${t("Изменить", "Edit")}: ${esc(p.title)}">${ico("edit")}</button><button type="button" class="mp-x" data-set-remove title="${t("Убрать", "Remove")}" aria-label="${t("Убрать", "Remove")}: ${esc(p.title)}">${ico("trash")}</button></span></div>`).join("")
       : `<div class="mp-set-empty"><b>${t("Панелей пока нет", "No panels yet")}</b><span>${t("Добавьте из галереи или попросите в чате — ИИ соберёт любую.", "Add one from the gallery or ask in chat — the AI builds any panel.")}</span></div>`;
-    const dismissed = state.dismissed.length ? `<details class="mp-set-dismissed"><summary>${t("Недавно убранные", "Recently removed")} <span>${state.dismissed.length}</span></summary><div class="mp-dismissed">${state.dismissed.map((p) => `<div class="mp-dismissed-row">${ico(KIND_ICON[p.kind] || "dot")}<span>${esc(p.title)}</span><button type="button" class="mp-btn" data-revive="${esc(p.id)}">${t("Вернуть", "Restore")}</button><button type="button" class="mp-x" data-purge="${esc(p.id)}" title="${t("Удалить навсегда", "Delete forever")}" aria-label="${t("Удалить навсегда", "Delete forever")}">${ico("close")}</button></div>`).join("")}</div></details>` : "";
+    const dismissed = state.dismissed.length ? `<details class="mp-set-dismissed"${state.dismissedOpen ? " open" : ""}><summary>${ico("chevron", "mp-set-chev")}${t("Недавно убранные", "Recently removed")} <span class="mp-set-count">${state.dismissed.length}</span><small class="mp-set-hint">${t("хранятся последние 12 — их можно вернуть", "the last 12 are kept — you can restore them")}</small></summary>${dismissedList(state.dismissed)}</details>` : "";
     box.innerHTML = section({ id: "mp-set-panels", title: t("Ваши панели", "Your panels"),
         desc: t("Погода, курсы, новости, счёт, отсчёт — над и под полем ввода, в колонках, сбоку или значком сверху. «Расположение» — перетаскивание и размеры.", "Weather, rates, news, scores, countdowns — above and below the message box, in columns, at the side or as a chip at the top. «Layout» — drag and sizes."),
         aside: `${LAY() ? `<button type="button" class="mp-btn" data-mp-act="arrange" title="${t("Перетаскивайте панели между местами окна, меняйте размер и вид мест", "Drag panels between the places of the window, change sizes and the look of places")}">${ico("arrange")}${t("Расположение", "Layout")}</button>` : ""}<button type="button" class="mp-btn primary" data-mp-act="gallery">${ico("plus")}${t("Добавить панель", "Add a panel")}</button>`,
@@ -3543,6 +3578,9 @@ const MemuPanels = (() => {
     if (scroll != null) box.closest(".settings-body").scrollTop = scroll;
   }
   function bindSettings() {
+    document.addEventListener("toggle", (event) => {
+      if (event.target.matches?.("#pane-panels .mp-set-dismissed")) state.dismissedOpen = event.target.open;
+    }, true);
     document.addEventListener("click", (event) => {
       const box = event.target.closest("#pane-panels .mp-settings");
       if (!box) return;
@@ -3550,9 +3588,16 @@ const MemuPanels = (() => {
       if (event.target.closest("[data-set-edit]") && item) return openEditor(item.dataset.panelId);
       if (event.target.closest("[data-set-remove]") && item) return remove(item.dataset.panelId);
       const revive = event.target.closest("[data-revive]");
-      if (revive) return act(call(`/api/pg/panels/${revive.dataset.revive}/revive`, { method: "POST" }), t("Панель возвращена", "Panel restored"));
+      if (revive) {
+        const id = revive.dataset.revive;
+        dismissedSeen.settings.delete(id);
+        return leaveRow(revive.closest(".mp-dismissed-row"), () => act(call(`/api/pg/panels/${id}/revive`, { method: "POST" }), t("Панель возвращена", "Panel restored")));
+      }
       const purge = event.target.closest("[data-purge]");
-      if (purge) return act(call(`/api/pg/panels/${purge.dataset.purge}?purge=1`, { method: "DELETE" }));
+      if (purge) {
+        const id = purge.dataset.purge;
+        return leaveRow(purge.closest(".mp-dismissed-row"), () => act(call(`/api/pg/panels/${id}?purge=1`, { method: "DELETE" })));
+      }
       const units = event.target.closest("[data-units]");
       if (units) return act(call("/api/pg/panels-settings", { method: "POST", body: { units: units.dataset.units } }));
       if (event.target.closest("[data-set-loc-reset]")) return act(call("/api/pg/panels-settings", { method: "POST", body: { location: { mode: "unset", name: "", lat: null, lon: null } } }));
@@ -3581,6 +3626,7 @@ const MemuPanels = (() => {
 
   if (!EMBED) registerSkill();
   function boot() {
+    if (document.documentElement.dataset.moduleApp) return;
     if (EMBED) { bindEvents(); load(); return; }
     bindEvents();
     bindSettings();

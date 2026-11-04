@@ -2,7 +2,7 @@
 .appset .ui-icon svg, .appset .sx-section-icon svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .appset-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 20px 0 4px; }
 .appset-filter { flex: 1 1 260px; min-width: 0; max-width: 420px; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
-  border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--muted); transition: border-color .15s, box-shadow .15s; }
+  border-radius: 10px; border: 1px solid var(--field-border, var(--border)); background: var(--field-bg, var(--panel)); color: var(--muted); transition: border-color .15s, box-shadow .15s; }
 .appset-filter:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: 0 0 0 3px var(--accent-soft); }
 .appset-filter .ui-icon { flex: none; width: 16px; height: 16px; display: inline-flex; }
 .appset-filter input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; }

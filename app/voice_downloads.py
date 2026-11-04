@@ -5,12 +5,20 @@ import asyncio
 import hashlib
 import json
 import threading
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
 
 from .version import APP_VERSION
+
+# F29: at most 2 model downloads run at once (each pulls hundreds of MB to
+# GBs); a single transfer is killed after 4h wall-clock — a trickle feed
+# used to keep a thread busy forever (socket timeouts only fire on stalls).
+_MAX_CONCURRENT_TRANSFERS = 2
+_TRANSFER_SEMAPHORE = threading.Semaphore(_MAX_CONCURRENT_TRANSFERS)
+_TRANSFER_WALL_CLOCK_SECONDS = 4 * 3600
 
 REPOSITORIES = {
     **{name: "Systran/faster-whisper-" + name for name in (
@@ -72,6 +80,21 @@ def manifest(model_id: str, state: dict, cancel: threading.Event) -> list[dict[s
         state.pop("_response", None)
 
 def transfer(files: list[dict], directory: Path, state: dict, cancel: threading.Event) -> None:
+    if not _TRANSFER_SEMAPHORE.acquire(blocking=False):
+        raise RuntimeError("Слишком много одновременных загрузок моделей (предел 2). "
+                           "Дождитесь завершения текущей загрузки")
+    deadline = time.monotonic() + _TRANSFER_WALL_CLOCK_SECONDS
+    try:
+        _transfer_guarded(files, directory, state, cancel, deadline)
+    finally:
+        _TRANSFER_SEMAPHORE.release()
+
+
+def _transfer_guarded(files: list[dict], directory: Path, state: dict,
+                      cancel: threading.Event, deadline: float) -> None:
+    def _check_deadline() -> None:
+        if time.monotonic() > deadline:
+            raise RuntimeError("Загрузка превысила лимит времени (4 часа). Повторите загрузку")
 
     for item in files:
         if item.get("size", 0) > 0:
@@ -100,10 +123,15 @@ def transfer(files: list[dict], directory: Path, state: dict, cancel: threading.
                 read = getattr(response, "read1", response.read)
                 while True:
                     _check(cancel)
+                    _check_deadline()
                     chunk = read(64 * 1024)
                     if not chunk:
                         break
                     _check(cancel)
+                    # F29: receiving more than the declared size is a corrupt
+                    # stream — fail at once instead of filling the disk.
+                    if expected and received + len(chunk) > expected:
+                        raise RuntimeError("Загрузка повреждёна: получено больше заявленного размера")
                     output.write(chunk)
                     digest.update(chunk)
                     received += len(chunk)

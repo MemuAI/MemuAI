@@ -358,8 +358,15 @@ def test_ui_downloads_order_tiles_reveal_archive_settings(tmp_path, monkeypatch)
             time.sleep(0.3)
             assert sorted(os.listdir(out)) == ["README.md"]
 
+            # F2 inside a writable archive renames the member in place (the archive editor).
+            page.locator(".row", has_text="README.md").first.click()
             page.keyboard.press("F2")
-            page.wait_for_function("() => [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('архива'))")
+            page.wait_for_selector(".rename-input")
+            page.fill(".rename-input", "READ.md")
+            page.keyboard.press("Enter")
+            page.wait_for_function("MemuFiles.pane().shown.some(r => r.n === 'READ.md')")
+            with zipfile.ZipFile(dl / "pack.zip") as zf:
+                assert "pack/READ.md" in zf.namelist() and "pack/README.md" not in zf.namelist()
 
             page.evaluate("() => import('/js/dialogs.js').then((m) => m.settingsDialog(MemuFiles))")
             page.wait_for_selector(".st41-nav button[data-g=archives]")
@@ -369,13 +376,15 @@ def test_ui_downloads_order_tiles_reveal_archive_settings(tmp_path, monkeypatch)
             page.wait_for_function("() => MemuFiles.settings.date_format === 'iso'")
             page.fill(".st41-search", "")
             page.click(".st41-nav button[data-g=appearance]")
-            page.click(".st41-swatches button[title='Зелёный']")
-            page.wait_for_function("() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() === '#2fa36b'")
+            before = page.evaluate("() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()")
+            page.click(".lk-acc[data-look=accent][data-v=forest]")
+            page.wait_for_function("(b) => { const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); return MemuFiles.settings.accent === 'forest' && v && v !== b; }", arg=before)
+            page.wait_for_selector(".lk-acc[data-v=forest][aria-checked=true]")
             if shots:
                 page.screenshot(path=os.path.join(shots, "r41-settings.png"))
             page.keyboard.press("Escape")
             from app.memufiles import settings
-            assert settings.load()["accent"] == "green" and settings.load()["date_format"] == "iso"
+            assert settings.load()["accent"] == "forest" and settings.load()["date_format"] == "iso"
             assert not [e for e in errors if "favicon" not in e], errors
             browser.close()
     finally:

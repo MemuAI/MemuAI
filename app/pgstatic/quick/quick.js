@@ -355,7 +355,7 @@
     const theme = prefs.theme === "light" ? "light" : "dark";
     root.dataset.theme = theme;
     root.dataset.accent = /^[a-z]{2,24}$/.test(prefs.accent_color || "") ? prefs.accent_color : "terracotta";
-    root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal)$/.test(prefs.ui_design || "") ? prefs.ui_design : "classic";
+    root.dataset.design = /^(aurora|focus|grid|glass|soft|terminal|brutal|notebook|messenger|retro|clay|studio|zen)$/.test(prefs.ui_design || "") ? prefs.ui_design : "classic";
     const surface = prefs["surface_" + theme] || "";
     if (surface) root.dataset.surface = surface; else delete root.dataset.surface;
     const motion = prefs.ui_motion === "off" ? "off" : (prefs.ui_motion === "reduced" ? "reduced" : "full");

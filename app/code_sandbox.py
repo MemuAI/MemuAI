@@ -230,6 +230,8 @@ def filtered_env(session_id: str, root: Path) -> Dict[str, str]:
     env["MEMUAI_CODE_SESSION"] = str(session_id)[:64]
     env["MEMUAI_PROJECT_ROOT"] = str(root)
     env.setdefault("NO_COLOR", "1")
+    # Test runs must not litter the repository with __pycache__ folders.
+    env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
     if sys.platform == "win32":
         env.setdefault("PYTHONIOENCODING", "utf-8")
         env.setdefault("PYTHONUTF8", "1")

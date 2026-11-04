@@ -1,4 +1,5 @@
 import os
+import time
 import unittest
 
 from tests import presentations_v4_test as studio
@@ -11,11 +12,26 @@ class ExternalReloadTests(unittest.TestCase):
     setUp = studio.StudioBrowserTests.setUp
     tearDown = studio.StudioBrowserTests.tearDown
 
+    def wait_js(self, expr, arg=None, timeout=15000):
+        """Page.wait_for_function eval()s its string once it has to poll, and MemuNote's CSP (script-src 'self')
+        refuses that; page.evaluate goes through CDP and is not subject to the page CSP."""
+        end = time.time() + timeout / 1000
+        while True:
+            try:
+                if self.pg.evaluate(expr, arg):
+                    return
+            except Exception:
+                if time.time() > end:
+                    raise
+            if time.time() > end:
+                raise AssertionError(f"timed out waiting for {expr}")
+            time.sleep(0.05)
+
     def change_file(self, path, data):
         prior = path.stat().st_mtime
         path.write_bytes(data)
         os.utime(path, (prior + 10, prior + 10))
-        self.pg.wait_for_function('''path => MN.tabs.find(t => t.path === path)?.mtime > window.beforeMtime''', arg=str(path), timeout=15000)
+        self.wait_js('''path => MN.tabs.find(t => t.path === path)?.mtime > window.beforeMtime''', arg=str(path), timeout=15000)
 
     def test_external_sheet_change_reloads_rows_and_replaces_destroyed_grid(self):
         from app.memunote.formats.xlsx_edit import patch_xlsx
@@ -27,7 +43,7 @@ class ExternalReloadTests(unittest.TestCase):
         self.assertEqual(self.pg.evaluate('sheetTab.comp.raw(0, 0, sheetTab.comp.sheets[0])'), 'Товар')
         updated = patch_xlsx(data, {'sheets': [{'name': 'Продажи', 'cells': {'A1': {'v': 'Changed on disk'}}}]})
         self.change_file(path, updated)
-        self.pg.wait_for_function("() => sheetTab.comp?.raw(0, 0, sheetTab.comp.sheets[0]) === 'Changed on disk'", timeout=5000)
+        self.wait_js("() => sheetTab.comp?.raw(0, 0, sheetTab.comp.sheets[0]) === 'Changed on disk'", timeout=5000)
         self.assertTrue(self.pg.evaluate('sheetTab.comp !== oldComp'))
         self.assertFalse(self.pg.evaluate('sheetTab.dirty'))
         self.assertEqual(self.errors, [])
@@ -47,7 +63,7 @@ class ExternalReloadTests(unittest.TestCase):
         self.fixture.open(path, wait='.pdf-page-box')
         self.pg.evaluate("window.pdfTab = MN.tabs.find(t => t.kind === 'pdf'); window.oldComp = pdfTab.comp; window.beforeMtime = pdfTab.mtime")
         self.change_file(path, pdf(2))
-        self.pg.wait_for_function("() => document.querySelectorAll('.pdf-page-box').length === 2", timeout=5000)
+        self.wait_js("() => document.querySelectorAll('.pdf-page-box').length === 2", timeout=5000)
         self.assertTrue(self.pg.evaluate('pdfTab.comp !== oldComp'))
         self.assertFalse(self.pg.evaluate('pdfTab.dirty'))
         self.assertEqual(self.errors, [])
@@ -73,7 +89,7 @@ class ExternalReloadTests(unittest.TestCase):
         self.pg.wait_for_selector('.banner [data-b="reload"]', timeout=10000)
         self.assertTrue(self.pg.evaluate('sheetTab.comp === oldComp && oldComp.el.isConnected'))
         self.assertTrue(self.pg.evaluate('sheetTab.mtime === beforeMtime'))
-        self.pg.wait_for_function("() => sheetTab.comp?.raw(0, 0, sheetTab.comp.sheets[0]) === 'After retry'", timeout=10000)
+        self.wait_js("() => sheetTab.comp?.raw(0, 0, sheetTab.comp.sheets[0]) === 'After retry'", timeout=10000)
         self.assertFalse(self.pg.evaluate('sheetTab.dirty'))
         self.assertEqual(self.errors, [])
 

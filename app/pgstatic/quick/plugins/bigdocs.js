@@ -82,7 +82,7 @@
         <button role="radio" aria-checked="${S.mode === "ask"}" class="${S.mode === "ask" ? "on" : ""}" data-q="mode-ask" title="${esc(t("Ответ по найденным фрагментам с номерами страниц", "An answer from the fragments found, with page numbers"))}">${esc(t("Спросить", "Ask"))}</button>
         <button role="radio" aria-checked="${S.mode === "whole"}" class="${S.mode === "whole" ? "on" : ""}" data-q="mode-whole" title="${esc(t("Пересказ по частям и свод — стоимость покажу заранее", "Part-by-part, then combined — the cost is shown first"))}">${esc(t("Весь документ", "Whole document"))}</button></span>`;
     }
-    S.el.innerHTML = `<div class="qbd-strip"><span class="qbd-ico" aria-hidden="true">📄</span><b class="qbd-name" title="${esc(d.name)}">${esc(d.name)}</b>${tail}
+    S.el.innerHTML = `<div class="qbd-strip"><span class="qbd-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span><b class="qbd-name" title="${esc(d.name)}">${esc(d.name)}</b>${tail}
       <button class="qbd-x" data-q="close" aria-label="${esc(t("Убрать документ", "Remove the document"))}" title="${esc(t("Убрать документ", "Remove the document"))}">×</button></div>`;
     S.el.querySelectorAll("[data-q]").forEach((b) => b.onclick = () => act(b.dataset.q));
     Q.resize();

@@ -8,7 +8,7 @@
 .md-svg .md-mark { transition: opacity .12s ease; }
 .md-svg .md-mark:hover { opacity: .82; }
 .md-svg .md-pt:hover { r: 5; }
-.md-svg .md-leg:hover text { text-decoration: underline; }
+.md-svg .md-leg:hover .md-leg-t { text-decoration: underline; }
 .md-bar { position: absolute; top: -13px; right: 8px; z-index: 3; display: flex; gap: 2px; padding: 3px; border: 1px solid var(--border);
   border-radius: 10px; background: var(--panel); box-shadow: 0 6px 18px rgba(0,0,0,.14); opacity: 0; transform: translateY(3px);
   pointer-events: none; transition: opacity .14s ease, transform .14s ease; }

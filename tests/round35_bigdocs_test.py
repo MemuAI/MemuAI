@@ -396,7 +396,7 @@ def test_route_needs_confirmation_above_threshold(client, monkeypatch):
 def test_chat_wiring_present():
     app_js = (ROOT / "app/pgstatic/app.js").read_text("utf-8")
     for hook in ("MemuBigDocs?.takes(f)", "MemuBigDocs.chipHtml(a, i)", "MemuBigDocs?.wireChips(row",
-                 "MemuBigDocs.contextBlocks(sourceMessages", "MemuBigDocs.systemNote(assistant)",
+                 "MemuBigDocs.contextBlocks(fileMessages", "agentCtx.recentMessages(sourceMessages) : sourceMessages", "MemuBigDocs.systemNote(assistant)",
                  "MemuBigDocs.linkCitations(linked, m)", "MemuBigDocs.html(m, i)", "MemuBigDocs.preview(item)",
                  "bigdoc: a.bigdoc, bigdocMode"):
         assert hook in app_js, hook

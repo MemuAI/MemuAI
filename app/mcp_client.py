@@ -527,7 +527,12 @@ class HttpMCPServer(SharedStartup):
     def _http(self) -> Any:
         if self._client is None:
             import httpx
-            self._client = httpx.AsyncClient(timeout=httpx.Timeout(CALL_TIMEOUT, connect=15), follow_redirects=True)
+            # E03: trust_env=True (default) makes httpx parse no_proxy; a
+            # "[::1]" entry (standard for curl, common in corporate/sandbox
+            # envs) crashes it with InvalidURL "Invalid port: ':1]'", so any
+            # remote MCP over Streamable HTTP fails to connect at all.
+            # Loopback/local MCP servers never need env proxies.
+            self._client = httpx.AsyncClient(timeout=httpx.Timeout(CALL_TIMEOUT, connect=15), follow_redirects=True, trust_env=False)
         return self._client
 
     async def _sse_reader(self, ready: asyncio.Future) -> None:

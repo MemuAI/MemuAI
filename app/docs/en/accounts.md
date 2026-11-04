@@ -28,10 +28,11 @@ A few seconds later the new account's models appear in the MemuAI model list.
 | Antigravity | `antigravity-` | Google sign-in | Gemini, Claude, gpt-oss |
 | Gemini Web | `geminiweb-` | two Google cookies or a sign-in window (guest — Flash only) | the account's picker models (3.8 Flash, 3.5 Flash-Lite, 3.1 Pro, 4 Argon) |
 | Grok | `grok-` | the `sso` cookie | Grok models |
+| ZCode | `zcode-` | browser sign-in (Z.AI) or a JWT | GLM-5.3 and GLM-5.3 Flash; tools, images |
 | Custom API | the connection name | Base URL and key | any service with an OpenAI-style API |
 | Local models | `local-` | created automatically | GGUF models on your computer |
 
-Genspark, Kiro, Antigravity, Gemini Web and Grok connect through the unofficial protocols of their web versions. They can stop working when the service changes something on its side; use your own accounts at your own risk.
+Genspark, Kiro, Antigravity, Gemini Web, Grok and ZCode connect through the unofficial protocols of their web versions and apps. They can stop working when the service changes something on its side; use your own accounts at your own risk.
 
 ## Getting a cookie
 
@@ -100,6 +101,24 @@ The old names (`claude-sonnet-4-6`, `gemini-pro-agent` and the other Google ids)
 If Google asks to verify the account ("Verify your account"), the limits window shows a warning with a link; sign-in keeps working meanwhile.
 
 **Instability.** The Antigravity service itself is sometimes unstable: it answers 429 "Resource has been exhausted", 503, or refuses by region. The Proxy tries both Google hosts, remembers which one answered, waits for the pause Google suggests (up to 8 seconds), refreshes the token once on a 401 and moves on to the next account; Google's real error text is visible in the log. The Proxy checks the client version against Antigravity's own auto-update address (it can be set by hand in the provider settings, which turns the check off).
+
+### ZCode
+
+ZCode is Z.AI's environment for programmers; the Proxy works with its plan the way the official app does.
+
+- **Sign in via browser** — the Z.AI sign-in page opens (the same one the ZCode app uses). After you sign in, the Proxy gets the token by itself and creates an account labelled with your email. The link is valid for 5 minutes; if the browser did not open, click "Open the sign-in page" under the button.
+- Or paste a token from the ZCode app into the **ZCode JWT** field: an `eyJ…` string, `Bearer eyJ…` or JSON with a `token` field.
+
+Signing in again with the same account refreshes the token of the existing card — no duplicate is created.
+
+| Model | What it is |
+| --- | --- |
+| `zcode-glm-5.3` | GLM-5.3: tool calls, images, low / high / max thinking |
+| `zcode-glm-5.3-flash` | GLM-5.3 Flash — faster, with its own quota |
+
+**Plan and limits.** "Check" shows the plan and what is left, "Limits" shows what is left per model, the reset date and the plan's end date. If there is no plan, get one in the official ZCode app with the same account: it may show an "I'm not a robot" check, and MemuAI does not pass it for you. A model that ran out is paused until its quota resets and comes back by itself.
+
+**Errors.** The Proxy retries a busy server and 5xx failures by itself, and on frequent requests waits or switches accounts. If the server rejects a request with its protection twice in a row (code 3012), the account rests for 15 minutes. An expired token (401) — sign in via browser again. The provider settings hold the default thinking depth, the answer token limit and a note telling the model the request comes from MemuAI.
 
 ## Custom API
 

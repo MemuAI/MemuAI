@@ -37,7 +37,7 @@ from .config import DATA_DIR
 from .path_safety import is_link
 from .storage import _json_transaction, load_json_with_recovery, mutate_json, save_json
 
-BUILTIN_ORDER: Tuple[str, ...] = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet")
+BUILTIN_ORDER: Tuple[str, ...] = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet", "utils")
 
 LAUNCHER_SLOTS: Tuple[str, ...] = ("sidebar", "chat-list", "topbar", "composer")
 
@@ -51,9 +51,10 @@ PERMISSIONS: Tuple[str, ...] = (
 
     "learn",
     "database",
+    "utils",
 )
 
-IMPLICIT_PERMISSIONS: Tuple[str, ...] = tuple(name for name in PERMISSIONS if name not in ("net-import", "music", "learn", "database"))
+IMPLICIT_PERMISSIONS: Tuple[str, ...] = tuple(name for name in PERMISSIONS if name not in ("net-import", "music", "learn", "database", "utils"))
 
 ACTION_PERMISSION: Dict[str, str] = {
     "request": "chat", "stream": "chat", "chat_history": "chat",
@@ -77,6 +78,7 @@ ACTION_PERMISSION: Dict[str, str] = {
 
     "learn_call": "learn",
     "database_call": "database",
+    "utils_call": "utils",
 }
 
 FREE_ACTIONS = ("routes", "env", "resize", "log", "close", "host", "asset", "toolbar", "unsaved", "appbar", "integration")
@@ -779,6 +781,7 @@ def _public_row(manifest: Dict[str, Any], overlay: Dict[str, Any], *, builtin: b
 
         "resizable": overlay.get("resizable") is not False,
         "open": bool(overlay.get("open")),
+        "minimized": bool(overlay.get("open")) and bool(overlay.get("minimized")),
         "fullscreen": bool(overlay.get("fullscreen")),
     }
 
@@ -1151,7 +1154,13 @@ def remember_window(root: Path, module_id: str, box: Dict[str, Any]) -> Dict[str
 
 def mark_open(root: Path, module_id: str, opened: bool) -> None:
     module_id = _safe_id(module_id)
-    _mutate_state(root, module_id, lambda row: row.update(open=bool(opened)))
+    # A closed window forgets that it was minimized: the next open shows it.
+    _mutate_state(root, module_id, lambda row: row.update(open=bool(opened), **({} if opened else {"minimized": False})))
+
+def mark_minimized(root: Path, module_id: str, minimized: bool) -> None:
+    """An open window that sits on the module bar comes back minimized after a reload."""
+    module_id = _safe_id(module_id)
+    _mutate_state(root, module_id, lambda row: row.update(minimized=bool(minimized)))
 
 def _persist_keys(root: Path, module_id: str) -> List[str]:
     owner = Path(root) / ("overrides" if module_id in BUILTIN_ORDER else "custom") / module_id
@@ -1726,7 +1735,7 @@ kbd{border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;pad
   border:1px solid var(--border);border-radius:var(--radius);background:var(--panel)}
 .mu-field{display:flex;flex-direction:column;gap:5px;font-size:.86em;color:var(--muted)}
 .mu-input,.mu-select,.mu-textarea{width:100%;min-height:36px;padding:8px 11px;font:inherit;color:var(--text);
-  background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--field-bg,var(--panel));border:1px solid var(--field-border,var(--border));border-radius:var(--radius-sm);
   transition:border-color .16s,box-shadow .16s;appearance:none}
 .mu-select{background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
   linear-gradient(135deg,var(--muted) 50%,transparent 50%);
@@ -1856,7 +1865,7 @@ BRIDGE_JS = r"""
     handoff: 60000, download: 180000, notify: 60000, open: 20000, monitor: 180000, music: 700000,
     search: 60000, fetch: 60000, clipboard: 10000, routes: 10000, env: 5000,
     resize: 5000, chat_history: 30000, record: 120000, complete: 0, store: 120000, asset: 60000,
-    net_import: 200000, learn_call: 180000, database_call: 180000
+    net_import: 200000, learn_call: 180000, database_call: 180000, utils_call: 1800000
   };
 
   function callWithId(id, action, payload) {
@@ -2061,6 +2070,7 @@ BRIDGE_JS = r"""
       }
       else if (data.action === "host-event") {
         var hostEventName = String(data.payload && data.payload.name || "");
+        if (hostEventName === "system-audio" && event.source !== parent) return;
         if (hostEventName === "toolbar") runToolbarClick((data.payload || {}).data || {});
         if (hostEventName === "appbar") applyAppbar((data.payload || {}).data || {});
         emit(hostEventName, (data.payload || {}).data);
@@ -2378,6 +2388,8 @@ BRIDGE_JS = r"""
   // Round 40 (r40-learn): Memu.learn.call(op, args) — MemuLearn courses / cards / FSRS (permission learn, app/learn/api.py).
   var learnApi = { call: function (op, args) { return call("learn_call", { op: String(op || ""), args: args || {} }); } };
   var databaseApi = { call: function (op, args) { return call("database_call", { op: String(op || ""), args: args || {} }); } };
+  // Memu.utils.call(op, args) — MemuUtils: the local utilities (permission utils, app/utils_kit/api.py).
+  var utilsApi = { call: function (op, args) { return call("utils_call", { op: String(op || ""), args: args || {} }); } };
 
   var Memu = {
     id: MODULE_ID,
@@ -2446,7 +2458,8 @@ BRIDGE_JS = r"""
     record: {
       start: function (args) { return call("record", Object.assign({ action: "start" }, args || {})); },
       stop: function () { return call("record", { action: "stop" }); },
-      cancel: function () { return call("record", { action: "cancel" }); }
+      cancel: function () { return call("record", { action: "cancel" }); },
+      system: function (action, opts) { return call("record", Object.assign({ action: action, source: "system" }, opts || {})); }
     },
     extract: function (body) { return call("extract", body); },
     handoff: function (body) { return call("handoff", body); },
@@ -2456,10 +2469,12 @@ BRIDGE_JS = r"""
     music: musicApi,
     learn: learnApi,
     database: databaseApi,
+    utils: utilsApi,
     open: function (body) { return call("open", body); },
     search: function (body) { return call("search", body); },
     fetch: function (body) { return call("fetch", body); },
     copy: function (text) { return call("clipboard", { text: text }); },
+    copyImage: function (png) { return call("clipboard", { image: png }); },
     paste: function () { return call("clipboard_read", {}).then(function (r) { return (r && r.text) || ""; }); },
     routes: function () { return call("routes", {}); },
     env: function () { return call("env", {}); },
@@ -2492,6 +2507,18 @@ BRIDGE_JS = r"""
   if (typeof window.__memuModuleMain === "function") window.__memuModuleMain();
 })();
 """.strip()
+
+# Хосты аватарок каталога ботов («Персонажи»): Chub, Pygmalion.chat, SpicyChat.
+# Без них в img-src браузер отклоняет <img> в карточках каталога, и вместо
+# фото ботов — монограмма-заглушка. Только картинки, только эти три хоста,
+# которым приложение и так доверяет поиск и импорт (см. catalog.js).
+CATALOG_AVATAR_CSP_HOSTS = "https://avatars.charhub.io https://assets.pygmalion.chat https://cdn.nd-api.com"
+
+
+def catalog_avatar_csp_src(module_id):
+    """Extra img-src for the characters bot catalog (avatars from catalog CDNs)."""
+    return " " + CATALOG_AVATAR_CSP_HOSTS if module_id == "characters" else ""
+
 
 def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = None,
                     *, env: Optional[Dict[str, Any]] = None) -> str:
@@ -2537,6 +2564,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
 
     from .music.api import csp_sources as music_csp
     music_src = " " + music_csp() if "music" in (package.get("permissions") or []) else ""
+    catalog_src = catalog_avatar_csp_src(package.get("id"))
     return (
         "<!DOCTYPE html>\n"
         f'<html lang="{_attr(environment["lang"])}" data-theme="{_attr(environment["theme"])}" '
@@ -2547,7 +2575,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
         "<head>\n<meta charset=\"utf-8\">\n"
 
         "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; "
-        f"script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:{music_src}; "
+        f"script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:{music_src}{catalog_src}; "
         f"media-src data: blob:{music_src}; font-src data:; connect-src 'none'; object-src 'none'; "
         "base-uri 'none'; form-action 'none'\">\n"
         "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n"

@@ -84,9 +84,9 @@
     ov.className = "pln-picker ptg-ov";
     const draw = () => {
       const items = list().map((x, i) => ({ ...x, i })).filter((x) => cat === "all" || x.cat === cat);
-      ov.innerHTML = `<div class="pln-picker-box ptg-box" role="dialog" aria-modal="true" aria-label="${T("Шаблоны сценариев", "Scenario templates")}">
-        <div class="pln-picker-head"><b>${T("Шаблоны сценариев", "Scenario templates")}</b><button class="mini-action" data-x aria-label="${T("Закрыть", "Close")}">${I("close")}</button></div>
-        <p class="ptg-lead">${T("Выберите сценарий — он откроется в конструкторе, там можно всё поменять.", "Pick a scenario — it opens in the builder where you can change anything.")}</p>
+      ov.innerHTML = `<div class="pln-picker-box ptg-box" role="dialog" aria-modal="true" aria-label="${T("Шаблоны задач", "Task templates")}">
+        <div class="pln-picker-head"><b>${T("Шаблоны задач", "Task templates")}</b><button class="mini-action" data-x aria-label="${T("Закрыть", "Close")}">${I("close")}</button></div>
+        <p class="ptg-lead">${T("Выберите шаблон — задача откроется в мастере, там можно всё поменять перед сохранением.", "Pick a template — the task opens in the wizard where you can change anything before saving.")}</p>
         <div class="ptg-cats" role="tablist">${CATS().map(([id, label]) => `<button role="tab" class="${id === cat ? "on" : ""}" aria-selected="${id === cat}" data-cat="${id}">${H(label)}</button>`).join("")}</div>
         <div class="ptg-grid">${items.map((x) => `<button class="ptg-card" data-i="${x.i}"><span class="ptg-ic">${I(x.icon)}</span><span class="ptg-txt"><b>${H(x.title)}</b><small>${H(x.desc)}</small>
           ${x.chips.length ? `<span class="ptg-chips">${x.chips.map((c) => `<em>${H(c)}</em>`).join("")}</span>` : ""}</span></button>`).join("")}</div></div>`;

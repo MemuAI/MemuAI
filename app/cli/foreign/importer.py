@@ -7,19 +7,27 @@ Read back, an imported conversation is plain history — a person asked, an agen
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import secrets
+import shutil
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..session import IMPORTED_PREFIX, Session
-from .model import ForeignSession, Turn, clip
+from ..session import IMPORTED_PREFIX, Session, new_id
+from .model import MAX_TURNS, ForeignSession, Turn, clip
 
 RESULT_LINES = 6
 
 def session_id(tool: str, original: str) -> str:
-    safe = "".join(ch if ch.isalnum() else "-" for ch in str(original))[:24].strip("-") or "session"
-    return f"{IMPORTED_PREFIX}{tool}-{safe}"
+    """The id of the imported session. The full (sanitised) foreign id is
+    kept plus a sha1 suffix: truncating to 24 characters used to collide
+    two different foreign ids that share a prefix into one file."""
+    safe = "".join(ch if ch.isalnum() else "-" for ch in str(original)).strip("-") or "session"
+    digest = hashlib.sha1(str(original).encode("utf-8")).hexdigest()[:16]
+    return f"{IMPORTED_PREFIX}{tool}-{safe[:100]}-{digest}"
 
 def _step(turn: Turn) -> str:
     if turn.role == "tool":
@@ -50,7 +58,8 @@ def messages_of(session: ForeignSession) -> List[Dict[str, Any]]:
                         "model": session.models[0] if session.models else info.model})
             pending.clear()
 
-    for index, turn in enumerate(session.turns):
+    # F31: cap the turns an import turns into messages.
+    for index, turn in enumerate(session.turns[:MAX_TURNS]):
         at = stamp(index, turn)
         last_at = at
         if turn.role == "user":
@@ -64,25 +73,53 @@ def messages_of(session: ForeignSession) -> List[Dict[str, Any]]:
     return out
 
 def import_session(root: Path, session: ForeignSession, *, replace: bool = False) -> Tuple[Optional[Session], str]:
-    """Save ``session`` as a MemuCode conversation of the project ``root`` (the folder it worked in, when that
-    still exists). Returns ``(conversation, "added" | "skipped: …")``."""
+    """Save ``session`` as a MemuCode conversation of the project ``root``.
+    Returns ``(conversation, "added" | "skipped: …")``.
+
+    The transcript is written to a temp file in the same folder and moved
+    into place with ``os.replace``: the old behaviour deleted the existing
+    file first (``unlink()``) and then appended, so a failure in between
+    lost the imported session. The foreign ``cwd`` is only metadata now —
+    the session always lands in MemuCode's own store for ``root``, never in
+    the other tool's folder.
+    """
     info = session.info
-    folder = Path(info.cwd) if info.cwd and Path(info.cwd).is_dir() else Path(root)
     messages = messages_of(session)
     if not messages:
         return None, "skipped: no messages"
     ident = session_id(info.tool, info.id)
-    target = Session(folder, ident)
-    if target.path.exists():
-        if not replace:
-            return None, "skipped: already imported"
-        target.path.unlink()
+    target = Session(Path(root), ident)
+    if target.path.exists() and not replace:
+        return None, "skipped: already imported"
     target.meta.update({"title": info.title or info.id, "created": info.started or time.time(),
                         "updated": info.updated or time.time(), "model": session.models[0] if session.models else info.model,
-                        "imported_from": info.tool, "imported_id": info.id, "imported_path": info.path})
-    for message in messages:
-        target.append(message)
+                        "imported_from": info.tool, "imported_id": info.id, "imported_path": info.path,
+                        "imported_cwd": info.cwd})
+    target.folder.mkdir(parents=True, exist_ok=True)
+    tmp_path = target.path.with_name(target.path.name + ".tmp-" + secrets.token_hex(6))
+    try:
+        lines = [json.dumps({"t": "meta", **target.meta}, ensure_ascii=False, default=str)]
+        for message in messages:
+            message.setdefault("id", new_id("m"))
+            message.setdefault("ts", time.time())
+            stored = target._store_images(message)
+            target.messages.append(message)
+            lines.append(json.dumps({"t": "msg", "m": stored}, ensure_ascii=False, default=str))
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, target.path)
+    except Exception:
+        # The previous file (if any) is untouched; drop the temp file and
+        # any half-written staging assets of this attempt.
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     target.meta["updated"] = info.updated or target.meta["updated"]
+    target._index_dirty = True
     target.flush_index()
     if info.updated:
         try:

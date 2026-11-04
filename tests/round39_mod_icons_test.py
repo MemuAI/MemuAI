@@ -21,7 +21,7 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r39-mod-icons-
 
 from app import module_icons, modules_host, modules_validate  # noqa: E402
 
-BUILTINS = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb")
+BUILTINS = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet", "utils")
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h20v20H2z" fill="#f80"/></svg>'
 
 def _png(size=64, color=(200, 80, 120, 255)) -> bytes:

@@ -307,7 +307,7 @@ body.te-comparing::after {
 .te-tmeta small { color: var(--muted); font-size: 11.5px; }
 .te-saveform { display: flex; gap: 6px; margin: 2px 0 6px; }
 .te-input { min-width: 0; flex: 1; min-height: 32px; padding: 6px 10px; border-radius: var(--te-r-sm); border: 1px solid var(--control-border, var(--border));
-  background: color-mix(in srgb, var(--bg) 60%, var(--panel)); color: var(--text); font: inherit; font-size: 12.5px; outline: 0; }
+  background: var(--field-bg, var(--panel)); color: var(--text); font: inherit; font-size: 12.5px; outline: 0; }
 .te-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .te-code { width: 100%; resize: vertical; font: 12px/1.45 var(--mono, monospace); }
 .te-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }

@@ -123,8 +123,10 @@ body.cv-resizing .cv-frame { pointer-events: none; }
 .cv-grid { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 100%; }
 .cv-grid th, .cv-grid td { padding: 6px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); white-space: nowrap; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
 .cv-grid thead th { position: sticky; top: 0; z-index: 1; text-align: left; font-weight: 600; background: var(--panel-2, var(--panel)); }
-.cv-grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--text) 2.5%, transparent); }
-.cv-grid tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.cv-grid tbody tr:hover { --cv-row-hover: color-mix(in srgb, var(--accent) 7%, transparent); }
+.cv-grid tbody tr:nth-child(even) td { background: var(--cv-row-hover, color-mix(in srgb, var(--text) 2.5%, transparent)); }
+.cv-grid tbody tr:nth-child(odd) td { background: var(--cv-row-hover, transparent); }
+.cv-grid tbody tr:nth-child(odd) td.cv-rn { background: var(--cv-row-hover, var(--panel-2, var(--panel))); }
 .cv-grid .cv-rn { color: var(--muted); text-align: right; font-size: 11.5px; width: 1%; background: var(--panel-2, var(--panel)); }
 .cv-grid .cv-num { text-align: right; font-variant-numeric: tabular-nums; }
 .cv-mail { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -149,7 +151,7 @@ body.cv-resizing .cv-frame { pointer-events: none; }
 .cv-ed-meta label { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
 .cv-ed-meta label span { width: 56px; flex: none; }
 .cv-ed-meta input { flex: 1; min-width: 0; height: 30px; padding: 0 9px; font: 13.5px var(--sans); color: var(--text);
-  background: var(--panel-2, var(--bg)); border: 1px solid var(--control-border, var(--border)); border-radius: 7px; }
+  background: var(--field-bg, var(--panel)); border: 1px solid var(--field-border, var(--border)); border-radius: 7px; }
 .cv-ed { flex: 1; min-height: 200px; width: 100%; box-sizing: border-box; resize: none; margin: 0; padding: 14px 16px;
   font: 12.5px/1.6 var(--mono, ui-monospace, Consolas, monospace); tab-size: 2; color: var(--text); background: transparent; border: 0; outline: none; }
 .cv-ed-prose { font: 14.5px/1.65 var(--sans); }
@@ -245,8 +247,8 @@ body.code-mode #canvas-pane, body.code-mode #canvas-resizer, body.code-mode #can
 .cv-kind-fail { margin: 24px auto; max-width: 420px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); padding: 0 16px; }
 .cv-kind-fail .cv-i { color: var(--cv-del); flex: none; margin-top: 1px; }
 .cv-sl-theme { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-.cv-sl-theme select { height: 26px; padding: 0 6px; font: 12.5px var(--sans); color: var(--text); background: var(--panel-2, var(--bg));
-  border: 1px solid var(--control-border, var(--border)); border-radius: 7px; }
+.cv-sl-theme select { height: 26px; padding: 0 6px; font: 12.5px var(--sans); color: var(--text); background: var(--field-bg, var(--panel));
+  border: 1px solid var(--field-border, var(--border)); border-radius: 7px; }
 .cv-sl-stage { padding: 14px 16px 28px; }
 .cv-t-diagram, .cv-t-slides { color: var(--accent); }
 .cv-linked { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); font-weight: 600; }

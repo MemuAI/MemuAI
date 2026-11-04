@@ -5,7 +5,7 @@
   const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG : document.documentElement.lang) === "en";
   const t = (ru, enText) => (en() ? enText : ru);
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const S = { modules: [], loaded: false, loading: null, prompt: "", frames: new Map(), cardMsgs: new Map(), parking: null, io: null, player: null, chatEl: null };
+  const S = { modules: [], loaded: false, loading: null, prompt: "", details: [], frames: new Map(), cardMsgs: new Map(), parking: null, io: null, player: null, chatEl: null };
   const READ_MONITOR = new Set(["status", "events"]);
   const STORE_OPS = new Set(["get", "get_many", "set", "list"]);
 
@@ -27,7 +27,8 @@
       json("/api/pg/modint?lang=" + (en() ? "en" : "ru")).catch(() => ({ modules: [] })),
       json("/api/pg/modint/skill?lang=" + (en() ? "en" : "ru")).catch(() => ({ prompt: "" })),
     ]).then(([data, skill]) => {
-      S.modules = data.modules || []; S.prompt = skill.prompt || ""; S.loaded = true;
+      S.modules = data.modules || []; S.prompt = skill.prompt || ""; S.details = Array.isArray(skill.details) ? skill.details : [];
+      S.loaded = true;
       if (S.modules.length) loadCss();
       syncChatWidget();
       document.dispatchEvent(new CustomEvent("memu-modint-changed"));
@@ -80,6 +81,7 @@
     parent.appendChild(el);
   }
   function mount() {
+    S.io?.disconnect();
     const slots = document.querySelectorAll(".mmi-slot[data-mmi]");
     const seen = new Set();
     if (slots.length && !S.loaded) { load().then(() => window.MemuPanels && MemuPanels.render && MemuPanels.render()); return; }
@@ -88,6 +90,7 @@
       seen.add(key);
       const item = S.frames.get(key);
       if (item && item.src === slot.dataset.mmi) { move(slot, item.frame); item.slot = slot; observe(slot); return; }
+      if (item) { item.frame.remove(); S.frames.delete(key); }
       slot.innerHTML = '<div class="mmi-skel" aria-hidden="true"><i></i><b></b><b></b></div>';
       observe(slot);
     });
@@ -98,6 +101,7 @@
       S.io = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           const slot = entry.target;
+          if (!slot.isConnected) continue;
           const key = slot.dataset.mmiKey;
           let item = S.frames.get(key);
           if (entry.isIntersecting && !item) item = create(slot);
@@ -193,10 +197,20 @@
     }
   }
 
-  function systemBlock(mode) {
+  // The compact block lists command names only; a module's full command list and notes join it when the request
+  // (``text`` — the latest user messages) mentions one of the module's key stems.
+  function detailsFor(text) {
+    const low = String(text || "").toLowerCase();
+    if (!low.trim() || !S.details || !S.details.length) return [];
+    return S.details.filter((row) => (row.keys || []).some((key) => key && low.includes(String(key).toLowerCase())));
+  }
+  function systemBlock(mode, text) {
     if (mode === "work" || mode === "code") return "";
     if (!S.loaded) load();
-    return S.prompt;
+    const prompt = S.prompt || "";
+    const extra = prompt ? detailsFor(text).map((row) => row.text).filter(Boolean) : [];
+    if (!extra.length) return prompt;
+    return prompt.replace(/\n?<\/module_commands>\s*$/, "") + "\n\n" + extra.join("\n\n") + "\n</module_commands>";
   }
   async function client(c) {
     if (!c || typeof c !== "object") return;
@@ -206,7 +220,7 @@
 
       const wasOn = !!MemuMusicDock.state().booted;
       if (!wasOn) await MemuMusicDock.boot(true);
-      const moduleOpen = !!(window.MemuModules && (MemuModules.openIds || []).includes("music"));
+      const moduleOpen = !!(window.MemuModules && (MemuModules.openIds || []).includes("music") && !MemuModules.windowState?.("music")?.deferred);
       if (!wasOn && !moduleOpen && c.command && c.command.cmd && MemuMusicDock.apply) MemuMusicDock.apply({ ...c.command, from: "memuai" });
     }
   }
@@ -228,6 +242,12 @@
   async function runTool(call, opts = {}) {
     const args = call.args || {};
     const body = { tool: "module_command", args, lang: en() ? "en" : "ru" };
+    // A built-in command that works on files (``files: true``) gets the chat's latest attachments.
+    const mod = S.modules.find((m) => m.module === args.module);
+    const spec = mod && (mod.commands || []).find((c) => c.id === args.command);
+    if (spec && spec.files && typeof opts.files === "function") {
+      try { body.files = (await opts.files()) || []; } catch (_) { body.files = []; }
+    }
     let out = await json("/api/pg/tools", body).catch((e) => ({ tool: "module_command", ok: false, error: e.message }));
     if (out.needs_confirm) {
       const ok = typeof askConfirm === "function" && await askConfirm(t("Выполнить команду модуля?", "Run the module command?"),
@@ -453,8 +473,9 @@
   document.addEventListener("memu-modules-changed", () => { if (S.loaded) load(true).then(() => window.MemuPanels && MemuPanels.render && MemuPanels.render()); });
   document.addEventListener("visibilitychange", () => { if (S.loaded) syncChatWidget(); });
   const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
-  setTimeout(() => idle(() => load(), { timeout: 4000 }), 1800);
+  if (!document.documentElement.dataset.moduleApp) setTimeout(() => idle(() => load(), { timeout: 4000 }), 1800);
 
   window.MemuModInt = { load, widgetValues, renderWidgetSettings, aliasCall, galleryHtml, addPanel, slotHtml, park, mount, systemBlock, runTool, summary, client, cardsHtml, moduleSettings, theme, panelInfo, savePanelSettings,
+    resetChatCards: () => S.cardMsgs.clear(),
     state: () => ({ modules: S.modules.length, frames: S.frames.size, prompt: S.prompt.length }) };
 })();

@@ -9,7 +9,10 @@ never shown or written from MemuAI. Stdlib only: MemuFiles ships alone.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Tuple
+
+from .appearance import _ACCENT_LABELS, DESIGNS, FOLDER_COLORS, PALETTES
 
 GROUPS: List[Dict[str, str]] = [
     {"id": "appearance", "ru": "Внешний вид", "en": "Appearance"},
@@ -35,6 +38,12 @@ def _e(key, default, group, ru, en, choices, dru="", den="", **extra):
     return {"key": key, "type": "enum", "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den,
             "choices": [{"value": v, "ru": r, "en": e} for v, r, e in choices], **extra}
 
+_PALETTES = [(row["id"], row["ru"], row["en"]) for row in PALETTES]
+_ACCENTS = ([("auto", "Как в MemuAI", "Same as MemuAI"), ("palette", "Из палитры", "From the palette")]
+            + [(key, row["ru"], row["en"]) for key, row in _ACCENT_LABELS.items()] + [("custom", "Свой цвет", "Custom colour")])
+_DESIGNS = [(row["id"], row["ru"], row["en"]) for row in DESIGNS]
+_FOLDERS = [(row["id"], row["ru"], row["en"]) for row in FOLDER_COLORS]
+
 SCHEMA: List[Dict[str, Any]] = [
 
     _e("language", "auto", "appearance", "Язык", "Language",
@@ -42,13 +51,19 @@ SCHEMA: List[Dict[str, Any]] = [
     _e("theme", "auto", "appearance", "Тема", "Theme",
        [("auto", "Как в MemuAI", "Same as MemuAI"), ("dark", "Тёмная", "Dark"), ("light", "Светлая", "Light")],
        "«Как в MemuAI» берёт тему, фон и акцент MemuAI.", "“Same as MemuAI” uses MemuAI's theme, surface and accent."),
+    _e("palette", "auto", "appearance", "Палитра", "Palette", _PALETTES,
+       "Цвета окна. У каждой палитры есть тёмный и светлый вариант.", "Window colours. Every palette has a dark and a light face."),
+    _e("accent", "auto", "appearance", "Акцентный цвет", "Accent colour", _ACCENTS,
+       "Выделение, кнопки и активные элементы. Цвет подстраивается под фон, чтобы оставаться читаемым.",
+       "Selection, buttons and active items. The colour adapts to the background to stay readable."),
+    {"key": "accent_custom", "type": "text", "default": "", "group": "appearance", "ru": "Свой цвет акцента", "en": "Custom accent colour",
+     "desc_ru": "HEX, например #3366ff.", "desc_en": "HEX, for example #3366ff.", "maxlen": 7, "placeholder": "#3366ff",
+     "pattern": r"#[0-9a-fA-F]{6}", "when": "accent=custom"},
+    _e("design", "auto", "appearance", "Дизайн", "Design", _DESIGNS,
+       "Форма окна: вкладки, скругления, рамки и панели.", "The window's shape: tabs, corners, outlines and panels."),
+    _e("folder_color", "classic", "appearance", "Цвет папок", "Folder colour", _FOLDERS),
     _e("density", "normal", "appearance", "Плотность", "Density",
        [("compact", "Компактно", "Compact"), ("normal", "Обычно", "Normal"), ("comfortable", "Просторно", "Comfortable")]),
-
-    _e("accent", "auto", "appearance", "Акцентный цвет", "Accent colour",
-       [("auto", "Как в теме", "From the theme"), ("blue", "Синий", "Blue"), ("violet", "Фиолетовый", "Violet"),
-        ("pink", "Розовый", "Pink"), ("red", "Красный", "Red"), ("orange", "Оранжевый", "Orange"),
-        ("green", "Зелёный", "Green"), ("teal", "Бирюзовый", "Teal"), ("graphite", "Графит", "Graphite")]),
     _e("ui_scale", "auto", "appearance", "Размер текста", "Text size",
        [("auto", "Как в MemuAI", "Same as MemuAI"), ("90", "Мельче (90 %)", "Smaller (90%)"), ("100", "Обычный (100 %)", "Normal (100%)"),
         ("110", "Крупнее (110 %)", "Larger (110%)"), ("125", "Крупный (125 %)", "Large (125%)")]),
@@ -66,6 +81,31 @@ SCHEMA: List[Dict[str, Any]] = [
        [("auto", "Как в системе", "Follow the system"), ("on", "Включены", "On"), ("off", "Выключены", "Off")]),
     _b("custom_titlebar", True, "appearance", "Вкладки в заголовке окна", "Tabs in the window caption",
        "Своя полоса заголовка Windows; выключено — системная рамка.", "A custom Windows caption; off — the system frame."),
+    _e("tab_style", "classic", "appearance", "Вид вкладок", "Tab style",
+       [("classic", "Классические", "Classic"), ("compact", "Компактные", "Compact"), ("icons", "Только значки", "Icons only"),
+        ("preview", "С превью", "With a preview"), ("vertical", "Сбоку списком", "Side list")],
+       "«С превью» — под именем вкладки путь к папке; «Сбоку списком» — вкладки уходят в левую колонку.",
+       "“With a preview” shows the folder path under the tab name; “Side list” moves tabs into a left column."),
+    _b("show_tab_bar", True, "appearance", "Полоса вкладок", "Tab bar",
+       "Выключено — вкладки переключаются через меню вкладки, Ctrl+Tab и двойной щелчок по полосе.",
+       "Off — switch tabs from the tab menu, Ctrl+Tab, or by double-clicking the bar."),
+    _b("tab_meta", False, "appearance", "Число объектов во вкладках", "Item count in tabs",
+       "Во всплывающей подсказке вкладки: сколько объектов в папке.",
+       "In the tab tooltip: how many items the folder holds."),
+    _e("sidebar_side", "left", "appearance", "Боковая панель", "Sidebar",
+       [("left", "Слева", "On the left"), ("right", "Справа", "On the right")]),
+    _b("show_sidebar", True, "appearance", "Боковая панель", "Sidebar",
+       "Дерево папок, диски и закреплённое. Выключено — больше места под файлы.",
+       "Folder tree, drives and pinned folders. Off — more room for files."),
+    _e("preview_side", "right", "appearance", "Предпросмотр", "Preview",
+       [("right", "Справа", "On the right"), ("left", "Слева", "On the left")],
+       "Где открывается правая панель: предпросмотр и ИИ.", "Where the right panel opens: preview and AI."),
+    _b("columns_size", True, "appearance", "Столбец «Размер»", "“Size” column", "В виде «Таблица».", "In the Details view."),
+    _b("columns_date", True, "appearance", "Столбец «Дата изменения»", "“Date modified” column", "В виде «Таблица».", "In the Details view."),
+    {"key": "custom_css", "type": "text", "default": "", "group": "appearance", "ru": "Свой CSS", "en": "Custom CSS",
+     "desc_ru": "Свои правила для окна MemuFiles. Редактор — в самом приложении: Настройки → Внешний вид → «Свой CSS».",
+     "desc_en": "Your own rules for the MemuFiles window. The editor lives in the app: Settings → Appearance → “Custom CSS”.",
+     "maxlen": 20000, "hidden": True},
     _i("sidebar_width", 236, "appearance", "Ширина боковой панели", "Sidebar width", 160, 760, 4, " px"),
     _i("preview_width", 340, "appearance", "Ширина предпросмотра", "Preview width", 160, 760, 4, " px"),
 
@@ -211,6 +251,8 @@ def check(key: str, value: Any) -> Tuple[bool, Any, str]:
         return False, None, "length"
     if kind == "url" and value and not _local_url(value):
         return False, None, "url"
+    if item.get("pattern") and value and not re.fullmatch(item["pattern"], value):
+        return False, None, "pattern"
     return True, value, ""
 
 def validate(changes: Any) -> Tuple[Dict[str, Any], Dict[str, str]]:

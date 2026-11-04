@@ -86,7 +86,7 @@ class FakeDrive:
         self.files = f
         self.palette = {1: ((250, 170, 90), (60, 40, 90), (255, 230, 120), (40, 30, 70)),
                         2: ((120, 180, 230), (40, 110, 150), (250, 250, 240), (30, 80, 60))}
-        self.access = "ya29.fake-docs-screenshots"
+        self.access = "fake-docs-screenshot-access-token"
 
     def handler(self, request):
         import httpx
@@ -160,15 +160,24 @@ def install_fake_drive(drive: FakeDrive) -> None:
     transport = httpx.MockTransport(drive.handler)
     original_init = gp.Picker.__init__
 
-    def init(self, sync, *, transport_=None, integration=None, **kw):
-        original_init(self, sync, transport=transport,
-                      integration=lambda: (lambda force=False: drive.access) if drive.mode == "ready" else None)
-    gp.Picker.__init__ = lambda self, sync, transport=None, integration=None: init(self, sync)
+    def init(self, sync, *args, **kw):
+        original_init(self, sync, transport=transport)
+    gp.Picker.__init__ = init
+    original_token = gp.Picker._token_fn
+
+    def token_fn(self):
+        if drive.mode == "ready":
+            return lambda force=False: drive.access
+        return original_token(self)
+    gp.Picker._token_fn = token_fn
     original_status = gp.Picker.status
 
     def status(self):
         out = original_status(self)
-        if drive.mode == "need_consent":
+        if drive.mode == "ready":
+            out.update(state="ready", source="sync", has_client=True,
+                       account={"email": "alex@example.com", "name": "Alex"})
+        elif drive.mode == "need_consent":
             out.update(state="need_consent", source="sync", has_client=True,
                        account={"email": "alex@example.com", "name": "Alex"})
         elif drive.mode == "not_connected":
@@ -350,7 +359,7 @@ def seed(servers, lang: str) -> None:
                 client.post(pg + f"/api/pg/panels-todo/{todo[0]}/items", json={"title": title[0], "priority": title[1], "lang": lang})
         if made.get("notes", {}).get("id"):
             client.put(pg + f"/api/pg/panels-note/{made['notes']['id']}", json={"text": t(
-                "Идеи для отпуска:\n— Калининград и Куршская коса\n— Алтай в сентябре\n— Байкал зимой", 
+                "Идеи для отпуска:\n— Калининград и Куршская коса\n— Алтай в сентябре\n— Байкал зимой",
                 "Holiday ideas:\n— Porto and the Douro valley\n— Madeira in spring\n— Iceland in winter")})
         tasks = [
             {"id": "t_news", "name": t("Утренняя сводка новостей", "Morning news digest"), "enabled": True, "kind": "chat", "model": model,
@@ -464,6 +473,7 @@ def shots(lang: str) -> list[dict]:
                    "document.querySelector('#panel [data-gd-list]').scrollTop = 400;", ("click", "#panel [data-gd-row='8']"), away],
          "crop": ["#panel"], "pad": 16, "wait": 900},
         {"name": "sync", "page": "sync", "steps": ["showSettings(); openSettingsPage('sync');", away], "crop": ["#panel"], "pad": 0, "wait": 1500},
+        {"name": "spaces", "page": "spaces", "steps": ["showSettings(); openSettingsPage('spaces');", away], "crop": ["#panel"], "pad": 0, "wait": 1500},
         {"name": "schedules", "page": "schedules",
          "steps": ["MemuPlan.open(); " + _sleep(1200) + " document.querySelector('#panel [data-act=help-hide]')?.click();", away],
          "crop": ["#panel"], "pad": 16, "wait": 1500, "view": (1280, 900)},

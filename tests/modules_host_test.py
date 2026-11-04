@@ -154,7 +154,7 @@ class ModuleHostContracts(unittest.TestCase):
             self.assertEqual(load_package(root, "deny-all")["permissions"], [])
             absent = normalize_manifest({"id": "old-mod", "title": "O"}, module_id="old-mod")
 
-            self.assertEqual(sorted(absent["permissions"]), sorted(p for p in PERMISSIONS if p not in ("net-import", "music", "learn", "database")))
+            self.assertEqual(sorted(absent["permissions"]), sorted(p for p in PERMISSIONS if p not in ("net-import", "music", "learn", "database", "utils")))
 
     def test_env_cannot_inject_markup_into_the_document(self) -> None:
         """The preview route accepts env from a request: it must not reach HTML."""
@@ -567,12 +567,12 @@ class ModuleHostContracts(unittest.TestCase):
         root = self._root()
         self._custom(root, "notes")
         rows = reorder_modules(root, ["notes", "design", "ghost", "notes"])
-        self.assertEqual([row["id"] for row in rows], ["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet"])
+        self.assertEqual([row["id"] for row in rows], ["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet", "utils"])
         self.assertEqual([row["launcher"]["order"] for row in rows], list(range(len(rows))))
         again = reorder_modules(root, ["studio"])
         self.assertEqual([row["id"] for row in again][0], "studio")
         self.assertEqual(sorted(row["id"] for row in again),
-                         sorted(["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet"]))
+                         sorted(["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb", "meet", "utils"]))
         self.assertEqual([row["id"] for row in reorder_modules(root, [])],
                          [row["id"] for row in again])
 

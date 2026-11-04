@@ -34,7 +34,7 @@ export function starterSpecs(id, lang = I18N.lang) {
   if (id === "lesson") return [
     {layout:"title",title:x("Тема выступления","Talk title"),subtitle:x("Для кого и чему научимся","Audience and learning objective")},
     {layout:"content",title:x("Что разберём","What we will cover"),bullets:[x("Главный вопрос","The main question"),x("Ключевое понятие","The key concept"),x("Применение на практике","Practical application")]},
-    {layout:"statement",title:x("Объясните основную идею одной фразой","Explain the central idea in one sentence"),subtitle:x("Затем раскройте её в заметках докладчика","Expand on it in the speaker notes")},
+    {layout:"statement",title:x("Объясните основную идею одной фразой","Explain the central idea in one sentence"),subtitle:x("А детали — в заметках докладчика","Then put the details in the speaker notes")},
     {layout:"two",title:x("Пример и объяснение","Example and explanation"),left_title:x("Пример","Example"),right_title:x("Как это работает","How it works"),left:[x("Добавьте конкретный пример","Add a concrete example")],right:[x("Покажите связь с основной идеей","Connect it to the central idea")]},
     {layout:"content",title:x("Попробуйте сами","Try it"),bullets:[x("Сформулируйте небольшое задание","Set a short exercise"),x("Укажите ограничения","State the constraints"),x("Опишите проверяемый результат","Describe a verifiable outcome")]},
     {layout:"content",title:x("Что запомнить","What to remember"),bullets:[x("Основной вывод","The main takeaway"),x("Когда это применять","When to use it"),x("Где узнать больше","Where to learn more")]},

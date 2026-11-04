@@ -5,7 +5,7 @@ summary: MemuCode in your terminal: a coding agent with /model, /usage, /rewind,
 
 # MemuCode CLI
 
-**MemuCode CLI** is the same coding agent as [MemuCode](doc:memucode), in a command line. It reads and edits project files, runs tests and builds in a sandbox, searches the web, drives a browser and the desktop, remembers conversations and can undo any edit. Models come from [MemuAI Proxy](doc:proxy), so the same accounts work as in the app — and you can connect APIs directly if you like.
+**MemuCode CLI** is a separate application: a coding agent for the command line. It is not connected to the [MemuCode](doc:memucode) window in MemuAI — each has its own sessions and settings. It reads and edits project files, runs tests and builds in a sandbox, searches the web, drives a browser and the desktop, remembers conversations and can undo any edit. Models come from [MemuAI Proxy](doc:proxy), so the same accounts work as in the app — and you can connect APIs directly if you like.
 
 ## Install and run
 

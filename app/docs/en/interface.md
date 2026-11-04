@@ -18,7 +18,7 @@ Navigation is on the left. Drag its right edge to change the width; ++Ctrl+B++ h
 | New chat, temporary chat | start a conversation; a temporary one is not saved — see [Chats](doc:chats) |
 | Chat, Work, MemuCode | three modes: plain conversation, [working with files](doc:work), [a coding agent](doc:memucode) |
 | Scheduling | [scheduled tasks](doc:schedules) |
-| AI skills | ready-made techniques the model uses by itself |
+| AI skills | [ready-made techniques](doc:skills) the model uses by itself |
 | Pinned | chats pinned from their menu |
 | Folders | your chat folders; drag a chat onto a folder to move it |
 | Memes | your [assistants](doc:agents) with their own instructions and chats |
@@ -94,3 +94,7 @@ Right-click works almost everywhere: on a message, a chat, a model, the composer
 ## Tooltips
 
 Hover over any icon button — after half a second a tooltip appears with its name and shortcut, if there is one. From the keyboard the tooltip appears when you move with ++Tab++.
+
+## Selecting and copying text
+
+Text in the MemuAI and Proxy windows can be selected with the mouse, like on a web page: messages, settings, documentation, module windows. ++Ctrl+C++ copies the selection, and the right-click menu of a message has **Copy selection**. Buttons, tabs, switches, icons, the sidebar and things you drag with the mouse (panel cards, chats in the list) are not selectable, so a stray double click does not highlight the interface. The copy button of a message copies it whole and briefly shows a check mark. In MemuFiles the mouse selects files with a frame, so text is not selected there.

@@ -50,13 +50,17 @@ def settings() -> dict:
             "read_pages": raw.get("read_pages") is not False,
             "control": raw.get("control") if raw.get("control") in ("ask", "allow", "deny") else "ask",
             "dfy": raw.get("dfy") is True, "schedules": raw.get("schedules") is True,
-            "save_to_main": raw.get("save_to_main") is True}
+            "save_to_main": raw.get("save_to_main") is True,
+            "auto_update": raw.get("auto_update") is not False,
+            "managed_path": str(raw.get("managed_path") or ""),
+            "managed_install_id": str(raw.get("managed_install_id") or ""),
+            "last_update": raw.get("last_update") if isinstance(raw.get("last_update"), dict) else {}}
 
 def save_settings_patch(body):
     if not isinstance(body, dict):
         raise ValueError("Ожидается объект настроек")
     patch = {}
-    for key in ("read_pages", "dfy", "schedules", "save_to_main"):
+    for key in ("read_pages", "dfy", "schedules", "save_to_main", "auto_update"):
         if key in body:
             if not isinstance(body[key], bool):
                 raise ValueError("Неверное значение: " + key)
@@ -123,10 +127,14 @@ class Bridge:
         self.metadata_time = 0.0
         self._meta_lock = threading.Lock()
         self._send_lock: asyncio.Lock | None = None
+        self.client: dict = {}
 
     def public(self) -> dict:
+        from . import browser_extension_update as updater
         cfg = settings()
-        return {**{k: v for k, v in cfg.items() if k != "token_hash"}, "paired": bool(cfg["token_hash"]),
+        hidden = ("token_hash", "managed_install_id", "last_update")
+        return {**{k: v for k, v in cfg.items() if k not in hidden}, "paired": bool(cfg["token_hash"]),
+                "update": updater.status(self.client, self.socket is not None, cfg, cfg["extension_id"]),
                 "connected": self.socket is not None, "tools": TOOLS, "service": "chrome_extension",
                 "title": "Chrome · MemuAI", "account": "Chrome", "hint": HINT,
                 "state": "ok" if self.socket is not None else "off", "required": [], "optional": [],
@@ -163,6 +171,7 @@ class Bridge:
             if not future.done():
                 future.set_exception(RuntimeError("Расширение Chrome отключилось"))
         self.pending.clear()
+        self.client = {}
         with self._meta_lock:
             self.metadata = {}
 
@@ -222,6 +231,19 @@ class Bridge:
 
 bridge = Bridge()
 
+def _reveal(target: Path) -> None:
+    import os
+    import subprocess
+    import sys
+    if not target.exists():
+        raise FileNotFoundError(str(target))
+    if os.name == "nt":
+        subprocess.Popen(["explorer", "/select,", str(target)])
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(target)])
+    else:
+        subprocess.Popen(["xdg-open", str(target.parent)])
+
 def extension_archive() -> bytes:
     """The same unpacked package powers HTTP and the native window download."""
     root = Path(__file__).parent / "pgstatic" / "browser-extension"
@@ -240,11 +262,13 @@ def extension_archive() -> bytes:
         target = (root / name).resolve()
         if not target.is_relative_to(root.resolve()) or not target.is_file():
             raise FileNotFoundError("Расширение установлено не полностью. Переустановите MemuAI / Extension package is incomplete; reinstall MemuAI")
+    from . import browser_extension_update as updater
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(root.rglob("*")):
-            if path.is_file() and not path.is_symlink():
+            if path.is_file() and not path.is_symlink() and path.name != updater.BUNDLE_FILE:
                 archive.write(path, path.relative_to(root).as_posix())
+        archive.writestr(updater.BUNDLE_FILE, updater.bundle_json(""))
     return output.getvalue()
 
 async def run_tool(name: str, args: dict, *, confirmed: bool = False, scheduled: bool = False) -> dict:
@@ -385,6 +409,57 @@ def register(app, *, completion, proxy_json, stream_lines=None, run_chat_tool=No
         except (OSError, ValueError) as exc:
             return JSONResponse({"error": str(exc)}, 400)
 
+    @app.post(PREFIX + "/install")
+    async def install_managed(request: Request):
+        """Write the extension into MemuAI's managed folder (no ZIP to extract);
+        Chrome loads it once, later versions arrive automatically."""
+        from . import browser_extension_update as updater
+        try:
+            try:
+                body = await request.json()
+            except ValueError:
+                body = {}
+            result = await asyncio.to_thread(updater.install)
+            if isinstance(body, dict) and body.get("reveal"):
+                await asyncio.to_thread(_reveal, Path(result["path"]) / "manifest.json")
+            return {**result, "status": bridge.public()}
+        except (OSError, ValueError) as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+
+    @app.post(PREFIX + "/reveal")
+    async def reveal_managed():
+        from . import browser_extension_update as updater
+        folder = updater.managed_folder()
+        if folder is None:
+            return JSONResponse({"error": "Папка расширения ещё не создана"}, 404)
+        try:
+            await asyncio.to_thread(_reveal, folder / "manifest.json")
+            return {"ok": True, "path": str(folder)}
+        except OSError as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+
+    @app.post(PREFIX + "/update")
+    async def update_now():
+        """Refresh the managed copy now and reload the connected extension."""
+        from . import browser_extension_update as updater
+        try:
+            if bridge.socket is not None and bridge.client:
+                decision = await asyncio.to_thread(updater.plan, dict(bridge.client), settings()["extension_id"], force=True)
+                if decision.get("action") == "reload":
+                    if bridge.pending:
+                        return JSONResponse({"error": "Расширение сейчас выполняет действие. Повторите, когда оно закончит"}, 409)
+                    await bridge.socket.send_json({"op": "reload", "reason": "update"})
+            else:
+                folder = updater.managed_folder()
+                if folder is None:
+                    return JSONResponse({"error": "Расширение не подключено, а папка MemuAI ещё не создана"}, 409)
+                cfg = settings()
+                await asyncio.to_thread(updater.write_bundle, folder, cfg["managed_install_id"] or "")
+                decision = {"action": "restart", "state": "restart", "path": str(folder)}
+            return {**decision, "status": bridge.public()}
+        except (OSError, ValueError, RuntimeError) as exc:
+            return JSONResponse({"error": str(exc)}, 400)
+
     @app.post(PREFIX + "/bridge/pair")
     async def exchange(request: Request):
         try:
@@ -413,9 +488,19 @@ def register(app, *, completion, proxy_json, stream_lines=None, run_chat_tool=No
                 await websocket.close(code=1008)
                 return
             await bridge.stop()
+            from . import browser_extension_update as updater
             bridge.socket, bridge.loop = websocket, asyncio.get_running_loop()
             bridge._send_lock = asyncio.Lock()
-            await websocket.send_json({"op": "ready"})
+            bridge.client = updater.client_info(auth)
+            try:
+                decision = await asyncio.to_thread(updater.plan, dict(bridge.client), settings()["extension_id"])
+            except (OSError, ValueError):
+                decision = {"action": "none", "state": "manual"}
+            info = updater.bundle_info()
+            await websocket.send_json({"op": "ready", "bundle": info,
+                                       "update": {"state": decision.get("state") or "manual", "available": info["version"]}})
+            if decision.get("action") == "reload" and bridge.socket is websocket and not bridge.pending:
+                await websocket.send_json({"op": "reload", "reason": "update"})
             while True:
                 message = await websocket.receive_json()
                 if not isinstance(message, dict):

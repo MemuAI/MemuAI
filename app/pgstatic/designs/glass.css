@@ -13,6 +13,7 @@
   --g-pop: color-mix(in srgb, color-mix(in srgb, var(--panel) 95%, #fff) 94%, transparent);
   --g-modal: color-mix(in srgb, var(--panel) 88%, transparent);
   --g-well: color-mix(in srgb, var(--text) 6%, transparent);
+  --g-field: color-mix(in srgb, #000 18%, transparent);
   --g-hover: color-mix(in srgb, var(--text) 8%, transparent);
   --g-press: color-mix(in srgb, var(--text) 13%, transparent);
   --g-line: color-mix(in srgb, var(--text) 12%, transparent);
@@ -68,6 +69,7 @@
   --g-pop: color-mix(in srgb, var(--panel) 94%, transparent);
   --g-modal: color-mix(in srgb, var(--panel) 88%, transparent);
   --g-well: color-mix(in srgb, var(--text) 4%, transparent);
+  --g-field: color-mix(in srgb, #fff 62%, transparent);
   --g-hover: color-mix(in srgb, var(--text) 6%, transparent);
   --g-press: color-mix(in srgb, var(--text) 10%, transparent);
   --g-line: color-mix(in srgb, var(--text) 10%, transparent);
@@ -282,7 +284,7 @@
 :root[data-design="glass"] .bar-icon.open { background: var(--g-hover); }
 :root[data-design="glass"] .appbar .iconbtn.active { background: var(--g-tint-strong); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent); }
 :root[data-design="glass"] .chat-search {
-  border-radius: 10px; background: var(--g-well); box-shadow: inset 0 0 0 1px var(--g-line-soft), inset 0 1px 2px color-mix(in srgb, #000 10%, transparent);
+  border-radius: 10px; background: var(--g-field); box-shadow: inset 0 0 0 1px var(--g-line-soft), inset 0 1px 2px color-mix(in srgb, #000 10%, transparent);
 }
 :root[data-design="glass"] .chat-search:focus-within { background: var(--g-pane-strong); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent), var(--g-ring); }
 :root[data-design="glass"] .dd-btn { border-radius: 10px; }
@@ -307,7 +309,7 @@
 :root[data-design="glass"] .context-menu button.danger:hover { background-color: color-mix(in srgb, var(--danger) 14%, transparent); }
 :root[data-design="glass"] :is(.context-sep, .app-menu-pop .menu-sep, .profile-menu-pop .menu-sep) { background: var(--g-line-soft); }
 :root[data-design="glass"] :is(.dd-search input, .plus-search) {
-  border-radius: 10px; background: var(--g-well); border: 0; box-shadow: inset 0 0 0 1px var(--g-line), inset 0 1px 2px color-mix(in srgb, #000 10%, transparent);
+  border-radius: 10px; background: var(--g-field); border: 0; box-shadow: inset 0 0 0 1px var(--g-line), inset 0 1px 2px color-mix(in srgb, #000 10%, transparent);
 }
 :root[data-design="glass"] :is(.dd-search input:focus, .plus-search:focus-within) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), var(--g-ring); }
 :root[data-design="glass"] :is(.composer, .composer-wrap) :is(.slash-menu, .plus-menu) {
@@ -425,7 +427,8 @@
   background: var(--g-well);
 }
 :root[data-design="glass"] :is(.table-wrap td, .body td) { border-color: var(--g-line-soft); }
-:root[data-design="glass"] .table-wrap tr:hover td { background: var(--g-hover); }
+:root[data-design="glass"] .table-wrap tr:hover { --tw-row-hover: var(--g-hover); }
+:root[data-design="glass"] .table-wrap tr:nth-child(n) td { background: var(--tw-row-hover, transparent); }
 :root[data-design="glass"] .msg-assistant .body blockquote {
   border-left-color: var(--accent); background: var(--g-tint); border-radius: 0 12px 12px 0;
 }
@@ -570,7 +573,7 @@
 }
 :root[data-design="glass"] .workbar :is(select, .pretty-select-button) {
   min-height: 30px; font-size: 13px; border-radius: 10px;
-  background-color: var(--g-well); border-color: var(--g-line);
+  background-color: var(--g-field); border-color: var(--g-line);
 }
 :root[data-design="glass"] .work-path { color: var(--muted); }
 :root[data-design="glass"] { --mc-line: var(--g-line); }
@@ -586,7 +589,7 @@
 :root[data-design="glass"] .code-chip:hover { background-color: var(--g-hover); }
 :root[data-design="glass"] .code-badge { border-radius: 999px; }
 :root[data-design="glass"] .code-dock { border-radius: 0 var(--g-r) var(--g-r) 0; }
-:root[data-design="glass"] .cx-search { border-radius: 10px; background: var(--g-well); box-shadow: inset 0 0 0 1px var(--g-line-soft); }
+:root[data-design="glass"] .cx-search { border-radius: 10px; background: var(--g-field); box-shadow: inset 0 0 0 1px var(--g-line-soft); }
 :root[data-design="glass"] .docs-shell { background: transparent; }
 :root[data-design="glass"] .docs-side { background: var(--g-well); border-right-color: var(--g-line-soft); }
 :root[data-design="glass"] :is(.docs-search, .docs-find) {

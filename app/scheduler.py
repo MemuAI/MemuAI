@@ -22,6 +22,15 @@ from .pgdata import _mutate_schedules, append_schedule_result, load_preferences
 log = logging.getLogger("memuai.scheduler")
 _RUNNING_TASK_IDS: set[str] = set()
 _ACTIVE_TASKS: set[asyncio.Task[Any]] = set()
+# F27: at most 3 scheduled tasks run concurrently (each streams a model
+# completion); without this, all tasks due after downtime started at once.
+_RUN_SEMAPHORE = asyncio.Semaphore(3)
+# F27: a scheduled run is killed after 30 minutes instead of streaming forever.
+_RUN_TASK_TIMEOUT_SECONDS = 30 * 60
+# F27: a runaway model stream is cut off at ~2M chars of output text.
+_RUN_MAX_OUTPUT_CHARS = 2_000_000
+# F27: a one-shot `run_at` older than 12h is missed, not run late.
+_MISSED_RUN_AT_SECONDS = 12 * 3600
 
 _WORK_OPEN = re.compile(r"^(?P<fence>`{3,})memuai-work[ \t]*$", re.I)
 _FENCE_LINE = re.compile(r"^(`{3,})([^`\s]*)[ \t]*$")
@@ -315,14 +324,30 @@ async def _run_task(task: Dict[str, Any]) -> None:
         except Exception:  # noqa: BLE001
             lang = "ru"
         base = str(task.get("scenario_base") or "") or str(MEMU_DIR)
+        from . import plan_vars as _plan_vars
+        task_id = str(task.get("id") or "")
+        try:
+            saved_task_vars = await asyncio.to_thread(_plan_vars.task_vars, task_id)
+            saved_global_vars = await asyncio.to_thread(_plan_vars.global_vars)
+        except Exception as exc:  # noqa: BLE001 - повреждённый файл переменных не должен ломать прогон
+            log.warning("scheduler: scenario variables unavailable: %s", exc)
+            saved_task_vars, saved_global_vars = {}, {}
         try:
             result = await _scenario_execute(
                 task.get("scenario"), base_dir=base, allowlist=task.get("run_allowlist") or [],
                 confirmed=bool(task.get("confirmed")), variables=task.get("scenario_variables") or {},
-                lang=lang)
+                lang=lang, task={k: v for k, v in task.items() if k in ("id", "name", "lang")},
+                task_vars=saved_task_vars, global_vars=saved_global_vars)
             ok, text = bool(result["ok"]), str(result["text"] or "")
+            persist = result.get("persist") or {}
+            try:
+                await asyncio.to_thread(_plan_vars.commit, task_id, persist)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("scheduler: could not save scenario variables: %s", exc)
             extra = {"kind": "scenario", "scenario_log": result["log"],
-                     "scenario_variables": result["variables"]}
+                     "scenario_variables": {k: v for k, v in result["variables"].items()
+                                            if isinstance(v, (str, int, float, bool)) or v is None},
+                     "scenario_saved": sorted({*persist.get("task", {}), *persist.get("global", {})})}
         except ScenarioError as exc:
             ok, text = False, exc.text(lang)
             extra = {"kind": "scenario", "scenario_log": []}
@@ -378,13 +403,23 @@ async def _run_task(task: Dict[str, Any]) -> None:
         )})
     messages.append({"role": "user", "content": prompt})
     parts = []
+    parts_chars = 0
+    parts_truncated = False
     try:
         from .chat import chat_service
         async for chunk in chat_service.stream_completion(model, messages):
             for ch in chunk.get("choices") or []:
                 d = ch.get("delta") or {}
                 if d.get("content"):
-                    parts.append(str(d["content"]))
+                    # F27: a runaway stream used to append forever.
+                    piece = str(d["content"])
+                    parts_chars += len(piece)
+                    if parts_chars > _RUN_MAX_OUTPUT_CHARS:
+                        parts_truncated = True
+                        break
+                    parts.append(piece)
+            if parts_truncated:
+                break
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -395,6 +430,9 @@ async def _run_task(task: Dict[str, Any]) -> None:
 
     from .assistant_commands import clean_ai_text
     text = clean_ai_text("".join(parts))
+    if parts_truncated:
+        text = (text + "\n\n" + tr("Вывод обрезан: превышен лимит 2 000 000 символов.",
+                                     "Output truncated: the 2,000,000 character limit was exceeded.")).strip()
     result_extra: dict[str, Any] = {"mode": mode} if mode == "work" else {}
     if mode == "work":
         clean, files = _scheduled_work_actions(text)
@@ -485,7 +523,17 @@ def _restore_cancelled_run(task_id: str, started_at: float) -> None:
 
 async def _run_claimed_task(task: Dict[str, Any], task_id: str, started_at: float) -> None:
     try:
-        await _run_task(task)
+        # F27: bounded concurrency + a wall-clock cap. A timeout is recorded
+        # as a failure (not restored as "cancelled", or it would retry and
+        # time out again on every tick).
+        async with _RUN_SEMAPHORE:
+            try:
+                await asyncio.wait_for(_run_task(task), timeout=_RUN_TASK_TIMEOUT_SECONDS)
+            except asyncio.TimeoutError:
+                await asyncio.to_thread(
+                    _record_result, task_id, False,
+                    "Задача превысила лимит времени (30 минут)")
+                log.warning("scheduler: task '%s' timed out", task.get("name", ""))
     except asyncio.CancelledError:
         try:
             _restore_cancelled_run(task_id, started_at)
@@ -593,6 +641,18 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
             if next_run is None:
                 task["next_run"] = _next_run_for(task, now=timestamp)
                 changed = True
+                continue
+            if task.get("run_at") not in (None, "") and timestamp - next_run > _MISSED_RUN_AT_SECONDS:
+                # F27: a one-shot task whose time passed >12h ago (the app was
+                # off) is missed, not run late. Record it and disable it.
+                task["enabled"] = False
+                task["next_run"] = None
+                changed = True
+                try:
+                    _record_result(task_id, False,
+                        "Задача пропущена: запланированное время прошло более 12 часов назад")
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("scheduler: could not record missed task %s: %s", task_id, exc)
                 continue
             if timestamp < next_run or task_id in _RUNNING_TASK_IDS:
                 continue

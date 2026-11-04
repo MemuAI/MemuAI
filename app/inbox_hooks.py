@@ -430,10 +430,24 @@ def proxy_account_ok(account: Any) -> None:
 
 _mc_seen: Dict[str, float] = {}
 
+# Диалоги терминала MemuCode CLI (настройки, выбор модели, вопросы и разрешения)
+# больше не публикуются во «Входящих»: терминал показывает их сам, а открытие
+# обычного меню давало ложные «MemuCode спрашивает». Опрос лишь закрывает
+# оставшиеся от прошлых версий карточки. Включить обратно — MEMUCODE_INBOX = True.
+MEMUCODE_INBOX = False
+
+def _memucode_clear(ib: Any) -> None:
+    _mc_seen.clear()
+    for it in ib.list(status="open", source="memucode", limit=400):
+        ib.resolve(it["id"], result="gone")
+
 def memucode_scan() -> None:
     """Открытые вопросы/разрешения терминалов MemuCode (опубликованных через app/cli/remote.py)."""
     ib = _inbox()
     if ib is None:
+        return
+    if not MEMUCODE_INBOX:
+        _memucode_clear(ib)
         return
     try:
         from .cli import remote
@@ -564,6 +578,9 @@ def install_playground(app: Any, *, dfy_manager: Any = None, computer_runtime: A
             except Exception:
                 pass
         await asyncio.to_thread(_safe(stale))
-        app.state.inbox_memucode_task = asyncio.create_task(_memucode_loop())
+        if MEMUCODE_INBOX:
+            app.state.inbox_memucode_task = asyncio.create_task(_memucode_loop())
+        else:
+            await asyncio.to_thread(_safe(lambda: _memucode_clear(ib)))
 
     inbox_api.set_startup(_inbox_startup)

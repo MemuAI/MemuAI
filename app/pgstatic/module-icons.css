@@ -47,7 +47,7 @@
 .mico-swatch:hover { transform: scale(1.08); }
 .mico-swatch.on { outline: 2px solid var(--accent); outline-offset: 2px; }
 .mico-emoji-row { display: flex; gap: 12px; align-items: flex-start; }
-.mico-emoji-input { width: 72px; height: 72px; flex: none; text-align: center; font-size: 36px; border-radius: 16px; border: 1px solid var(--border); background: var(--panel-2, var(--panel)); color: var(--text); }
+.mico-emoji-input { width: 72px; height: 72px; flex: none; text-align: center; font-size: 36px; border-radius: 16px; border: 1px solid var(--field-border, var(--border)); background: var(--field-bg, var(--panel)); color: var(--text); }
 .mico-emoji-input:focus { outline: none; border-color: var(--accent); }
 .mico-emoji-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; flex: 1; }
 .mico-emoji-pick button { height: 36px; border-radius: 9px; font-size: 20px; line-height: 1; }

@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shutil
+import socket
 import tempfile
 import threading
 import time
@@ -190,6 +191,54 @@ QUICK_TUNNEL_OUTPUT = [
 ]
 
 class TunnelTest(unittest.TestCase):
+    def test_edge_dns_failure_retries_with_https_resolved_edge_only_in_the_child(self) -> None:
+        async def scenario():
+            attempts = []
+            connecting = []
+            hold = threading.Event()
+
+            def popen(command, **kwargs):
+                attempts.append((command, kwargs.get("env", {})))
+                if len(attempts) == 1:
+                    return FakeProcess([QUICK_TUNNEL_OUTPUT[3],
+                                        'ERR edge discovery: error looking up Cloudflare edge IPs: lookup '
+                                        '_v2-origintunneld._tcp.argotunnel.com.: no such host; quic startup failed'])
+                if len(attempts) == 2:
+                    return FakeProcess([QUICK_TUNNEL_OUTPUT[3], 'ERR TLS handshake with edge error: EOF',
+                                        'ERR edge discovery: lookup _v2-origintunneld._tcp.argotunnel.com.: no such host'])
+                return FakeProcess(QUICK_TUNNEL_OUTPUT, hold=hold)
+
+            def on_state(state, _):
+                if state == "connecting":
+                    connecting.append(tunnel.error_report()["last_error_kind"])
+
+            tunnel = tg_webapp.CloudflaredTunnel(Path("cloudflared.exe"), 8641, on_url=lambda _: None, on_state=on_state,
+                                                 popen=popen, sleep=lambda _: asyncio.sleep(0))
+            try:
+                tunnel.start()
+                for _ in range(100):
+                    if tunnel.registered:
+                        break
+                    await asyncio.sleep(.01)
+                self.assertTrue(tunnel.registered)
+                self.assertFalse(attempts[0][1].get("TUNNEL_EDGE"))
+                self.assertEqual(attempts[1][1]["TUNNEL_EDGE"], "198.41.192.7:7844")
+                self.assertNotIn("--protocol", attempts[1][0], "DNS failure did not test QUIC")
+                self.assertIn("http2", attempts[2][0])
+                self.assertIn("TLS handshake with edge error", tunnel.error_history[1]["raw"])
+                self.assertEqual(connecting[1:], ["dns", "tls"])
+                self.assertEqual(tunnel.last_error, "")
+                self.assertEqual(os.environ["TUNNEL_EDGE"], "")
+            finally:
+                await tunnel.stop()
+
+        with mock.patch.dict(os.environ), mock.patch.object(
+                tg_webapp, "_cloudflare_edge_addresses", mock.AsyncMock(return_value="198.41.192.7:7844")):
+            for key in ("TUNNEL_EDGE", "TUNNEL_REGION", "TUNNEL_EDGE_BIND_ADDRESS"):
+                os.environ.pop(key, None)
+            os.environ["TUNNEL_EDGE"] = ""
+            asyncio.run(scenario())
+
     def test_parse_tunnel_url(self) -> None:
         self.assertEqual(tg_webapp.parse_tunnel_url(QUICK_TUNNEL_OUTPUT[3]), "https://bright-otter-spoon-river.trycloudflare.com")
         self.assertIsNone(tg_webapp.parse_tunnel_url("https://api.trycloudflare.com/tunnel"))
@@ -289,6 +338,30 @@ class TunnelTest(unittest.TestCase):
                 asyncio.run(run())
 
 class ManagerTest(unittest.TestCase):
+    def test_custom_listener_recovers_after_its_port_is_taken(self) -> None:
+        async def run():
+            manager = tg_webapp.Manager()
+            manager.mode = "custom"
+            with socket.socket() as holder:
+                if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                    holder.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                holder.bind(("127.0.0.1", 0))
+                holder.listen()
+                port = holder.getsockname()[1]
+                with mock.patch.object(manager, "write_status"), mock.patch.object(tg_webapp, "notify_bot"):
+                    await manager._ensure_server(port)
+                self.assertEqual(manager.state, "error")
+                self.assertIn(str(port), manager.error)
+                self.assertIsNone(manager.server_task)
+            try:
+                await manager._ensure_server(port)
+                self.assertTrue(manager.server.started)
+                self.assertEqual(manager.port, port)
+            finally:
+                await manager.stop_all()
+
+        asyncio.run(run())
+
     def test_disabled_manager_stays_off_and_reports_reasons(self) -> None:
         tg_webapp.save_config({"enabled": False})
 
@@ -525,6 +598,50 @@ class ApiTest(unittest.TestCase):
         chat = next(row for row in load_chats() if row["id"] == meta["chat_id"])
         self.assertEqual(chat["messages"][-1]["content"], "заново")
         self.assertEqual([m["role"] for m in chat["messages"]], ["user", "assistant", "user", "assistant"])
+
+    def test_chat_job_finishes_in_its_original_workspace(self) -> None:
+        from app import pgdata, spaces
+
+        release = threading.Event()
+
+        class PausedReply(FakeChatService):
+            async def stream_completion(self, *args, **kwargs):
+                if not await asyncio.to_thread(release.wait, 10):
+                    raise TimeoutError("test did not release the model")
+                async for part in super().stream_completion(*args, **kwargs):
+                    yield part
+
+        active = spaces.active_space_id()
+        origin = spaces.create_space({"type": "standard", "name": "Test Mini App", "activate": True})["id"]
+        try:
+            headers = self.headers()
+            with mock.patch("app.chat.chat_service", PausedReply(("Готово [TITLE: Тест области] [MEM: ценит корицу]",))):
+                response = self.client.post("/tgapp/api/chats.send", json={"text": "Привет"}, headers=headers)
+                self.assertEqual(response.status_code, 200, response.text)
+                meta = response.json()
+                spaces.activate_space(active)
+                release.set()
+                offset = 1
+                for _ in range(20):
+                    polled = self.client.post("/tgapp/api/jobs.poll",
+                                              json={"job": meta["job"], "from": offset, "wait": 1}, headers=headers)
+                    self.assertEqual(polled.status_code, 200, polled.text)
+                    done = polled.json()
+                    if done["done"]:
+                        break
+                    offset = done["next"]
+                self.assertTrue(done["done"])
+            self.assertNotIn(meta["chat_id"], [row["id"] for row in pgdata.load_chats()])
+            self.assertNotIn("ценит корицу", pgdata.load_memory()["facts"])
+            spaces.activate_space(origin)
+            saved = next(row for row in pgdata.load_chats() if row["id"] == meta["chat_id"])
+            self.assertEqual(saved["title"], "Тест области")
+            self.assertEqual(saved["messages"][-1]["content"], "Готово")
+            self.assertIn("ценит корицу", pgdata.load_memory()["facts"])
+        finally:
+            release.set()
+            spaces.activate_space(active)
+            spaces.delete_space(origin)
 
     def test_temporary_chat_is_not_saved(self) -> None:
         from app.pgdata import load_chats

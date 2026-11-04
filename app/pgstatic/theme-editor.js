@@ -924,7 +924,7 @@ html:root .composer-wrap::before { opacity: 0; }
         <span class="te-vname">${esc(name)}${custom ? `<em>${T("своя", "custom")}</em>` : ""}</span></button>`;
     return `<div class="te-variants">${(cat.variants[m] || []).map((v) => card(v.id, pick2(v), v.preview || {}, false)).join("")}${(cat.custom || []).filter((c) => c.base === m).map((c) => card(c.ref, c.name, c.preview || {}, true)).join("")}</div>`;
   }
-  const DESIGN_IDS = ["classic", "aurora", "focus", "grid", "glass", "soft", "terminal", "brutal"];
+  const DESIGN_IDS = ["classic", "aurora", "focus", "grid", "glass", "soft", "terminal", "brutal", "notebook", "messenger", "retro", "clay", "studio", "zen"];
   function designCards() {
     const cat = catalog();
     const rows = (cat && cat.designs && cat.designs.length ? cat.designs : DESIGN_IDS.map((id) => ({ id, ru: id, en: id })));
@@ -1071,12 +1071,20 @@ html:root .composer-wrap::before { opacity: 0; }
       prefs: { ui_density: "compact", ui_msg_size: "sm", chat_width: "wide" }, layout: { side_mode: "compact", topbar: "slim", bubbles: "compact" }, sw: ["var(--panel)", "var(--muted)", "var(--accent)"] },
     { id: "terminal", ru: "Консоль", en: "Console", dru: "Моноширинный шрифт, фосфорный акцент", den: "Monospace type, a phosphor accent",
       prefs: { ui_design: "terminal", accent_color: "forest", app_font: "mono" }, layout: { bubbles: "plain", topbar: "slim" }, theme: "dark", sw: ["#0d120e", "#97d49b", "#3c5a3e"] },
-    { id: "paper", ru: "Бумага", en: "Paper", dru: "Светлая, книжный шрифт, контурные сообщения", den: "Light, a book typeface, outlined messages",
-      prefs: { ui_design: "classic", accent_color: "amber", app_font: "serif" }, layout: { bubbles: "outline", composer: "float" }, theme: "light", sw: ["#fcfcfb", "#875710", "#1f1e1c"] },
-    { id: "messenger", ru: "Мессенджер", en: "Messenger", dru: "Яркие пузыри и мягкие формы", den: "Bright bubbles and soft shapes",
-      prefs: { ui_design: "soft", accent_color: "blue", ui_radius: "round" }, layout: { bubbles: "filled", composer: "float" }, sw: ["#2360bc", "#90baff", "var(--panel)"] },
+    { id: "paper", ru: "Бумага", en: "Paper", dru: "Тёплая бумага, книжный шрифт, линии вместо рамок", den: "Warm paper, a book typeface, rules instead of boxes",
+      prefs: { ui_design: "notebook", accent_color: "amber", app_font: "serif" }, layout: { bubbles: "outline", composer: "float" }, theme: "light", sw: ["#f4efe4", "#875710", "#1f1e1c"] },
+    { id: "messenger", ru: "Мессенджер", en: "Messenger", dru: "Пузыри с двух сторон и узор на фоне", den: "Bubbles on both sides and a patterned wallpaper",
+      prefs: { ui_design: "messenger", accent_color: "blue", ui_radius: "round" }, layout: { bubbles: "filled", composer: "float" }, sw: ["#2360bc", "#90baff", "var(--panel)"] },
     { id: "brutal", ru: "Плакат", en: "Poster", dru: "Жёсткие контуры, плоские цвета", den: "Hard outlines, flat colour",
       prefs: { ui_design: "brutal", accent_color: "crimson", ui_radius: "sharp" }, layout: { topbar: "card" }, sw: ["#b03636", "#1f1e1c", "#f4a09a"] },
+    { id: "clay", ru: "Пластилин", en: "Clay", dru: "Объёмные мягкие формы из одного тёплого материала", den: "Chunky soft shapes made of one warm material",
+      prefs: { ui_design: "clay", accent_color: "rose", ui_radius: "round" }, layout: { composer: "float" }, sw: ["#f2e6e4", "#ab4567", "#f5b58a"] },
+    { id: "studio", ru: "Студия", en: "Studio", dru: "Плотный рабочий экран, тонкие линии, моноширинные подписи", den: "A dense workspace, hairlines, monospaced labels",
+      prefs: { ui_design: "studio", accent_color: "blue", ui_density: "compact" }, layout: { topbar: "slim", bubbles: "compact" }, theme: "dark", sw: ["#141518", "#90baff", "#2b2b2f"] },
+    { id: "zen", ru: "Тишина", en: "Calm", dru: "Рисовая бумага, лёгкий шрифт с засечками, много воздуха", den: "Rice paper, a light serif, plenty of air",
+      prefs: { ui_design: "zen", accent_color: "crimson", ui_density: "spacious" }, layout: { bubbles: "plain" }, theme: "light", sw: ["#f3eee4", "#b03636", "#1f1e1c"] },
+    { id: "retro", ru: "Девяностые", en: "Nineties", dru: "Объёмные кнопки, синие заголовки окон", den: "Bevelled buttons, blue window titles",
+      prefs: { ui_design: "retro", accent_color: "indigo", ui_radius: "sharp" }, layout: { topbar: "slim" }, sw: ["#c3c3c3", "#1f3c8a", "#ffffff"] },
     { id: "mirror", ru: "Зеркально", en: "Mirrored", dru: "Боковая панель справа, ваши сообщения слева", den: "Sidebar on the right, your messages on the left",
       prefs: {}, layout: { side_pos: "right", user_align: "left" }, keep: true, sw: ["var(--bg-deep)", "var(--panel)", "var(--accent)"] },
   ];

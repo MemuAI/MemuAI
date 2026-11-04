@@ -296,7 +296,7 @@
 .sl-chart-grid{overflow:auto;max-height:44vh;border:1px solid var(--border);margin:12px 0}
 .sl-chart-grid table{border-collapse:collapse;width:100%}.sl-chart-grid td{border:1px solid var(--border);padding:0;min-width:100px}
 .sl-chart-grid input{width:100%;min-width:100px;border:0;border-radius:0;padding:9px 10px;background:var(--panel);color:var(--text);font:inherit;box-sizing:border-box}
-.sl-chart-grid tr:first-child input{background:var(--panel-2);font-weight:600}.sl-chart-grid td:last-child{min-width:32px;width:32px;text-align:center}
+.sl-chart-grid tr:first-child input{background:color-mix(in srgb,var(--accent) 7%,var(--panel));font-weight:600}.sl-chart-grid td:last-child{min-width:32px;width:32px;text-align:center}
 .sl-chart-actions{display:flex;gap:8px;flex-wrap:wrap}
 .sl-show.clean-show .sl-show-hud{display:none!important}
 .sl-show.clean-show .sl-pv{display:none!important}

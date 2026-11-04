@@ -118,7 +118,7 @@ class DetectorUsesTheTokenizerTest(unittest.TestCase):
     def test_the_plan_dropped_weak_probes_and_gained_the_tokenizer(self) -> None:
         quick = [step["id"] for step in detector._probe_plan("quick")]
         full = [step["id"] for step in detector._probe_plan("full")]
-        self.assertEqual((len(quick), len(full)), (14, 17))
+        self.assertEqual((len(quick), len(full)), (15, 18))
         for removed in ("style", "needle", "ability_logic", "ability_letters"):
             self.assertNotIn(removed, full)
         self.assertIn("tokenizer_scripts", quick)
@@ -203,7 +203,7 @@ class DetectorUsesTheTokenizerTest(unittest.TestCase):
 
     def test_the_panel_shows_the_tokenizer_and_the_real_counts(self) -> None:
         js = (ROOT / "app" / "static" / "detector.js").read_text(encoding="utf-8")
-        for needle in ("tokenizerStat(r.tokenizer)", "tokenizer_base2", "Скрытые инструкции", "14 запросов", "17 запросов",
+        for needle in ("tokenizerStat(r.tokenizer)", "tokenizer_base2", "Скрытые инструкции", "15 запросов", "18 запросов",
                        "счёт провайдера", "tokens_per_s"):
             self.assertIn(needle, js)
         self.assertNotIn("Полная проверка добавляет поиск фразы", js)

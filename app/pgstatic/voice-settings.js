@@ -3,6 +3,13 @@
 (function () {
   "use strict";
 
+  // Live lists from /api/voice/fetch-lists (models with per-model voices);
+  // null until the user presses "refresh". Static catalog lists stay the fallback.
+  let liveTts = null;   // {base, models: [{id, voices|null}], voices: [id], status}
+  let liveStt = null;   // {base, models: [{id}], status}
+  const HEYGEN_VOICES = ["nadine", "tabitha", "bram", "gareth", "noelle", "meredith",
+                         "sabrina", "lucian", "weston", "vincent"];
+
   const CUSTOM = "__custom";
   const STT_PRESETS = [
     { id: "openai", label: "OpenAI", url: "https://api.openai.com/v1", model: "gpt-4o-mini-transcribe", key_url: "https://platform.openai.com/api-keys" },
@@ -16,6 +23,7 @@
     try { host = new URL(String(url || "").trim()).hostname.toLowerCase(); } catch (e) { return "custom"; }
     if (host === "api.openai.com") return "openai";
     if (host === "generativelanguage.googleapis.com") return "gemini";
+    if (host === "openrouter.ai" || host.endsWith(".openrouter.ai")) return "openrouter";
     if (host === "elevenlabs.io" || host.endsWith(".elevenlabs.io")) return "elevenlabs";
     if (host.endsWith(".tts.speech.microsoft.com") || host.endsWith(".tts.speech.azure.us")) return "azure";
     return "custom";
@@ -29,16 +37,32 @@
   function keyMismatch(kind, key, en) {
     const k = String(key || "").trim();
     if (!k) return "";
-    const owner = /^AIza/.test(k) ? "gemini" : /^sk_/.test(k) ? "elevenlabs" : /^sk-/.test(k) ? "openai" : "";
+    const owner = /^AIza/.test(k) ? "gemini" : /^sk-or-/.test(k) ? "openrouter" : /^sk_/.test(k) ? "elevenlabs" : /^sk-/.test(k) ? "openai" : "";
     if (!owner || owner === kind || kind === "custom") return "";
-    const names = { openai: "OpenAI", gemini: "Google", elevenlabs: "ElevenLabs" };
+    const names = { openai: "OpenAI", gemini: "Google", elevenlabs: "ElevenLabs", openrouter: "OpenRouter" };
     return en ? `This looks like a ${names[owner]} key — the selected service needs its own key.`
       : `Похоже, это ключ ${names[owner]} — выбранному сервису нужен свой ключ.`;
   }
 
-  function voiceMismatch(ctx, kind, voice) {
+  function voiceMismatch(ctx, kind, voice, model) {
     const v = String(voice || "").trim().toLowerCase();
-    if (!v || kind === "custom" || kind === "azure") return "";
+    if (!v || kind === "azure") return "";
+    const m = String(model || "").trim().toLowerCase();
+    if (kind === "openrouter" || (kind === "custom" && m.startsWith("heygen/"))) {
+      // Voices are per-model on OpenRouter; the live list (if fetched) is authoritative.
+      const live = liveTts && liveTts.voices;
+      if (live && live.length && !live.some((x) => String(x).toLowerCase() === v)) {
+        const sample = live.slice(0, 4).join(", ");
+        return ctx.en ? `“${voice}” is not a voice of this model. Voices of this model: ${sample}…`
+          : `«${voice}» — не голос этой модели. Голоса этой модели: ${sample}…`;
+      }
+      if (m.startsWith("heygen/") && !HEYGEN_VOICES.some((x) => x === v)) {
+        return ctx.en ? `HeyGen has only 10 voices: ${HEYGEN_VOICES.join(", ")}.`
+          : `У HeyGen всего 10 голосов: ${HEYGEN_VOICES.join(", ")}.`;
+      }
+      return "";
+    }
+    if (kind === "custom") return "";
     const list = providers(ctx);
     const own = list.find((p) => p.id === kind);
     if (!own || (own.voices || []).some((x) => x.id.toLowerCase() === v)) return "";
@@ -69,6 +93,7 @@
       "api:openai": t("Естественные голоса OpenAI. Платно по символам, нужен API-ключ.", "Natural OpenAI voices. Paid per character, needs an API key."),
       "api:gemini": t("Голоса Gemini из Google AI Studio: 30 голосов, понимают русский. Нужен ключ AI Studio.", "Gemini voices from Google AI Studio: 30 voices, multilingual. Needs an AI Studio key."),
       "api:elevenlabs": t("Очень реалистичные голоса. Голос задаётся voice_id из вашей библиотеки ElevenLabs.", "Very realistic voices. The voice is a voice_id from your ElevenLabs library."),
+      "api:openrouter": t("Десятки TTS-моделей через один ключ: бесплатная HeyGen Voice Turbo, Kokoro, Grok Voice, Voxtral и другие. Голоса подгружаются под выбранную модель — кнопка «Обновить списки».", "Dozens of TTS models with one key: free HeyGen Voice Turbo, Kokoro, Grok Voice, Voxtral and more. Voices load for the selected model — use “Refresh lists”."),
       "api:azure": t("Microsoft Azure Speech: сотни нейроголосов. Укажите регион ресурса в адресе и ключ ресурса.", "Microsoft Azure Speech: hundreds of neural voices. Put your resource region in the URL and use the resource key."),
       "api:custom": t("Любой сервис с OpenAI-форматом /audio/speech (прокси, OpenRouter-подобные шлюзы и т. п.).", "Any service with the OpenAI /audio/speech format (proxies, gateways, etc.)."),
       local: t("Сервер, который вы запускаете сами на этом компьютере (Kokoro-FastAPI, XTTS…).", "A server you run yourself on this computer (Kokoro-FastAPI, XTTS…)."),
@@ -99,7 +124,12 @@
     const showUrl = kind === "custom" || kind === "azure";
     const urlHelp = kind === "azure" ? t("Замените westeurope на регион вашего ресурса Speech.", "Replace westeurope with your Speech resource region.")
       : t("Корень API, к нему добавляется /audio/speech. Например: https://my-proxy.example/v1", "API root; /audio/speech is appended. Example: https://my-proxy.example/v1");
-    const wrongVoice = voiceMismatch(ctx, kind, voice);
+    const wrongVoice = voiceMismatch(ctx, kind, voice, model);
+    const live = liveTts && liveTts.base === url ? liveTts : null;
+    const modelOptions = live ? live.models.map((m) => ({ id: m.id, label: m.id }))
+      : meta.models.map((m) => ({ id: m, label: m }));
+    const voiceOptions = live && live.voices ? live.voices.map((v) => ({ id: v, label: v })) : (meta.voices || []);
+    const format = pref("voice_tts_api_format", "auto");
     const voiceHelp = `<span id="st-tts-voice-warn" class="vs-warn" ${wrongVoice ? "" : "hidden"}>${esc(wrongVoice)}</span>` + (wrongVoice ? "" : kind === "elevenlabs" ? t("voice_id из Voices → «ID» в ElevenLabs; можно вставить любой.", "voice_id from Voices → “ID” in ElevenLabs; any id works.")
       : kind === "gemini" ? t("Голоса Gemini: у OpenAI-голосов (alloy, nova…) здесь нет аналога.", "Gemini voices; OpenAI voices (alloy, nova…) do not exist here.") : "");
     return K.section({ title: meta.label, body:
@@ -108,10 +138,16 @@
       + K.field({ label: `${kind === "custom" ? t("API-ключ (если нужен)", "API key (if required)") : t("API-ключ", "API key")} ${keyLink}`, forId: "st-tts-key",
         help: `<span id="st-tts-key-warn" class="vs-warn" ${mismatch ? "" : "hidden"}>${esc(mismatch)}</span>`,
         control: K.secret("st-tts-key", key, { placeholder: kind === "gemini" ? "AIza…" : kind === "openai" ? "sk-…" : "" }) })
-      + `<div class="sx-grid2 vs-grid">${meta.models.length || kind !== "azure" ? K.field({ label: t("Модель", "Model"), forId: "st-tts-model",
-        control: pickControl(ctx, "st-tts-model", model, meta.models.map((m) => ({ id: m, label: m })), meta.default_model || "tts-1") }) : ""}`
+      + `<div class="sx-grid2 vs-grid">${meta.models.length || kind !== "azure" || live ? K.field({ label: t("Модель", "Model"), forId: "st-tts-model",
+        control: pickControl(ctx, "st-tts-model", model, modelOptions, meta.default_model || "tts-1") }) : ""}`
       + K.field({ label: t("Голос", "Voice"), forId: "st-tts-api-voice", help: voiceHelp,
-        control: pickControl(ctx, "st-tts-api-voice", voice, meta.voices || [], meta.default_voice || "") }) + `</div>` });
+        control: pickControl(ctx, "st-tts-api-voice", voice, voiceOptions, meta.default_voice || "") }) + `</div>`
+      + K.field({ label: t("Списки моделей и голосов", "Model and voice lists"), forId: "st-tts-refresh",
+        help: `<span id="st-tts-lists-status" class="vs-status" role="status">${esc(live && live.status ? live.status : t("Списки из каталога. «Обновить» подгружает живые списки провайдера — модели и голоса под каждую модель.", "Catalog lists. “Refresh” loads the provider’s live lists — models and voices per model."))}</span>`,
+        control: `<button type="button" class="pbtn ghost sx-btn-sm" id="st-tts-refresh">↻ ${t("Обновить списки", "Refresh lists")}</button>` })
+      + K.field({ label: t("Формат ответа", "Response format"), forId: "st-tts-format",
+        help: t("«Авто»: mp3, кроме моделей, которые отдают только pcm (например, HeyGen — для неё pcm ставится сам). Если сервис жалуется на response_format — поставьте pcm.", "“Auto”: mp3, except models that only return pcm (e.g. HeyGen — pcm is automatic there). If the service complains about response_format, set pcm."),
+        control: `<select class="pinput compact" id="st-tts-format">${[["auto", t("Авто", "Auto")], ["mp3", "mp3"], ["pcm", "pcm"], ["wav", "wav"]].map(([v, l]) => `<option value="${v}" ${format === v ? "selected" : ""}>${l}</option>`).join("")}</select>` }) });
   }
 
   function localHtml(ctx) {
@@ -121,6 +157,9 @@
       K.field({ label: t("Профиль движка", "Engine profile"), forId: "st-tts-local-engine", control: `<select class="pinput" id="st-tts-local-engine">${ctx.localEngines.map((item) => `<option value="${item.id}" ${pref("voice_tts_local_engine", "kokoro") === item.id ? "selected" : ""}>${item.name} · ${item.hint}</option>`).join("")}</select>` })
       + K.field({ label: "Base URL", forId: "st-tts-local-url", control: `<input class="pinput sx-mono" id="st-tts-local-url" value="${esc(pref("voice_tts_local_url", "http://127.0.0.1:8880/v1"))}">` })
       + `<div class="sx-grid2">${K.field({ label: t("Модель", "Model"), forId: "st-tts-local-model", control: `<input class="pinput" id="st-tts-local-model" value="${esc(pref("voice_tts_local_model", "kokoro"))}">` })}${K.field({ label: t("Голос", "Voice"), forId: "st-tts-local-voice", control: `<input class="pinput" id="st-tts-local-voice" value="${esc(pref("voice_tts_local_voice", "af_heart"))}">` })}</div>`
+      + K.field({ label: t("Формат ответа", "Response format"), forId: "st-tts-local-format",
+        help: t("«Авто»: mp3, кроме моделей, которые отдают только pcm (например, HeyGen).", "“Auto”: mp3, except models that only return pcm (e.g. HeyGen)."),
+        control: `<select class="pinput compact" id="st-tts-local-format">${[["auto", t("Авто", "Auto")], ["mp3", "mp3"], ["pcm", "pcm"], ["wav", "wav"]].map(([v, l]) => `<option value="${v}" ${pref("voice_tts_local_format", "auto") === v ? "selected" : ""}>${l}</option>`).join("")}</select>` })
       + K.field({ label: t("API-ключ (необязательно)", "API key (optional)"), forId: "st-tts-local-key", control: K.secret("st-tts-local-key", pref("voice_tts_local_api_key", "")) }) });
   }
 
@@ -184,14 +223,27 @@
         const id = value.slice(4);
         const meta = providers(ctx).find((p) => p.id === id) || {};
         const patch = { voice_tts_provider: "api" };
-        const sameService = ctx.pref("voice_tts_provider", "") === "api" && providerForUrl(ctx.pref("voice_tts_api_url", "")) === id;
+        // Per-provider profiles (mirrors the STT pattern): stash the current
+        // provider's key/url/model/voice, restore the target's saved ones.
+        const profiles = { ...(ctx.pref("voice_tts_api_profiles", {}) || {}) };
+        const curUrl = ctx.pref("voice_tts_api_url", "");
+        if (curUrl) profiles[providerForUrl(curUrl)] = { url: curUrl, key: ctx.pref("voice_tts_api_key", ""), model: ctx.pref("voice_tts_api_model", ""), voice: ctx.pref("voice_tts_api_voice", "") };
+        const sameService = ctx.pref("voice_tts_provider", "") === "api" && providerForUrl(curUrl) === id;
         if (!sameService) {
-
-          const keepUrl = id === "custom" && providerForUrl(ctx.pref("voice_tts_api_url", "")) === "custom";
-          patch.voice_tts_api_url = keepUrl ? ctx.pref("voice_tts_api_url", "") : (meta.base_url || "");
-          patch.voice_tts_api_model = meta.default_model || "";
-          patch.voice_tts_api_voice = meta.default_voice || "";
+          const saved = profiles[id];
+          if (saved && saved.url) {
+            patch.voice_tts_api_url = saved.url;
+            patch.voice_tts_api_model = saved.model || meta.default_model || "";
+            patch.voice_tts_api_voice = saved.voice || meta.default_voice || "";
+            patch.voice_tts_api_key = saved.key || "";
+          } else {
+            const keepUrl = id === "custom" && providerForUrl(curUrl) === "custom";
+            patch.voice_tts_api_url = keepUrl ? curUrl : (meta.base_url || "");
+            patch.voice_tts_api_model = meta.default_model || "";
+            patch.voice_tts_api_voice = meta.default_voice || "";
+          }
         }
+        patch.voice_tts_api_profiles = profiles;
         await ctx.savePreferences(patch);
       } else {
         await ctx.savePreferences({ voice_tts_provider: value });
@@ -209,8 +261,17 @@
       const model = pickValue("st-tts-model"), voice = pickValue("st-tts-api-voice");
       if (model !== undefined) patch.voice_tts_api_model = model;
       if (voice !== undefined) patch.voice_tts_api_voice = voice;
+      if ($("#st-tts-format")) patch.voice_tts_api_format = $("#st-tts-format").value;
+      const profiles = { ...(ctx.pref("voice_tts_api_profiles", {}) || {}) };
+      profiles[kind] = {
+        url: ("voice_tts_api_url" in patch ? patch.voice_tts_api_url : ctx.pref("voice_tts_api_url", "")),
+        key: patch.voice_tts_api_key,
+        model: ("voice_tts_api_model" in patch ? patch.voice_tts_api_model : ctx.pref("voice_tts_api_model", "")),
+        voice: ("voice_tts_api_voice" in patch ? patch.voice_tts_api_voice : ctx.pref("voice_tts_api_voice", "")),
+      };
+      patch.voice_tts_api_profiles = profiles;
       const voiceWarn = $("#st-tts-voice-warn");
-      if (voiceWarn && voice !== undefined) { const text = voiceMismatch(ctx, kind, voice); voiceWarn.textContent = text; voiceWarn.hidden = !text; }
+      if (voiceWarn && voice !== undefined) { const text = voiceMismatch(ctx, kind, voice, model); voiceWarn.textContent = text; voiceWarn.hidden = !text; }
       const warn = $("#st-tts-key-warn");
       if (warn) { const text = keyMismatch(kind, patch.voice_tts_api_key, ctx.en); warn.textContent = text; warn.hidden = !text; }
       return ctx.savePreferences(patch);
@@ -218,13 +279,46 @@
     ["st-tts-model", "st-tts-api-voice"].forEach((id) => {
       const pick = $(`#${id}-pick`), input = $(`#${id}`);
       if (!pick || !input) return;
-      pick.onchange = () => {
+      pick.onchange = async () => {
         input.hidden = pick.value !== CUSTOM;
         if (pick.value === CUSTOM) { input.value = ""; input.focus(); } else input.value = pick.value;
-        saveApi();
+        await saveApi();
+        // With live lists, the voice list belongs to the model: switch the voice
+        // to the new model's first voice when the current one is not offered.
+        if (id === "st-tts-model" && liveTts) {
+          const entry = liveTts.models.find((m) => m.id === input.value.trim());
+          if (entry && entry.voices && entry.voices.length) {
+            liveTts.voices = entry.voices;
+            const cur = String(pickValue("st-tts-api-voice") || "").toLowerCase();
+            if (!entry.voices.some((v) => String(v).toLowerCase() === cur)) {
+              await ctx.savePreferences({ voice_tts_api_voice: entry.voices[0] });
+            }
+            ctx.rerender();
+          }
+        }
       };
       input.onchange = saveApi;
     });
+    if ($("#st-tts-format")) $("#st-tts-format").onchange = saveApi;
+    if ($("#st-tts-refresh")) $("#st-tts-refresh").onclick = async () => {
+      const btn = $("#st-tts-refresh"), status = $("#st-tts-lists-status");
+      btn.disabled = true;
+      if (status) status.textContent = t("Запрашиваю списки…", "Fetching lists…");
+      try {
+        await saveApi();
+        const base = ($("#st-tts-url")?.value.trim() || ctx.pref("voice_tts_api_url", ""));
+        const result = await ctx.api("/api/voice/fetch-lists", { method: "POST", body: { base, key: ($("#st-tts-key")?.value.trim() || ""), kind: "tts", model: pickValue("st-tts-model") } });
+        if (result.live) {
+          liveTts = { base, models: result.models, voices: result.voices,
+            status: t(`Живые списки: моделей ${result.models.length} · голосов у выбранной модели ${(result.voices || []).length}`, `Live lists: ${result.models.length} models · ${(result.voices || []).length} voices for the selected model`) };
+          ctx.rerender();
+        } else if (status) {
+          status.textContent = result.error || t("Не удалось обновить списки — остались списки из каталога.", "Could not refresh lists — catalog lists remain.");
+        }
+      } catch (error) {
+        if (status) status.textContent = (error && error.message) || t("Не удалось обновить списки.", "Could not refresh lists.");
+      } finally { btn.disabled = false; }
+    };
     if ($("#st-tts-key")) $("#st-tts-key").onchange = saveApi;
     if ($("#st-tts-url")) $("#st-tts-url").onchange = async () => {
       await saveApi();
@@ -232,8 +326,8 @@
       if (providerForUrl($("#st-tts-url").value) !== kind) ctx.rerender();
     };
 
-    const saveLocal = () => ctx.savePreferences({ voice_tts_local_engine: $("#st-tts-local-engine")?.value || "custom", voice_tts_local_url: $("#st-tts-local-url")?.value.trim() || "", voice_tts_local_api_key: $("#st-tts-local-key")?.value.trim() || "", voice_tts_local_model: $("#st-tts-local-model")?.value.trim() || "", voice_tts_local_voice: $("#st-tts-local-voice")?.value.trim() || "" });
-    ["#st-tts-local-url", "#st-tts-local-key", "#st-tts-local-model", "#st-tts-local-voice"].forEach((id) => { if ($(id)) $(id).onchange = saveLocal; });
+    const saveLocal = () => ctx.savePreferences({ voice_tts_local_engine: $("#st-tts-local-engine")?.value || "custom", voice_tts_local_url: $("#st-tts-local-url")?.value.trim() || "", voice_tts_local_api_key: $("#st-tts-local-key")?.value.trim() || "", voice_tts_local_model: $("#st-tts-local-model")?.value.trim() || "", voice_tts_local_voice: $("#st-tts-local-voice")?.value.trim() || "", voice_tts_local_format: $("#st-tts-local-format")?.value || "auto" });
+    ["#st-tts-local-url", "#st-tts-local-key", "#st-tts-local-model", "#st-tts-local-voice", "#st-tts-local-format"].forEach((id) => { if ($(id)) $(id).onchange = saveLocal; });
     if ($("#st-tts-local-engine")) $("#st-tts-local-engine").onchange = async (e) => {
       const engine = ctx.localEngines.find((item) => item.id === e.target.value); if (!engine) return;
       $("#st-tts-local-url").value = engine.url; $("#st-tts-local-model").value = engine.model; $("#st-tts-local-voice").value = engine.voice;
@@ -287,6 +381,8 @@
     const kind = sttProviderForUrl(pref("voice_stt_api_url", ""),ctx);
     const meta = sttProviders(ctx).find(p=>p.id===kind) || {models:[]};
     const current = pref("voice_stt_api_model","") || meta.default_model || "";
+    const url = pref("voice_stt_api_url","") || meta.base_url || "";
+    const liveModels = liveStt && liveStt.base === url ? liveStt.models : null;
     const mismatch = keyMismatch(kind,pref("voice_stt_api_key",""),ctx.en);
     const reuse = providerForUrl(pref("voice_tts_api_url","")) === kind && !!pref("voice_tts_api_key","") && kind !== "custom";
     return sttPresetHtml(ctx)
@@ -299,7 +395,10 @@
       + (kind === "azure" ? K.note(t("Azure автоматически выбирает модель распознавания. При автоматическом языке включено определение языка сервисом.", "Azure chooses its recognition model automatically. Automatic language lets the service detect it.")) :
         K.field({label:t("Модель распознавания", "Recognition model"), forId:"st-stt-model",
           help:t("Выберите предложенную модель или введите другой ID. Модель чата MemuAI для распознавания не требуется.", "Choose a suggested model or enter another ID. Recognition does not require the MemuAI chat model."),
-          control:pickControl(ctx,"st-stt-model",current,(meta.models || []).map(id=>({id,label:id})),meta.default_model || "whisper-1")}))
+          control:pickControl(ctx,"st-stt-model",current,(liveModels || meta.models || []).map(id=>({id,label:id})),meta.default_model || "whisper-1")})
+      + K.field({label:t("Список моделей", "Model list"), forId:"st-stt-refresh",
+          help:`<span id="st-stt-lists-status" class="vs-status" role="status">${esc(liveStt && liveStt.status ? liveStt.status : t("Списки из каталога. «Обновить» подгружает живые модели провайдера.", "Catalog lists. “Refresh” loads the provider’s live models."))}</span>`,
+          control:`<button type="button" id="st-stt-refresh" class="pbtn ghost sx-btn-sm">↻ ${t("Обновить списки", "Refresh lists")}</button>`}))
       + K.row({label:t("Проверить распознавание", "Test recognition"), desc:`<span id="st-stt-test-status" class="vs-status" role="status" aria-live="polite">${t("Выберите короткую аудиозапись. Облачный сервис может списать оплату за распознавание.", "Choose a short recording. Your cloud service may charge for transcription.")}</span>`,
         control:`<button type="button" id="st-stt-test" class="pbtn ghost sx-btn-sm">${t("Выбрать аудио…", "Choose audio…")}</button><input type="file" id="st-stt-test-file" accept="audio/*" hidden>`});
   }
@@ -345,6 +444,19 @@
     if ($("#st-stt-key")) $("#st-stt-key").onchange=save;
     if ($("#st-stt-url")) $("#st-stt-url").onchange=async()=>{const result=await save();if(result!==null && sttProviderForUrl(read().url,ctx)!==kind)ctx.rerender();};
     if ($("#st-stt-reuse-key")) $("#st-stt-reuse-key").onclick=async()=>{$("#st-stt-key").value=ctx.pref("voice_tts_api_key","");await save();};
+    if ($("#st-stt-refresh")) $("#st-stt-refresh").onclick=async()=>{
+      const btn=$("#st-stt-refresh"), status=$("#st-stt-lists-status");
+      btn.disabled=true; if(status)status.textContent=t("Запрашиваю списки…", "Fetching lists…");
+      try {
+        const value=read(); await save();
+        const result=await ctx.api("/api/voice/fetch-lists",{method:"POST",body:{base:value.url,key:value.key,kind:"stt"}});
+        if (result.live) {
+          liveStt={base:value.url,models:result.models.map(m=>m.id),status:t(`Живые списки: моделей ${result.models.length}`, `Live lists: ${result.models.length} models`)};
+          ctx.rerender();
+        } else if (status) status.textContent=result.error || t("Не удалось обновить списки — остались списки из каталога.", "Could not refresh lists — catalog lists remain.");
+      } catch (error) { if (status) status.textContent=(error && error.message) || t("Не удалось обновить списки.", "Could not refresh lists."); }
+      finally { btn.disabled=false; }
+    };
     const test=$("#st-stt-test"), file=$("#st-stt-test-file"), status=$("#st-stt-test-status");
     if (test && file) {
       test.onclick=()=>file.click();

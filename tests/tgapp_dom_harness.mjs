@@ -68,6 +68,8 @@ const dom = new JSDOM(html, {
   },
   virtualConsole: vc,
   beforeParse(window) {
+    // jsdom has no CSS.escape. Escape punctuation in fixture IDs used in quoted selectors.
+    window.CSS ??= { escape: (value) => String(value).replace(/[^a-z0-9_-]/gi, (ch) => "\\" + ch) };
     window.matchMedia = (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false });
     const HME = window.HTMLMediaElement;
     Object.defineProperty(HME.prototype, "currentTime", { configurable: true, get() { return this._ct || 0; }, set(v) { this._ct = +v || 0; } });

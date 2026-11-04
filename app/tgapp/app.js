@@ -1531,7 +1531,9 @@
 
     default_effort: [["auto", tr("Авто", "Auto")], ["off", tr("Выкл", "Off")], ["minimal", tr("Минимум", "Minimal")], ["low", tr("Низкое", "Low")], ["medium", tr("Среднее", "Medium")], ["high", tr("Высокое", "High")], ["xhigh", tr("Очень высокое", "Extra high")], ["max", tr("Максимум", "Max")]],
     chat_titles: [["ai", tr("Придумывает ИИ", "AI writes them")], ["off", tr("Начало сообщения", "First words")]],
-    ai_personality: [["friendly", tr("Дружелюбная", "Friendly")], ["pragmatic", tr("Прагматичная", "Pragmatic")]],
+    ai_personality: ((S.personalities && S.personalities.items) || []).length
+      ? S.personalities.items.map((item) => [item.id, item.name])
+      : [["friendly", tr("Дружелюбная", "Friendly")], ["pragmatic", tr("Прагматичная", "Pragmatic")]],
     web_search_mode: [["auto", tr("Авто", "Auto")], ["builtin", tr("Встроенный у модели", "Model's own")], ["custom", tr("Свой источник", "Custom source")]],
     image_send_mode: [["ask", tr("Спрашивать", "Ask")], ["direct", tr("Отправлять модели", "Send to the model")], ["fallback", tr("Описание другой моделью", "Describe with another model")]],
     notify_sound_style: [["gentle", tr("Мягкий", "Gentle")], ["crystal", tr("Кристалл", "Crystal")], ["pop", "Pop"], ["warm", tr("Тёплый аккорд", "Warm chord")]],
@@ -1594,6 +1596,7 @@
     try { data = await api("settings.get"); } catch (error) { return false; }
     const before = JSON.stringify([S.settings, S.appearance, S.models]);
     S.settings = data.settings || S.settings; S.models = data.models || S.models; S.themes = data.themes || S.themes;
+    S.personalities = data.personalities || S.personalities;
     if (data.appearance) S.appearance = data.appearance;
     if (JSON.stringify([S.settings, S.appearance, S.models]) === before) return false;
     applyAppearance();
@@ -1667,7 +1670,7 @@
         <div class="section-title">${esc(tr("Агенты Work и MemuCode", "Work and MemuCode agents"))}</div><div class="group flat">${SET.range("agent_count", tr("Агентов одновременно", "Agents at once"), 1, 4)}</div>`),
       telegram: () => settingsPage("Telegram", `
         <div class="group flat" style="margin-top:8px">${SET.choice("telegram_notify_mode", tr("Уведомления о завершении", "Completion notifications"), E.telegram_notify_mode)}${SET.model("telegram_model", tr("Модель бота", "Bot model"), tr("Основная модель MemuAI", "MemuAI default"))}${SET.choice("telegram_language", tr("Язык бота", "Bot language"), E.telegram_language)}${SET.range("telegram_history_messages", tr("Сообщений в контексте бота", "Messages in the bot's context"), 10, 100, 10)}</div>
-        <p class="section-note">${esc(tr("Токен бота, привязка и белый список меняются только на компьютере: Настройки → Telegram.", "The bot token, pairing and the allowed users are changed on the computer only: Settings → Telegram."))}</p>`),
+        <p class="section-note">${esc(tr("Токен бота, привязка и белый список меняются только на компьютере: Настройки → Мессенджеры → Telegram.", "The bot token, pairing and the allowed users are changed on the computer only: Settings → Messengers → Telegram."))}</p>`),
       desktop: () => settingsPage(tr("На компьютере", "On the computer"), `
         <div class="group flat" style="margin-top:8px">${SET.toggle("notify_windows", tr("Уведомления Windows", "Windows notifications"))}${SET.toggle("notify_sound", tr("Звук по завершении", "Sound when done"))}${SET.choice("notify_sound_style", tr("Сигнал", "Sound"), E.notify_sound_style)}${SET.range("notify_sound_volume", tr("Громкость", "Volume"), 0, 100, 5, "%")}</div>`),
       general: () => settingsPage(tr("Общие", "General"), `
@@ -1813,6 +1816,7 @@
 
   function applyBoot(boot) {
     S.boot = boot; S.lang = boot.lang || S.lang; S.appearance = boot.appearance; S.themes = boot.themes; S.settings = boot.settings || {};
+    S.personalities = boot.personalities || null;
     S.models = boot.models || []; S.memes = boot.memes || []; S.folders = boot.folders || []; S.profiles = boot.profiles || [];
     S.profileId = boot.profile_id || S.profileId; S.features = boot.features || {}; S.memory = boot.memory || S.memory;
     applyAppearance();
@@ -1862,7 +1866,7 @@
       applyBoot(boot);
     } catch (error) {
       const hints = {
-        not_paired: tr("Этот аккаунт Telegram не привязан. В MemuAI на компьютере: Настройки → Telegram → «Подключить Telegram» или добавьте его user id в «Дополнительно: Chat ID и доступ».", "This Telegram account is not paired. In MemuAI on the computer: Settings → Telegram → “Connect Telegram”, or add its user id under “Advanced: Chat ID and access”."),
+        not_paired: tr("Этот аккаунт Telegram не привязан. В MemuAI на компьютере: Настройки → Мессенджеры → Telegram → «Подключить Telegram» или добавьте его user id в «Дополнительно: Chat ID и доступ».", "This Telegram account is not paired. In MemuAI on the computer: Settings → Messengers → Telegram → “Connect Telegram”, or add its user id under “Advanced: Chat ID and access”."),
         expired: tr("Данные запуска устарели. Закройте и снова откройте приложение.", "The launch data is too old. Close and reopen the app."),
         offline: tr("Компьютер не отвечает. Проверьте, что он включён и MemuAI Proxy запущен.", "The computer does not answer. Make sure it is on and MemuAI Proxy is running."),
         disabled: tr("Mini App выключен в настройках MemuAI.", "The Mini App is switched off in MemuAI settings."),

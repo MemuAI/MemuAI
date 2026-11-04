@@ -43,6 +43,8 @@
 .mcs-link { background: transparent; border-color: transparent; color: var(--accent); padding-left: 0; }
 .mcs-icon { font: inherit; width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--mcs-line); background: transparent; color: var(--text); cursor: pointer; }
 .mcs-cmds { display: flex; flex-direction: column; gap: 6px; }
+.mcs-cmd { flex-wrap: wrap; }
+.mcs-cmd-mode { max-width: 100%; min-height: 30px; }
 .mcs-cmd { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 11px; border: 1px solid var(--mcs-line);
   background: color-mix(in srgb, var(--bg, #111) 30%, transparent); }
 .mcs-cmd.off { opacity: .6; }
@@ -80,6 +82,8 @@
 .mcs-act-name { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .mcs-act-name small { color: var(--muted); font-family: var(--mono, monospace); font-size: 11px; }
 .mcs-tier { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--mcs-line); color: var(--muted); white-space: nowrap; }
+.mcs-mode { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--mcs-line); color: var(--muted); white-space: nowrap; }
+.mcs-mode.m-economy { color: #2f9e6e; border-color: color-mix(in srgb, #2fb67c 45%, transparent); }
 .mcs-tier.t-confirm { color: #c98a10; border-color: color-mix(in srgb, #f5a524 45%, transparent); }
 .mcs-tier.t-dangerous { color: var(--danger, #e5484d); border-color: color-mix(in srgb, var(--danger, #e5484d) 45%, transparent); }
 .mcs-mini { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 118px; }

@@ -60,8 +60,8 @@ def system_prompt() -> str:
     prefs, prompts = pgdata.load_preferences(), pgdata.load_prompts()
     selected = next((str(p.get("text") or "") for p in prompts.get("prompts", [])
                      if p.get("id") == prompts.get("default_id")), pgdata.DEFAULT_PROMPT)
-    personality = "pragmatic" if prefs.get("ai_personality") == "pragmatic" else "friendly"
-    return (selected + "\n" + pgdata.internal_prompt("personality-" + personality)
+    from . import personalities
+    return (selected + "\n" + personalities.block(prefs, pgdata.internal_prompt)
             + "\n" + str(prefs.get("custom_system_prompt") or "")
             + "\nYou are MemuAI, a general-purpose personal assistant responding inside Telegram. "
               "Answer the current request directly in its language. You are not running a coding session: "

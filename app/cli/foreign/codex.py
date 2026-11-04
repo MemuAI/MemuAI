@@ -18,8 +18,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, clean_user_text, clip, iso_to_ts,
-                    read_lines, short_args, tail_lines, text_of, title_from)
+from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, as_dict, clean_user_text, clip,
+                    iso_to_ts, read_lines, short_args, tail_lines, text_of, title_from)
 
 KEY = "codex"
 TITLE = "Codex"
@@ -48,7 +48,11 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     if not base.is_dir():
         return rows
-    for file in base.rglob("rollout-*.jsonl"):
+    try:
+        files = list(base.rglob("rollout-*.jsonl"))
+    except OSError:
+        return rows
+    for file in files:
         info = _info(file)
         if info is not None:
             rows.append(info)
@@ -78,7 +82,8 @@ def _info(file: Path) -> Optional[SessionInfo]:
             cwd = cwd or str(payload.get("cwd") or "")
             model = model or str(payload.get("model") or "")
         elif kind == "event_msg" and payload.get("type") == "item_completed":
-            item = payload.get("item") or {}
+            # F31: a string "item" used to raise AttributeError on .get.
+            item = as_dict(payload.get("item"))
             events += 1
             if item.get("type") == "UserMessage" and not first:
                 first = _person(text_of(item.get("content")))
@@ -130,7 +135,7 @@ def read(info: SessionInfo) -> ForeignSession:
         elif kind == "event_msg":
             sub = payload.get("type")
             if sub == "item_completed":
-                turn = _item(payload.get("item") or {}, at)
+                turn = _item(as_dict(payload.get("item")), at)
                 if turn is not None:
                     items.extend(turn)
             elif sub == "user_message":

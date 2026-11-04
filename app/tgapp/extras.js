@@ -100,7 +100,7 @@
     }
     kit.pages.devices = () => {
       if (S.features && S.features.web_login === false) {
-        openSheet({ title: tr("Вход из браузера выключен", "Browser sign-in is off"), body: `<p class="section-note" style="margin:0 20px 10px;font-size:15px;color:var(--text)">${esc(tr("Включите его на компьютере: MemuAI → Настройки → Telegram → Mini App → «Вход из браузера».", "Turn it on on the computer: MemuAI → Settings → Telegram → Mini App → “Browser sign-in”."))}</p>` });
+        openSheet({ title: tr("Вход из браузера выключен", "Browser sign-in is off"), body: `<p class="section-note" style="margin:0 20px 10px;font-size:15px;color:var(--text)">${esc(tr("Включите его на компьютере: MemuAI → Настройки → Мессенджеры → Telegram → Mini App → «Вход из браузера».", "Turn it on on the computer: MemuAI → Settings → Messengers → Telegram → Mini App → “Browser sign-in”."))}</p>` });
         return;
       }
       openStack({ title: tr("Другое устройство", "Another device"), build: (view) => {

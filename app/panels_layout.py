@@ -10,7 +10,10 @@ The window-wide look of each zone lives in ``panels.json → settings.layout``::
 
 * ``view``  — cards (full panel cards) or chips (one-line value chips, a click opens the card);
 * ``chats`` — the start-screen zones (top / composer / left / right) also stay visible inside a conversation;
-* ``width`` — the side columns only (``WIDTH_MIN``–``WIDTH_MAX`` px).
+* ``width`` — the side columns only (``WIDTH_MIN``–``WIDTH_MAX`` px);
+* ``dock``  — ``home`` only: how the zone sits beside the endless conversation of an agentic workspace, where there
+  is no empty start screen — ``side`` (a column of cards, the default and therefore not stored), ``rail`` (a slim
+  column of chips) or ``top`` (a row of chips above the conversation).
 
 Everything here is pure (no I/O); ``app.panels`` calls :func:`clean_layout` from its settings normaliser and
 :func:`clean_items` from the bulk layout route (``POST /api/pg/panels-layout``, undo / redo / reset of the window's
@@ -37,6 +40,7 @@ ZONE_IDS = tuple(ZONES)
 
 LEGACY_ZONES = ("home", "sidebar", "appbar")
 WIDTH_MIN, WIDTH_MAX = 200, 480
+DOCKS = ("side", "rail", "top")
 DEFAULT_WIDTH = {"left": 280, "right": 300}
 SIZES = ("s", "m", "l", "w")
 
@@ -66,7 +70,7 @@ def default_layout() -> Dict[str, Any]:
 def clean_zone(zone: str, raw: Any, base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     meta = ZONES[zone]
     out = dict(base) if isinstance(base, dict) else default_zone(zone)
-    out = {k: v for k, v in out.items() if k in ("view", "chats", "width")}
+    out = {k: v for k, v in out.items() if k in ("view", "chats", "width", "dock")}
     if out.get("view") not in meta["views"]:
         out["view"] = meta["views"][0]
     raw = raw if isinstance(raw, dict) else {}
@@ -88,6 +92,14 @@ def clean_zone(zone: str, raw: Any, base: Optional[Dict[str, Any]] = None) -> Di
         out["width"] = max(WIDTH_MIN, min(WIDTH_MAX, width))
     else:
         out.pop("width", None)
+    if zone == "home":
+        dock = raw.get("dock", out.get("dock"))
+        if dock in DOCKS and dock != "side":
+            out["dock"] = dock
+        else:
+            out.pop("dock", None)
+    else:
+        out.pop("dock", None)
     return out
 
 def clean_layout(raw: Any, base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

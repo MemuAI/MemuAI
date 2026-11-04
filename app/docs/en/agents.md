@@ -21,7 +21,7 @@ An agent is a separate worker with a task of its own. It runs in the background 
 Only when you asked for them:
 
 - in words — "use agents", "do this in parallel", "run a background task";
-- with the **Agents** switch in the "+" menu (it exists only in Work and MemuCode) or the `/agents` command — then the model may start agents in this chat when it sees fit.
+- with the **Agents** switch in the "+" menu (it exists only in Work and MemuCode) or the `/agents` command — then the model may start agents in this chat when it sees fit. In MemuCode `/agents` opens the **Agents** tab, where the same switch is called **Agents in this chat without asking**; `/agents on` and `/agents off` flip it straight away.
 
 Without such a request an attempt to start an agent is refused, and the model does the work itself.
 
@@ -47,6 +47,8 @@ Up to four agents work at once, no more than 24 per conversation; each takes at 
 | --- | --- |
 | Model of the agents | one model for every agent; the chat's model by default. A fast inexpensive model is enough for code search and reading files |
 | Agents at once | from 1 to 4. More finish sooner and spend more requests |
+
+In MemuCode agents have types — built-in, personal and project ones, shared with MemuCode CLI: each has its own role, tools and model, and the main model picks a fitting type for every subtask. The **Agents** tab can hold up to four models with a remark on what each is good at — the AI picks a model for every agent from these remarks. More in [MemuCode agents](doc:memucode#agents).
 
 In [MemuCode CLI](doc:memucode-cli) the same rule is the `subagents` setting: `ask` — only on request (the default), `auto` — the model decides, `off` — never.
 

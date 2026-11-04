@@ -378,7 +378,7 @@ class BuilderBrowserTest(unittest.TestCase):
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.goto(servers.pg + "/")
         page.wait_for_selector("body.boot-ready", timeout=90000)
-        page.evaluate("(async () => { await showSchedule(true); MemuPlan.openBuilder({id: 'b1', name: 'x', kind: 'notify', prompt: 'hi'}); })()")
+        page.evaluate("(async () => { await showSchedule(true); MemuPlan.openBuilder({id: 'b1', name: 'x', kind: 'notify', prompt: 'hi'}, {step: 'if'}); })()")
         page.wait_for_selector("#pln-builder [data-act='add-if']")
 
         def menu_pick(anchor: str, title: str) -> None:
@@ -393,6 +393,7 @@ class BuilderBrowserTest(unittest.TestCase):
         page.click("#pb-if [data-act='pcx-add']")
         page.locator(".pln-pop button", has_text="Wi-Fi network").first.click()
         page.wait_for_selector("#pb-if .pcx-sub")
+        page.click("#pln-builder .plw-step[data-wiz='when']")
         menu_pick("#pln-builder [data-act='add-when']", "Sunrise / sunset")
         page.wait_for_selector("#pb-when [data-pcx-geo]")
         page.wait_for_timeout(500)
@@ -406,6 +407,7 @@ class BuilderBrowserTest(unittest.TestCase):
         summary = page.inner_text("#pln-summary")
         self.assertIn("sunset (Vilnius)", summary)
         self.assertIn("NOT a workday", summary)
+        page.click("#pln-builder .plw-step[data-wiz='if']")
         page.click("#pb-if [data-act='pcx-check']")
         page.wait_for_selector("#pb-if .pcx-check-box", timeout=20000)
         self.assertEqual(page.locator("#pb-if .pcx-check-box li").count(), 3)

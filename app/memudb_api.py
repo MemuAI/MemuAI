@@ -69,6 +69,12 @@ def register(app, *, workspace=None, allowed: Callable = module_allowed, picker=
                 path=await pick(op.endswith("create"));guard()
                 store=duck_store if str(path).lower().endswith(".duckdb") else sqlite_store
                 result=await asyncio.to_thread(store.open,str(path),owner,create=op.endswith("create")) if path else {"cancelled":True}
+                if path and isinstance(result,dict) and not result.get("cancelled"):
+                    try:
+                        from .module_actions import remember_database
+                        await asyncio.to_thread(remember_database,str(path),str(result.get("engine") or "sqlite"),active)
+                    except Exception:  # noqa: BLE001 - the recent list is a convenience for Planning backups
+                        pass
             elif op=="connection.list":result=sqlite_store.list(owner)+duck_store.list(owner)
             elif op=="connection.close":result=await asyncio.to_thread(store.close,session,owner)
             elif op=="connection.configure":result=await asyncio.to_thread(store.configure,session,owner,args.get("readonly") is not False,confirmed=args.get("confirmed") is True)

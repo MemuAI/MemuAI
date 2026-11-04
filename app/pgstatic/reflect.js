@@ -57,6 +57,14 @@
     return many;
   }
   const convWord = (n) => (en() ? (n === 1 ? "conversation" : "conversations") : plural(n, "разговор", "разговора", "разговоров"));
+  const tokenWord = (n) => (en() ? (n === 1 ? "token" : "tokens") : plural(Math.round(n), "токен", "токена", "токенов"));
+  function compact(n) {
+    const v = Math.max(0, +n || 0);
+    try { return new Intl.NumberFormat(lang(), { notation: "compact", maximumFractionDigits: v >= 1e6 ? 1 : 0 }).format(v); }
+    catch (e) { return String(Math.round(v)); }
+  }
+  const tokensText = (n) => `${compact(n)} ${n >= 1000 ? (en() ? "tokens" : "токенов") : tokenWord(n)}`;
+  const PLACES = { chat: ["Чат", "Chat"], work: ["Work", "Work"], code: ["MemuCode", "MemuCode"], quick: ["Быстрый доступ", "Quick Ask"], telegram: ["Telegram", "Telegram"] };
   const dayWord = (n) => (en() ? (n === 1 ? "day" : "days") : plural(n, "день", "дня", "дней"));
 
   function duration(minutes) {
@@ -325,7 +333,7 @@
     setBusy(true);
     const keep = data.report && !force ? data.report : null;
     el.innerHTML = (keep ? intro(keep) : `<div class="rf-progress" role="status"><span class="rf-spin" aria-hidden="true"></span><span>${esc(stage)}</span></div><i class="rf-sk h"></i><i class="rf-sk p"></i><i class="rf-sk p s"></i>`)
-      + timeSection(data)
+      + timeSection(data) + tokensSection(data)
       + (keep ? topicsSection(keep) + skillsSection(keep) : `<section class="rf-sec"><i class="rf-sk h s"></i><i class="rf-sk bar"></i><i class="rf-sk bar"></i><i class="rf-sk bar"></i></section>`)
       + questionCard(data);
     wire(data);
@@ -367,7 +375,7 @@
         + (data.job && data.job.status === "error" ? `<div class="rf-stale rf-stale--err" role="alert"><span>${esc(data.job.error)}</span><button type="button" class="rf-link" data-rf-retry>${esc(L("Повторить", "Try again"))}</button></div>` : "")
         + intro(data.report);
     }
-    el.innerHTML = top + timeSection(data)
+    el.innerHTML = top + timeSection(data) + tokensSection(data)
       + (data.report && data.state === "ready" ? topicsSection(data.report) + skillsSection(data.report) : "")
       + (data.support ? supportCard(data.support) : "")
       + questionCard(data)
@@ -401,9 +409,9 @@
     </section>`;
   }
 
-  function chart(series) {
+  function chart(series, metric = "conversations") {
     if (!series.length) return "";
-    let buckets = series.map((d) => ({ from: d.date, to: d.date, conversations: d.conversations, messages: d.messages, minutes: d.minutes }));
+    let buckets = series.map((d) => ({ from: d.date, to: d.date, conversations: d.conversations, messages: d.messages, minutes: d.minutes, tokens: +d.tokens || 0 }));
     let weekly = false;
     if (series.length > 190) {
       weekly = true;
@@ -411,22 +419,30 @@
       for (let i = 0; i < series.length; i += 7) {
         const part = series.slice(i, i + 7);
         out.push({ from: part[0].date, to: part[part.length - 1].date, conversations: part.reduce((a, d) => a + d.conversations, 0),
-          messages: part.reduce((a, d) => a + d.messages, 0), minutes: part.reduce((a, d) => a + d.minutes, 0) });
+          messages: part.reduce((a, d) => a + d.messages, 0), minutes: part.reduce((a, d) => a + d.minutes, 0),
+          tokens: part.reduce((a, d) => a + (+d.tokens || 0), 0) });
       }
       buckets = out;
     }
-    const max = Math.max(1, ...buckets.map((b) => b.conversations));
+    const tok = metric === "tokens";
+    const value = (b) => (tok ? b.tokens : b.conversations);
+    const max = Math.max(1, ...buckets.map(value));
 
     const n = buckets.length, W = 1000, H = 160, slot = W / n, gap = n > 120 ? 1 : n > 60 ? 2 : 4;
     const bw = Math.max(1, Math.min(slot - gap, W / 36));
     const bars = buckets.map((b, i) => {
-      const h = b.conversations ? Math.max(4, (b.conversations / max) * (H - 8)) : 2;
-      return `<rect class="rf-bar${b.conversations ? "" : " zero"}" x="${(i * slot + (slot - bw) / 2).toFixed(2)}" y="${(H - h).toFixed(2)}" width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${Math.min(3, bw / 2).toFixed(1)}" data-i="${i}"/>`;
+      const v = value(b);
+      const h = v ? Math.max(4, (v / max) * (H - 8)) : 2;
+      return `<rect class="rf-bar${v ? "" : " zero"}" x="${(i * slot + (slot - bw) / 2).toFixed(2)}" y="${(H - h).toFixed(2)}" width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${Math.min(3, bw / 2).toFixed(1)}" data-i="${i}"/>`;
     }).join("");
     const label = (i) => esc(dayLabel(buckets[i].from));
     const ticks = n > 2 ? [0, Math.floor((n - 1) / 2), n - 1] : [0, n - 1];
-    const sumText = L(`${weekly ? "По неделям" : "По дням"}: разговоры, максимум ${max}`, `${weekly ? "Weekly" : "Daily"} conversations, max ${max}`);
-    return `<figure class="rf-chart" data-weekly="${weekly ? 1 : 0}"><figcaption class="rf-chart-cap"><span>${esc(weekly ? L("Активность по неделям", "Weekly activity") : L("Активность по дням", "Daily activity"))}</span><span class="rf-chart-max">${esc(L("макс.", "max"))} ${max}</span></figcaption>
+    const maxText = tok ? compact(max) : String(max);
+    const sumText = tok ? L(`${weekly ? "По неделям" : "По дням"}: токены, максимум ${maxText}`, `${weekly ? "Weekly" : "Daily"} tokens, max ${maxText}`)
+      : L(`${weekly ? "По неделям" : "По дням"}: разговоры, максимум ${max}`, `${weekly ? "Weekly" : "Daily"} conversations, max ${max}`);
+    const capText = tok ? (weekly ? L("Токены по неделям", "Tokens per week") : L("Токены по дням", "Tokens per day"))
+      : (weekly ? L("Активность по неделям", "Weekly activity") : L("Активность по дням", "Daily activity"));
+    return `<figure class="rf-chart${tok ? " rf-chart--tokens" : ""}" data-weekly="${weekly ? 1 : 0}" data-metric="${tok ? "tokens" : "conversations"}"><figcaption class="rf-chart-cap"><span>${esc(capText)}</span><span class="rf-chart-max">${esc(L("макс.", "max"))} ${esc(maxText)}</span></figcaption>
       <div class="rf-chart-plot"><i class="rf-grid" style="bottom:100%"></i><i class="rf-grid" style="bottom:50%"></i>
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(sumText)}">${bars}</svg>
       <div class="rf-tip" hidden></div></div>
@@ -437,6 +453,49 @@
         return `<span style="${style}">${label(i)}</span>`;
       }).join("")}</div>
       <script type="application/json" class="rf-chart-data">${JSON.stringify(buckets).replace(/</g, "\\u003c")}</script></figure>`;
+  }
+
+  function tokensSection(data) {
+    const s = data.stats || {};
+    const t = s.tokens;
+    if (!t || !t.total) return "";
+    const series = (s.series || []).map((d, i) => ({ ...d, tokens: (t.series || [])[i] || 0 }));
+    const inPct = Math.round((t.input / t.total) * 100);
+    const outPct = 100 - inPct;
+    const top = (t.models || []).find((m) => m.model) || null;
+    const busiest = t.busiest_day;
+    const tiles = [
+      [L("Всего токенов", "Total tokens"), compact(t.total), t.pages >= 1 ? L(`ответы ≈ ${compact(t.pages)} ${plural(Math.round(t.pages), "страница", "страницы", "страниц")} текста`, `answers ≈ ${compact(t.pages)} ${Math.round(t.pages) === 1 ? "page" : "pages"} of text`) : L(`${t.answers} ${plural(t.answers, "ответ", "ответа", "ответов")}`, `${t.answers} ${t.answers === 1 ? "answer" : "answers"}`)],
+      [L("В среднем на ответ", "Per answer on average"), compact(t.average_answer + t.average_request), L(`модель прочла ${compact(t.average_request)}, написала ${compact(t.average_answer)}`, `the model read ${compact(t.average_request)}, wrote ${compact(t.average_answer)}`)],
+      [top ? L("Больше всего у модели", "Most used model") : L("Самый «токенный» день", "Busiest token day"),
+        top ? modelName(top.model) : (busiest ? dayLabel(busiest.date) : "—"),
+        top ? L(`${top.share}% токенов · ${top.answers} ${plural(top.answers, "ответ", "ответа", "ответов")}`, `${top.share}% of tokens · ${top.answers} ${top.answers === 1 ? "answer" : "answers"}`)
+          : (busiest ? tokensText(busiest.tokens) : "")],
+    ];
+    const help = L("Токены — кусочки текста, которые модель читает (ваш вопрос, история чата, системные инструкции, найденные страницы) и пишет (ответ и размышления). Где провайдер сообщил точное число, берётся оно; иначе MemuAI оценивает по длине текста — примерно 3–4 символа на токен.",
+      "Tokens are the pieces of text a model reads (your question, the chat history, system instructions, found pages) and writes (the answer and its reasoning). The provider's exact count is used when it reports one; otherwise MemuAI estimates from the text length — about 3–4 characters per token.");
+    const models = (t.models || []).filter((m) => m.tokens > 0);
+    const maxModel = Math.max(1, ...models.map((m) => m.tokens));
+    const places = Object.entries(t.places || {}).filter(([, v]) => v > 0);
+    const placeTotal = places.reduce((a, [, v]) => a + v, 0) || 1;
+    const estimated = t.estimated_share > 0
+      ? `<p class="rf-tok-note">${esc(t.estimated_share >= 0.99
+        ? L("Все значения — оценка по длине текста: провайдеры не сообщили точные числа.", "All values are estimates from the text length: the providers reported no exact counts.")
+        : L(`Около ${Math.max(1, Math.round(t.estimated_share * 100))}% — оценка по длине текста, остальное — точные числа от провайдеров.`, `About ${Math.max(1, Math.round(t.estimated_share * 100))}% is estimated from the text length, the rest are exact provider counts.`))}</p>` : "";
+    return `<section class="rf-sec rf-tok" aria-labelledby="rf-tok-h"><h3 class="rf-h" id="rf-tok-h">${esc(L("Токены", "Tokens"))} <span class="rf-help" tabindex="0" role="note" aria-label="${esc(help)}" data-tip="${esc(help)}">?</span></h3>
+      <div class="rf-stats">${tiles.map(([label, value, sub]) => `<div class="rf-tile"><span class="rf-tile-label">${esc(label)}</span><b class="rf-tile-value">${esc(value)}</b>${sub ? `<span class="rf-tile-sub">${esc(sub)}</span>` : ""}</div>`).join("")}</div>
+      <div class="rf-tok-split" role="img" aria-label="${esc(L(`Прочитано моделью ${inPct}%, написано ${outPct}%`, `Read by the model ${inPct}%, written ${outPct}%`))}">
+        <div class="rf-tok-bar"><i class="rf-tok-in" style="flex:${Math.max(1, t.input)}"></i><i class="rf-tok-out" style="flex:${Math.max(1, t.output)}"></i></div>
+        <div class="rf-tok-legend"><span><i class="rf-tok-dot in" aria-hidden="true"></i>${esc(L("Прочитано моделью", "Read by the model"))} <b>${esc(compact(t.input))}</b> · ${inPct}%</span>
+          <span><i class="rf-tok-dot out" aria-hidden="true"></i>${esc(L("Написано", "Written"))} <b>${esc(compact(t.output))}</b> · ${outPct}%</span></div></div>
+      ${chart(series, "tokens")}
+      ${models.length ? `<div class="rf-tok-models" role="list" aria-label="${esc(L("Токены по моделям", "Tokens by model"))}">${models.map((m, i) => `<div class="rf-tok-model" role="listitem">
+        <span class="rf-tok-name" title="${esc(m.model || "")}">${esc(m.model ? modelName(m.model) : (m.other ? L(`Другие модели (${m.other})`, `Other models (${m.other})`) : L("Модель не записана", "Model not recorded")))}</span>
+        <span class="rf-tok-track" aria-hidden="true"><i style="width:${Math.max(2, (m.tokens / maxModel) * 100).toFixed(1)}%;background:var(--rf-c${(i % 6) + 1})"></i></span>
+        <span class="rf-tok-val">${esc(compact(m.tokens))}<small>${m.share}%</small></span></div>`).join("")}</div>` : ""}
+      ${places.length > 1 ? `<div class="rf-tok-places">${places.map(([k, v]) => `<span class="rf-tok-place">${esc(L(...(PLACES[k] || [k, k])))} <b>${Math.round((v / placeTotal) * 100)}%</b></span>`).join("")}</div>` : ""}
+      ${estimated}
+    </section>`;
   }
 
   function topicsSection(report) {
@@ -522,8 +581,11 @@
   }
 
   function wireChart(root) {
-    const fig = root.querySelector(".rf-chart");
+    root.querySelectorAll(".rf-chart").forEach(wireOneChart);
+  }
+  function wireOneChart(fig) {
     if (!fig) return;
+    const tok = fig.dataset.metric === "tokens";
     let buckets = [];
     try { buckets = JSON.parse(fig.querySelector(".rf-chart-data").textContent); } catch (e) { return; }
     const plot = fig.querySelector(".rf-chart-plot"), tip = fig.querySelector(".rf-tip"), svg = fig.querySelector("svg");
@@ -533,7 +595,9 @@
       svg.querySelectorAll(".rf-bar.hover").forEach((r) => r.classList.remove("hover"));
       svg.querySelector(`.rf-bar[data-i="${i}"]`)?.classList.add("hover");
       const when = weekly ? `${dayLabel(b.from)} – ${dayLabel(b.to)}` : dayLabel(b.from, true);
-      tip.innerHTML = `<b>${esc(when)}</b><span>${b.conversations} ${esc(convWord(b.conversations))}</span><span>${esc(L("время", "time"))} ≈ ${esc(duration(b.minutes))}</span>`;
+      tip.innerHTML = tok
+        ? `<b>${esc(when)}</b><span>${esc(tokensText(b.tokens || 0))}</span><span>${b.conversations} ${esc(convWord(b.conversations))}</span>`
+        : `<b>${esc(when)}</b><span>${b.conversations} ${esc(convWord(b.conversations))}</span><span>${esc(L("время", "time"))} ≈ ${esc(duration(b.minutes))}</span>`;
       tip.hidden = false;
       const w = plot.clientWidth, tw = tip.offsetWidth;
       tip.style.left = Math.max(0, Math.min(w - tw, x - tw / 2)) + "px";

@@ -103,6 +103,8 @@ class CharactersPresetFaithfulTest(unittest.TestCase):
     def test_layout_rules(self):
         css = (MODULE / "style.css").read_text(encoding="utf-8")
         self.assertIn(".ch-main{grid-column:2;grid-row:1;", css)
+        self.assertIn("grid-column:1;grid-row:1;border-right:1px solid var(--ch-line)", css)
+        self.assertIn("grid-template-columns:var(--ch-library-track) minmax(0,1fr) var(--ch-card-track)", css)
         self.assertIn("@media (max-width:1199px)", css)
         self.assertIn(".ch-persona-chip img{width:26px;height:26px;flex-shrink:0", css)
 

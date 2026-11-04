@@ -33,7 +33,14 @@ router = APIRouter(prefix="/api/admin")
 _sessions: Dict[str, float] = {}
 _internal_sessions: set[str] = set()
 _login_fails: Dict[str, float] = {}
-SESSION_TTL = 7 * 24 * 3600
+# F13: progressive backoff + lockout for /login (was: a flat 1.5s throttle
+# after each failure, no lockout at all).
+_LOGIN_MAX_FAILS = 5
+_LOGIN_LOCKOUT_SECONDS = 15 * 60
+_LOGIN_BACKOFF_BASE_SECONDS = 1.5
+_login_fail_counts: Dict[str, int] = {}
+_login_locked_until: Dict[str, float] = {}
+SESSION_TTL = 24 * 3600
 _PLAYGROUND_CHAT_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 _MODEL_PREFIX_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -269,8 +276,19 @@ async def login(request: Request):
     if browser_denied:
         return browser_denied
     ip = _client_ip(request)
-    if time.time() - _login_fails.get(ip, 0) < 1.5:
-        return _err("Слишком часто. Подождите пару секунд.", 429)
+    now = time.time()
+    locked_until = _login_locked_until.get(ip, 0)
+    if locked_until and now < locked_until:
+        return _err("Слишком много неудачных попыток входа. Попробуйте через 15 минут.", 429)
+    if locked_until:
+        _login_locked_until.pop(ip, None)
+        _login_fail_counts.pop(ip, None)
+    fails = _login_fail_counts.get(ip, 0)
+    if fails:
+        # F13: progressive backoff — 1.5s, 3s, 6s, 12s after each failure.
+        backoff = _LOGIN_BACKOFF_BASE_SECONDS * (2 ** min(fails - 1, 3))
+        if now - _login_fails.get(ip, 0) < backoff:
+            return _err("Слишком часто. Подождите пару секунд.", 429)
     body, error = await _json_object(request, max_bytes=65_536)
     if error is not None:
         return error
@@ -278,8 +296,17 @@ async def login(request: Request):
     if len(password) > 256:
         return _err("Пароль слишком длинный")
     if not config_store.check_admin_password(password):
+        fails = _login_fail_counts.get(ip, 0) + 1
+        _login_fail_counts[ip] = fails
         _login_fails[ip] = time.time()
+        if fails >= _LOGIN_MAX_FAILS:
+            # F13: 5 failures lock the IP out for 15 minutes.
+            _login_locked_until[ip] = time.time() + _LOGIN_LOCKOUT_SECONDS
+            _login_fail_counts.pop(ip, None)
+            return _err("Слишком много неудачных попыток входа. Попробуйте через 15 минут.", 429)
         return _err("Неверный пароль", 401)
+    _login_fail_counts.pop(ip, None)
+    _login_locked_until.pop(ip, None)
     _login_fails.pop(ip, None)
     now = time.time()
 
@@ -288,6 +315,10 @@ async def login(request: Request):
         _internal_sessions.discard(stale)
     for stale in [key for key, at in _login_fails.items() if now - at > 3600]:
         _login_fails.pop(stale, None)
+        _login_fail_counts.pop(stale, None)
+    for key, until in list(_login_locked_until.items()):
+        if until < now:
+            _login_locked_until.pop(key, None)
     token = secrets.token_urlsafe(32)
     _sessions[token] = now + SESSION_TTL
     return {"token": token, "password_is_default": config_store.first_run_password}
@@ -411,6 +442,152 @@ async def providers_meta(request: Request):
         return deny
     return {"providers": meta_list()}
 
+@router.get("/providers/plugins")
+async def providers_plugins(request: Request):
+    """Статус плагинов провайдеров: загруженные, сломанные (с текстом ошибки)
+    и отключённые; плюс папка плагинов и галерея шаблонов для админки."""
+    deny = _auth(request)
+    if deny:
+        return deny
+    from .providers import plugin_status
+    from .providers.plugins import plugins_dir, template_list
+    return {"plugins": plugin_status(), "dir": str(plugins_dir()),
+            "templates": template_list()}
+
+
+@router.post("/providers/plugins/toggle")
+async def providers_plugin_toggle(request: Request):
+    """Включить/выключить плагин. Тело: {"file": "...", "disabled": true/false}.
+
+    Выключенный плагин не загружается при перезагрузке реестра, но файл
+    остаётся в папке и виден в списке со статусом "disabled".
+    """
+    deny = _auth(request)
+    if deny:
+        return deny
+    body, error = await _json_object(request)
+    if error is not None:
+        return error
+    from .providers import plugin_status, reset_registry
+    from .providers.plugins import set_plugin_disabled
+    changed, err = set_plugin_disabled(body.get("file"), bool(body.get("disabled")))
+    if err:
+        return _err(err)
+    await reset_registry()
+    return {"ok": True, "changed": changed, "providers": meta_list(),
+            "plugins": plugin_status()}
+
+
+@router.post("/providers/plugins/install")
+async def providers_plugin_install(request: Request):
+    """Установить плагин из файла. Тело: {"name": "my.py", "content_base64": "..."}.
+
+    Имя — только имя файла (.py/.yaml/.yml/.json, до 512 КБ); существующий
+    файл не перезаписывается. После записи реестр перечитывается.
+    """
+    deny = _auth(request)
+    if deny:
+        return deny
+    body, error = await _json_object(request, max_bytes=1_048_576)
+    if error is not None:
+        return error
+    import base64
+    try:
+        content = base64.b64decode(str(body.get("content_base64") or ""), validate=True)
+    except Exception:
+        return _err("поле content_base64 должно быть base64-строкой")
+    from .providers import plugin_status, reset_registry
+    from .providers.plugins import install_plugin
+    fname, err = install_plugin(body.get("name"), content)
+    if err:
+        return _err(err)
+    await reset_registry()
+    return {"ok": True, "file": fname, "providers": meta_list(),
+            "plugins": plugin_status()}
+
+
+@router.post("/providers/plugins/template")
+async def providers_plugin_template(request: Request):
+    """Создать плагин из шаблона галереи.
+
+    Тело: {"template": "openai"|"kimi"|"web"|"empty", "name": "файл?",
+    "id": "id-провайдера?"}. Имя файла и id необязательны: для шаблона
+    openai подставляется id (по умолчанию my-api), остальные получают
+    свободное имя. После создания реестр перечитывается.
+    """
+    deny = _auth(request)
+    if deny:
+        return deny
+    body, error = await _json_object(request)
+    if error is not None:
+        return error
+    from .providers import plugin_status, reset_registry
+    from .providers.plugins import create_from_template
+    fname, err = create_from_template(body.get("template"), body.get("name") or "",
+                                      body.get("id") or "")
+    if err:
+        return _err(err)
+    await reset_registry()
+    return {"ok": True, "file": fname, "providers": meta_list(),
+            "plugins": plugin_status()}
+
+
+@router.delete("/providers/plugins/{filename}")
+async def providers_plugin_delete(filename: str, request: Request):
+    """Удалить файл плагина из папки. После удаления реестр перечитывается."""
+    deny = _auth(request)
+    if deny:
+        return deny
+    from .providers import plugin_status, reset_registry
+    from .providers.plugins import delete_plugin
+    err = delete_plugin(filename)
+    if err:
+        return _err(err)
+    await reset_registry()
+    return {"ok": True, "providers": meta_list(), "plugins": plugin_status()}
+
+
+@router.post("/providers/plugins/open-folder")
+async def providers_plugin_open_folder(request: Request):
+    """Открыть папку плагинов в проводнике системы.
+
+    Путь фиксированный — только папка плагинов; пользовательский ввод
+    в команду не попадает. Запускается без ожидания (Popen).
+    """
+    deny = _auth(request)
+    if deny:
+        return deny
+    import subprocess
+    import sys
+    from .providers.plugins import plugins_dir
+    target = str(plugins_dir())
+    try:
+        if sys.platform.startswith("win"):
+            subprocess.Popen(["explorer.exe", target],
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", target])
+        else:
+            subprocess.Popen(["xdg-open", target])
+    except Exception as exc:
+        return _err(f"не удалось открыть папку: {exc}")
+    return {"ok": True}
+
+
+@router.post("/providers/reload")
+async def providers_reload(request: Request):
+    """Перечитать плагины провайдеров без перезапуска процесса.
+
+    Тот же reset_registry(), что у soft restart: закрывает сессии провайдеров
+    и пересоздаёт реестр, подхватывая новые, изменённые и удалённые плагины.
+    """
+    deny = _auth(request)
+    if deny:
+        return deny
+    from .providers import plugin_status, reset_registry
+    await reset_registry()
+    return {"ok": True, "providers": meta_list(), "plugins": plugin_status()}
+
 @router.get("/providers/presets")
 async def provider_presets(request: Request):
     """Готовые подключения поверх «Собственного API»: остаётся ввести ключ."""
@@ -523,7 +700,7 @@ async def add_account(request: Request):
             pass
     else:
         state.seed_provider_models(provider_id, provider_id, provider.seed_models())
-        if provider_id == "antigravity":
+        if provider_id in ("antigravity", "zcode"):
             from .model_refresh import refresher
             from .providers.base import spawn_background
             spawn_background(refresher.refresh(providers=[provider_id], reason="account-added"))
@@ -1399,7 +1576,43 @@ async def admin_search_test(request: Request):
     return {"ok": True, "engine": engine, "count": len(results), "ms": int((time.time() - started) * 1000),
             "first": results[0] if results else None}
 
+@router.post("/playground/embeddings")
+async def pg_embeddings(request: Request):
+    """Эмбеддинги для окна MemuAI (смысловой поиск по истории агентной области)."""
+    deny = _auth(request)
+    if deny:
+        return deny
+    body, error = await _json_object(request, max_bytes=8 * 1024 * 1024)
+    if error is not None:
+        return error
+    from .embeddings_api import forward
+    status, payload = await forward(body)
+    if status != 200:
+        err = payload.get("error") if isinstance(payload, dict) else None
+        return _err(str(err.get("message") if isinstance(err, dict) else err or "embeddings failed"), status)
+    return payload
+
 PG_CHAT_MAX_MESSAGES = 5000
+# F26: per-message and total text caps for /playground/chat — one message
+# used to be able to carry ~32 MB of text into the provider and the log.
+PG_CHAT_MAX_MESSAGE_CHARS = 200_000
+PG_CHAT_MAX_TOTAL_CHARS = 4 * 1024 * 1024
+PG_CHAT_MAX_TOOLS = 128
+
+
+def _message_chars(message: Any) -> int:
+    if not isinstance(message, dict):
+        return 0
+    content = message.get("content")
+    if isinstance(content, str):
+        return len(content)
+    if isinstance(content, list):
+        total = 0
+        for block in content:
+            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                total += len(block["text"])
+        return total
+    return 0
 
 @router.post("/playground/chat")
 async def pg_chat(request: Request):
@@ -1417,6 +1630,20 @@ async def pg_chat(request: Request):
 
     if len(messages) > PG_CHAT_MAX_MESSAGES:
         return _err(f"Слишком много сообщений в запросе: {len(messages)} (предел {PG_CHAT_MAX_MESSAGES})", 413)
+    # F26: cap each message and the total text before anything is forwarded
+    # to the provider or stored in the request log.
+    total_chars = 0
+    for message in messages:
+        chars = _message_chars(message)
+        if chars > PG_CHAT_MAX_MESSAGE_CHARS:
+            return _err(f"Сообщение слишком длинное: {chars} символов (предел {PG_CHAT_MAX_MESSAGE_CHARS})", 413)
+        total_chars += chars
+    if total_chars > PG_CHAT_MAX_TOTAL_CHARS:
+        return _err(f"Слишком много текста в запросе: {total_chars} символов "
+                    f"(предел {PG_CHAT_MAX_TOTAL_CHARS})", 413)
+    tools = body.get("tools")
+    if isinstance(tools, list) and len(tools) > PG_CHAT_MAX_TOOLS:
+        return _err(f"Слишком много инструментов в запросе: {len(tools)} (предел {PG_CHAT_MAX_TOOLS})", 413)
     if len(model) > 512:
         return _err("Слишком длинный идентификатор модели")
     from . import model_capabilities
@@ -1737,7 +1964,7 @@ async def pg_state(request: Request):
         if m.id in music_ids:
             continue
 
-        accepts = m.provider in ("genspark", "antigravity", "kiro", "custom")
+        accepts = m.provider in ("genspark", "antigravity", "kiro", "zcode", "custom")
         if accepts and model_info.vision_hint(m.model) is False:
             accepts = False
         extra_caps: Dict[str, Any] = {}
